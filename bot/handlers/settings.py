@@ -73,9 +73,16 @@ async def show_buy(callback: CallbackQuery, user: User):
     await callback.answer()
     balance = user.superlike_balance
     await callback.message.answer(
-        f"⭐ <b>Суперлайки</b>\n\n"
-        f"Текущий баланс: <b>{balance}</b> суперлайков\n\n"
-        f"Выбери пакет:",
+        f"💎 <b>Премиум — 299 ₽/мес</b>\n"
+        f"1. Безлимитные лайки\n"
+        f"2. Тебя видят чаще\n"
+        f"3. Выделись! Твой профиль помечается значком 💎\n\n"
+        f"⭐️ <b>Суперлайк — 49 ₽ (1 шт) / 99 ₽ (3 шт)</b>\n"
+        f"1. Твой профиль будет первым\n"
+        f"2. Суперлайк покажет серьезную заинтересованность в человеке\n"
+        f"3. Шанс на мэтч выше в 2-3 раза\n\n"
+        f"Текущий баланс: <b>{balance}</b> ⭐ суперлайков\n\n"
+        f"👉 <i>Купить можно ниже:</i>",
         parse_mode="HTML",
         reply_markup=buy_superlike_keyboard(),
     )

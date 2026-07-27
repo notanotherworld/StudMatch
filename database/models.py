@@ -54,9 +54,11 @@ class AdminRole(str, enum.Enum):
 
 
 class PaymentProduct(str, enum.Enum):
+    superlike_1 = "superlike_1"
     superlike_3 = "superlike_3"
     superlike_10 = "superlike_10"
     boost_24h = "boost_24h"
+    premium_1m = "premium_1m"
 
 
 class PaymentStatus(str, enum.Enum):

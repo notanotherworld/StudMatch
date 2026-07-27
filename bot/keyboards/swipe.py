@@ -96,9 +96,10 @@ def achievement_type_keyboard() -> InlineKeyboardMarkup:
 
 def buy_superlike_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="3 суперлайка — 99 ₽", callback_data="buy:superlike_3")
-    builder.button(text="10 суперлайков — 249 ₽", callback_data="buy:superlike_10")
-    builder.button(text="⚡ Буст анкеты 24ч — 149 ₽", callback_data="buy:boost_24h")
+    builder.button(text="💎 Премиум — 299 ₽/мес", callback_data="buy:premium_1m")
+    builder.button(text="⭐ 1 суперлайк — 49 ₽", callback_data="buy:superlike_1")
+    builder.button(text="⭐️ 3 суперлайка — 99 ₽", callback_data="buy:superlike_3")
+    builder.button(text="⚡ Буст 24ч — 149 ₽", callback_data="buy:boost_24h")
     builder.adjust(1)
     return builder.as_markup()
 
