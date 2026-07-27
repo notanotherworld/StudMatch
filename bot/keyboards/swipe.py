@@ -125,7 +125,8 @@ def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
     builder.button(text="✏️ Перезаполнить анкету", callback_data="settings:edit_profile")
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
     builder.button(text="⭐ Купить суперлайки / Премиум", callback_data="settings:buy")
-    builder.button(text="👁 Скрыть / показать анкету", callback_data="settings:toggle_visibility")
+    builder.button(text="👀 Скрыть / показать анкету", callback_data="settings:toggle_visibility")
+    builder.button(text="🔄 Сбросить историю свайпов (тест)", callback_data="settings:reset_swipes")
     builder.adjust(1)
     return builder.as_markup()
 

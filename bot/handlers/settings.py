@@ -96,6 +96,26 @@ async def toggle_visibility(callback: CallbackQuery, user: User, db: AsyncSessio
     )
 
 
+@router.callback_query(F.data == "settings:reset_swipes")
+@router.message(F.text == "/reset_swipes")
+async def reset_user_swipes(event, user: User, db: AsyncSession):
+    from sqlalchemy import delete
+    from database.models import Swipe
+    await db.execute(delete(Swipe).where(Swipe.from_user_id == user.id))
+    await db.commit()
+
+    msg_text = (
+        "🔄 <b>История свайпов полностью сброшена!</b>\n\n"
+        "Теперь нажми <b>🏆 Топ студентов</b> в меню, чтобы просмотреть все 10 тестовых анкет заново."
+    )
+
+    if isinstance(event, CallbackQuery):
+        await event.answer("Свайпы сброшены!")
+        await event.message.answer(msg_text, parse_mode="HTML")
+    else:
+        await event.answer(msg_text, parse_mode="HTML")
+
+
 @router.callback_query(F.data == "settings:buy")
 async def show_buy(callback: CallbackQuery, user: User):
     await callback.answer()
