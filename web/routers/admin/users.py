@@ -105,6 +105,45 @@ async def unban_user(
     return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
 
 
+@router.post("/users/{user_id}/verify-manual")
+async def verify_user_manually(
+    user_id: int,
+    email: str = Form(default=""),
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ручная верификация студента модератором без отправки письма."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user:
+        values = {"email_verified": True}
+        if email.strip():
+            values["email"] = email.strip()
+
+        await db.execute(
+            update(User).where(User.id == user_id).values(**values)
+        )
+        await db.commit()
+
+        # Уведомляем пользователя в Telegram
+        try:
+            from aiogram import Bot
+            from bot.config import settings
+            bot = Bot(token=settings.BOT_TOKEN)
+            await bot.send_message(
+                user_id,
+                "✅ <b>Ваш аккаунт подтверждён модератором!</b>\n\n"
+                "Вы успешно верифицированы. Теперь вам доступен выбор режима в боте (/start).",
+                parse_mode="HTML",
+            )
+            await bot.session.close()
+        except Exception:
+            pass
+
+    return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
+
+
+
 @router.post("/users/{user_id}/message")
 async def send_message_to_user(
     user_id: int,

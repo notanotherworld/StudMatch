@@ -97,6 +97,18 @@
         </form>
         {% endif %}
 
+        {% if not user.email_verified %}
+        <form method="POST" action="/admin/users/{{ user.id }}/verify-manual"
+              onsubmit="return confirm('Подтвердить верификацию вручную?')">
+          <div style="margin-top:4px;margin-bottom:4px;">
+            <input type="email" name="email" value="{{ user.email or '' }}" placeholder="Email студента (необязательно)" style="font-size:12px;padding:6px;margin-bottom:6px;">
+          </div>
+          <button type="submit" class="btn btn-success" style="width:100%;justify-content:center;">
+            ✅ Верифицировать вручную
+          </button>
+        </form>
+        {% endif %}
+
         <!-- #6: История свайпов -->
         <a href="/admin/users/{{ user.id }}/swipes" class="btn btn-ghost"
            style="width:100%;justify-content:center;">

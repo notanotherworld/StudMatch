@@ -92,8 +92,13 @@
         <td style="font-size:12px;color:var(--muted);">
           {{ u.created_at.strftime('%d.%m.%y') }}
         </td>
-        <td>
+        <td style="display:flex;gap:4px;align-items:center;">
           <a href="/admin/users/{{ u.id }}" class="btn btn-ghost btn-sm">👁</a>
+          {% if not u.email_verified %}
+          <form method="POST" action="/admin/users/{{ u.id }}/verify-manual" style="display:inline;" onsubmit="return confirm('Подтвердить верификацию студента?')">
+            <button type="submit" class="btn btn-success btn-sm" title="Верифицировать вручную">✅</button>
+          </form>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
