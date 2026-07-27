@@ -175,6 +175,7 @@ async def get_top_profiles(
 
     result = await db.execute(
         select(Profile)
+        .options(selectinload(Profile.user))
         .join(User, Profile.user_id == User.id)
         .where(
             and_(
@@ -186,7 +187,6 @@ async def get_top_profiles(
             )
         )
         .order_by(
-            # Пользователи с активным буст-ом — первыми
             (User.boost_until > now).desc(),
             Profile.rating_score.desc(),
         )

@@ -15,6 +15,8 @@ from bot.states.fsm import LetterState
 from database.crud import get_top_profiles, create_swipe, get_user, deduct_superlike
 from database.models import User, Profile, InterestTag, SwipeAction, ModeEnum
 
+from sqlalchemy.orm import selectinload
+
 router = Router()
 
 # Кол-во профилей на страницу
@@ -31,7 +33,8 @@ async def _build_profile_caption(profile: Profile, db: AsyncSession) -> str:
         tags = result.scalars().all()
         tags_text = " ".join(f"{t.emoji}{t.name}" for t in tags)
 
-    mode_label = "🎯 Карьера" if profile.user.mode == ModeEnum.career else "❤️ Знакомства"
+    user_mode = getattr(profile.user, "mode", None)
+    mode_label = "🎯 Карьера" if (user_mode and user_mode == ModeEnum.career) else "❤️ Знакомства"
     rating = f"⭐ {profile.rating_score:.0f} б." if profile.rating_score > 0 else ""
 
     return (
@@ -130,7 +133,7 @@ async def navigate_top(callback: CallbackQuery, state: FSMContext, user: User, d
     profiles = []
     for uid in profile_ids:
         result = await db.execute(
-            select(Profile).where(Profile.user_id == uid)
+            select(Profile).options(selectinload(Profile.user)).where(Profile.user_id == uid)
         )
         p = result.scalar_one_or_none()
         if p:
