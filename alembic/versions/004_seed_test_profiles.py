@@ -6,8 +6,6 @@ Create Date: 2026-07-28
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.sql import table, column
-import uuid
 from datetime import datetime, timezone
 
 revision = "004_seed_test_profiles"
@@ -120,71 +118,28 @@ TEST_USERS = [
 
 
 def upgrade() -> None:
-    users_table = table(
-        "users",
-        column("id", sa.BigInteger),
-        column("email", sa.String),
-        column("email_verified", sa.Boolean),
-        column("university_id", sa.Integer),
-        column("consent_given", sa.Boolean),
-        column("is_active", sa.Boolean),
-        column("mode", sa.String),
-        column("superlike_balance", sa.Integer),
-        column("created_at", sa.DateTime(timezone=True)),
-    )
-
-    profiles_table = table(
-        "profiles",
-        column("id", sa.dialects.postgresql.UUID(as_uuid=True)),
-        column("user_id", sa.BigInteger),
-        column("name", sa.String),
-        column("year", sa.Integer),
-        column("major", sa.String),
-        column("interest_ids", sa.ARRAY(sa.Integer)),
-        column("goal", sa.Text),
-        column("rating_score", sa.Float),
-        column("is_visible", sa.Boolean),
-        column("is_complete", sa.Boolean),
-        column("created_at", sa.DateTime(timezone=True)),
-    )
-
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S+00")
 
     for u in TEST_USERS:
-        # Вставляем юзера
-        op.execute(
-            users_table.insert().values(
-                id=u["id"],
-                email=f"test_{u['id']}@rudn.ru",
-                email_verified=True,
-                university_id=1,  # РУДН
-                consent_given=True,
-                is_active=True,
-                mode=u["mode"],
-                superlike_balance=3,
-                created_at=now,
-            )
-        )
+        interests_str = "ARRAY[" + ",".join(map(str, u["interests"])) + "]"
+        goal_escaped = u["goal"].replace("'", "''")
+        name_escaped = u["name"].replace("'", "''")
+        major_escaped = u["major"].replace("'", "''")
 
-        # Вставляем профиль
-        op.execute(
-            profiles_table.insert().values(
-                id=uuid.uuid4(),
-                user_id=u["id"],
-                name=u["name"],
-                year=u["year"],
-                major=u["major"],
-                interest_ids=u["interests"],
-                goal=u["goal"],
-                rating_score=u["rating"],
-                is_visible=True,
-                is_complete=True,
-                created_at=now,
-            )
-        )
+        op.execute(f"""
+            INSERT INTO users (id, email, email_verified, university_id, consent_given, is_active, mode, superlike_balance, created_at)
+            VALUES ({u['id']}, 'test_{u['id']}@rudn.ru', true, 1, true, true, '{u['mode']}', 3, '{now}')
+            ON CONFLICT (id) DO NOTHING;
+        """)
+
+        op.execute(f"""
+            INSERT INTO profiles (id, user_id, name, year, major, interest_ids, goal, rating_score, is_visible, is_complete, created_at)
+            VALUES (gen_random_uuid(), {u['id']}, '{name_escaped}', {u['year']}, '{major_escaped}', {interests_str}, '{goal_escaped}', {u['rating']}, true, true, '{now}')
+            ON CONFLICT (user_id) DO NOTHING;
+        """)
 
 
 def downgrade() -> None:
-    ids = [u["id"] for u in TEST_USERS]
-    op.execute(f"DELETE FROM profiles WHERE user_id IN ({','.join(map(str, ids))})")
-    op.execute(f"DELETE FROM users WHERE id IN ({','.join(map(str, ids))})")
+    ids = ",".join(str(u["id"]) for u in TEST_USERS)
+    op.execute(f"DELETE FROM profiles WHERE user_id IN ({ids});")
+    op.execute(f"DELETE FROM users WHERE id IN ({ids});")
