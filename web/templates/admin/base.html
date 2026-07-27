@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}СтудМэч Admin{% endblock %}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f1a;
+    --surface: #1a1a2e;
+    --surface2: #222240;
+    --accent: #7c3aed;
+    --accent2: #a78bfa;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --border: #2d2d4e;
+    --radius: 12px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; }
+  
+  /* Sidebar */
+  .sidebar {
+    width: 240px; min-height:100vh; background:var(--surface);
+    border-right:1px solid var(--border); padding:24px 16px;
+    display:flex; flex-direction:column; gap:8px; position:fixed;
+  }
+  .sidebar-logo {
+    font-size:20px; font-weight:700; color:var(--accent2);
+    padding:8px 12px 20px; border-bottom:1px solid var(--border); margin-bottom:8px;
+  }
+  .sidebar a {
+    display:flex; align-items:center; gap:10px;
+    padding:10px 12px; border-radius:8px; color:var(--muted);
+    text-decoration:none; font-size:14px; font-weight:500;
+    transition:all .2s;
+  }
+  .sidebar a:hover, .sidebar a.active {
+    background:var(--surface2); color:var(--text);
+  }
+  .sidebar a.active { color:var(--accent2); }
+  .sidebar-bottom { margin-top:auto; padding-top:16px; border-top:1px solid var(--border); }
+  
+  /* Main content */
+  .main { margin-left:240px; flex:1; padding:32px; }
+  
+  /* Page header */
+  .page-header { margin-bottom:32px; }
+  .page-header h1 { font-size:24px; font-weight:700; }
+  .page-header p { color:var(--muted); margin-top:4px; }
+  
+  /* Cards */
+  .card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); padding:24px;
+  }
+  .card-title { font-size:14px; color:var(--muted); margin-bottom:8px; font-weight:500; }
+  .card-value { font-size:32px; font-weight:700; }
+  
+  /* Grid */
+  .grid { display:grid; gap:16px; }
+  .grid-4 { grid-template-columns:repeat(4,1fr); }
+  .grid-3 { grid-template-columns:repeat(3,1fr); }
+  .grid-2 { grid-template-columns:repeat(2,1fr); }
+  
+  /* Table */
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; padding:12px 16px; color:var(--muted); font-weight:500; border-bottom:1px solid var(--border); }
+  td { padding:12px 16px; border-bottom:1px solid var(--border); }
+  tr:hover td { background:var(--surface2); }
+  
+  /* Badges */
+  .badge {
+    display:inline-flex; align-items:center; padding:2px 10px;
+    border-radius:20px; font-size:12px; font-weight:600;
+  }
+  .badge-success { background:#10b98122; color:var(--success); }
+  .badge-warning { background:#f59e0b22; color:var(--warning); }
+  .badge-danger  { background:#ef444422; color:var(--danger); }
+  .badge-purple  { background:#7c3aed22; color:var(--accent2); }
+  
+  /* Buttons */
+  .btn {
+    display:inline-flex; align-items:center; gap:8px;
+    padding:8px 16px; border-radius:8px; font-size:14px; font-weight:500;
+    cursor:pointer; border:none; text-decoration:none; transition:all .2s;
+  }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary:hover { background:#6d28d9; }
+  .btn-success { background:var(--success); color:#fff; }
+  .btn-danger  { background:var(--danger); color:#fff; }
+  .btn-ghost   { background:var(--surface2); color:var(--text); }
+  .btn-ghost:hover { background:var(--border); }
+  .btn-sm { padding:4px 12px; font-size:13px; }
+  
+  /* Form */
+  input, select, textarea {
+    width:100%; padding:10px 14px; background:var(--surface2);
+    border:1px solid var(--border); border-radius:8px; color:var(--text);
+    font-size:14px; font-family:'Inter',sans-serif; outline:none;
+    transition:border-color .2s;
+  }
+  input:focus, select:focus, textarea:focus { border-color:var(--accent); }
+  label { font-size:13px; color:var(--muted); margin-bottom:6px; display:block; }
+  .form-group { margin-bottom:16px; }
+  
+  /* Alert */
+  .alert { padding:12px 16px; border-radius:8px; font-size:14px; margin-bottom:16px; }
+  .alert-danger { background:#ef444422; border:1px solid var(--danger); color:var(--danger); }
+  
+  /* Stat card with icon */
+  .stat-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); padding:20px;
+    display:flex; justify-content:space-between; align-items:flex-start;
+  }
+  .stat-icon {
+    width:44px; height:44px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center; font-size:20px;
+    background:var(--surface2);
+  }
+  
+  /* Responsive */
+  @media(max-width:1024px) {
+    .grid-4 { grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+
+{% if request.cookies.get('admin_token') %}
+<nav class="sidebar">
+  <div class="sidebar-logo">🎓 СтудМэч</div>
+  <a href="/admin/dashboard" {% if '/dashboard' in request.url.path %}class="active"{% endif %}>📊 Дашборд</a>
+  <a href="/admin/users" {% if '/users' in request.url.path and '/swipes' not in request.url.path %}class="active"{% endif %}>👥 Пользователи</a>
+  <a href="/admin/documents" {% if '/documents' in request.url.path %}class="active"{% endif %}>📄 Документы</a>
+  <a href="/admin/ratings" {% if '/ratings' in request.url.path %}class="active"{% endif %}>🏆 Рейтинги</a>
+  <a href="/admin/broadcast" {% if '/broadcast' in request.url.path %}class="active"{% endif %}>📢 Рассылка</a>
+  <a href="/admin/reports" {% if '/reports' in request.url.path %}class="active"{% endif %}>🚨 Жалобы</a>
+  <a href="/admin/payments" {% if '/payments' in request.url.path %}class="active"{% endif %}>💰 Монетизация</a>
+  <a href="/admin/employers" {% if '/employers' in request.url.path %}class="active"{% endif %}>👔 Работодатели</a>
+  <a href="/admin/tags" {% if '/tags' in request.url.path %}class="active"{% endif %}>🏷 Теги</a>
+  <a href="/admin/universities" {% if '/universities' in request.url.path %}class="active"{% endif %}>🎓 Университеты</a>
+  <div class="sidebar-bottom">
+    <a href="/admin/logout">🚪 Выйти</a>
+  </div>
+</nav>
+{% endif %}
+
+<main class="main">
+  {% block content %}{% endblock %}
+</main>
+
+</body>
+</html>

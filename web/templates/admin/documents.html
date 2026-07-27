@@ -1,0 +1,128 @@
+{% extends "admin/base.html" %}
+{% block title %}Документы — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>📄 Верификация документов</h1>
+  <p>Проверяйте загруженные студентами достижения</p>
+</div>
+
+<!-- Фильтр статуса -->
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+  <a href="?status=pending" class="btn {% if current_status == 'pending' %}btn-primary{% else %}btn-ghost{% endif %}">
+    ⏳ На проверке
+  </a>
+  <a href="?status=approved" class="btn {% if current_status == 'approved' %}btn-success{% else %}btn-ghost{% endif %}">
+    ✅ Одобренные
+  </a>
+  <a href="?status=rejected" class="btn {% if current_status == 'rejected' %}btn-danger{% else %}btn-ghost{% endif %}">
+    ❌ Отклонённые
+  </a>
+
+  <!-- #5: Пакетное одобрение -->
+  {% if current_status == 'pending' and achievements %}
+  <div style="margin-left:auto;display:flex;gap:6px;">
+    <form method="POST" action="/admin/documents/approve-type">
+      <div style="display:flex;gap:6px;align-items:center;">
+        <select name="ach_type" style="width:160px;padding:6px 10px;font-size:13px;">
+          <option value="gpa">📊 GPA (все)</option>
+          <option value="olympiad">🏆 Олимпиады (все)</option>
+          <option value="participation">🎯 Участие (все)</option>
+          <option value="competition">🥇 Соревнования (все)</option>
+        </select>
+        <button type="submit" class="btn btn-success btn-sm"
+                onclick="return confirm('Одобрить все достижения этого типа?')">
+          ✅ Одобрить тип
+        </button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+{% if achievements %}
+<div class="card" style="padding:0;">
+  <table>
+    <thead>
+      <tr>
+        <th>Студент</th>
+        <th>Тип</th>
+        <th>Название</th>
+        <th>Дата</th>
+        <th>Документ</th>
+        <th>Действия</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in achievements %}
+      <tr>
+        <td>
+          <a href="/admin/users/{{ a.user_id }}" style="color:var(--accent2);text-decoration:none;">
+            @{{ a.user.tg_username or a.user_id }}
+          </a>
+        </td>
+        <td><span class="badge badge-purple">{{ a.type.value }}</span></td>
+        <td style="max-width:200px;">{{ a.title[:60] }}{% if a.title|length > 60 %}...{% endif %}</td>
+        <td style="color:var(--muted);font-size:13px;">{{ a.created_at.strftime('%d.%m.%Y') }}</td>
+        <td>
+          {% if a.document_url %}
+          <a href="/admin/documents/{{ a.id }}/view" target="_blank" class="btn btn-ghost btn-sm">👁 Открыть</a>
+          {% else %}
+          <span style="color:var(--muted);font-size:13px;">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if current_status == 'pending' %}
+          <div style="display:flex;gap:6px;">
+            <form method="POST" action="/admin/documents/{{ a.id }}/approve" style="display:inline;">
+              <button type="submit" class="btn btn-success btn-sm">✅</button>
+            </form>
+            <form method="POST" action="/admin/documents/{{ a.id }}/reject" style="display:inline;"
+                  onsubmit="event.preventDefault(); showRejectModal('{{ a.id }}')">
+              <button type="button" class="btn btn-danger btn-sm" onclick="showRejectModal('{{ a.id }}')">❌</button>
+            </form>
+          </div>
+          {% else %}
+          {% if a.reject_reason %}
+          <span style="color:var(--danger);font-size:12px;">{{ a.reject_reason[:40] }}</span>
+          {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:48px;">
+  <div style="font-size:48px;margin-bottom:16px;">🎉</div>
+  <div style="color:var(--muted);">Нет документов в этом статусе</div>
+</div>
+{% endif %}
+
+<!-- Модальное окно отклонения -->
+<div id="rejectModal" style="display:none;position:fixed;inset:0;background:#0009;z-index:100;align-items:center;justify-content:center;">
+  <div class="card" style="width:400px;">
+    <h3 style="margin-bottom:16px;">Причина отклонения</h3>
+    <form id="rejectForm" method="POST">
+      <div class="form-group">
+        <textarea name="reason" rows="3" placeholder="Укажи причину..." required></textarea>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-danger">Отклонить</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function showRejectModal(id) {
+  document.getElementById('rejectForm').action = '/admin/documents/' + id + '/reject';
+  document.getElementById('rejectModal').style.display = 'flex';
+}
+function closeModal() {
+  document.getElementById('rejectModal').style.display = 'none';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,123 @@
+{% extends "admin/base.html" %}
+{% block title %}Пользователи — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>👥 Пользователи</h1>
+  <p>Поиск, просмотр профилей, бан</p>
+</div>
+
+<!-- Поиск -->
+<form method="GET" action="/admin/users" style="margin-bottom:24px;display:flex;gap:12px;">
+  <input
+    type="text" name="q" value="{{ q }}"
+    placeholder="Поиск по @username, email или имени..."
+    style="max-width:400px;"
+  >
+  <button type="submit" class="btn btn-primary">🔍 Найти</button>
+  {% if q %}<a href="/admin/users" class="btn btn-ghost">✕ Сбросить</a>{% endif %}
+</form>
+
+<!-- Таблица -->
+{% if users %}
+<div class="card" style="padding:0;overflow:hidden;">
+  <table>
+    <thead>
+      <tr>
+        <th>ID / Username</th>
+        <th>Email</th>
+        <th>Университет</th>
+        <th>Анкета</th>
+        <th>Рейтинг</th>
+        <th>Режим</th>
+        <th>Статус</th>
+        <th>Дата</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>
+          <div style="font-weight:500;">
+            {% if u.tg_username %}@{{ u.tg_username }}{% else %}#{{ u.id }}{% endif %}
+          </div>
+          <div style="font-size:12px;color:var(--muted);">{{ u.id }}</div>
+        </td>
+        <td style="font-size:13px;">
+          {% if u.email %}
+            {{ u.email }}
+            {% if u.email_verified %}
+              <span style="color:var(--success);font-size:11px;">✓</span>
+            {% else %}
+              <span style="color:var(--warning);font-size:11px;">⏳</span>
+            {% endif %}
+          {% else %}
+            <span style="color:var(--muted);">—</span>
+          {% endif %}
+        </td>
+        <td style="font-size:13px;">
+          {% if u.university %}
+            <span class="badge badge-purple">{{ u.university.short_name }}</span>
+          {% else %}—{% endif %}
+        </td>
+        <td style="font-size:13px;">
+          {% if u.profile and u.profile.is_complete %}
+            {{ u.profile.name }}, {{ u.profile.year }} к.
+          {% else %}
+            <span style="color:var(--muted);">Не заполнена</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if u.profile %}
+            <strong style="color:var(--accent2);">{{ u.profile.rating_score|int }}</strong>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if u.mode.value == 'career' %}
+            <span class="badge badge-purple">🎯 Карьера</span>
+          {% else %}
+            <span style="color:#f472b6;font-size:12px;">❤️ Знакомства</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if not u.is_active %}
+            <span class="badge badge-danger">🚫 Забанен</span>
+          {% elif u.email_verified %}
+            <span class="badge badge-success">✅ Верифицирован</span>
+          {% else %}
+            <span class="badge badge-warning">⏳ Не верифицирован</span>
+          {% endif %}
+        </td>
+        <td style="font-size:12px;color:var(--muted);">
+          {{ u.created_at.strftime('%d.%m.%y') }}
+        </td>
+        <td>
+          <a href="/admin/users/{{ u.id }}" class="btn btn-ghost btn-sm">👁</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Пагинация -->
+<div style="display:flex;gap:8px;margin-top:16px;align-items:center;">
+  {% if page > 1 %}
+    <a href="?q={{ q }}&page={{ page - 1 }}" class="btn btn-ghost btn-sm">← Назад</a>
+  {% endif %}
+  <span style="color:var(--muted);font-size:13px;">Страница {{ page }}</span>
+  {% if users|length == 20 %}
+    <a href="?q={{ q }}&page={{ page + 1 }}" class="btn btn-ghost btn-sm">Вперёд →</a>
+  {% endif %}
+</div>
+
+{% else %}
+<div class="card" style="text-align:center;padding:48px;">
+  <div style="font-size:40px;margin-bottom:12px;">🔍</div>
+  <div style="color:var(--muted);">
+    {% if q %}Ничего не найдено по запросу «{{ q }}»{% else %}Пользователей пока нет{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

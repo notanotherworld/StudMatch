@@ -1,0 +1,142 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ employer.company_name }} — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<!-- Шапка -->
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;">
+  <a href="/admin/employers" class="btn btn-ghost btn-sm">← Работодатели</a>
+  <div>
+    <h1 style="font-size:20px;font-weight:700;">👔 {{ employer.company_name }}</h1>
+    <div style="color:var(--muted);font-size:13px;">{{ employer.contact_name }} · {{ employer.login }}</div>
+  </div>
+  <span class="badge {% if employer.is_active %}badge-success{% else %}badge-danger{% endif %}" style="margin-left:auto;">
+    {% if employer.is_active %}Активен{% else %}Отключён{% endif %}
+  </span>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start;">
+
+  <!-- Левая: список выданных анкет -->
+  <div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:16px;">
+      📋 Выданные анкеты ({{ employer.profile_accesses|length }})
+    </div>
+
+    {% if employer.profile_accesses %}
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table>
+        <thead>
+          <tr>
+            <th>Студент</th>
+            <th>Направление</th>
+            <th>Рейтинг</th>
+            <th>Пометка</th>
+            <th>Выдано</th>
+            <th>Просмотрено</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for access in employer.profile_accesses %}
+          {% set p = access.profile %}
+          <tr>
+            <td>
+              {% if p and p.user %}
+              <a href="/admin/users/{{ p.user_id }}" style="color:var(--accent2);text-decoration:none;font-weight:500;">
+                {{ p.name }}
+              </a>
+              <div style="font-size:11px;color:var(--muted);">
+                {% if p.user.tg_username %}@{{ p.user.tg_username }}{% endif %}
+              </div>
+              {% else %}—{% endif %}
+            </td>
+            <td style="font-size:13px;">{{ p.major if p else '—' }}</td>
+            <td>
+              <strong style="color:var(--accent2);">{{ p.rating_score|int if p else 0 }}</strong>
+            </td>
+            <td style="font-size:12px;color:var(--muted);max-width:140px;">
+              {{ access.note[:40] if access.note else '—' }}
+            </td>
+            <td style="font-size:12px;color:var(--muted);">
+              {{ access.granted_at.strftime('%d.%m.%Y') }}
+            </td>
+            <td>
+              {% if access.viewed_at %}
+                <span class="badge badge-success" style="font-size:11px;">
+                  👁 {{ access.viewed_at.strftime('%d.%m') }}
+                </span>
+              {% else %}
+                <span class="badge badge-warning" style="font-size:11px;">🆕 Новое</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center;padding:32px;color:var(--muted);">
+      Анкеты ещё не выданы
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Правая: выдача доступа -->
+  <div>
+    <div class="card">
+      <div style="font-size:15px;font-weight:600;margin-bottom:16px;">➕ Выдать доступ к анкете</div>
+
+      <!-- Поиск студента -->
+      <form method="GET" action="/admin/employers/{{ employer.id }}" style="margin-bottom:16px;">
+        <div style="display:flex;gap:8px;">
+          <input type="text" name="q" value="{{ q }}" placeholder="Имя студента..." style="flex:1;">
+          <button type="submit" class="btn btn-ghost btn-sm">🔍</button>
+        </div>
+      </form>
+
+      {% if search_profiles %}
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+        {% for p in search_profiles %}
+        <form method="POST" action="/admin/employers/{{ employer.id }}/grant">
+          <input type="hidden" name="profile_id" value="{{ p.id }}">
+          <div style="padding:12px;background:var(--surface2);border-radius:8px;">
+            <div style="font-weight:500;margin-bottom:4px;">{{ p.name }}</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+              {{ p.major }} · {{ p.year }} курс · ⭐{{ p.rating_score|int }}
+            </div>
+            <div class="form-group" style="margin-bottom:8px;">
+              <input type="text" name="note" placeholder="Пометка (напр. Стажировка 2025)"
+                     style="font-size:13px;padding:6px 10px;">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">
+              ✅ Выдать доступ
+            </button>
+          </div>
+        </form>
+        {% endfor %}
+      </div>
+      {% elif q %}
+      <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">
+        Ничего не найдено по «{{ q }}»
+      </div>
+      {% endif %}
+
+      <div style="border-top:1px solid var(--border);padding-top:16px;
+                  font-size:12px;color:var(--muted);">
+        💡 Введи имя студента, выбери из результатов и нажми «Выдать доступ». HR увидит анкету в своём кабинете.
+      </div>
+    </div>
+
+    <!-- Действия с аккаунтом -->
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;">Управление аккаунтом</div>
+      <form method="POST" action="/admin/employers/{{ employer.id }}/toggle">
+        <button type="submit" class="btn {% if employer.is_active %}btn-ghost{% else %}btn-success{% endif %}"
+                style="width:100%;justify-content:center;">
+          {% if employer.is_active %}⏸ Отключить аккаунт{% else %}▶️ Включить аккаунт{% endif %}
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

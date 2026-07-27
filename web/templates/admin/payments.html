@@ -1,0 +1,177 @@
+{% extends "admin/base.html" %}
+{% block title %}Монетизация — СтудМэч Admin{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div>
+      <h1>💰 Монетизация</h1>
+      <p>Транзакции ЮКасса и запросы на выгрузку данных</p>
+    </div>
+    <a href="/admin/payments/export.csv" class="btn btn-ghost">⬇️ CSV</a>
+  </div>
+</div>
+
+<!-- Статистика по продуктам -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+  {% for ps in product_stats %}
+  <div class="stat-card">
+    <div>
+      <div class="card-title">
+        {% if ps.product == 'superlike_3' %}⭐ 3 суперлайка
+        {% elif ps.product == 'superlike_10' %}⭐⭐ 10 суперлайков
+        {% else %}⚡ Буст 24ч{% endif %}
+      </div>
+      <div class="card-value" style="font-size:24px;">{{ "%.0f"|format(ps.revenue) }} ₽</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">{{ ps.count }} покупок</div>
+    </div>
+    <div class="stat-icon">
+      {% if ps.product == 'boost_24h' %}⚡{% else %}⭐{% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="card" style="grid-column:span 3;text-align:center;padding:24px;color:var(--muted);">
+    Платежей ещё нет
+  </div>
+  {% endfor %}
+</div>
+
+<!-- График выручки -->
+{% if daily_revenue %}
+<div class="card" style="margin-bottom:24px;">
+  <div style="font-size:15px;font-weight:600;margin-bottom:16px;">📈 Выручка за 30 дней</div>
+  <canvas id="revenueChart" height="80"></canvas>
+</div>
+{% endif %}
+
+<!-- Фильтры транзакций -->
+<form method="GET" action="/admin/payments"
+      style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+  <select name="product" style="width:180px;">
+    <option value="">Все продукты</option>
+    <option value="superlike_3" {% if current_product=='superlike_3' %}selected{% endif %}>⭐ 3 суперлайка</option>
+    <option value="superlike_10" {% if current_product=='superlike_10' %}selected{% endif %}>⭐⭐ 10 суперлайков</option>
+    <option value="boost_24h" {% if current_product=='boost_24h' %}selected{% endif %}>⚡ Буст 24ч</option>
+  </select>
+  <select name="status" style="width:160px;">
+    <option value="succeeded" {% if current_status=='succeeded' %}selected{% endif %}>✅ Оплачено</option>
+    <option value="pending" {% if current_status=='pending' %}selected{% endif %}>⏳ Ожидает</option>
+    <option value="canceled" {% if current_status=='canceled' %}selected{% endif %}>❌ Отменено</option>
+  </select>
+  <button type="submit" class="btn btn-primary">🔍 Фильтр</button>
+  <a href="/admin/payments" class="btn btn-ghost">✕</a>
+</form>
+
+<!-- Таблица транзакций -->
+{% if payments %}
+<div class="card" style="padding:0;overflow:hidden;margin-bottom:24px;">
+  <table>
+    <thead>
+      <tr>
+        <th>ID ЮКасса</th>
+        <th>Пользователь</th>
+        <th>Продукт</th>
+        <th>Сумма</th>
+        <th>Статус</th>
+        <th>Дата</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in payments %}
+      <tr>
+        <td style="font-size:11px;font-family:monospace;color:var(--muted);">
+          {{ (p.yookassa_payment_id or '—')[:20] }}
+        </td>
+        <td>
+          <a href="/admin/users/{{ p.user_id }}" style="color:var(--accent2);text-decoration:none;">
+            {% if p.user and p.user.tg_username %}@{{ p.user.tg_username }}{% else %}#{{ p.user_id }}{% endif %}
+          </a>
+        </td>
+        <td>
+          {% if p.product.value == 'superlike_3' %}<span class="badge badge-purple">⭐ 3 СЛ</span>
+          {% elif p.product.value == 'superlike_10' %}<span class="badge badge-purple">⭐ 10 СЛ</span>
+          {% else %}<span class="badge badge-warning">⚡ Буст</span>{% endif %}
+        </td>
+        <td style="font-weight:600;color:var(--success);">{{ p.amount_rub }} ₽</td>
+        <td>
+          {% if p.status.value == 'succeeded' %}<span class="badge badge-success">✅</span>
+          {% elif p.status.value == 'pending' %}<span class="badge badge-warning">⏳</span>
+          {% else %}<span class="badge badge-danger">❌</span>{% endif %}
+        </td>
+        <td style="font-size:12px;color:var(--muted);">{{ p.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<!-- Пагинация -->
+<div style="display:flex;gap:8px;margin-bottom:32px;">
+  {% if page > 1 %}<a href="?product={{ current_product }}&status={{ current_status }}&page={{ page-1 }}" class="btn btn-ghost btn-sm">← Назад</a>{% endif %}
+  <span style="color:var(--muted);font-size:13px;align-self:center;">Стр. {{ page }}</span>
+  {% if payments|length == 30 %}<a href="?product={{ current_product }}&status={{ current_status }}&page={{ page+1 }}" class="btn btn-ghost btn-sm">Вперёд →</a>{% endif %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:32px;color:var(--muted);margin-bottom:24px;">Транзакций не найдено</div>
+{% endif %}
+
+<!-- #10: Запросы на выгрузку данных -->
+{% if export_requests %}
+<div class="card">
+  <div style="font-size:15px;font-weight:600;margin-bottom:16px;">
+    📥 Запросы на выгрузку данных (ФЗ-152) · {{ export_requests|length }}
+  </div>
+  <table>
+    <thead>
+      <tr><th>Пользователь</th><th>Email</th><th>Дата запроса</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for er in export_requests %}
+      <tr>
+        <td>
+          <a href="/admin/users/{{ er.user_id }}" style="color:var(--accent2);text-decoration:none;">
+            {% if er.user and er.user.tg_username %}@{{ er.user.tg_username }}{% else %}#{{ er.user_id }}{% endif %}
+          </a>
+        </td>
+        <td style="font-size:13px;">{{ er.user.email if er.user else '—' }}</td>
+        <td style="font-size:12px;color:var(--muted);">{{ er.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+        <td>
+          <form method="POST" action="/admin/payments/export-data/{{ er.id }}/send">
+            <button type="submit" class="btn btn-primary btn-sm">📤 Отправить данные</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<script>
+{% if daily_revenue %}
+const revenueData = {{ daily_revenue | tojson }};
+new Chart(document.getElementById('revenueChart'), {
+  type: 'bar',
+  data: {
+    labels: revenueData.map(d => d.day),
+    datasets: [{
+      label: 'Выручка (₽)',
+      data: revenueData.map(d => d.revenue),
+      backgroundColor: 'rgba(124, 58, 237, 0.5)',
+      borderColor: 'rgba(124, 58, 237, 1)',
+      borderWidth: 1, borderRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true, plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: '#2d2d4e' }, ticks: { color: '#94a3b8', font: { size: 11 } } },
+      y: { grid: { color: '#2d2d4e' }, ticks: { color: '#94a3b8' } }
+    }
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

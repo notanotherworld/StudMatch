@@ -1,0 +1,134 @@
+{% extends "admin/base.html" %}
+{% block title %}Дашборд — СтудМэч Admin{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>📊 Дашборд</h1>
+  <p>Добро пожаловать, <strong>{{ admin.login }}</strong> · {{ admin.role.value }}</p>
+</div>
+
+<!-- Основные метрики -->
+<div class="grid grid-4" style="margin-bottom:24px;">
+  <div class="stat-card">
+    <div>
+      <div class="card-title">Всего студентов</div>
+      <div class="card-value">{{ stats.total_users }}</div>
+      <div style="font-size:12px;color:var(--success);margin-top:4px;">+{{ stats.new_today }} сегодня</div>
+    </div>
+    <div class="stat-icon">👥</div>
+  </div>
+  <div class="stat-card">
+    <div>
+      <div class="card-title">Верифицировано</div>
+      <div class="card-value">{{ stats.verified_users }}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">+{{ stats.new_week }} за неделю</div>
+    </div>
+    <div class="stat-icon">✅</div>
+  </div>
+  <div class="stat-card">
+    <div>
+      <div class="card-title">Мэтчей за неделю</div>
+      <div class="card-value">{{ stats.matches_week }}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">всего {{ stats.total_matches }}</div>
+    </div>
+    <div class="stat-icon">💘</div>
+  </div>
+  <div class="stat-card">
+    <div>
+      <div class="card-title">Документов на проверке</div>
+      <div class="card-value {% if stats.pending_docs > 0 %}style="color:var(--warning)"{% endif %}">
+        {{ stats.pending_docs }}
+      </div>
+      {% if stats.pending_docs > 0 %}
+      <a href="/admin/documents" style="font-size:12px;color:var(--warning);">Проверить →</a>
+      {% endif %}
+    </div>
+    <div class="stat-icon">📄</div>
+  </div>
+</div>
+
+<!-- Монетизация -->
+<div class="grid grid-2" style="margin-bottom:24px;">
+  <div class="stat-card">
+    <div>
+      <div class="card-title">Выручка за месяц</div>
+      <div class="card-value" style="color:var(--success);">{{ "%.0f"|format(stats.revenue_month) }} ₽</div>
+    </div>
+    <div class="stat-icon">💳</div>
+  </div>
+  <div class="stat-card">
+    <div>
+      <div class="card-title">Всего выручка (ЮКасса)</div>
+      <div class="card-value">{{ "%.0f"|format(stats.revenue_total) }} ₽</div>
+    </div>
+    <div class="stat-icon">📈</div>
+  </div>
+</div>
+
+<!-- Быстрые действия -->
+<div class="card">
+  <div class="card-title" style="margin-bottom:16px;">Быстрые действия</div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <a href="/admin/documents?status=pending" class="btn btn-primary">📄 Проверить документы ({{ stats.pending_docs }})</a>
+    <a href="/admin/users" class="btn btn-ghost">👥 Все пользователи</a>
+    <a href="/admin/ratings" class="btn btn-ghost">🏆 Топ рейтинга</a>
+    <a href="/admin/broadcast" class="btn btn-ghost">📢 Рассылка</a>
+    <a href="/admin/reports" class="btn btn-ghost">🚨 Жалобы</a>
+    <a href="/admin/employers" class="btn btn-ghost">👔 Работодатели</a>
+  </div>
+</div>
+
+<!-- #2: Графики -->
+<div class="grid grid-2" style="margin-top:24px;">
+  <div class="card">
+    <div style="font-size:14px;font-weight:600;margin-bottom:16px;">📈 Регистрации за 30 дней</div>
+    <canvas id="regChart" height="120"></canvas>
+  </div>
+  <div class="card">
+    <div style="font-size:14px;font-weight:600;margin-bottom:16px;">💘 Мэтчи за 30 дней</div>
+    <canvas id="matchChart" height="120"></canvas>
+  </div>
+</div>
+
+<script>
+const chartDefaults = {
+  responsive: true,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid: { color: '#2d2d4e' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+    y: { grid: { color: '#2d2d4e' }, ticks: { color: '#94a3b8' }, beginAtZero: true }
+  }
+};
+
+const regData = {{ reg_chart_json }};
+new Chart(document.getElementById('regChart'), {
+  type: 'line',
+  data: {
+    labels: regData.map(d => d.day),
+    datasets: [{
+      data: regData.map(d => d.count),
+      borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.1)',
+      tension: 0.4, fill: true, pointRadius: 3,
+    }]
+  },
+  options: chartDefaults,
+});
+
+const matchData = {{ matches_chart_json }};
+new Chart(document.getElementById('matchChart'), {
+  type: 'line',
+  data: {
+    labels: matchData.map(d => d.day),
+    datasets: [{
+      data: matchData.map(d => d.count),
+      borderColor: '#f472b6', backgroundColor: 'rgba(244,114,182,0.1)',
+      tension: 0.4, fill: true, pointRadius: 3,
+    }]
+  },
+  options: chartDefaults,
+});
+</script>
+{% endblock %}

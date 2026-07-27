@@ -1,0 +1,49 @@
+{% extends "employer/base.html" %}
+{% block title %}Вход — СтудМэч HR{% endblock %}
+
+{% block content %}
+<style>
+  .container { display:flex; align-items:center; justify-content:center; min-height:80vh; }
+  .login-box {
+    width:380px; background:var(--surface); border:1px solid var(--border);
+    border-radius:16px; padding:40px;
+  }
+  .login-logo { text-align:center; margin-bottom:32px; }
+  .login-logo h2 { font-size:24px; color:var(--accent2); }
+  .login-logo p { color:var(--muted); font-size:14px; margin-top:4px; }
+  .form-group { margin-bottom:16px; }
+  label { font-size:13px; color:var(--muted); margin-bottom:6px; display:block; }
+  input {
+    width:100%; padding:10px 14px; background:var(--surface2);
+    border:1px solid var(--border); border-radius:8px; color:var(--text);
+    font-size:14px; outline:none;
+  }
+  input:focus { border-color:var(--accent); }
+  .alert { padding:12px; border-radius:8px; background:#ef444422; color:#ef4444; font-size:14px; margin-bottom:16px; }
+</style>
+
+<div class="login-box">
+  <div class="login-logo">
+    <h2>👔 Кабинет HR</h2>
+    <p>СтудМэч — платформа для поиска студентов</p>
+  </div>
+
+  {% if error %}
+    <div class="alert">{{ error }}</div>
+  {% endif %}
+
+  <form method="POST" action="/employer/login">
+    <div class="form-group">
+      <label>Логин</label>
+      <input type="text" name="login" placeholder="hr_login" required autofocus>
+    </div>
+    <div class="form-group">
+      <label>Пароль</label>
+      <input type="password" name="password" placeholder="••••••••" required>
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;">
+      Войти в кабинет
+    </button>
+  </form>
+</div>
+{% endblock %}

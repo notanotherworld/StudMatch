@@ -1,0 +1,237 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ user.profile.name if user.profile else user.id }} — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<!-- Шапка -->
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;">
+  <a href="/admin/users" class="btn btn-ghost btn-sm">← Все пользователи</a>
+  <h1 style="font-size:20px;font-weight:700;">
+    {% if user.tg_username %}@{{ user.tg_username }}{% else %}Пользователь #{{ user.id }}{% endif %}
+  </h1>
+  {% if not user.is_active %}
+    <span class="badge badge-danger">🚫 Забанен</span>
+  {% elif user.email_verified %}
+    <span class="badge badge-success">✅ Верифицирован</span>
+  {% else %}
+    <span class="badge badge-warning">⏳ Ожидает верификации</span>
+  {% endif %}
+</div>
+
+<div style="display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start;">
+
+  <!-- Левая колонка -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Аватар и основное -->
+    <div class="card" style="text-align:center;padding:28px 20px;">
+      <div style="width:80px;height:80px;border-radius:50%;background:var(--surface2);
+                  display:flex;align-items:center;justify-content:center;font-size:36px;
+                  margin:0 auto 16px;">🎓</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:4px;">
+        {{ user.profile.name if user.profile and user.profile.name else '—' }}
+      </div>
+      <div style="color:var(--muted);font-size:13px;">
+        {% if user.university %}{{ user.university.name }}{% else %}Вуз не указан{% endif %}
+      </div>
+      {% if user.profile %}
+      <div style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:8px;">
+        <div style="font-size:28px;font-weight:700;color:var(--accent2);">{{ user.profile.rating_score|int }}</div>
+        <div style="font-size:11px;color:var(--muted);">баллов рейтинга</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Реквизиты -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:12px;">ДАННЫЕ АККАУНТА</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;">
+        <div>
+          <div style="color:var(--muted);font-size:11px;">Telegram ID</div>
+          <div style="font-weight:500;">{{ user.id }}</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:11px;">Username</div>
+          <div>{% if user.tg_username %}@{{ user.tg_username }}{% else %}—{% endif %}</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:11px;">Email</div>
+          <div>{{ user.email or '—' }}
+            {% if user.email_verified %}<span style="color:var(--success);">✓</span>{% endif %}
+          </div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:11px;">Режим</div>
+          <div>{% if user.mode.value == 'career' %}🎯 Карьера{% else %}❤️ Знакомства{% endif %}</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:11px;">Суперлайков</div>
+          <div>⭐ {{ user.superlike_balance }}</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:11px;">Согласие ПД</div>
+          <div>{% if user.consent_given %}✅ {{ user.consent_at.strftime('%d.%m.%Y') if user.consent_at else 'да' }}{% else %}❌ Нет{% endif %}</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:11px;">Зарегистрирован</div>
+          <div>{{ user.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Действия -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:12px;">ДЕЙСТВИЯ</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        {% if user.is_active %}
+        <form method="POST" action="/admin/users/{{ user.id }}/ban"
+              onsubmit="return confirm('Забанить пользователя?')">
+          <button type="submit" class="btn btn-danger" style="width:100%;justify-content:center;">
+            🚫 Забанить
+          </button>
+        </form>
+        {% else %}
+        <form method="POST" action="/admin/users/{{ user.id }}/unban">
+          <button type="submit" class="btn btn-success" style="width:100%;justify-content:center;">
+            ✅ Разбанить
+          </button>
+        </form>
+        {% endif %}
+
+        <!-- #6: История свайпов -->
+        <a href="/admin/users/{{ user.id }}/swipes" class="btn btn-ghost"
+           style="width:100%;justify-content:center;">
+          🔎 История свайпов
+        </a>
+      </div>
+    </div>
+
+    <!-- #4: Ручное редактирование рейтинга -->
+    {% if user.profile %}
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:12px;">⭐ РЕЙТИНГ</div>
+      <div style="text-align:center;margin-bottom:12px;">
+        <div style="font-size:32px;font-weight:700;color:var(--accent2);">
+          {{ user.profile.rating_score|int }}
+        </div>
+        <div style="font-size:11px;color:var(--muted);">текущий балл</div>
+      </div>
+      <form method="POST" action="/admin/users/{{ user.id }}/rating">
+        <div class="form-group">
+          <label>Изменение (+ добавить / − убрать)</label>
+          <input type="number" name="delta" step="0.5"
+                 placeholder="напр. 10 или -5" required
+                 style="text-align:center;font-size:16px;font-weight:600;">
+        </div>
+        <div class="form-group">
+          <label>Причина</label>
+          <input type="text" name="reason"
+                 placeholder="Волонтёрство, ошибка модератора..." value="Ручная корректировка">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+          Применить
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Правая колонка -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Анкета -->
+    {% if user.profile and user.profile.is_complete %}
+    <div class="card">
+      <div style="font-size:15px;font-weight:600;margin-bottom:16px;">📋 Анкета</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:14px;">
+        <div>
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Курс</div>
+          <div>{{ user.profile.year }} курс</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Направление</div>
+          <div>{{ user.profile.major }}</div>
+        </div>
+        <div style="grid-column:span 2;">
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Цель</div>
+          <div>{{ user.profile.goal }}</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Видимость</div>
+          <div>{% if user.profile.is_visible %}👁 Видна{% else %}🔒 Скрыта{% endif %}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Достижения -->
+    <div class="card">
+      <div style="font-size:15px;font-weight:600;margin-bottom:16px;">🏆 Достижения</div>
+      {% if user.achievements %}
+      <table style="font-size:13px;">
+        <thead>
+          <tr>
+            <th>Тип</th>
+            <th>Название</th>
+            <th>Статус</th>
+            <th>Баллы</th>
+            <th>Документ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in user.achievements %}
+          <tr>
+            <td><span class="badge badge-purple">{{ a.type.value }}</span></td>
+            <td style="max-width:220px;">{{ a.title[:50] }}{% if a.title|length > 50 %}…{% endif %}</td>
+            <td>
+              {% if a.verified.value == 'approved' %}<span class="badge badge-success">✅</span>
+              {% elif a.verified.value == 'pending' %}<span class="badge badge-warning">⏳</span>
+              {% else %}<span class="badge badge-danger">❌</span>{% endif %}
+            </td>
+            <td style="font-weight:500;color:var(--accent2);">+{{ a.score|int }}</td>
+            <td>
+              {% if a.document_url %}
+              <a href="/admin/documents/{{ a.id }}/view" target="_blank"
+                 class="btn btn-ghost btn-sm">👁</a>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="color:var(--muted);font-size:14px;">Достижений нет</div>
+      {% endif %}
+    </div>
+
+    <!-- Отправить сообщение -->
+    <div class="card">
+      <div style="font-size:15px;font-weight:600;margin-bottom:16px;">💬 Отправить сообщение в бот</div>
+      <form method="POST" action="/admin/users/{{ user.id }}/message">
+        <div class="form-group">
+          <!-- Быстрые шаблоны -->
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+            <button type="button" class="btn btn-ghost btn-sm"
+              onclick="document.getElementById('msg_text').value='👔 Работодатель заинтересовался вашим профилем! Скоро с вами свяжутся.'">
+              👔 Интерес работодателя
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm"
+              onclick="document.getElementById('msg_text').value='✅ Ваше достижение подтверждено модератором!'">
+              ✅ Подтверждение
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm"
+              onclick="document.getElementById('msg_text').value='⚠️ Ваш профиль нарушает правила платформы. Пожалуйста, ознакомьтесь с правилами.'">
+              ⚠️ Нарушение правил
+            </button>
+          </div>
+          <textarea id="msg_text" name="text" rows="4"
+            placeholder="Текст сообщения (поддерживается HTML: &lt;b&gt;, &lt;i&gt;)..."
+            required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">📤 Отправить</button>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

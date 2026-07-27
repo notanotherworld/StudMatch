@@ -1,0 +1,107 @@
+{% extends "admin/base.html" %}
+{% block title %}История свайпов — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;">
+  <a href="/admin/users/{{ user_id }}" class="btn btn-ghost btn-sm">← Профиль</a>
+  <div>
+    <h1 style="font-size:20px;font-weight:700;">
+      🔎 История свайпов ·
+      {% if target_user and target_user.tg_username %}
+        @{{ target_user.tg_username }}
+      {% else %}#{{ user_id }}{% endif %}
+    </h1>
+    <p style="color:var(--muted);font-size:13px;">Последние 100 действий</p>
+  </div>
+</div>
+
+<!-- Переключатель направления -->
+<div style="display:flex;gap:8px;margin-bottom:20px;">
+  <a href="?direction=given"
+     class="btn {% if direction == 'given' %}btn-primary{% else %}btn-ghost{% endif %}">
+    ➡️ Поставил ({{ swipes|length if direction == 'given' else '' }})
+  </a>
+  <a href="?direction=received"
+     class="btn {% if direction == 'received' %}btn-primary{% else %}btn-ghost{% endif %}">
+    ⬅️ Получил ({{ swipes|length if direction == 'received' else '' }})
+  </a>
+</div>
+
+{% if swipes %}
+<!-- Статистика -->
+{% set likes = swipes | selectattr('action.value', 'equalto', 'like') | list %}
+{% set superlikes = swipes | selectattr('action.value', 'equalto', 'superlike') | list %}
+{% set skips = swipes | selectattr('action.value', 'equalto', 'skip') | list %}
+
+<div class="grid grid-3" style="margin-bottom:20px;">
+  <div class="stat-card">
+    <div>
+      <div class="card-title">❤️ Лайков</div>
+      <div class="card-value" style="font-size:28px;color:#f472b6;">{{ likes|length }}</div>
+    </div>
+    <div class="stat-icon">❤️</div>
+  </div>
+  <div class="stat-card">
+    <div>
+      <div class="card-title">⭐ Суперлайков</div>
+      <div class="card-value" style="font-size:28px;color:#f59e0b;">{{ superlikes|length }}</div>
+    </div>
+    <div class="stat-icon">⭐</div>
+  </div>
+  <div class="stat-card">
+    <div>
+      <div class="card-title">⏭ Пропусков</div>
+      <div class="card-value" style="font-size:28px;color:var(--muted);">{{ skips|length }}</div>
+    </div>
+    <div class="stat-icon">⏭</div>
+  </div>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+  <table>
+    <thead>
+      <tr>
+        <th>{% if direction == 'given' %}Кому{% else %}От кого{% endif %}</th>
+        <th>Имя</th>
+        <th>Действие</th>
+        <th>Дата</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in swipes %}
+      {% set other_id = s.to_user_id if direction == 'given' else s.from_user_id %}
+      {% set other_profile = profiles_map.get(other_id) %}
+      <tr>
+        <td>
+          <a href="/admin/users/{{ other_id }}"
+             style="color:var(--accent2);text-decoration:none;font-size:13px;">
+            #{{ other_id }}
+          </a>
+        </td>
+        <td style="font-size:13px;">
+          {{ other_profile.name if other_profile else '—' }}
+        </td>
+        <td>
+          {% if s.action.value == 'like' %}
+            <span class="badge" style="background:#f472b622;color:#f472b6;">❤️ Лайк</span>
+          {% elif s.action.value == 'superlike' %}
+            <span class="badge badge-warning">⭐ Суперлайк</span>
+          {% else %}
+            <span class="badge" style="background:var(--surface2);color:var(--muted);">⏭ Пропуск</span>
+          {% endif %}
+        </td>
+        <td style="font-size:12px;color:var(--muted);">
+          {{ s.created_at.strftime('%d.%m.%Y %H:%M') }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:48px;">
+  <div style="font-size:40px;margin-bottom:12px;">🔍</div>
+  <div style="color:var(--muted);">Свайпов пока нет</div>
+</div>
+{% endif %}
+{% endblock %}

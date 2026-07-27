@@ -1,0 +1,124 @@
+{% extends "admin/base.html" %}
+{% block title %}Рассылка — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>📢 Массовая рассылка</h1>
+  <p>Отправить сообщение сразу всем или выбранной аудитории</p>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;">
+
+  <!-- Форма рассылки -->
+  <div class="card">
+    <div style="font-size:15px;font-weight:600;margin-bottom:20px;">✏️ Новое сообщение</div>
+    <form method="POST" action="/admin/broadcast/send"
+          onsubmit="return confirm('Отправить рассылку? Это действие нельзя отменить.')">
+      <div class="form-group">
+        <label>Аудитория</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          {% for key, label in target_labels.items() %}
+          <label style="display:flex;align-items:center;gap:8px;padding:10px 14px;
+                        background:var(--surface2);border-radius:8px;cursor:pointer;
+                        border:1px solid var(--border);font-size:13px;color:var(--text);">
+            <input type="radio" name="target" value="{{ key }}"
+                   {% if key == 'all' %}checked{% endif %}
+                   style="width:auto;accent-color:var(--accent);">
+            {{ label }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Текст сообщения (поддерживается HTML: &lt;b&gt;, &lt;i&gt;, &lt;a&gt;)</label>
+        <textarea id="broadcastText" name="text" rows="8"
+                  placeholder="Привет! Хотим сообщить, что..."
+                  oninput="updatePreview()" required></textarea>
+      </div>
+
+      <!-- Шаблоны -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Быстрые шаблоны:</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-ghost btn-sm"
+            onclick="setTemplate('🎉 <b>Новые возможности в СтудМэч!</b>\n\nМы обновили платформу. Заходи и смотри!')">
+            🎉 Анонс
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm"
+            onclick="setTemplate('🏆 <b>Рейтинг обновлён!</b>\n\nПроверь свою позицию в топе студентов.')">
+            🏆 Рейтинг
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm"
+            onclick="setTemplate('⭐ <b>Специальное предложение!</b>\n\nСегодня только: 3 суперлайка за полцены!')">
+            💰 Акция
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm"
+            onclick="setTemplate('⚠️ <b>Важное уведомление</b>\n\nУважаемые пользователи, обратите внимание...')">
+            ⚠️ Важное
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;">
+        📤 Отправить рассылку
+      </button>
+    </form>
+  </div>
+
+  <!-- Превью и статистика -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;">👁 Превью сообщения</div>
+      <div id="preview"
+           style="background:var(--surface2);border-radius:10px;padding:14px;
+                  font-size:14px;min-height:80px;color:var(--text);line-height:1.5;">
+        <span style="color:var(--muted);">Начни вводить текст...</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;">📋 История рассылок</div>
+      {% if history %}
+      <div style="display:flex;flex-direction:column;gap:10px;max-height:400px;overflow-y:auto;">
+        {% for h in history %}
+        <div style="padding:10px;background:var(--surface2);border-radius:8px;font-size:13px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span class="badge badge-purple">{{ h.target }}</span>
+            <span style="color:var(--muted);">{{ h.created_at.strftime('%d.%m %H:%M') }}</span>
+          </div>
+          <div style="margin-bottom:6px;color:var(--text);">
+            {{ h.text[:80] }}{% if h.text|length > 80 %}...{% endif %}
+          </div>
+          <div style="display:flex;gap:12px;font-size:12px;">
+            <span style="color:var(--success);">✅ {{ h.sent_count }}</span>
+            <span style="color:var(--danger);">❌ {{ h.failed_count }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="color:var(--muted);font-size:13px;">Рассылок ещё не было</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<script>
+function updatePreview() {
+  const text = document.getElementById('broadcastText').value;
+  const preview = document.getElementById('preview');
+  if (text.trim()) {
+    preview.innerHTML = text.replace(/\n/g, '<br>');
+  } else {
+    preview.innerHTML = '<span style="color:var(--muted);">Начни вводить текст...</span>';
+  }
+}
+
+function setTemplate(text) {
+  document.getElementById('broadcastText').value = text;
+  updatePreview();
+}
+</script>
+{% endblock %}

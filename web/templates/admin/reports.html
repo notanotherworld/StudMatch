@@ -1,0 +1,161 @@
+{% extends "admin/base.html" %}
+{% block title %}Жалобы — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🚨 Жалобы пользователей</h1>
+  <p>Разбирай жалобы: бань нарушителей или снимай необоснованные</p>
+</div>
+
+<!-- Фильтр -->
+<div style="display:flex;gap:8px;margin-bottom:24px;">
+  <a href="?status=pending" class="btn {% if current_status == 'pending' %}btn-primary{% else %}btn-ghost{% endif %}">
+    ⏳ Ожидают ({{ reports|length if current_status == 'pending' else '' }})
+  </a>
+  <a href="?status=resolved" class="btn {% if current_status == 'resolved' %}btn-danger{% else %}btn-ghost{% endif %}">
+    ✅ Решённые — бан
+  </a>
+  <a href="?status=dismissed" class="btn {% if current_status == 'dismissed' %}btn-ghost{% else %}btn-ghost{% endif %}">
+    🚫 Снятые
+  </a>
+</div>
+
+{% if reports %}
+<div style="display:flex;flex-direction:column;gap:12px;">
+  {% for r in reports %}
+  {% set reported_count = report_counts.get(r.reported_id, 0) %}
+  <div class="card">
+    <div style="display:flex;align-items:start;justify-content:space-between;gap:16px;">
+
+      <!-- Инфо о жалобе -->
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+          <span style="font-size:13px;color:var(--muted);">
+            Жалоба от
+            <a href="/admin/users/{{ r.reporter_id }}"
+               style="color:var(--accent2);text-decoration:none;font-weight:500;">
+              {% if r.reporter and r.reporter.tg_username %}@{{ r.reporter.tg_username }}{% else %}#{{ r.reporter_id }}{% endif %}
+            </a>
+          </span>
+          <span style="color:var(--muted);">→</span>
+          <span style="font-size:13px;">
+            на
+            <a href="/admin/users/{{ r.reported_id }}"
+               style="color:var(--danger);text-decoration:none;font-weight:600;">
+              {% if r.reported and r.reported.tg_username %}@{{ r.reported.tg_username }}{% else %}#{{ r.reported_id }}{% endif %}
+            </a>
+          </span>
+          {% if reported_count >= 3 %}
+          <span class="badge badge-danger">🔥 {{ reported_count }} жалоб</span>
+          {% elif reported_count >= 2 %}
+          <span class="badge badge-warning">⚠️ {{ reported_count }} жалобы</span>
+          {% endif %}
+          <span style="margin-left:auto;font-size:12px;color:var(--muted);">
+            {{ r.created_at.strftime('%d.%m.%Y %H:%M') }}
+          </span>
+        </div>
+
+        <div style="background:var(--surface2);border-radius:8px;padding:12px;
+                    font-size:14px;margin-bottom:12px;border-left:3px solid var(--danger);">
+          {{ r.reason }}
+        </div>
+
+        {% if r.resolution_note %}
+        <div style="font-size:12px;color:var(--muted);">
+          Решение: {{ r.resolution_note }}
+          {% if r.resolved_at %} · {{ r.resolved_at.strftime('%d.%m.%Y') }}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Кнопки действий -->
+      {% if current_status == 'pending' %}
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:160px;">
+        <button onclick="openBanModal('{{ r.id }}')"
+                class="btn btn-danger btn-sm" style="justify-content:center;">
+          🚫 Забанить
+        </button>
+        <button onclick="openDismissModal('{{ r.id }}')"
+                class="btn btn-ghost btn-sm" style="justify-content:center;">
+          ✕ Снять жалобу
+        </button>
+        <a href="/admin/users/{{ r.reported_id }}" class="btn btn-ghost btn-sm"
+           style="justify-content:center;">
+          👁 Профиль
+        </a>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:64px;">
+  <div style="font-size:48px;margin-bottom:16px;">✅</div>
+  <div style="font-size:16px;font-weight:600;margin-bottom:8px;">
+    {% if current_status == 'pending' %}Жалоб нет!{% else %}Список пуст{% endif %}
+  </div>
+  <div style="color:var(--muted);">
+    {% if current_status == 'pending' %}Все жалобы разобраны 🎉{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Модал: бан с причиной -->
+<div id="banModal"
+     style="display:none;position:fixed;inset:0;background:#000a;z-index:100;
+            align-items:center;justify-content:center;">
+  <div class="card" style="width:420px;">
+    <h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">🚫 Заблокировать пользователя</h3>
+    <form id="banForm" method="POST">
+      <div class="form-group">
+        <label>Причина блокировки (отправится студенту)</label>
+        <textarea name="note" rows="3"
+                  placeholder="Нарушение правил: оскорбления / неприемлемый контент">Нарушение правил платформы по жалобе пользователей</textarea>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-danger" style="flex:1;justify-content:center;">
+          🚫 Заблокировать
+        </button>
+        <button type="button" class="btn btn-ghost"
+                onclick="document.getElementById('banModal').style.display='none'">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Модал: снять жалобу -->
+<div id="dismissModal"
+     style="display:none;position:fixed;inset:0;background:#000a;z-index:100;
+            align-items:center;justify-content:center;">
+  <div class="card" style="width:420px;">
+    <h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">✕ Снять жалобу</h3>
+    <form id="dismissForm" method="POST">
+      <div class="form-group">
+        <label>Причина (только для записи)</label>
+        <textarea name="note" rows="2"
+                  placeholder="Нарушений не обнаружено"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-ghost" style="flex:1;justify-content:center;">
+          Снять жалобу
+        </button>
+        <button type="button" class="btn btn-ghost"
+                onclick="document.getElementById('dismissModal').style.display='none'">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openBanModal(id) {
+  document.getElementById('banForm').action = '/admin/reports/' + id + '/ban';
+  document.getElementById('banModal').style.display = 'flex';
+}
+function openDismissModal(id) {
+  document.getElementById('dismissForm').action = '/admin/reports/' + id + '/dismiss';
+  document.getElementById('dismissModal').style.display = 'flex';
+}
+</script>
+{% endblock %}

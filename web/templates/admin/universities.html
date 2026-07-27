@@ -1,0 +1,119 @@
+{% extends "admin/base.html" %}
+{% block title %}Университеты — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div>
+      <h1>🎓 Университеты</h1>
+      <p>Управление списком вузов и email-доменами</p>
+    </div>
+    <button onclick="document.getElementById('createModal').style.display='flex'"
+            class="btn btn-primary">➕ Добавить вуз</button>
+  </div>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Название</th>
+        <th>Аббревиатура</th>
+        <th>Email-домены</th>
+        <th>Город</th>
+        <th>Статус</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for uni in universities %}
+      <tr>
+        <td style="color:var(--muted);">{{ uni.id }}</td>
+        <td style="font-weight:500;">{{ uni.name }}</td>
+        <td>
+          <span class="badge badge-purple">{{ uni.short_name }}</span>
+        </td>
+        <td style="font-size:12px;font-family:monospace;color:var(--accent2);">
+          {{ uni.email_domains }}
+        </td>
+        <td style="font-size:13px;">{{ uni.city }}</td>
+        <td>
+          {% if uni.is_active %}
+            <span class="badge badge-success">✅ Активен</span>
+          {% else %}
+            <span class="badge badge-danger">🚫 Отключён</span>
+          {% endif %}
+        </td>
+        <td>
+          <form method="POST" action="/admin/universities/{{ uni.id }}/toggle" style="display:inline;">
+            <button type="submit"
+                    class="btn {% if uni.is_active %}btn-ghost{% else %}btn-success{% endif %} btn-sm">
+              {% if uni.is_active %}Отключить{% else %}Включить{% endif %}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not universities %}
+<div class="card" style="text-align:center;padding:48px;">
+  <div style="font-size:40px;margin-bottom:12px;">🎓</div>
+  <div style="color:var(--muted);">Нет университетов. Это не должно произойти — РУДН должен быть в базе.</div>
+</div>
+{% endif %}
+
+<!-- Подсказка по доменам -->
+<div class="card" style="margin-top:16px;background:var(--surface2);">
+  <div style="font-size:13px;color:var(--muted);">
+    💡 <strong style="color:var(--text);">Формат доменов:</strong>
+    несколько доменов указываются через запятую без пробелов.
+    Пример: <code style="color:var(--accent2);">@rudn.ru,@pfur.ru,@student.rudn.ru</code>
+  </div>
+</div>
+
+<!-- Модальное окно добавления вуза -->
+<div id="createModal"
+     style="display:none;position:fixed;inset:0;background:#000a;z-index:100;
+            align-items:center;justify-content:center;">
+  <div class="card" style="width:480px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h3 style="font-size:16px;font-weight:600;">🎓 Добавить университет</h3>
+      <button onclick="document.getElementById('createModal').style.display='none'"
+              style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <form method="POST" action="/admin/universities/create">
+      <div class="form-group">
+        <label>Полное название</label>
+        <input type="text" name="name"
+               placeholder="Российский университет дружбы народов" required>
+      </div>
+      <div class="form-group">
+        <label>Аббревиатура</label>
+        <input type="text" name="short_name" placeholder="РУДН" required maxlength="20">
+      </div>
+      <div class="form-group">
+        <label>Email-домены (через запятую)</label>
+        <input type="text" name="email_domains"
+               placeholder="@university.ru,@stud.university.ru" required>
+      </div>
+      <div class="form-group">
+        <label>Город</label>
+        <input type="text" name="city" placeholder="Москва" required>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">
+          ➕ Добавить
+        </button>
+        <button type="button" class="btn btn-ghost"
+                onclick="document.getElementById('createModal').style.display='none'">
+          Отмена
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,109 @@
+{% extends "admin/base.html" %}
+{% block title %}Работодатели — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div>
+      <h1>👔 Работодатели / HR</h1>
+      <p>Управление кабинетами HR и доступом к анкетам</p>
+    </div>
+    <button onclick="document.getElementById('createModal').style.display='flex'"
+            class="btn btn-primary">
+      ➕ Создать HR-аккаунт
+    </button>
+  </div>
+</div>
+
+{% if employers %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;">
+  {% for emp in employers %}
+  <div class="card" style="{% if not emp.is_active %}opacity:0.6;{% endif %}">
+    <div style="display:flex;align-items:start;justify-content:space-between;margin-bottom:16px;">
+      <div>
+        <div style="font-size:16px;font-weight:700;">{{ emp.company_name }}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:2px;">👤 {{ emp.contact_name }}</div>
+        <div style="font-size:12px;color:var(--muted);">🔑 {{ emp.login }}</div>
+      </div>
+      <span class="badge {% if emp.is_active %}badge-success{% else %}badge-danger{% endif %}">
+        {% if emp.is_active %}Активен{% else %}Отключён{% endif %}
+      </span>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;
+                padding:12px;background:var(--surface2);border-radius:8px;">
+      <div style="text-align:center;flex:1;">
+        <div style="font-size:22px;font-weight:700;color:var(--accent2);">
+          {{ emp.profile_accesses|length }}
+        </div>
+        <div style="font-size:11px;color:var(--muted);">анкет выдано</div>
+      </div>
+      <div style="width:1px;height:32px;background:var(--border);"></div>
+      <div style="text-align:center;flex:1;">
+        <div style="font-size:22px;font-weight:700;color:var(--success);">
+          {{ emp.profile_accesses | selectattr('viewed_at') | list | length }}
+        </div>
+        <div style="font-size:11px;color:var(--muted);">просмотрено</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;">
+      <a href="/admin/employers/{{ emp.id }}" class="btn btn-primary btn-sm" style="flex:1;justify-content:center;">
+        📋 Управление
+      </a>
+      <form method="POST" action="/admin/employers/{{ emp.id }}/toggle" style="flex:1;">
+        <button type="submit" class="btn {% if emp.is_active %}btn-ghost{% else %}btn-success{% endif %} btn-sm"
+                style="width:100%;">
+          {% if emp.is_active %}⏸ Отключить{% else %}▶️ Включить{% endif %}
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:64px;">
+  <div style="font-size:48px;margin-bottom:16px;">👔</div>
+  <div style="font-size:16px;font-weight:600;margin-bottom:8px;">Работодателей пока нет</div>
+  <div style="color:var(--muted);margin-bottom:20px;">Создайте первый HR-аккаунт</div>
+  <button onclick="document.getElementById('createModal').style.display='flex'"
+          class="btn btn-primary">➕ Создать</button>
+</div>
+{% endif %}
+
+<!-- Модальное окно создания HR -->
+<div id="createModal"
+     style="display:none;position:fixed;inset:0;background:#000a;z-index:100;
+            align-items:center;justify-content:center;">
+  <div class="card" style="width:440px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h3 style="font-size:16px;font-weight:600;">➕ Создать HR-аккаунт</h3>
+      <button onclick="document.getElementById('createModal').style.display='none'"
+              style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <form method="POST" action="/admin/employers/create">
+      <div class="form-group">
+        <label>Название компании</label>
+        <input type="text" name="company_name" placeholder="ООО Ромашка" required>
+      </div>
+      <div class="form-group">
+        <label>Имя HR-менеджера</label>
+        <input type="text" name="contact_name" placeholder="Иванова Анна" required>
+      </div>
+      <div class="form-group">
+        <label>Логин</label>
+        <input type="text" name="login" placeholder="romashka_hr" required>
+      </div>
+      <div class="form-group">
+        <label>Пароль</label>
+        <input type="password" name="password" placeholder="Минимум 8 символов" required>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">Создать</button>
+        <button type="button" class="btn btn-ghost"
+                onclick="document.getElementById('createModal').style.display='none'">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
