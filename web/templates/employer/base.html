@@ -48,6 +48,17 @@
   }
   .badge-new { background:#6366f122; color:var(--accent2); }
   .badge-viewed { background:#34d39922; color:var(--success); }
+
+  /* Mobile Responsive */
+  @media(max-width:768px) {
+    .header { padding:14px 16px; flex-direction:column; gap:8px; align-items:flex-start; }
+    .container { padding:16px; }
+    .card { padding:16px; }
+    div[style*="display:grid"], div[style*="display: grid"] {
+      grid-template-columns: 1fr !important;
+      gap: 12px !important;
+    }
+  }
 </style>
 </head>
 <body>
