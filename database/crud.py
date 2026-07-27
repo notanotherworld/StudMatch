@@ -199,7 +199,7 @@ async def get_top_profiles(
 # Swipes & Matches
 # ─────────────────────────────────────────────────────────────
 async def create_swipe(
-    db: AsyncSession, from_id: int, to_id: int, action: SwipeAction
+    db: AsyncSession, from_id: int, to_id: int, action: SwipeAction, comment: Optional[str] = None
 ) -> bool:
     """
     Сохранить свайп. Возвращает True если это взаимный лайк (мэтч).
@@ -211,7 +211,7 @@ async def create_swipe(
     if existing.scalar_one_or_none():
         return False
 
-    db.add(Swipe(from_user_id=from_id, to_user_id=to_id, action=action))
+    db.add(Swipe(from_user_id=from_id, to_user_id=to_id, action=action, comment=comment))
     await db.commit()
 
     # Проверяем взаимный лайк

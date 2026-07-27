@@ -9,8 +9,9 @@ from sqlalchemy import select
 
 from bot.keyboards.swipe import (
     swipe_card_keyboard, top_navigation_keyboard,
-    profile_open_keyboard, main_menu_keyboard,
+    profile_open_keyboard, main_menu_keyboard, letter_received_keyboard,
 )
+from bot.states.fsm import LetterState
 from database.crud import get_top_profiles, create_swipe, get_user, deduct_superlike
 from database.models import User, Profile, InterestTag, SwipeAction, ModeEnum
 
@@ -219,3 +220,101 @@ async def handle_swipe(callback: CallbackQuery, user: User, db: AsyncSession):
         await callback.message.edit_reply_markup(reply_markup=None)
     except Exception:
         pass
+
+
+# ─── Отправка письма с анкеты (как в Дайвинчике) ───────────────────────────
+@router.callback_query(F.data.startswith("swipe:message:"))
+async def prompt_letter(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
+    target_id = int(callback.data.split(":")[-1])
+    target = await get_user(db, target_id)
+    if not target or not target.profile:
+        await callback.answer("Пользователь не найден.", show_alert=True)
+        return
+
+    await state.update_data(letter_target_id=target_id)
+    await state.set_state(LetterState.waiting_text)
+    await callback.answer()
+
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✕ Отмена", callback_data="letter:cancel")
+
+    await callback.message.answer(
+        f"💌 <b>Написать письмо для {target.profile.name}</b>\n\n"
+        f"Введи текст сообщения (до 300 символов):\n"
+        f"<i>Пример: Привет! Тоже участвую в хакатонах, давай объединимся 🚀</i>",
+        parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+    )
+
+
+@router.callback_query(F.data == "letter:cancel", LetterState.waiting_text)
+async def cancel_letter(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer("Отменено")
+    await callback.message.answer("Отправка письма отменена.")
+
+
+@router.message(LetterState.waiting_text)
+async def send_letter(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    data = await state.get_data()
+    target_id = data.get("letter_target_id")
+    await state.clear()
+
+    if not target_id:
+        await message.answer("Ошибка отправки письма.")
+        return
+
+    text = message.text.strip()[:300]
+    target = await get_user(db, target_id)
+    if not target:
+        await message.answer("Пользователь не найден.")
+        return
+
+    # Сохраняем свайп-лайк с комментарием
+    is_match = await create_swipe(db, from_id=user.id, to_id=target_id, action=SwipeAction.like, comment=text)
+
+    my_name = user.profile.name if user.profile else "Студент"
+    my_year = user.profile.year if user.profile else 1
+    my_major = user.profile.major if user.profile else "Вуз"
+    my_username = f"@{user.tg_username}" if user.tg_username else "(нет username)"
+    target_name = target.profile.name if target.profile else "Студент"
+    target_username = f"@{target.tg_username}" if target.tg_username else "(нет username)"
+
+    if is_match:
+        await message.answer(
+            f"🎉 <b>Мэтч!</b>\n\n"
+            f"<b>{target_name}</b> тоже заинтересован(а) в тебе!\n"
+            f"Его/её Telegram: <b>{target_username}</b>",
+            parse_mode="HTML",
+        )
+        try:
+            await message.bot.send_message(
+                target_id,
+                f"🎉 <b>Мэтч!</b>\n\n"
+                f"<b>{my_name}</b> тоже заинтересован(а) в тебе!\n"
+                f"Его/её Telegram: <b>{my_username}</b>",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+    else:
+        # Отправляем письмо получателю в Telegram
+        try:
+            await message.bot.send_message(
+                target_id,
+                f"💌 <b>Тебе пришло письмо в СтудМэч!</b>\n\n"
+                f"От: <b>{my_name}</b>, {my_year} курс ({my_major})\n\n"
+                f"Сообщение: <i>«{text}»</i>",
+                parse_mode="HTML",
+                reply_markup=letter_received_keyboard(user.id),
+            )
+        except Exception:
+            pass
+
+        await message.answer(
+            f"✅ <b>Письмо отправлено для {target_name}!</b>",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard(),
+        )
+

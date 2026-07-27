@@ -227,6 +227,7 @@ class Swipe(Base):
     from_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
     to_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
     action: Mapped[SwipeAction] = mapped_column(Enum(SwipeAction))
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     from_user: Mapped["User"] = relationship(foreign_keys=[from_user_id], back_populates="swipes_given")
