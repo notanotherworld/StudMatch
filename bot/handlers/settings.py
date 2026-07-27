@@ -63,7 +63,7 @@ async def toggle_visibility(callback: CallbackQuery, user: User, db: AsyncSessio
     label = "видна" if new_state else "скрыта"
     await callback.answer(f"Анкета {label}!")
     await callback.message.answer(
-        f"👁 Твоя анкета теперь <b>{label}</b> в топе.",
+        f"👀 Твоя анкета теперь <b>{label}</b> в топе.",
         parse_mode="HTML",
     )
 
@@ -96,10 +96,10 @@ async def show_my_profile(message: Message, user: User, db: AsyncSession):
         return
 
     mode_label = "🎯 Карьера" if user.mode == ModeEnum.career else "❤️ Знакомства"
-    visibility = "👁 Видна в топе" if profile.is_visible else "🔒 Скрыта"
+    visibility = "👀 Видна в топе" if profile.is_visible else "🔒 Скрыта"
 
     text = (
-        f"👤 <b>Мой профиль</b>\n\n"
+        # f"👤 <b>Мой профиль</b>\n\n"
         f"<b>{profile.name}</b>, {profile.year} курс\n"
         f"📚 {profile.major}\n"
         f"{mode_label} · ⭐ {profile.rating_score:.0f} б.\n"

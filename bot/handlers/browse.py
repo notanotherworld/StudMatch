@@ -108,7 +108,7 @@ async def show_top(message: Message, user: User, db: AsyncSession, state: FSMCon
 
     mode_label = "🎯 Карьера" if user.mode == ModeEnum.career else "❤️ Знакомства"
     await message.answer(
-        f"🏆 <b>ТОП СТУДЕНТОВ</b> · {mode_label}",
+        f"🏆 <b> СТУДЕНТОВ</b> · {mode_label}",
         parse_mode="HTML",
     )
     await _send_top_page(message, profiles, page=1, total_pages=total_pages, user_id=user.id, db=db)

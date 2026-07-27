@@ -62,7 +62,7 @@ def letter_received_keyboard(from_user_id: int) -> InlineKeyboardMarkup:
     """Кнопки действий для получателя письма."""
     builder = InlineKeyboardBuilder()
     builder.button(text="❤️ Лайкнуть в ответ", callback_data=f"swipe:like:{from_user_id}")
-    builder.button(text="👁 Профиль", callback_data=f"profile:open:{from_user_id}")
+    builder.button(text="👀 Профиль", callback_data=f"profile:open:{from_user_id}")
     builder.button(text="⏭ Пропустить", callback_data=f"swipe:skip:{from_user_id}")
     builder.adjust(1, 2)
     return builder.as_markup()
@@ -83,7 +83,7 @@ def top_navigation_keyboard(page: int, total_pages: int = 2) -> InlineKeyboardMa
 def profile_open_keyboard(profile_user_id: int) -> InlineKeyboardMarkup:
     """Кнопка открыть полный профиль из топа."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="👁 Открыть профиль", callback_data=f"profile:open:{profile_user_id}")
+    builder.button(text="👀 Открыть профиль", callback_data=f"profile:open:{profile_user_id}")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -122,7 +122,7 @@ def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
     builder.button(text="✏️ Редактировать анкету", callback_data="settings:edit_profile")
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
     builder.button(text="⭐ Купить суперлайки", callback_data="settings:buy")
-    builder.button(text="👁 Скрыть / показать анкету", callback_data="settings:toggle_visibility")
+    builder.button(text="Скрыть / показать анкету", callback_data="settings:toggle_visibility")
     builder.adjust(1)
     return builder.as_markup()
 

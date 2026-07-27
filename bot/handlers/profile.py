@@ -58,7 +58,7 @@ async def process_year(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(
         f"✅ <b>{year} курс</b> записан!\n\n"
         "<b>Вопрос 3/5</b>\n"
-        "Твоё направление или специальность?\n"
+        "Твоё направление, специальность?\n"
         "<i>(Например: Информационные системы, Экономика, Медицина...)</i>",
         parse_mode="HTML",
     )
