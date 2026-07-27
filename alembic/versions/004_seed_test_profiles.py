@@ -133,8 +133,8 @@ def upgrade() -> None:
         """)
 
         op.execute(f"""
-            INSERT INTO profiles (id, user_id, name, year, major, interest_ids, goal, rating_score, is_visible, is_complete, created_at)
-            VALUES (gen_random_uuid(), {u['id']}, '{name_escaped}', {u['year']}, '{major_escaped}', {interests_str}, '{goal_escaped}', {u['rating']}, true, true, '{now}')
+            INSERT INTO profiles (id, user_id, name, year, major, interest_ids, goal, rating_score, is_visible, is_complete)
+            VALUES (gen_random_uuid(), {u['id']}, '{name_escaped}', {u['year']}, '{major_escaped}', {interests_str}, '{goal_escaped}', {u['rating']}, true, true)
             ON CONFLICT (user_id) DO NOTHING;
         """)
 
