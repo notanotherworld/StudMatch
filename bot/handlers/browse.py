@@ -140,6 +140,26 @@ async def navigate_top(callback: CallbackQuery, state: FSMContext, user: User, d
     await _send_top_page(callback.message, profiles, page=page, total_pages=total_pages, user_id=user.id, db=db)
 
 
+HOW_TO_TOP_TEXT = """<b>КАК ПОПАСТЬ В ТОП 🏆</b>
+
+1) 💼 Участие в кейс-чемпионате / хакатоне — <b>+25 баллов</b>
+2) 🥉 Призовое место (3-е место) — <b>+50 баллов</b>
+3) 🥈 Призовое место (2-е место) — <b>+75 баллов</b>
+4) 🥇 Победа (1-е место) — <b>+100 баллов</b>
+5) 🤝 Участие в волонтёрском проекте — <b>+20 баллов</b>
+6) 👔 Прохождение стажировки — <b>+60 баллов</b>
+7) 🏛 Посещение проф. форума / конференции — <b>+15 баллов</b>
+8) 🎤 Выступление на форуме / конференции — <b>+40 баллов</b>
+
+📌 <i>Подтвердить достижения можно в профиле: ⚙️ Настройки → 🏆 Мои достижения</i>"""
+
+
+@router.callback_query(F.data == "top:how_to")
+async def show_how_to_top(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.answer(HOW_TO_TOP_TEXT, parse_mode="HTML")
+
+
 # ─── Свайп-действия ───────────────────────────────────────────
 @router.callback_query(F.data.startswith("swipe:"))
 async def handle_swipe(callback: CallbackQuery, user: User, db: AsyncSession):

@@ -33,6 +33,14 @@ class SwipeAction(str, enum.Enum):
 
 
 class AchievementType(str, enum.Enum):
+    case_participant = "case_participant"
+    place_3 = "place_3"
+    place_2 = "place_2"
+    place_1 = "place_1"
+    volunteer = "volunteer"
+    internship = "internship"
+    forum_attender = "forum_attender"
+    forum_speaker = "forum_speaker"
     gpa = "gpa"
     competition = "competition"
     case = "case"

@@ -69,14 +69,15 @@ def letter_received_keyboard(from_user_id: int) -> InlineKeyboardMarkup:
 
 
 def top_navigation_keyboard(page: int, total_pages: int = 2) -> InlineKeyboardMarkup:
-    """Навигация по страницам топа (1/2 → 2/2)."""
+    """Навигация по страницам топа + кнопка Как попасть в топ."""
     builder = InlineKeyboardBuilder()
     if page > 1:
-        builder.button(text="◀️", callback_data=f"top:page:{page - 1}")
-    builder.button(text=f"{page}/{total_pages}", callback_data="top:noop")
+        builder.button(text="◀️ Назад", callback_data=f"top:page:{page - 1}")
+    builder.button(text=f"Стр. {page}/{total_pages}", callback_data="top:noop")
     if page < total_pages:
-        builder.button(text="▶️", callback_data=f"top:page:{page + 1}")
-    builder.adjust(3)
+        builder.button(text="Вперёд ▶️", callback_data=f"top:page:{page + 1}")
+    builder.button(text="❓ Как попасть в топ", callback_data="top:how_to")
+    builder.adjust(3, 1)
     return builder.as_markup()
 
 
@@ -91,13 +92,14 @@ def profile_open_keyboard(profile_user_id: int) -> InlineKeyboardMarkup:
 def achievement_type_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     types = [
-        ("📊 GPA / Успеваемость", "gpa"),
-        ("🏆 Победа в олимпиаде", "olympiad"),
-        ("💼 Кейс-чемпионат", "case"),
-        ("🥇 Соревнования", "competition"),
-        ("🎓 Диплом с отличием", "diploma"),
-        ("📝 Публикация", "publication"),
-        ("🎯 Участие", "participation"),
+        ("💼 Участие в хакатоне / кейс-чемпионате (+25 б.)", "case_participant"),
+        ("🥉 Призовое 3-е место (+50 б.)", "place_3"),
+        ("🥈 Призовое 2-е место (+75 б.)", "place_2"),
+        ("🥇 Победа / 1-е место (+100 б.)", "place_1"),
+        ("🤝 Участие в волонтёрском проекте (+20 б.)", "volunteer"),
+        ("👔 Прохождение стажировки (+60 б.)", "internship"),
+        ("🏛 Посещение форума / конференции (+15 б.)", "forum_attender"),
+        ("🎤 Выступление на форуме / конференции (+40 б.)", "forum_speaker"),
     ]
     for label, ach_type in types:
         builder.button(text=label, callback_data=f"ach_type:{ach_type}")
@@ -119,10 +121,11 @@ def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
     mode_label = "🎯 Карьера" if current_mode == "career" else "❤️ Знакомства"
     builder = InlineKeyboardBuilder()
     builder.button(text=f"Режим: {mode_label}", callback_data="settings:change_mode")
-    builder.button(text="✏️ Редактировать анкету", callback_data="settings:edit_profile")
+    builder.button(text="🏷 Изменить интересы", callback_data="settings:edit_interests")
+    builder.button(text="✏️ Перезаполнить анкету", callback_data="settings:edit_profile")
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
-    builder.button(text="⭐ Купить суперлайки", callback_data="settings:buy")
-    builder.button(text="Скрыть / показать анкету", callback_data="settings:toggle_visibility")
+    builder.button(text="⭐ Купить суперлайки / Премиум", callback_data="settings:buy")
+    builder.button(text="👁 Скрыть / показать анкету", callback_data="settings:toggle_visibility")
     builder.adjust(1)
     return builder.as_markup()
 

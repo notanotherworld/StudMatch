@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
 
 from bot.keyboards.swipe import settings_keyboard, mode_keyboard, buy_superlike_keyboard, main_menu_keyboard
+from bot.states.fsm import ProfileState
 from database.crud import set_user_mode
 from database.models import User, ModeEnum, Profile
 
@@ -29,6 +30,33 @@ async def change_mode_prompt(callback: CallbackQuery):
     await callback.message.answer(
         "Выбери режим:",
         reply_markup=mode_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "settings:edit_interests")
+async def edit_interests_prompt(callback: CallbackQuery, user: User, state: FSMContext, db: AsyncSession):
+    if not user.profile:
+        await callback.answer("Сначала заполни анкету!")
+        return
+
+    selected = list(user.profile.interest_ids or [])
+    await state.update_data(selected_interests=selected, editing_from_settings=True)
+    await state.set_state(ProfileState.waiting_interests)
+
+    from sqlalchemy import select
+    from database.models import InterestTag
+    from bot.keyboards.swipe import interests_keyboard
+
+    result = await db.execute(select(InterestTag).order_by(InterestTag.id))
+    tags = list(result.scalars().all())
+
+    await callback.answer()
+    await callback.message.answer(
+        "🏷 <b>Редактирование интересов</b>\n\n"
+        "Нажимай на теги, чтобы <b>добавить</b> или <b>удалить</b> их из анкеты.\n"
+        "По окончании нажми <b>✔️ Готово</b>:",
+        parse_mode="HTML",
+        reply_markup=interests_keyboard(tags, selected),
     )
 
 

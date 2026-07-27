@@ -238,6 +238,15 @@ async def create_swipe(
 # Achievements
 # ─────────────────────────────────────────────────────────────
 ACHIEVEMENT_SCORES = {
+    "case_participant": 25.0,
+    "place_3": 50.0,
+    "place_2": 75.0,
+    "place_1": 100.0,
+    "volunteer": 20.0,
+    "internship": 60.0,
+    "forum_attender": 15.0,
+    "forum_speaker": 40.0,
+    # Fallback/compatibility
     "gpa": 10.0,
     "competition": 15.0,
     "case": 25.0,

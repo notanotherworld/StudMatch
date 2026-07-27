@@ -102,6 +102,19 @@ async def process_interest(callback: CallbackQuery, state: FSMContext, db: Async
 
         await callback.message.edit_reply_markup(reply_markup=None)
         await callback.answer()
+
+        if data.get("editing_from_settings"):
+            from database.crud import update_profile
+            from bot.keyboards.swipe import main_menu_keyboard
+            await update_profile(db, user.id, interest_ids=selected)
+            await state.clear()
+            await callback.message.answer(
+                "✅ <b>Список интересов обновлён!</b>",
+                parse_mode="HTML",
+                reply_markup=main_menu_keyboard(),
+            )
+            return
+
         await state.set_state(ProfileState.waiting_goal)
         await callback.message.answer(
             "<b>Вопрос 5/5</b>\n"
