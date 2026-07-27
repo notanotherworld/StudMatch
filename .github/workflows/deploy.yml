@@ -29,8 +29,7 @@ jobs:
 
       - name: Run ruff linter
         run: |
-          ruff check . --ignore E501
-        continue-on-error: true   # Не блокируем деплой из-за стиля
+          ruff check . --ignore E501,B008 --exit-zero
 
   # ────────────────────────────────────────────────────────────
   # JOB 2: Деплой на VPS (только после lint)

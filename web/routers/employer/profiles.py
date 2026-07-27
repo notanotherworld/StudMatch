@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from web.dependencies import get_db, get_current_employer
-from database.models import EmployerProfileAccess, Profile, User, Achievement, VerifiedStatus
+from database.models import EmployerProfileAccess, Profile, Achievement, VerifiedStatus
 from database.crud import mark_profile_viewed, get_employer_profiles
 
 router = APIRouter()
