@@ -1,13 +1,13 @@
 """Add referrer_id to users and custom_interests to profiles.
 
-Revision ID: 005_referrals_and_custom_interests
+Revision ID: 005_ref_custom
 Revises: 004_seed_test_profiles
 Create Date: 2026-07-29
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "005_referrals_and_custom_interests"
+revision = "005_ref_custom"
 down_revision = "004_seed_test_profiles"
 branch_labels = None
 depends_on = None
