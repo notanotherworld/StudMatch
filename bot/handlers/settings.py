@@ -89,11 +89,13 @@ async def toggle_visibility(callback: CallbackQuery, user: User, db: AsyncSessio
     await db.commit()
 
     label = "видна" if new_state else "скрыта"
-    await callback.answer(f"Анкета {label}!")
-    await callback.message.answer(
-        f"👀 Твоя анкета теперь <b>{label}</b> в топе.",
-        parse_mode="HTML",
+    await callback.answer(f"Твоя анкета {label}!")
+    msg = (
+        "👀 <b>Твоя анкета снова видна в Топе!</b>\nДругие студенты смогут находить тебя и ставить лайки."
+        if new_state
+        else "🔒 <b>Твоя анкета скрыта из поиска!</b>\nДругие студенты больше не смогут видеть твою анкету в Топе."
     )
+    await callback.message.answer(msg, parse_mode="HTML")
 
 
 @router.callback_query(F.data == "settings:reset_swipes")
@@ -121,19 +123,39 @@ async def show_buy(callback: CallbackQuery, user: User):
     await callback.answer()
     balance = user.superlike_balance
     await callback.message.answer(
-        f"💎 <b>Премиум — 299 ₽/мес</b>\n"
-        f"1. Безлимитные лайки\n"
-        f"2. Тебя видят чаще\n"
-        f"3. Выделись! Твой профиль помечается значком 💎\n\n"
-        f"⭐️ <b>Суперлайк — 49 ₽ (1 шт) / 99 ₽ (3 шт)</b>\n"
-        f"1. Твой профиль будет первым\n"
-        f"2. Суперлайк покажет серьезную заинтересованность в человеке\n"
-        f"3. Шанс на мэтч выше в 2-3 раза\n\n"
+        f"💎 <b>Премиум-подписка — 199 ₽/мес</b>\n\n"
+        f"❤️ Безлимитное количество лайков\n"
+        f"👀 Повышенная видимость профиля\n"
+        f"✨ Выделись! Профиль обретает специальный значок\n\n"
+        f"⭐️ <b>Суперлайк — 49 ₽ (3 шт) / 99 ₽ (5 шт)</b>\n\n"
+        f"🌟 Стань звёздочкой! Твой профиль будет первым\n"
+        f"🤍 Суперлайк покажет серьезную заинтересованность в человеке\n"
+        f"📈 Шанс на мэтч выше в 2-3 раза\n\n"
         f"Текущий баланс: <b>{balance}</b> ⭐ суперлайков\n\n"
         f"👉 <i>Купить можно ниже:</i>",
         parse_mode="HTML",
         reply_markup=buy_superlike_keyboard(),
     )
+
+
+@router.message(F.text == "🔗 Пригласить друга (+1 ⭐️)")
+@router.callback_query(F.data == "settings:ref_link")
+async def show_referral_link(event, user: User):
+    bot_info = await event.bot.get_me()
+    ref_url = f"https://t.me/{bot_info.username}?start=ref_{user.id}"
+
+    text = (
+        f"🔗 <b>Приглашай друзей в СтудМэч!</b>\n\n"
+        f"Отправь другу свою персональную ссылку:\n"
+        f"<code>{ref_url}</code>\n\n"
+        f"🎁 За каждого зарегистрировавшегося друга ты получаешь <b>+1 ⭐️ Суперлайк</b>!"
+    )
+
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+        await event.message.answer(text, parse_mode="HTML")
+    else:
+        await event.answer(text, parse_mode="HTML")
 
 
 @router.message(F.text == "👤 Мой профиль")

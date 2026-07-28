@@ -33,7 +33,7 @@ def year_keyboard() -> InlineKeyboardMarkup:
 
 
 def interests_keyboard(tags: List[InterestTag], selected: List[int] = None) -> InlineKeyboardMarkup:
-    """Клавиатура выбора интересов с чекбоксами."""
+    """Клавиатура выбора интересов с чекбоксами и кастомным вводом."""
     selected = selected or []
     builder = InlineKeyboardBuilder()
     for tag in tags:
@@ -42,6 +42,7 @@ def interests_keyboard(tags: List[InterestTag], selected: List[int] = None) -> I
             text=f"{checked}{tag.emoji} {tag.name}",
             callback_data=f"interest:{tag.id}",
         )
+    builder.button(text="✍️ Написать свой", callback_data="interest:custom")
     builder.button(text="✔️ Готово", callback_data="interest:done")
     builder.adjust(2)
     return builder.as_markup()
@@ -109,10 +110,9 @@ def achievement_type_keyboard() -> InlineKeyboardMarkup:
 
 def buy_superlike_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="💎 Премиум — 299 ₽/мес", callback_data="buy:premium_1m")
-    builder.button(text="⭐ 1 суперлайк — 49 ₽", callback_data="buy:superlike_1")
-    builder.button(text="⭐️ 3 суперлайка — 99 ₽", callback_data="buy:superlike_3")
-    builder.button(text="⚡ Буст 24ч — 149 ₽", callback_data="buy:boost_24h")
+    builder.button(text="💎 Премиум-подписка — 199 ₽/мес", callback_data="buy:premium_1m")
+    builder.button(text="⭐️ 3 суперлайка — 49 ₽", callback_data="buy:superlike_3")
+    builder.button(text="⭐️ 5 суперлайков — 99 ₽", callback_data="buy:superlike_5")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -124,8 +124,9 @@ def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
     builder.button(text="🏷 Изменить интересы", callback_data="settings:edit_interests")
     builder.button(text="✏️ Перезаполнить анкету", callback_data="settings:edit_profile")
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
-    builder.button(text="⭐ Купить суперлайки / Премиум", callback_data="settings:buy")
-    builder.button(text="👀 Скрыть / показать анкету", callback_data="settings:toggle_visibility")
+    builder.button(text="💎 Премиум и Суперлайки", callback_data="settings:buy")
+    builder.button(text="🔒 Скрыть / показать МОЮ анкету", callback_data="settings:toggle_visibility")
+    builder.button(text="🔗 Пригласить друга (+1 ⭐️)", callback_data="settings:ref_link")
     builder.button(text="🔄 Сбросить историю свайпов (тест)", callback_data="settings:reset_swipes")
     builder.adjust(1)
     return builder.as_markup()
@@ -137,7 +138,8 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder.button(text="💘 Мои мэтчи")
     builder.button(text="👤 Мой профиль")
     builder.button(text="⚙️ Настройки")
-    builder.adjust(2)
+    builder.button(text="🔗 Пригласить друга (+1 ⭐️)")
+    builder.adjust(2, 2, 1)
     return builder.as_markup(resize_keyboard=True)
 
 

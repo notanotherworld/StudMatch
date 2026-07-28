@@ -16,6 +16,7 @@ class ProfileState(StatesGroup):
     waiting_year = State()        # Вопрос 2
     waiting_major = State()       # Вопрос 3
     waiting_interests = State()   # Вопрос 4
+    waiting_custom_interest = State() # Кастомный интерес
     waiting_goal = State()        # Вопрос 5
     waiting_photo = State()       # Фото
 

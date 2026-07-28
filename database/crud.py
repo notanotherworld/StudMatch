@@ -326,17 +326,12 @@ async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optiona
     payment.updated_at = datetime.now(timezone.utc)
 
     # Начисляем товар
-    if payment.product == PaymentProduct.superlike_1:
-        await add_superlikes(db, payment.user_id, 1)
-    elif payment.product == PaymentProduct.superlike_3:
+    if payment.product == PaymentProduct.superlike_3:
         await add_superlikes(db, payment.user_id, 3)
-    elif payment.product == PaymentProduct.superlike_10:
-        await add_superlikes(db, payment.user_id, 10)
-    elif payment.product == PaymentProduct.boost_24h:
-        boost_until = datetime.now(timezone.utc) + timedelta(hours=24)
-        await db.execute(
-            update(User).where(User.id == payment.user_id).values(boost_until=boost_until)
-        )
+    elif payment.product == PaymentProduct.superlike_5:
+        await add_superlikes(db, payment.user_id, 5)
+    elif payment.product in (PaymentProduct.superlike_1, PaymentProduct.superlike_10):
+        await add_superlikes(db, payment.user_id, 3)
     elif payment.product == PaymentProduct.premium_1m:
         boost_until = datetime.now(timezone.utc) + timedelta(days=30)
         await add_superlikes(db, payment.user_id, 10)

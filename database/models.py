@@ -64,6 +64,7 @@ class AdminRole(str, enum.Enum):
 class PaymentProduct(str, enum.Enum):
     superlike_1 = "superlike_1"
     superlike_3 = "superlike_3"
+    superlike_5 = "superlike_5"
     superlike_10 = "superlike_10"
     boost_24h = "boost_24h"
     premium_1m = "premium_1m"
@@ -125,6 +126,7 @@ class User(Base):
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     university_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("universities.id"), nullable=True)
+    referrer_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=True)
 
     consent_given: Mapped[bool] = mapped_column(Boolean, default=False)
     consent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -164,6 +166,7 @@ class Profile(Base):
     year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)             # 2 (1–6)
     major: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)        # 3
     interest_ids: Mapped[Optional[List[int]]] = mapped_column(ARRAY(Integer), nullable=True)  # 4
+    custom_interests: Mapped[Optional[str]] = mapped_column(Text, nullable=True)               # Кастомные интересы
     goal: Mapped[Optional[str]] = mapped_column(Text, nullable=True)                # 5
 
     # Фото — храним Telegram file_id

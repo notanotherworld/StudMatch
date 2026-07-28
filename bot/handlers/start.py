@@ -43,9 +43,21 @@ CONSENT_TEXT = """📋 <b>Соглашение об обработке перс�
 Нажимая <b>«Принимаю»</b>, ты соглашаешься с обработкой персональных данных."""
 
 
+from aiogram.filters import CommandObject, CommandStart
+
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext, user: User, db: AsyncSession):
+async def cmd_start(message: Message, command: CommandObject, state: FSMContext, user: User, db: AsyncSession):
     await state.clear()
+
+    # Обработка реферальной ссылки (start=ref_123456)
+    if command.args and command.args.startswith("ref_"):
+        try:
+            ref_id = int(command.args.split("ref_")[1])
+            if ref_id != user.id and not user.referrer_id:
+                user.referrer_id = ref_id
+                await db.commit()
+        except Exception:
+            pass
 
     # Сообщение #1 — Приветственное вступление
     await message.answer(WELCOME_TEXT)
@@ -64,6 +76,21 @@ async def cmd_start(message: Message, state: FSMContext, user: User, db: AsyncSe
 async def consent_accepted(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
     await set_user_consent(db, user.id)
     user.consent_given = True
+
+    # Награждаем реферера +1 суперлайком
+    if user.referrer_id:
+        from database.crud import add_superlikes
+        await add_superlikes(db, user.referrer_id, 1)
+        try:
+            await callback.bot.send_message(
+                user.referrer_id,
+                "🎉 <b>Твой друг зарегистрировался в СтудМэч!</b>\n\n"
+                "Тебе начислен <b>+1 ⭐️ Суперлайк</b> за приглашение!",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.answer("✅ Соглашение принято!")
     await _after_consent(callback.message, state, user, db)

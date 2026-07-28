@@ -264,7 +264,7 @@ async def prompt_letter(callback: CallbackQuery, state: FSMContext, user: User, 
 
     await callback.message.answer(
         f"💌 <b>Написать письмо для {target.profile.name}</b>\n\n"
-        f"Введи текст сообщения (до 300 символов):\n"
+        f"Введи текст сообщения (до 500 символов):\n"
         f"<i>Пример: Привет! Тоже участвую в хакатонах, давай объединимся 🚀</i>",
         parse_mode="HTML",
         reply_markup=builder.as_markup(),
@@ -275,7 +275,10 @@ async def prompt_letter(callback: CallbackQuery, state: FSMContext, user: User, 
 async def cancel_letter(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer("Отменено")
-    await callback.message.answer("Отправка письма отменена.")
+    try:
+        await callback.message.delete()
+    except Exception:
+        await callback.message.answer("Отправка письма отменена.")
 
 
 @router.message(LetterState.waiting_text)
@@ -288,7 +291,7 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
         await message.answer("Ошибка отправки письма.")
         return
 
-    text = message.text.strip()[:300]
+    text = message.text.strip()[:500]
     target = await get_user(db, target_id)
     if not target:
         await message.answer("Пользователь не найден.")

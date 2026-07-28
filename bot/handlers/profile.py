@@ -93,10 +93,21 @@ async def process_major(message: Message, state: FSMContext, db: AsyncSession):
 async def process_interest(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     value = callback.data.split(":")[1]
 
+    if value == "custom":
+        await callback.answer()
+        await state.set_state(ProfileState.waiting_custom_interest)
+        await callback.message.answer(
+            "✍️ <b>Напиши свой интерес или хобби текстом:</b>\n"
+            "<i>(Например: 3D Геймдев, Астрофизика, Спортивное ориентирование)</i>",
+            parse_mode="HTML",
+        )
+        return
+
     if value == "done":
         data = await state.get_data()
         selected = data.get("selected_interests", [])
-        if not selected:
+        custom_interests = data.get("custom_interests")
+        if not selected and not custom_interests:
             await callback.answer("Выбери хотя бы один интерес!", show_alert=True)
             return
 
@@ -143,6 +154,33 @@ async def process_interest(callback: CallbackQuery, state: FSMContext, db: Async
     tags = list(result.scalars().all())
     await callback.message.edit_reply_markup(reply_markup=interests_keyboard(tags, selected))
     await callback.answer()
+
+
+@router.message(ProfileState.waiting_custom_interest)
+async def process_custom_interest(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    custom_text = message.text.strip()[:100]
+    data = await state.get_data()
+    selected = data.get("selected_interests", [])
+
+    from database.crud import update_profile
+    await update_profile(db, user.id, custom_interests=custom_text)
+    await state.update_data(custom_interests=custom_text)
+
+    await message.answer(f"✅ Добавлен свой интерес: <b>{custom_text}</b>", parse_mode="HTML")
+
+    if data.get("editing_from_settings"):
+        from bot.keyboards.swipe import main_menu_keyboard
+        await state.clear()
+        await message.answer("✅ <b>Интересы обновлены!</b>", parse_mode="HTML", reply_markup=main_menu_keyboard())
+    else:
+        await state.set_state(ProfileState.waiting_interests)
+        result = await db.execute(select(InterestTag).order_by(InterestTag.id))
+        tags = list(result.scalars().all())
+        await message.answer(
+            "Выбери ещё готовые теги или нажми <b>✔️ Готово</b>:",
+            parse_mode="HTML",
+            reply_markup=interests_keyboard(tags, selected),
+        )
 
 
 # ─── Вопрос 5: Цель ───────────────────────────────────────────

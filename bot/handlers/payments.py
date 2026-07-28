@@ -19,25 +19,20 @@ Configuration.account_id = settings.YOOKASSA_SHOP_ID
 Configuration.secret_key = settings.YOOKASSA_SECRET_KEY
 
 PRODUCTS = {
-    "superlike_1": {
-        "label": "1 суперлайк",
-        "amount": 49,
-        "product": PaymentProduct.superlike_1,
-    },
-    "superlike_3": {
-        "label": "3 суперлайка",
-        "amount": 99,
-        "product": PaymentProduct.superlike_3,
-    },
     "premium_1m": {
-        "label": "💎 Премиум подписка 1 мес",
-        "amount": 299,
+        "label": "💎 Премиум-подписка 1 мес",
+        "amount": 199,
         "product": PaymentProduct.premium_1m,
     },
-    "boost_24h": {
-        "label": "⚡ Буст анкеты 24ч",
-        "amount": 149,
-        "product": PaymentProduct.boost_24h,
+    "superlike_3": {
+        "label": "⭐ 3 суперлайка",
+        "amount": 49,
+        "product": PaymentProduct.superlike_3,
+    },
+    "superlike_5": {
+        "label": "⭐️ 5 суперлайков",
+        "amount": 99,
+        "product": PaymentProduct.superlike_5,
     },
 }
 
