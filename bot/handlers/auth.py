@@ -4,6 +4,7 @@ Email-верификация: ввод корп. email → отправка ко
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.states.fsm import AuthState
@@ -13,8 +14,6 @@ from database.crud import (
     verify_email_token, get_or_create_profile,
 )
 from database.models import User
-from sqlalchemy import update
-from database.session import AsyncSessionLocal
 from database.models import User as UserModel
 
 router = Router()
@@ -43,14 +42,13 @@ async def process_email(message: Message, state: FSMContext, user: User, db: Asy
         )
         return
 
-    # Сохраняем email и вуз в БД
-    async with AsyncSessionLocal() as s:
-        await s.execute(
-            update(UserModel)
-            .where(UserModel.id == user.id)
-            .values(email=email, university_id=university.id)
-        )
-        await s.commit()
+    # Сохраняем email и вуз в БД (через ТУ ЖЕ сессию, без открытия второй) (#20)
+    await db.execute(
+        update(UserModel)
+        .where(UserModel.id == user.id)
+        .values(email=email, university_id=university.id)
+    )
+    await db.commit()
 
     # Создаём и отправляем код
     code = await create_email_token(db, user.id)

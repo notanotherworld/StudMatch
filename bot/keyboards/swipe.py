@@ -127,7 +127,6 @@ def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
     builder.button(text="💎 Премиум и Суперлайки", callback_data="settings:buy")
     builder.button(text="🔒 Скрыть / показать МОЮ анкету", callback_data="settings:toggle_visibility")
     builder.button(text="🔗 Пригласить друга (+1 ⭐️)", callback_data="settings:ref_link")
-    builder.button(text="🔄 Сбросить историю свайпов (тест)", callback_data="settings:reset_swipes")
     builder.adjust(1)
     return builder.as_markup()
 

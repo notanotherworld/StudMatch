@@ -1,16 +1,17 @@
 """
 Настройки: смена режима, видимость анкеты, покупка суперлайков.
 """
+import html
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import update
 
 from bot.keyboards.swipe import settings_keyboard, mode_keyboard, buy_superlike_keyboard, main_menu_keyboard
 from bot.states.fsm import ProfileState
 from database.crud import set_user_mode
-from database.models import User, ModeEnum, Profile
+from database.models import User, ModeEnum, Profile, InterestTag, Swipe
 
 router = Router()
 
@@ -168,13 +169,18 @@ async def show_my_profile(message: Message, user: User, db: AsyncSession):
     mode_label = "🎯 Карьера" if user.mode == ModeEnum.career else "❤️ Знакомства"
     visibility = "👀 Видна в топе" if profile.is_visible else "🔒 Скрыта"
 
+    # Кастомные интересы в профиле (#14)
+    custom_block = ""
+    if profile.custom_interests:
+        custom_block = f"\n✍️ Свои: <i>{html.escape(profile.custom_interests)}</i>"
+
     text = (
-        # f"👤 <b>Мой профиль</b>\n\n"
-        f"<b>{profile.name}</b>, {profile.year} курс\n"
-        f"📚 {profile.major}\n"
+        f"<b>{html.escape(profile.name or '')}</b>, {profile.year} курс\n"
+        f"📚 {html.escape(profile.major or '')}\n"
         f"{mode_label} · ⭐ {profile.rating_score:.0f} б.\n"
         f"{visibility}\n\n"
-        f"💬 <i>{profile.goal}</i>\n\n"
+        f"💬 <i>{html.escape(profile.goal or '')}</i>\n"
+        f"{custom_block}\n\n"
         f"⭐ Суперлайков: <b>{user.superlike_balance}</b>\n"
         f"📧 {user.email}"
     )

@@ -1,6 +1,7 @@
 """
 Создание анкеты — 5 вопросов + фото (FSM).
 """
+import html
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
@@ -31,11 +32,12 @@ async def start_profile_creation(message: Message, state: FSMContext) -> None:
 # ─── Вопрос 1: Имя ────────────────────────────────────────────
 @router.message(ProfileState.waiting_name)
 async def process_name(message: Message, state: FSMContext, user: User, db: AsyncSession):
-    name = message.text.strip()
-    if len(name) < 2 or len(name) > 50:
+    raw_name = message.text.strip()
+    if len(raw_name) < 2 or len(raw_name) > 50:
         await message.answer("Имя должно быть от 2 до 50 символов. Попробуй ещё раз.")
         return
 
+    name = html.escape(raw_name)  # Защищаем от HTML-инъекций (#18)
     await state.update_data(name=name)
     await state.set_state(ProfileState.waiting_year)
     await message.answer(
@@ -67,11 +69,12 @@ async def process_year(callback: CallbackQuery, state: FSMContext):
 # ─── Вопрос 3: Направление ────────────────────────────────────
 @router.message(ProfileState.waiting_major)
 async def process_major(message: Message, state: FSMContext, db: AsyncSession):
-    major = message.text.strip()
-    if len(major) < 2 or len(major) > 100:
+    raw_major = message.text.strip()
+    if len(raw_major) < 2 or len(raw_major) > 100:
         await message.answer("Направление должно быть от 2 до 100 символов.")
         return
 
+    major = html.escape(raw_major)  # Защищаем от HTML-инъекций (#18)
     await state.update_data(major=major, selected_interests=[])
 
     # Загружаем теги
@@ -115,9 +118,7 @@ async def process_interest(callback: CallbackQuery, state: FSMContext, db: Async
         await callback.answer()
 
         if data.get("editing_from_settings"):
-            from database.crud import update_profile
-            from bot.keyboards.swipe import main_menu_keyboard
-            await update_profile(db, user.id, interest_ids=selected)
+            await update_profile(db, user.id, interest_ids=selected, custom_interests=custom_interests)
             await state.clear()
             await callback.message.answer(
                 "✅ <b>Список интересов обновлён!</b>",
@@ -158,18 +159,17 @@ async def process_interest(callback: CallbackQuery, state: FSMContext, db: Async
 
 @router.message(ProfileState.waiting_custom_interest)
 async def process_custom_interest(message: Message, state: FSMContext, user: User, db: AsyncSession):
-    custom_text = message.text.strip()[:100]
+    raw_custom = message.text.strip()[:100]
+    custom_text = html.escape(raw_custom)  # Защищаем от HTML-инъекций (#18)
     data = await state.get_data()
     selected = data.get("selected_interests", [])
 
-    from database.crud import update_profile
     await update_profile(db, user.id, custom_interests=custom_text)
     await state.update_data(custom_interests=custom_text)
 
     await message.answer(f"✅ Добавлен свой интерес: <b>{custom_text}</b>", parse_mode="HTML")
 
     if data.get("editing_from_settings"):
-        from bot.keyboards.swipe import main_menu_keyboard
         await state.clear()
         await message.answer("✅ <b>Интересы обновлены!</b>", parse_mode="HTML", reply_markup=main_menu_keyboard())
     else:
@@ -186,11 +186,12 @@ async def process_custom_interest(message: Message, state: FSMContext, user: Use
 # ─── Вопрос 5: Цель ───────────────────────────────────────────
 @router.message(ProfileState.waiting_goal)
 async def process_goal(message: Message, state: FSMContext):
-    goal = message.text.strip()
-    if len(goal) < 10 or len(goal) > 300:
+    raw_goal = message.text.strip()
+    if len(raw_goal) < 10 or len(raw_goal) > 300:
         await message.answer("Цель должна быть от 10 до 300 символов.")
         return
 
+    goal = html.escape(raw_goal)  # Защищаем от HTML-инъекций (#18)
     await state.update_data(goal=goal)
     await state.set_state(ProfileState.waiting_photo)
     await message.answer(

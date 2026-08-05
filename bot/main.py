@@ -11,7 +11,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 
 from bot.config import settings
 from bot.middlewares.auth import AuthMiddleware
-from bot.middlewares.throttling import ThrottlingMiddleware
+from bot.middlewares.throttling import ThrottlingMiddleware, CallbackThrottlingMiddleware
 from bot.handlers import start, auth, profile, browse, settings as settings_handler, rating, payments, reports as reports_handler
 
 logging.basicConfig(
@@ -34,6 +34,7 @@ async def main() -> None:
     # Middleware (порядок важен)
     dp.message.middleware(ThrottlingMiddleware(rate_limit=1.0))
     dp.message.middleware(AuthMiddleware())
+    dp.callback_query.middleware(CallbackThrottlingMiddleware(rate_limit=0.5))  # Защита кнопок от спама (#19)
     dp.callback_query.middleware(AuthMiddleware())
 
     # Роутеры

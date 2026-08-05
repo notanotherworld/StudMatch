@@ -1,11 +1,14 @@
 """
 Свайп-интерфейс: топ-6 студентов (3+3), лайк/суперлайк/скип, мэтчи.
 """
+import html
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, InputMediaPhoto
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 
 from bot.keyboards.swipe import (
     swipe_card_keyboard, top_navigation_keyboard,
@@ -13,9 +16,7 @@ from bot.keyboards.swipe import (
 )
 from bot.states.fsm import LetterState
 from database.crud import get_top_profiles, create_swipe, get_user, deduct_superlike
-from database.models import User, Profile, InterestTag, SwipeAction, ModeEnum
-
-from sqlalchemy.orm import selectinload
+from database.models import User, Profile, InterestTag, SwipeAction, ModeEnum, Swipe
 
 router = Router()
 
@@ -23,25 +24,33 @@ router = Router()
 PAGE_SIZE = 3
 
 
-async def _build_profile_caption(profile: Profile, db: AsyncSession) -> str:
-    """Формируем текст карточки студента."""
+async def _build_profile_caption(
+    profile: Profile, tags_map: dict[int, InterestTag]
+) -> str:
+    """Формируем текст карточки студента (tags_map уже загружен batch-запросом)."""
     tags_text = ""
     if profile.interest_ids:
-        result = await db.execute(
-            select(InterestTag).where(InterestTag.id.in_(profile.interest_ids))
-        )
-        tags = result.scalars().all()
+        tags = [tags_map[tid] for tid in profile.interest_ids if tid in tags_map]
         tags_text = " ".join(f"{t.emoji}{t.name}" for t in tags)
+
+    # Кастомные интересы
+    if profile.custom_interests:
+        custom = html.escape(profile.custom_interests)
+        tags_text += f"\n✍️ {custom}" if tags_text else f"✍️ {custom}"
 
     user_mode = getattr(profile.user, "mode", None)
     mode_label = "🎯 Карьера" if (user_mode and user_mode == ModeEnum.career) else "❤️ Знакомства"
     rating = f"⭐ {profile.rating_score:.0f} б." if profile.rating_score > 0 else ""
 
+    name = html.escape(profile.name or "")
+    major = html.escape(profile.major or "")
+    goal = html.escape(profile.goal or "")
+
     return (
-        f"<b>{profile.name}</b>, {profile.year} курс\n"
-        f"📚 {profile.major}\n"
+        f"<b>{name}</b>, {profile.year} курс\n"
+        f"📚 {major}\n"
         f"{mode_label}  {rating}\n\n"
-        f"💬 <i>{profile.goal}</i>\n\n"
+        f"💬 <i>{goal}</i>\n\n"
         f"{tags_text}"
     )
 
@@ -55,7 +64,7 @@ async def _send_top_page(
     db: AsyncSession,
     edit: bool = False,
 ) -> None:
-    """Отправить страницу топа (3 карточки или 1 с навигацией)."""
+    """Отправить страницу топа (3 карточки с навигацией)."""
     start = (page - 1) * PAGE_SIZE
     page_profiles = profiles[start: start + PAGE_SIZE]
 
@@ -63,8 +72,22 @@ async def _send_top_page(
         await message.answer("Нет студентов для отображения на этой странице.")
         return
 
+    # Batch-загрузка тегов для всех профилей на странице (#6)
+    all_tag_ids = set()
+    for p in page_profiles:
+        if p.interest_ids:
+            all_tag_ids.update(p.interest_ids)
+
+    tags_map: dict[int, InterestTag] = {}
+    if all_tag_ids:
+        result = await db.execute(
+            select(InterestTag).where(InterestTag.id.in_(all_tag_ids))
+        )
+        for tag in result.scalars().all():
+            tags_map[tag.id] = tag
+
     for i, profile in enumerate(page_profiles):
-        caption = await _build_profile_caption(profile, db)
+        caption = await _build_profile_caption(profile, tags_map)
         pos = start + i + 1  # позиция в общем топе
 
         full_caption = f"<b>#{pos} в топе</b>\n\n{caption}"
@@ -129,15 +152,15 @@ async def navigate_top(callback: CallbackQuery, state: FSMContext, user: User, d
         await callback.message.answer("Список устарел. Обнови топ ▶️ Топ студентов")
         return
 
-    # Загружаем профили по сохранённым ID
-    profiles = []
-    for uid in profile_ids:
-        result = await db.execute(
-            select(Profile).options(selectinload(Profile.user)).where(Profile.user_id == uid)
-        )
-        p = result.scalar_one_or_none()
-        if p:
-            profiles.append(p)
+    # Batch-загрузка всех профилей одним запросом (#5)
+    result = await db.execute(
+        select(Profile)
+        .options(selectinload(Profile.user))
+        .where(Profile.user_id.in_(profile_ids))
+    )
+    profile_map = {p.user_id: p for p in result.scalars().all()}
+    # Восстанавливаем исходный порядок
+    profiles = [profile_map[uid] for uid in profile_ids if uid in profile_map]
 
     total_pages = 2 if len(profiles) > PAGE_SIZE else 1
     await _send_top_page(callback.message, profiles, page=page, total_pages=total_pages, user_id=user.id, db=db)
@@ -166,7 +189,9 @@ async def show_how_to_top(callback: CallbackQuery):
 # ─── Свайп-действия ───────────────────────────────────────────
 @router.callback_query(F.data.startswith("swipe:"))
 async def handle_swipe(callback: CallbackQuery, user: User, db: AsyncSession):
-    _, action_str, target_id_str = callback.data.split(":")
+    parts = callback.data.split(":")
+    action_str = parts[1]
+    target_id_str = parts[2]
     target_id = int(target_id_str)
 
     if action_str == "superlike":
@@ -216,7 +241,7 @@ async def handle_swipe(callback: CallbackQuery, user: User, db: AsyncSession):
         # Уведомляем инициатора
         await callback.message.answer(
             f"🎉 <b>Мэтч!</b>\n\n"
-            f"<b>{target_name}</b> тоже заинтересован(а) в тебе!\n"
+            f"<b>{html.escape(target_name)}</b> тоже заинтересован(а) в тебе!\n"
             f"Его/её Telegram: <b>{target_username}</b>",
             parse_mode="HTML",
         )
@@ -226,7 +251,7 @@ async def handle_swipe(callback: CallbackQuery, user: User, db: AsyncSession):
             await callback.bot.send_message(
                 target_id,
                 f"🎉 <b>Мэтч!</b>\n\n"
-                f"<b>{my_name}</b> тоже заинтересован(а) в тебе!\n"
+                f"<b>{html.escape(my_name)}</b> тоже заинтересован(а) в тебе!\n"
                 f"Его/её Telegram: <b>{my_username}</b>",
                 parse_mode="HTML",
             )
@@ -258,12 +283,12 @@ async def prompt_letter(callback: CallbackQuery, state: FSMContext, user: User, 
     await state.set_state(LetterState.waiting_text)
     await callback.answer()
 
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
     builder.button(text="✕ Отмена", callback_data="letter:cancel")
 
+    target_name = html.escape(target.profile.name or "пользователю")
     await callback.message.answer(
-        f"💌 <b>Написать письмо для {target.profile.name}</b>\n\n"
+        f"💌 <b>Написать письмо для {target_name}</b>\n\n"
         f"Введи текст сообщения (до 500 символов):\n"
         f"<i>Пример: Привет! Тоже участвую в хакатонах, давай объединимся 🚀</i>",
         parse_mode="HTML",
@@ -297,9 +322,6 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
         await message.answer("Пользователь не найден.")
         return
 
-    # Сохраняем свайп-лайк с комментарием
-    is_match = await create_swipe(db, from_id=user.id, to_id=target_id, action=SwipeAction.like, comment=text)
-
     my_name = user.profile.name if user.profile else "Студент"
     my_year = user.profile.year if user.profile else 1
     my_major = user.profile.major if user.profile else "Вуз"
@@ -307,10 +329,25 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
     target_name = target.profile.name if target.profile else "Студент"
     target_username = f"@{target.tg_username}" if target.tg_username else "(нет username)"
 
+    # Проверяем, есть ли уже свайп от этого пользователя (#11)
+    existing_swipe = await db.execute(
+        select(Swipe).where(
+            and_(Swipe.from_user_id == user.id, Swipe.to_user_id == target_id)
+        )
+    )
+    has_existing_swipe = existing_swipe.scalar_one_or_none() is not None
+
+    is_match = False
+    if not has_existing_swipe:
+        # Создаём свайп-лайк с комментарием только если ещё не свайпали
+        is_match = await create_swipe(
+            db, from_id=user.id, to_id=target_id, action=SwipeAction.like, comment=text
+        )
+
     if is_match:
         await message.answer(
             f"🎉 <b>Мэтч!</b>\n\n"
-            f"<b>{target_name}</b> тоже заинтересован(а) в тебе!\n"
+            f"<b>{html.escape(target_name)}</b> тоже заинтересован(а) в тебе!\n"
             f"Его/её Telegram: <b>{target_username}</b>",
             parse_mode="HTML",
         )
@@ -318,20 +355,20 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
             await message.bot.send_message(
                 target_id,
                 f"🎉 <b>Мэтч!</b>\n\n"
-                f"<b>{my_name}</b> тоже заинтересован(а) в тебе!\n"
+                f"<b>{html.escape(my_name)}</b> тоже заинтересован(а) в тебе!\n"
                 f"Его/её Telegram: <b>{my_username}</b>",
                 parse_mode="HTML",
             )
         except Exception:
             pass
     else:
-        # Отправляем письмо получателю в Telegram
+        # Отправляем письмо получателю в Telegram (всегда, даже если свайп уже был)
         try:
             await message.bot.send_message(
                 target_id,
                 f"💌 <b>Тебе пришло письмо в СтудМэч!</b>\n\n"
-                f"От: <b>{my_name}</b>, {my_year} курс ({my_major})\n\n"
-                f"Сообщение: <i>«{text}»</i>",
+                f"От: <b>{html.escape(my_name)}</b>, {my_year} курс ({html.escape(my_major)})\n\n"
+                f"Сообщение: <i>«{html.escape(text)}»</i>",
                 parse_mode="HTML",
                 reply_markup=letter_received_keyboard(user.id),
             )
@@ -339,8 +376,7 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
             pass
 
         await message.answer(
-            f"✅ <b>Письмо отправлено для {target_name}!</b>",
+            f"✅ <b>Письмо отправлено для {html.escape(target_name)}!</b>",
             parse_mode="HTML",
             reply_markup=main_menu_keyboard(),
         )
-

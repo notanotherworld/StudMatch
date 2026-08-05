@@ -56,15 +56,15 @@ async def set_user_mode(db: AsyncSession, user_id: int, mode: ModeEnum) -> None:
 
 
 async def deduct_superlike(db: AsyncSession, user_id: int) -> bool:
-    """Списать 1 суперлайк. Возвращает False если баланс 0."""
-    user = await get_user(db, user_id)
-    if not user or user.superlike_balance <= 0:
-        return False
-    await db.execute(
-        update(User).where(User.id == user_id).values(superlike_balance=User.superlike_balance - 1)
+    """Списать 1 суперлайк. Возвращает False если баланс 0. Атомарная операция."""
+    result = await db.execute(
+        update(User)
+        .where(and_(User.id == user_id, User.superlike_balance > 0))
+        .values(superlike_balance=User.superlike_balance - 1)
+        .returning(User.superlike_balance)
     )
     await db.commit()
-    return True
+    return result.scalar_one_or_none() is not None
 
 
 async def add_superlikes(db: AsyncSession, user_id: int, amount: int) -> None:
@@ -83,10 +83,18 @@ async def get_active_universities(db: AsyncSession) -> List[University]:
 
 
 async def find_university_by_email(db: AsyncSession, email: str) -> Optional[University]:
-    """Найти вуз по домену email."""
+    """Найти вуз по домену email. Фильтрация через SQL LIKE."""
     domain = "@" + email.split("@")[-1].lower()
-    result = await db.execute(select(University).where(University.is_active == True))
+    result = await db.execute(
+        select(University).where(
+            and_(
+                University.is_active == True,
+                University.email_domains.ilike(f"%{domain}%"),
+            )
+        )
+    )
     universities = result.scalars().all()
+    # Точная проверка домена (ILIKE может дать ложные совпадения при похожих доменах)
     for uni in universities:
         domains = [d.strip().lower() for d in uni.email_domains.split(",")]
         if domain in domains:
@@ -326,12 +334,14 @@ async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optiona
     payment.updated_at = datetime.now(timezone.utc)
 
     # Начисляем товар
-    if payment.product == PaymentProduct.superlike_3:
+    if payment.product == PaymentProduct.superlike_1:
+        await add_superlikes(db, payment.user_id, 1)
+    elif payment.product == PaymentProduct.superlike_3:
         await add_superlikes(db, payment.user_id, 3)
     elif payment.product == PaymentProduct.superlike_5:
         await add_superlikes(db, payment.user_id, 5)
-    elif payment.product in (PaymentProduct.superlike_1, PaymentProduct.superlike_10):
-        await add_superlikes(db, payment.user_id, 3)
+    elif payment.product == PaymentProduct.superlike_10:
+        await add_superlikes(db, payment.user_id, 10)
     elif payment.product == PaymentProduct.premium_1m:
         boost_until = datetime.now(timezone.utc) + timedelta(days=30)
         await add_superlikes(db, payment.user_id, 10)

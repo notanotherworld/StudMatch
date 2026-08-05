@@ -4,6 +4,7 @@
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -15,11 +16,22 @@ from database.crud import ACHIEVEMENT_SCORES
 
 router = Router()
 
+# Единый словарь лейблов для всех типов достижений (#8, #17)
 ACHIEVEMENT_LABELS = {
+    # Новые типы (текущие)
+    "case_participant": "💼 Участие в хакатоне / кейс-чемпионате",
+    "place_3": "🥉 Призовое 3-е место",
+    "place_2": "🥈 Призовое 2-е место",
+    "place_1": "🥇 Победа / 1-е место",
+    "volunteer": "🤝 Участие в волонтёрском проекте",
+    "internship": "👔 Прохождение стажировки",
+    "forum_attender": "🏛 Посещение форума / конференции",
+    "forum_speaker": "🎤 Выступление на форуме / конференции",
+    # Дополнительные / устаревшие типы
     "gpa": "📊 GPA / Успеваемость",
-    "olympiad": "🏆 Победа в олимпиаде",
-    "case": "💼 Кейс-чемпионат",
     "competition": "🥇 Соревнования",
+    "case": "💼 Кейс-чемпионат",
+    "olympiad": "🏆 Победа в олимпиаде",
     "diploma": "🎓 Диплом с отличием",
     "publication": "📝 Публикация",
     "participation": "🎯 Участие",
@@ -44,7 +56,6 @@ async def show_achievements(callback: CallbackQuery, user: User, db: AsyncSessio
     else:
         text = "🏆 <b>Достижений пока нет.</b>\n\nДобавь первое!"
 
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
     builder.button(text="➕ Добавить достижение", callback_data="achievement:add")
     builder.adjust(1)

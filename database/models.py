@@ -127,6 +127,7 @@ class User(Base):
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     university_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("universities.id"), nullable=True)
     referrer_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=True)
+    referral_rewarded: Mapped[bool] = mapped_column(Boolean, default=False)  # Бонус за реферала уже начислен
 
     consent_given: Mapped[bool] = mapped_column(Boolean, default=False)
     consent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

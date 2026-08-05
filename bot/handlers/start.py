@@ -4,14 +4,14 @@
 2. После согласия — переход к email-верификации
 """
 from aiogram import Router, F
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, CommandObject
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.states.fsm import ConsentState, AuthState
 from bot.keyboards.swipe import consent_keyboard, main_menu_keyboard
-from database.crud import set_user_consent, get_user
+from database.crud import set_user_consent, get_user, add_superlikes
 from database.models import User
 
 router = Router()
@@ -50,12 +50,15 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
     await state.clear()
 
     # Обработка реферальной ссылки (start=ref_123456)
-    if command.args and command.args.startswith("ref_"):
+    if command.args and command.args.startswith("ref_") and not user.referrer_id:
         try:
             ref_id = int(command.args.split("ref_")[1])
-            if ref_id != user.id and not user.referrer_id:
-                user.referrer_id = ref_id
-                await db.commit()
+            if ref_id != user.id:
+                # Проверяем существование реферера в БД (#9)
+                referrer = await get_user(db, ref_id)
+                if referrer:
+                    user.referrer_id = ref_id
+                    await db.commit()
         except Exception:
             pass
 
@@ -77,10 +80,11 @@ async def consent_accepted(callback: CallbackQuery, state: FSMContext, user: Use
     await set_user_consent(db, user.id)
     user.consent_given = True
 
-    # Награждаем реферера +1 суперлайком
-    if user.referrer_id:
-        from database.crud import add_superlikes
+    # Награждаем реферера +1 суперлайком — только один раз (#10)
+    if user.referrer_id and not user.referral_rewarded:
         await add_superlikes(db, user.referrer_id, 1)
+        user.referral_rewarded = True
+        await db.commit()
         try:
             await callback.bot.send_message(
                 user.referrer_id,
