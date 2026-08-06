@@ -4,10 +4,10 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:    # Позволяет запустить деплой вручную из GitHub UI
+  workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
