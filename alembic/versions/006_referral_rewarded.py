@@ -7,7 +7,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "006_referral_rewarded"
-down_revision = "005_referrals_and_custom_interests"
+down_revision = "005_ref_custom"
 branch_labels = None
 depends_on = None
 
