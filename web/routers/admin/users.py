@@ -1,4 +1,6 @@
 """Управление пользователями: поиск, бан, сообщения."""
+import html
+import re
 from fastapi import APIRouter, Request, Depends, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -6,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, or_
 from sqlalchemy.orm import selectinload
 
-from web.dependencies import get_db, get_current_admin
+from web.dependencies import get_db, get_current_admin, check_csrf
 from database.models import User, Profile
 
 router = APIRouter()
@@ -41,7 +43,8 @@ async def list_users(
 
     return templates.TemplateResponse(
         "admin/users.html",
-        {"request": request, "admin": admin, "users": users, "q": q, "page": page},
+        {"request": request, "admin": admin, "users": users, "q": q, "page": page,
+         "csrf_token": getattr(request.state, "csrf_token", "")},
     )
 
 
@@ -63,11 +66,12 @@ async def user_detail(
 
     return templates.TemplateResponse(
         "admin/user_detail.html",
-        {"request": request, "admin": admin, "user": user},
+        {"request": request, "admin": admin, "user": user,
+         "csrf_token": getattr(request.state, "csrf_token", "")},
     )
 
 
-@router.post("/users/{user_id}/ban")
+@router.post("/users/{user_id}/ban", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def ban_user(
     user_id: int,
     admin=Depends(get_current_admin),
@@ -94,7 +98,7 @@ async def ban_user(
     return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
 
 
-@router.post("/users/{user_id}/unban")
+@router.post("/users/{user_id}/unban", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def unban_user(
     user_id: int,
     admin=Depends(get_current_admin),
@@ -105,7 +109,7 @@ async def unban_user(
     return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
 
 
-@router.post("/users/{user_id}/verify-manual")
+@router.post("/users/{user_id}/verify-manual", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def verify_user_manually(
     user_id: int,
     email: str = Form(default=""),
@@ -113,11 +117,14 @@ async def verify_user_manually(
     db: AsyncSession = Depends(get_db),
 ):
     """Ручная верификация студента модератором без отправки письма."""
+    EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user:
         values = {"email_verified": True}
         if email.strip():
+            if not EMAIL_RE.match(email.strip()):
+                return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
             values["email"] = email.strip()
 
         await db.execute(
@@ -144,19 +151,21 @@ async def verify_user_manually(
 
 
 
-@router.post("/users/{user_id}/message")
+@router.post("/users/{user_id}/message", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def send_message_to_user(
     user_id: int,
     text: str = Form(...),
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Отправить произвольное сообщение студенту через бот."""
+    """Отправить сообщение студенту через бот (без HTML, XSS-safe #1)."""
+    # Экранируем HTML — не передаём parse_mode="HTML" (#1)
+    safe_text = html.escape(text.strip()[:4096])
     try:
         from aiogram import Bot
         from bot.config import settings
         bot = Bot(token=settings.BOT_TOKEN)
-        await bot.send_message(user_id, text, parse_mode="HTML")
+        await bot.send_message(user_id, safe_text)  # без parse_mode
         await bot.session.close()
     except Exception:
         pass
@@ -164,8 +173,7 @@ async def send_message_to_user(
     return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
 
 
-# ─── #4: Ручное редактирование рейтинга ─────────────────────────────────────
-@router.post("/users/{user_id}/rating")
+@router.post("/users/{user_id}/rating", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def adjust_rating(
     user_id: int,
     delta: float = Form(...),

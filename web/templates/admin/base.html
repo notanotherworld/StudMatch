@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>{% block title %}СтудМэч Admin{% endblock %}</title>
+<meta name="csrf-token" content="{{ csrf_token | default('') }}">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -282,7 +283,18 @@
   <a href="/admin/tags" {% if '/tags' in request.url.path %}class="active"{% endif %}>🏷 Теги</a>
   <a href="/admin/universities" {% if '/universities' in request.url.path %}class="active"{% endif %}>🎓 Университеты</a>
   <div class="sidebar-bottom">
-    <a href="/admin/logout">🚪 Выйти</a>
+    <!-- Logout через POST — защита от CSRF-logout (#6) -->
+    <form method="POST" action="/admin/logout" id="logout-form" style="margin:0">
+      <input type="hidden" name="csrf_token" id="logout-csrf" value="">
+      <button type="submit" style="background:none;border:none;cursor:pointer;
+              color:var(--text);font-size:14px;padding:12px 20px;width:100%;
+              text-align:left;display:flex;align-items:center;gap:8px;
+              border-radius:var(--radius);transition:background .2s;"
+              onmouseover="this.style.background='var(--surface2)'"
+              onmouseout="this.style.background='none'">
+        🚪 Выйти
+      </button>
+    </form>
   </div>
 </nav>
 {% endif %}
@@ -328,6 +340,14 @@
         }
       });
     });
+  }
+
+  // Подставляем CSRF-токен в logout-форму (#6)
+  // Токен передаётся через meta-тег (csrf_token из контекста шаблона)
+  const metaCsrf = document.querySelector('meta[name="csrf-token"]');
+  const logoutCsrf = document.getElementById('logout-csrf');
+  if (metaCsrf && logoutCsrf) {
+    logoutCsrf.value = metaCsrf.content;
   }
 </script>
 

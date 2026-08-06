@@ -1,7 +1,8 @@
 """
 FastAPI приложение: admin panel + HR cabinet + YooKassa webhook.
+Защиты: CSRF context processor, security headers, OpenAPI отключён в prod.
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from contextlib import asynccontextmanager
@@ -12,15 +13,51 @@ from web.routers.admin import (
     broadcast, tags, reports,
 )
 from web.routers.employer import auth as employer_auth, profiles as employer_profiles
+from web.dependencies import generate_csrf_token
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Инициализация при старте
     yield
 
 
-app = FastAPI(title="СтудМэч Admin", lifespan=lifespan)
+# OpenAPI только в dev (не в prod) — убираем /docs из production (#12)
+import os
+_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+
+app = FastAPI(
+    title="СтудМэч Admin",
+    lifespan=lifespan,
+    docs_url="/docs" if _DEBUG else None,    # /docs только в DEBUG-режиме
+    redoc_url="/redoc" if _DEBUG else None,  # /redoc только в DEBUG-режиме
+)
+
+# ─── Security Headers middleware (#15) ───────────────────────
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+# ─── CSRF context processor ────────────────────────────────
+# Добавляем csrf_token в каждый Jinja2-контекст
+# Это позволяет base.html использовать csrf_token в meta-теге
+templates = Jinja2Templates(directory="web/templates")
+
+@app.middleware("http")
+async def inject_csrf_into_templates(request: Request, call_next):
+    """Добавляем csrf_token в request.state для использования в шаблонах."""
+    token_cookie = request.cookies.get("admin_token") or request.cookies.get("employer_token") or ""
+    request.state.csrf_token = generate_csrf_token(token_cookie) if token_cookie else ""
+    response = await call_next(request)
+    return response
 
 # Статика
 app.mount("/static", StaticFiles(directory="web/static"), name="static")

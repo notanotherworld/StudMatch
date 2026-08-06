@@ -85,12 +85,14 @@
         {% if user.is_active %}
         <form method="POST" action="/admin/users/{{ user.id }}/ban"
               onsubmit="return confirm('Забанить пользователя?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="btn btn-danger" style="width:100%;justify-content:center;">
             🚫 Забанить
           </button>
         </form>
         {% else %}
         <form method="POST" action="/admin/users/{{ user.id }}/unban">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="btn btn-success" style="width:100%;justify-content:center;">
             ✅ Разбанить
           </button>
@@ -100,6 +102,7 @@
         {% if not user.email_verified %}
         <form method="POST" action="/admin/users/{{ user.id }}/verify-manual"
               onsubmit="return confirm('Подтвердить верификацию вручную?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <div style="margin-top:4px;margin-bottom:4px;">
             <input type="email" name="email" value="{{ user.email or '' }}" placeholder="Email студента (необязательно)" style="font-size:12px;padding:6px;margin-bottom:6px;">
           </div>

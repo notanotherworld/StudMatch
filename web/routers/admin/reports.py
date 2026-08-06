@@ -9,7 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 
-from web.dependencies import get_db, get_current_admin
+from web.dependencies import get_db, get_current_admin, check_csrf
 from database.models import Report, ReportStatus, User, Profile
 
 router = APIRouter()
@@ -55,7 +55,7 @@ async def reports_page(
     )
 
 
-@router.post("/reports/{report_id}/ban")
+@router.post("/reports/{report_id}/ban", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def resolve_ban(
     report_id: str,
     note: str = Form(default=""),
@@ -102,7 +102,7 @@ async def resolve_ban(
     return RedirectResponse("/admin/reports", status_code=302)
 
 
-@router.post("/reports/{report_id}/dismiss")
+@router.post("/reports/{report_id}/dismiss", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def dismiss_report(
     report_id: str,
     note: str = Form(default=""),

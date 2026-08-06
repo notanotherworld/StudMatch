@@ -97,5 +97,6 @@ async def dashboard(
             "request": request, "admin": admin, "stats": stats,
             "reg_chart_json": json.dumps(reg_chart, ensure_ascii=False),
             "matches_chart_json": json.dumps(matches_chart, ensure_ascii=False),
+            "csrf_token": getattr(request.state, "csrf_token", ""),
         },
     )

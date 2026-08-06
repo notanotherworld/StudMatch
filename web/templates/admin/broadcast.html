@@ -14,6 +14,7 @@
     <div style="font-size:15px;font-weight:600;margin-bottom:20px;">✏️ Новое сообщение</div>
     <form method="POST" action="/admin/broadcast/send"
           onsubmit="return confirm('Отправить рассылку? Это действие нельзя отменить.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-group">
         <label>Аудитория</label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -31,7 +32,7 @@
       </div>
 
       <div class="form-group">
-        <label>Текст сообщения (поддерживается HTML: &lt;b&gt;, &lt;i&gt;, &lt;a&gt;)</label>
+        <label>Текст сообщения (plain text — HTML-теги не поддерживаются)</label>
         <textarea id="broadcastText" name="text" rows="8"
                   placeholder="Привет! Хотим сообщить, что..."
                   oninput="updatePreview()" required></textarea>

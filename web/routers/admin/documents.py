@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from web.dependencies import get_db, get_current_admin
+from web.dependencies import get_db, get_current_admin, require_superadmin, check_csrf
 from bot.utils.minio_client import get_presigned_url
 from database.models import Achievement, VerifiedStatus
 from database.crud import approve_achievement, reject_achievement
@@ -54,7 +54,7 @@ async def view_document(
     return RedirectResponse(presigned)
 
 
-@router.post("/documents/{achievement_id}/approve")
+@router.post("/documents/{achievement_id}/approve", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def approve_doc(
     achievement_id: str,
     admin=Depends(get_current_admin),
@@ -84,7 +84,7 @@ async def approve_doc(
     return RedirectResponse("/admin/documents", status_code=302)
 
 
-@router.post("/documents/{achievement_id}/reject")
+@router.post("/documents/{achievement_id}/reject", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def reject_doc(
     achievement_id: str,
     reason: str = Form(...),
@@ -116,10 +116,10 @@ async def reject_doc(
 
 
 # ─── #5: Пакетное одобрение ──────────────────────────────────────────────────
-@router.post("/documents/approve-all")
+@router.post("/documents/approve-all", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def approve_all_by_user(
     user_id: int = Form(...),
-    admin=Depends(get_current_admin),
+    admin=Depends(require_superadmin),   # только superadmin (#4)
     db: AsyncSession = Depends(get_db),
 ):
     """Одобрить все pending-достижения конкретного пользователя."""
@@ -153,10 +153,10 @@ async def approve_all_by_user(
     return RedirectResponse("/admin/documents", status_code=302)
 
 
-@router.post("/documents/approve-type")
+@router.post("/documents/approve-type", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def approve_by_type(
     ach_type: str = Form(...),
-    admin=Depends(get_current_admin),
+    admin=Depends(require_superadmin),   # только superadmin (#4)
     db: AsyncSession = Depends(get_db),
 ):
     """Одобрить все pending-достижения определённого типа."""

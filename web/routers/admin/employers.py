@@ -7,7 +7,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 import uuid
 
-from web.dependencies import get_db, get_current_admin, hash_password
+from web.dependencies import get_db, get_current_admin, require_superadmin, hash_password, check_csrf
 from database.models import Employer, EmployerProfileAccess, Profile, User
 
 router = APIRouter()
@@ -30,13 +30,13 @@ async def list_employers(
     )
 
 
-@router.post("/employers/create")
+@router.post("/employers/create", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def create_employer(
     company_name: str = Form(...),
     contact_name: str = Form(...),
     login: str = Form(...),
     password: str = Form(...),
-    admin=Depends(get_current_admin),
+    admin=Depends(require_superadmin),  # только superadmin (#4)
     db: AsyncSession = Depends(get_db),
 ):
     employer = Employer(
@@ -89,12 +89,12 @@ async def employer_detail(
     )
 
 
-@router.post("/employers/{employer_id}/grant")
+@router.post("/employers/{employer_id}/grant", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def grant_access(
     employer_id: int,
     profile_id: str = Form(...),
     note: str = Form(default=""),
-    admin=Depends(get_current_admin),
+    admin=Depends(require_superadmin),  # только superadmin (#4)
     db: AsyncSession = Depends(get_db),
 ):
     profile_uuid = uuid.UUID(profile_id)
@@ -109,7 +109,7 @@ async def grant_access(
     return RedirectResponse(f"/admin/employers/{employer_id}", status_code=302)
 
 
-@router.post("/employers/{employer_id}/toggle")
+@router.post("/employers/{employer_id}/toggle", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def toggle_employer(
     employer_id: int,
     admin=Depends(get_current_admin),
