@@ -1,4 +1,4 @@
-name: 🚀 Deploy to VPS
+name: 🚀 StudMatch Deploy
 
 on:
   push:
@@ -7,13 +7,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: studmatch-deploy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ────────────────────────────────────────────────────────────
-  # JOB 1: Линтинг и базовые проверки
-  # ────────────────────────────────────────────────────────────
   lint:
     name: 🔍 Lint & Check
     runs-on: ubuntu-latest
@@ -35,9 +32,6 @@ jobs:
         run: |
           ruff check . --ignore E501,B008 --exit-zero
 
-  # ────────────────────────────────────────────────────────────
-  # JOB 2: Деплой на VPS (только после lint)
-  # ────────────────────────────────────────────────────────────
   deploy:
     name: 🚢 Deploy
     runs-on: ubuntu-latest
@@ -48,14 +42,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Показываем инфо о коммите в логах
       - name: Show deploy info
         run: |
           echo "📦 Deploying commit: ${{ github.sha }}"
           echo "👤 Author: ${{ github.actor }}"
           echo "💬 Message: ${{ github.event.head_commit.message }}"
 
-      # Подключаемся к VPS по SSH и деплоим
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -64,7 +56,7 @@ jobs:
           key:      ${{ secrets.VPS_SSH_KEY }}
           port:     ${{ secrets.VPS_PORT || 22 }}
           command_timeout: 10m
-          script_stop: true     # Остановить при ошибке любой команды
+          script_stop: true
           script: |
             set -e
 
@@ -76,7 +68,7 @@ jobs:
             git reset --hard origin/main
 
             echo "🐳 Пересобираем и перезапускаем контейнеры..."
-            docker compose pull          # Обновляем базовые образы
+            docker compose pull
             docker compose up -d --build --remove-orphans
 
             echo "🗄️ Применяем новые миграции БД..."
@@ -87,7 +79,6 @@ jobs:
 
             echo "✅ Деплой завершён успешно!"
 
-      # Проверяем что сервис ответил
       - name: Health check
         run: |
           sleep 10
@@ -99,9 +90,8 @@ jobs:
           else
             echo "⚠️ Сервис вернул статус $STATUS"
           fi
-        continue-on-error: true   # Не падаем если нет SSL
+        continue-on-error: true
 
-      # Уведомление в Telegram об успешном деплое
       - name: Notify Telegram (success)
         if: success()
         run: |
@@ -113,7 +103,6 @@ jobs:
               "parse_mode": "Markdown"
             }'
 
-      # Уведомление в Telegram при ошибке
       - name: Notify Telegram (failure)
         if: failure()
         run: |
