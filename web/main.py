@@ -46,6 +46,22 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+# ─── CORS Middleware ───────────────────────────────────────
+from fastapi.middleware.cors import CORSMiddleware
+from bot.config import settings
+
+origins = [settings.DOMAIN]
+if _DEBUG:
+    origins.extend(["http://localhost:8000", "http://127.0.0.1:8000"])
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
 # ─── CSRF context processor ────────────────────────────────
 # Добавляем csrf_token в каждый Jinja2-контекст
 # Это позволяет base.html использовать csrf_token в meta-теге
