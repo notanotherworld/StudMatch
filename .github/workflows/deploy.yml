@@ -6,6 +6,10 @@ on:
       - main
   workflow_dispatch:    # Позволяет запустить деплой вручную из GitHub UI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ────────────────────────────────────────────────────────────
   # JOB 1: Линтинг и базовые проверки
