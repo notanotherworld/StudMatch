@@ -4,7 +4,7 @@
 2. После согласия — переход к email-верификации
 """
 from aiogram import Router, F
-from aiogram.filters import CommandStart, CommandObject
+from aiogram.filters import CommandStart, CommandObject, Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -131,3 +131,15 @@ async def _after_consent(message: Message, state: FSMContext, user: User, db: As
             parse_mode="HTML",
             reply_markup=main_menu_keyboard(),
         )
+
+
+@router.message(Command("menu"))
+async def cmd_menu(message: Message, user: User):
+    if user.profile and user.profile.is_complete:
+        await message.answer(
+            "📋 <b>Главное меню:</b>",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard(),
+        )
+    else:
+        await message.answer("❌ Сначала заполни анкету. Напиши /start")
