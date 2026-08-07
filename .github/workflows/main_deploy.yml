@@ -81,35 +81,41 @@ jobs:
 
       - name: Health check
         run: |
-          sleep 10
+          sleep 5
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            https://${{ secrets.VPS_HOST }}/admin/login || echo "000")
-          echo "HTTP статус: $STATUS"
+            http://${{ secrets.VPS_HOST }}:8000/admin/login || echo "000")
+          echo "HTTP статус (port 8000): $STATUS"
           if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ]; then
-            echo "✅ Сервис доступен!"
+            echo "✅ Сервис веба доступен и отвечает!"
           else
-            echo "⚠️ Сервис вернул статус $STATUS"
+            echo "⚠️ Веб-панель вернула статус $STATUS"
           fi
         continue-on-error: true
 
       - name: Notify Telegram (success)
-        if: success()
+        if: success() && secrets.BOT_TOKEN != '' && secrets.ADMIN_TELEGRAM_ID != ''
+        continue-on-error: true
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.ADMIN_TELEGRAM_ID }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d '{
-              "chat_id": "${{ secrets.ADMIN_TELEGRAM_ID }}",
-              "text": "✅ *Деплой завершён*\n\n📦 Коммит: `${{ github.sha }}`\n👤 Автор: ${{ github.actor }}\n💬 `${{ github.event.head_commit.message }}`",
-              "parse_mode": "Markdown"
-            }'
+            -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"✅ Деплой завершён!\n\n📦 Коммит: ${SHA:0:7}\n👤 Автор: ${ACTOR}\"}"
 
       - name: Notify Telegram (failure)
-        if: failure()
+        if: failure() && secrets.BOT_TOKEN != '' && secrets.ADMIN_TELEGRAM_ID != ''
+        continue-on-error: true
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.ADMIN_TELEGRAM_ID }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d '{
-              "chat_id": "${{ secrets.ADMIN_TELEGRAM_ID }}",
-              "text": "❌ *Деплой УПАЛ*\n\n📦 Коммит: `${{ github.sha }}`\n👤 Автор: ${{ github.actor }}\n🔗 [Смотреть логи](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})",
-              "parse_mode": "Markdown"
-            }'
+            -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"❌ Ошибка деплоя!\n\n📦 Коммит: ${SHA:0:7}\n👤 Автор: ${ACTOR}\n🔗 https://github.com/${REPO}/actions/runs/${RUN_ID}\"}"
