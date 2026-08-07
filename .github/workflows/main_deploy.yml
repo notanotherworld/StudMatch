@@ -93,7 +93,7 @@ jobs:
         continue-on-error: true
 
       - name: Notify Telegram (success)
-        if: success() && secrets.BOT_TOKEN != '' && secrets.ADMIN_TELEGRAM_ID != ''
+        if: success()
         continue-on-error: true
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -101,12 +101,14 @@ jobs:
           SHA: ${{ github.sha }}
           ACTOR: ${{ github.actor }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"✅ Деплой завершён!\n\n📦 Коммит: ${SHA:0:7}\n👤 Автор: ${ACTOR}\"}"
+          if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
+            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              -H "Content-Type: application/json" \
+              -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"✅ Деплой завершён!\n\n📦 Коммит: ${SHA:0:7}\n👤 Автор: ${ACTOR}\"}"
+          fi
 
       - name: Notify Telegram (failure)
-        if: failure() && secrets.BOT_TOKEN != '' && secrets.ADMIN_TELEGRAM_ID != ''
+        if: failure()
         continue-on-error: true
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -116,6 +118,8 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"❌ Ошибка деплоя!\n\n📦 Коммит: ${SHA:0:7}\n👤 Автор: ${ACTOR}\n🔗 https://github.com/${REPO}/actions/runs/${RUN_ID}\"}"
+          if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
+            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              -H "Content-Type: application/json" \
+              -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"❌ Ошибка деплоя!\n\n📦 Коммит: ${SHA:0:7}\n👤 Автор: ${ACTOR}\n🔗 https://github.com/${REPO}/actions/runs/${RUN_ID}\"}"
+          fi
