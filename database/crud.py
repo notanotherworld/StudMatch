@@ -201,6 +201,44 @@ async def get_top_profiles(
         .limit(limit)
     )
     return list(result.scalars().all())
+async def get_next_profile(
+    db: AsyncSession,
+    viewer_id: int,
+    mode: Optional[ModeEnum] = None,
+) -> Optional[Profile]:
+    """
+    Получить следующую не свайпнутую анкету для поочерёдного свайпа (1 за раз).
+    Исключаем: самого пользователя, уже свайпнутых, забаненных.
+    Сортировка: буст → рейтинг.
+    """
+    swiped_result = await db.execute(
+        select(Swipe.to_user_id).where(Swipe.from_user_id == viewer_id)
+    )
+    swiped_ids = {row[0] for row in swiped_result.all()}
+    swiped_ids.add(viewer_id)
+
+    now = datetime.now(timezone.utc)
+
+    result = await db.execute(
+        select(Profile)
+        .options(selectinload(Profile.user))
+        .join(User, Profile.user_id == User.id)
+        .where(
+            and_(
+                Profile.is_visible == True,
+                Profile.is_complete == True,
+                User.is_active == True,
+                User.email_verified == True,
+                ~Profile.user_id.in_(swiped_ids),
+            )
+        )
+        .order_by(
+            (User.boost_until > now).desc(),
+            Profile.rating_score.desc(),
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
 
 
 # ─────────────────────────────────────────────────────────────

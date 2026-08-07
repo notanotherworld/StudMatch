@@ -49,13 +49,13 @@ def interests_keyboard(tags: List[InterestTag], selected: List[int] = None) -> I
 
 
 def swipe_card_keyboard(profile_user_id: int) -> InlineKeyboardMarkup:
-    """Кнопки действий под карточкой студента (включая письмо как в Дайвинчике)."""
+    """Кнопки действий под карточкой студента (свайп по одной анкеты)."""
     builder = InlineKeyboardBuilder()
     builder.button(text="❤️ Лайк", callback_data=f"swipe:like:{profile_user_id}")
+    builder.button(text="👎 Дизлайк", callback_data=f"swipe:skip:{profile_user_id}")
     builder.button(text="⭐ Суперлайк", callback_data=f"swipe:superlike:{profile_user_id}")
-    builder.button(text="⏭ Скип", callback_data=f"swipe:skip:{profile_user_id}")
-    builder.button(text="💌 Написать письмо", callback_data=f"swipe:message:{profile_user_id}")
-    builder.adjust(3, 1)
+    builder.button(text="💌 Письмо", callback_data=f"swipe:message:{profile_user_id}")
+    builder.adjust(2, 2)
     return builder.as_markup()
 
 
