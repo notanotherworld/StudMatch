@@ -6,6 +6,7 @@ echo "📁 Переходим в папку проекта..."
 cd ~/apps/bot-univer || cd $(dirname "$0")
 
 echo "⬇️ Получаем последний код из main..."
+git remote set-url origin https://github.com/notanotherworld/StudMatch.git
 git fetch origin main
 git reset --hard origin/main
 
