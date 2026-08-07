@@ -67,8 +67,7 @@ services:
       minio:
         condition: service_started
     volumes:
-      - ./web/templates:/app/web/templates   # Hot-reload шаблонов
-      - ./web/static:/app/web/static
+      - .:/app
 
   # ── Telegram Bot ───────────────────────────────────────────
   bot:
@@ -86,6 +85,8 @@ services:
         condition: service_healthy
       web:
         condition: service_started
+    volumes:
+      - .:/app
 
 volumes:
   postgres_data:
