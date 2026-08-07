@@ -105,7 +105,7 @@ async def send_next_card(
     )
 
 
-@router.message(F.text.in_({"🏆 Топ студентов", "🏆 Свайп анкет", "🔥 Смотреть анкеты", "🔥 Свайп анкет"}))
+@router.message(F.text.in_({"🔍 Смотреть анкеты", "Смотреть анкеты", "🏆 Топ студентов", "🏆 Свайп анкет", "🔥 Смотреть анкеты", "🔥 Свайп анкет"}))
 async def start_swiping(message: Message, user: User, db: AsyncSession):
     if not user.email_verified:
         await message.answer("❌ Сначала пройди верификацию email. Напиши /start")

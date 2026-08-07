@@ -133,12 +133,13 @@ def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
 
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
+    builder.button(text="🔍 Смотреть анкеты")
     builder.button(text="🏆 Топ студентов")
     builder.button(text="💘 Мои мэтчи")
     builder.button(text="👤 Мой профиль")
     builder.button(text="⚙️ Настройки")
     builder.button(text="🔗 Пригласить друга (+1 ⭐️)")
-    builder.adjust(2, 2, 1)
+    builder.adjust(2, 2, 2)
     return builder.as_markup(resize_keyboard=True)
 
 
