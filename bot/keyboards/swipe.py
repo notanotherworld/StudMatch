@@ -140,7 +140,7 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder.button(text="⚙️ Настройки")
     builder.button(text="🔗 Пригласить друга (+1 ⭐️)")
     builder.adjust(2, 2, 2)
-    return builder.as_markup(resize_keyboard=True)
+    return builder.as_markup(resize_keyboard=True, input_field_placeholder="Выбери раздел...")
 
 
 def remove_keyboard() -> ReplyKeyboardRemove:
