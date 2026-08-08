@@ -42,7 +42,9 @@ async def upload_document(
 
     await ensure_bucket(bucket)
 
-    ext = original_filename.rsplit(".", 1)[-1].lower() if "." in original_filename else "pdf"
+    raw_ext = original_filename.rsplit(".", 1)[-1].lower() if "." in original_filename else "pdf"
+    ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png"}
+    ext = raw_ext if raw_ext in ALLOWED_EXTENSIONS else "pdf"
     object_name = f"{user_id}/{uuid.uuid4()}.{ext}"
 
     client.put_object(

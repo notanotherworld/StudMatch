@@ -108,6 +108,10 @@ async def process_title(message: Message, state: FSMContext):
     )
 
 
+MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 МБ
+ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png"}
+
+
 @router.message(AchievementState.waiting_document, F.document | F.photo)
 async def process_document(message: Message, state: FSMContext, user: User, db: AsyncSession):
     # Получаем файл
@@ -117,6 +121,21 @@ async def process_document(message: Message, state: FSMContext, user: User, db: 
     else:
         file_obj = message.photo[-1]
         filename = "photo.jpg"
+
+    # 1. Защита от DoS / OOM: проверка размера файла (макс 15 МБ)
+    if file_obj.file_size and file_obj.file_size > MAX_FILE_SIZE:
+        await message.answer("❌ Файл слишком большой. Максимальный размер документа — 15 МБ.")
+        return
+
+    # 2. Защита от Unrestricted File Upload: проверка расширения
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        await message.answer(
+            "❌ Недопустимый формат файла.\n"
+            "Разрешены только документы <b>PDF</b> и изображения <b>JPG, PNG</b>.",
+            parse_mode="HTML",
+        )
+        return
 
     # Скачиваем файл
     file = await message.bot.get_file(file_obj.file_id)

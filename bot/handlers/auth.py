@@ -1,12 +1,15 @@
 """
 Email-верификация: ввод корп. email → отправка кода → подтверждение.
+Защиты: rate limiting (60s cooldown), защита от перебора брутфорсом (макс. 5 попыток).
 """
+import redis.asyncio as aioredis
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.config import settings
 from bot.states.fsm import AuthState
 from bot.utils.email import send_verification_code
 from database.crud import (
@@ -17,6 +20,15 @@ from database.models import User
 from database.models import User as UserModel
 
 router = Router()
+
+_redis: aioredis.Redis | None = None
+
+
+def _get_redis() -> aioredis.Redis:
+    global _redis
+    if _redis is None:
+        _redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    return _redis
 
 
 @router.message(AuthState.waiting_email)
@@ -32,6 +44,17 @@ async def process_email(message: Message, state: FSMContext, user: User, db: Asy
         )
         return
 
+    # Защита от спама отправкой (60 сек кулдаун)
+    r = _get_redis()
+    cooldown_key = f"email_cooldown:{user.id}"
+    if await r.exists(cooldown_key):
+        ttl = await r.ttl(cooldown_key)
+        await message.answer(
+            f"⏳ Код уже был отправлен на почту.\n"
+            f"Повторная отправка возможна через {ttl} сек.",
+        )
+        return
+
     # Ищем вуз по домену
     university = await find_university_by_email(db, email)
     if not university:
@@ -42,7 +65,7 @@ async def process_email(message: Message, state: FSMContext, user: User, db: Asy
         )
         return
 
-    # Сохраняем email и вуз в БД (через ТУ ЖЕ сессию, без открытия второй) (#20)
+    # Сохраняем email и вуз в БД
     await db.execute(
         update(UserModel)
         .where(UserModel.id == user.id)
@@ -55,11 +78,15 @@ async def process_email(message: Message, state: FSMContext, user: User, db: Asy
 
     try:
         await send_verification_code(email, code)
-    except Exception as e:
+    except Exception:
         await message.answer(
             "⚠️ Не удалось отправить письмо. Проверь email и попробуй снова."
         )
         return
+
+    # Устанавливаем кулдаун 60 секунд на отправку и сбрасываем попытки брутфорса
+    await r.set(cooldown_key, "1", ex=60)
+    await r.delete(f"email_attempts:{user.id}")
 
     await state.set_state(AuthState.waiting_code)
     await state.update_data(email=email, university_name=university.name)
@@ -79,14 +106,39 @@ async def process_code(message: Message, state: FSMContext, user: User, db: Asyn
         await message.answer("❌ Код должен состоять из 6 цифр. Попробуй ещё раз.")
         return
 
+    # Защита от брутфорса кода (макс. 5 попыток)
+    r = _get_redis()
+    attempts_key = f"email_attempts:{user.id}"
+    attempts = int(await r.get(attempts_key) or 0)
+
+    if attempts >= 5:
+        await message.answer(
+            "❌ Вы превысили лимит попыток ввода (максимум 5).\n"
+            "Код заблокирован. Напишите /start чтобы запросить новый код."
+        )
+        return
+
     is_valid = await verify_email_token(db, user.id, code)
 
     if not is_valid:
-        await message.answer(
-            "❌ Неверный или истёкший код.\n"
-            "Напиши /start чтобы получить новый."
-        )
+        attempts += 1
+        await r.set(attempts_key, attempts, ex=900)
+        remaining = 5 - attempts
+        if remaining > 0:
+            await message.answer(
+                f"❌ Неверный или истёкший код.\n"
+                f"Осталось попыток: <b>{remaining}</b>",
+                parse_mode="HTML",
+            )
+        else:
+            await message.answer(
+                "❌ Лимит попыток исчерпан. Напишите /start чтобы заново получить код."
+            )
         return
+
+    # При успешной верификации удаляем счетчик попыток
+    await r.delete(attempts_key)
+    await r.delete(f"email_cooldown:{user.id}")
 
     data = await state.get_data()
     university_name = data.get("university_name", "твоём университете")
@@ -100,6 +152,5 @@ async def process_code(message: Message, state: FSMContext, user: User, db: Asyn
         parse_mode="HTML",
     )
 
-    # Запускаем создание анкеты
     from bot.handlers.profile import start_profile_creation
     await start_profile_creation(message, state)
