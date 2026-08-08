@@ -48,14 +48,27 @@ def interests_keyboard(tags: List[InterestTag], selected: List[int] = None) -> I
     return builder.as_markup()
 
 
-def swipe_card_keyboard(profile_user_id: int) -> InlineKeyboardMarkup:
+def swipe_card_keyboard(profile_user_id: int, superlikes_count: int = 0) -> InlineKeyboardMarkup:
     """Кнопки действий под карточкой студента (свайп по одной анкеты)."""
     builder = InlineKeyboardBuilder()
     builder.button(text="❤️ Лайк", callback_data=f"swipe:like:{profile_user_id}")
     builder.button(text="👎 Дизлайк", callback_data=f"swipe:skip:{profile_user_id}")
-    builder.button(text="⭐ Суперлайк", callback_data=f"swipe:superlike:{profile_user_id}")
+
+    sl_label = f"⭐ Суперлайк ({superlikes_count})" if superlikes_count > 0 else "⭐ Суперлайк"
+    builder.button(text=sl_label, callback_data=f"swipe:superlike:{profile_user_id}")
     builder.button(text="💌 Письмо", callback_data=f"swipe:message:{profile_user_id}")
     builder.adjust(2, 2)
+    return builder.as_markup()
+
+
+def match_keyboard(tg_username: str = "") -> InlineKeyboardMarkup:
+    """Кнопка прямого перехода в диалог при мэтче."""
+    builder = InlineKeyboardBuilder()
+    if tg_username and tg_username != "(нет username)":
+        clean_user = tg_username.lstrip("@")
+        builder.button(text="💬 Написать в Telegram", url=f"https://t.me/{clean_user}")
+    builder.button(text="🔥 Искать дальше", callback_data="top:swipe_next")
+    builder.adjust(1)
     return builder.as_markup()
 
 

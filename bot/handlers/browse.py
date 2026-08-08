@@ -13,7 +13,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 
 from bot.keyboards.swipe import (
-    swipe_card_keyboard, main_menu_keyboard, letter_received_keyboard,
+    swipe_card_keyboard, main_menu_keyboard, letter_received_keyboard, match_keyboard,
 )
 from bot.states.fsm import LetterState
 from database.crud import get_next_profile, create_swipe, get_user, deduct_superlike
@@ -91,7 +91,7 @@ async def send_next_card(
                 photo=profile.avatar_file_id,
                 caption=caption,
                 parse_mode="HTML",
-                reply_markup=swipe_card_keyboard(profile.user_id),
+                reply_markup=swipe_card_keyboard(profile.user_id, superlikes_count=user.superlike_balance),
             )
             return
         except Exception:
@@ -101,7 +101,7 @@ async def send_next_card(
         chat_id=chat_id,
         text=caption,
         parse_mode="HTML",
-        reply_markup=swipe_card_keyboard(profile.user_id),
+        reply_markup=swipe_card_keyboard(profile.user_id, superlikes_count=user.superlike_balance),
     )
 
 
@@ -192,20 +192,22 @@ async def handle_swipe(callback: CallbackQuery, user: User, db: AsyncSession, st
 
         # Уведомляем инициатора
         await callback.message.answer(
-            f"🎉 <b>Мэтч!</b>\n\n"
-            f"<b>{html.escape(target_name)}</b> тоже заинтересован(а) в тебе!\n"
-            f"Его/её Telegram: <b>{target_username}</b>",
+            f"🎉 <b>МЭТЧ!</b>\n\n"
+            f"<b>{html.escape(target_name)}</b> тоже хочет познакомиться с тобой!\n"
+            f"Telegram: <b>{target_username}</b>",
             parse_mode="HTML",
+            reply_markup=match_keyboard(target_username),
         )
 
         # Уведомляем вторую сторону
         try:
             await callback.bot.send_message(
                 target_id,
-                f"🎉 <b>Мэтч!</b>\n\n"
-                f"<b>{html.escape(my_name)}</b> тоже заинтересован(а) в тебе!\n"
-                f"Его/её Telegram: <b>{my_username}</b>",
+                f"🎉 <b>МЭТЧ!</b>\n\n"
+                f"<b>{html.escape(my_name)}</b> тоже хочет познакомиться с тобой!\n"
+                f"Telegram: <b>{my_username}</b>",
                 parse_mode="HTML",
+                reply_markup=match_keyboard(my_username),
             )
         except Exception:
             pass
