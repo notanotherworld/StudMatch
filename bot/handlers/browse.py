@@ -133,6 +133,48 @@ async def callback_swipe_next(callback: CallbackQuery, user: User, db: AsyncSess
     await send_next_card(callback.bot, callback.message.chat.id, user, db)
 
 
+@router.message(F.text.in_({"💘 Мои мэтчи", "Мои мэтчи", "/matches"}))
+async def show_my_matches(message: Message, user: User, db: AsyncSession, state: FSMContext):
+    await state.clear()
+    from database.crud import get_user_matches
+    matches = await get_user_matches(db, user.id)
+
+    if not matches:
+        await message.answer(
+            "💘 <b>У тебя пока нет мэтчей</b>\n\n"
+            "Продолжай смотреть анкеты в разделе <b>«🔍 Смотреть анкеты»</b> — взаимная симпатия появится совсем скоро! 🔥",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    lines = []
+    builder = InlineKeyboardBuilder()
+
+    for idx, (m, partner) in enumerate(matches, start=1):
+        p_name = html.escape(partner.profile.name if (partner.profile and partner.profile.name) else "Студент")
+        p_username = f"@{partner.tg_username}" if partner.tg_username else "(нет username)"
+        p_year = f"{partner.profile.year} курс" if (partner.profile and partner.profile.year) else ""
+        date_str = m.created_at.strftime("%d.%m") if m.created_at else ""
+
+        lines.append(f"{idx}. <b>{p_name}</b> ({p_year}) — <b>{p_username}</b> <i>({date_str})</i>")
+
+        if partner.tg_username:
+            clean_username = partner.tg_username.lstrip("@")
+            builder.button(text=f"💬 Написать {p_name}", url=f"https://t.me/{clean_username}")
+
+    builder.button(text="🔍 Искать новые анкеты", callback_data="top:swipe_next")
+    builder.adjust(1)
+
+    text = (
+        f"💘 <b>Твои мэтчи ({len(matches)}):</b>\n\n" +
+        "\n".join(lines) +
+        "\n\nНажми кнопку ниже, чтобы сразу написать человеку в Telegram!"
+    )
+
+    await message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
+
+
 HOW_TO_TOP_TEXT = """<b>КАК ПОПАСТЬ В ТОП 🏆</b>
 
 1) 💼 Участие в кейс-чемпионате / хакатоне — <b>+25 баллов</b>

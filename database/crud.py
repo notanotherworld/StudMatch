@@ -2,7 +2,7 @@
 CRUD-операции для основных сущностей.
 """
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, and_, or_, func
 from sqlalchemy.orm import selectinload
@@ -273,11 +273,29 @@ async def create_swipe(
         )
         if reverse.scalar_one_or_none():
             # Получаем режим от просматривающего
-            user = await get_user(db, from_id)
             db.add(Match(user1_id=from_id, user2_id=to_id, mode=user.mode))
             await db.commit()
             return True
     return False
+
+
+async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, User]]:
+    """Получить список всех мэтчей пользователя с деталями о партнере."""
+    query = (
+        select(Match)
+        .where(or_(Match.user1_id == user_id, Match.user2_id == user_id))
+        .order_by(Match.created_at.desc())
+    )
+    result = await db.execute(query)
+    matches = list(result.scalars().all())
+
+    partner_matches = []
+    for m in matches:
+        partner_id = m.user2_id if m.user1_id == user_id else m.user1_id
+        partner = await get_user(db, partner_id)
+        if partner:
+            partner_matches.append((m, partner))
+    return partner_matches
 
 
 # ─────────────────────────────────────────────────────────────
