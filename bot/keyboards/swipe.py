@@ -175,7 +175,7 @@ def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     builder.button(text="🔍 Смотреть анкеты")
-    builder.button(text="🏆 Топ студентов")
+    builder.button(text="🏆 Зал славы")
     builder.button(text="💘 Мои мэтчи")
     builder.button(text="👤 Мой профиль")
     builder.button(text="⚙️ Настройки")

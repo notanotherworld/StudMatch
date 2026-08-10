@@ -139,3 +139,22 @@ async def send_weekly_yandex(
         await bot.session.close()
 
     return RedirectResponse("/admin/broadcast", status_code=302)
+
+
+@router.post("/broadcast/weekly-challenge", dependencies=[Depends(check_csrf)])
+async def send_weekly_challenge(
+    admin=Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ручной запуск рассылки Карьерный челлендж недели."""
+    from bot.config import settings
+    from aiogram import Bot
+    from bot.services.weekly_notifications import run_weekly_challenge_notifications
+
+    bot = Bot(token=settings.BOT_TOKEN)
+    try:
+        await run_weekly_challenge_notifications(bot)
+    finally:
+        await bot.session.close()
+
+    return RedirectResponse("/admin/broadcast", status_code=302)

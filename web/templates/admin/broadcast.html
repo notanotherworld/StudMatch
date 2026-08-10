@@ -84,6 +84,20 @@
       </form>
     </div>
 
+    <!-- Спецрассылка Карьерный челлендж -->
+    <div class="card" style="border:1px solid rgba(0,212,255,0.3);background:rgba(0,212,255,0.03);">
+      <div style="font-size:14px;font-weight:600;margin-bottom:8px;color:#00d4ff;">🎯 Карьерный челлендж недели</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+        Призывает выполнить 3 задания дня (+60 бонусных баллов) и подняться на 3-5 мест в Зале славы.
+      </p>
+      <form method="POST" action="/admin/broadcast/weekly-challenge" onsubmit="return confirm('Запустить рассылку Карьерный челлендж для всех студентов?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
+          🎯 Запустить рассылку сейчас
+        </button>
+      </form>
+    </div>
+
     <div class="card">
       <div style="font-size:14px;font-weight:600;margin-bottom:12px;">👁 Превью сообщения</div>
       <div id="preview"

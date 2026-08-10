@@ -68,10 +68,14 @@ async def set_mode(callback: CallbackQuery, user: User, db: AsyncSession):
     await set_user_mode(db, user.id, mode)
 
     label = "🎯 Карьера" if mode == ModeEnum.career else "❤️ Знакомства"
+    extra_text = (
+        "\n\n💼 <i>Компании видят топ-50. Чем выше ты в этом списке, тем чаще они пишут тебе первыми. Все получится 🤲🏻</i>"
+        if mode == ModeEnum.career else ""
+    )
     await callback.answer(f"Режим изменён: {label}")
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer(
-        f"✅ Режим изменён на <b>{label}</b>",
+        f"✅ Режим изменён на <b>{label}</b>{extra_text}",
         parse_mode="HTML",
         reply_markup=main_menu_keyboard(),
     )
