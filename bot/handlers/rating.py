@@ -23,8 +23,11 @@ router = Router()
 
 @router.message(F.text.in_({"🏆 Зал славы", "Зал славы", "🏆 Топ студентов", "/halloffame"}))
 @router.callback_query(F.data.startswith("top:page"))
-async def show_hall_of_fame(event, user: User, db: AsyncSession):
+async def show_hall_of_fame(event, user: User, db: AsyncSession, state: FSMContext = None):
     """Показать Зал славы (расширен до 12 человек)."""
+    if state:
+        await state.clear()
+
     result = await db.execute(
         select(Profile)
         .options(selectinload(Profile.user))

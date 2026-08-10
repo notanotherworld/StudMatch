@@ -111,7 +111,7 @@ async def send_next_card(
     )
 
 
-@router.message(F.text.in_({"🔍 Смотреть анкеты", "Смотреть анкеты", "🏆 Топ студентов", "🏆 Свайп анкет", "🔥 Смотреть анкеты", "🔥 Свайп анкет"}))
+@router.message(F.text.in_({"🔍 Смотреть анкеты", "Смотреть анкеты", "🏆 Свайп анкет", "🔥 Смотреть анкеты", "🔥 Свайп анкет"}))
 async def start_swiping(message: Message, user: User, db: AsyncSession):
     if not user.email_verified:
         await message.answer("❌ Сначала пройди верификацию email. Напиши /start")
@@ -121,6 +121,16 @@ async def start_swiping(message: Message, user: User, db: AsyncSession):
         return
 
     await send_next_card(message.bot, message.chat.id, user, db)
+
+
+@router.callback_query(F.data == "top:swipe_next")
+async def callback_swipe_next(callback: CallbackQuery, user: User, db: AsyncSession):
+    await callback.answer()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await send_next_card(callback.bot, callback.message.chat.id, user, db)
 
 
 HOW_TO_TOP_TEXT = """<b>КАК ПОПАСТЬ В ТОП 🏆</b>
