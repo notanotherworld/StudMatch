@@ -21,46 +21,62 @@ from database.models import User, Achievement, AchievementType, Profile
 router = Router()
 
 
-@router.message(F.text.in_({"🏆 Зал славы", "Зал славы", "🏆 Топ студентов", "/halloffame"}))
+import logging
+from aiogram.filters import Command
+
+logger = logging.getLogger(__name__)
+
+
+async def _send_hall_of_fame(target_message: Message, user: User, db: AsyncSession):
+    """Сформировать и отправить Зал славы."""
+    try:
+        result = await db.execute(
+            select(Profile)
+            .options(selectinload(Profile.user))
+            .where(Profile.is_complete == True, Profile.is_visible == True)
+            .order_by(Profile.rating_score.desc())
+            .limit(12)
+        )
+        profiles = list(result.scalars().all())
+
+        lines = []
+        for idx, p in enumerate(profiles, start=1):
+            name = html.escape(p.name or "Студент")
+            score = f"{p.rating_score:.0f}"
+            medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}."))
+            lines.append(f"{medal} <b>{name}</b> ({p.year} курс) — ⭐ <b>{score}</b> б.")
+
+        text_header = "🏆 <b>Зал славы СтудМэч (Топ-12)</b>\n\n"
+        text_body = "\n".join(lines) if lines else "<i>Зал славы пока пуст. Будь первым!</i>"
+        text_footer = (
+            "\n\n💼 <i>Компании видят топ-50. Чем выше ты в этом списке, тем чаще они пишут тебе первыми. Все получится 🤲🏻</i>"
+        )
+        text = text_header + text_body + text_footer
+
+        builder = InlineKeyboardBuilder()
+        builder.button(text="➕ Добавить достижение", callback_data="achievement:add")
+        builder.button(text="🔍 Смотреть анкеты", callback_data="top:swipe_next")
+        builder.adjust(1)
+
+        await target_message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
+    except Exception as e:
+        logger.error(f"Error in _send_hall_of_fame: {e}", exc_info=True)
+        await target_message.answer("⚠️ Не удалось загрузить Зал славы. Попробуй ещё раз.")
+
+
+@router.message(F.text.func(lambda t: bool(t and ("Зал славы" in t or "Топ" in t or "halloffame" in t.lower()))))
+@router.message(Command("halloffame"))
+@router.message(Command("top"))
+async def cmd_hall_of_fame(message: Message, user: User, db: AsyncSession, state: FSMContext):
+    await state.clear()
+    await _send_hall_of_fame(message, user, db)
+
+
 @router.callback_query(F.data.startswith("top:page"))
-async def show_hall_of_fame(event, user: User, db: AsyncSession, state: FSMContext = None):
-    """Показать Зал славы (расширен до 12 человек)."""
-    if state:
-        await state.clear()
-
-    result = await db.execute(
-        select(Profile)
-        .options(selectinload(Profile.user))
-        .where(Profile.is_complete == True, Profile.is_visible == True)
-        .order_by(Profile.rating_score.desc())
-        .limit(12)  # Расширено до 12 человек (#2)
-    )
-    profiles = list(result.scalars().all())
-
-    lines = []
-    for idx, p in enumerate(profiles, start=1):
-        name = html.escape(p.name or "Студент")
-        score = f"{p.rating_score:.0f}"
-        medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}."))
-        lines.append(f"{medal} <b>{name}</b> ({p.year} курс) — ⭐ <b>{score}</b> б.")
-
-    text_header = "🏆 <b>Зал славы СтудМэч (Топ-12)</b>\n\n"
-    text_body = "\n".join(lines) if lines else "<i>Зал славы пока пуст. Будь первым!</i>"
-    text_footer = (
-        "\n\n💼 <i>Компании видят топ-50. Чем выше ты в этом списке, тем чаще они пишут тебе первыми. Все получится 🤲🏻</i>"
-    )
-    text = text_header + text_body + text_footer
-
-    builder = InlineKeyboardBuilder()
-    builder.button(text="➕ Добавить достижение", callback_data="achievement:add")
-    builder.button(text="🔍 Смотреть анкеты", callback_data="top:swipe_next")
-    builder.adjust(1)
-
-    if isinstance(event, CallbackQuery):
-        await event.answer()
-        await event.message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
-    else:
-        await event.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
+async def cb_hall_of_fame(callback: CallbackQuery, user: User, db: AsyncSession, state: FSMContext):
+    await state.clear()
+    await callback.answer()
+    await _send_hall_of_fame(callback.message, user, db)
 
 # Единый словарь лейблов для всех типов достижений (#8, #17)
 ACHIEVEMENT_LABELS = {
