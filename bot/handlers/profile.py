@@ -10,7 +10,8 @@ from sqlalchemy import select
 
 from bot.states.fsm import ProfileState
 from bot.keyboards.swipe import (
-    year_keyboard, interests_keyboard, main_menu_keyboard, mode_keyboard
+    year_keyboard, interests_keyboard, main_menu_keyboard, mode_keyboard,
+    rudn_institutes_keyboard, RUDN_INSTITUTES,
 )
 from database.crud import get_or_create_profile, update_profile
 from database.models import User, InterestTag
@@ -60,13 +61,35 @@ async def process_year(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(
         f"✅ <b>{year} курс</b> записан!\n\n"
         "<b>Вопрос 3/5</b>\n"
-        "Твоё направление, специальность?\n"
-        "<i>(Например: Информационные системы, Экономика, Медицина...)</i>",
+        "Выбери свой институт / факультет РУДН ниже или введи вручную:",
         parse_mode="HTML",
+        reply_markup=rudn_institutes_keyboard(),
     )
 
 
-# ─── Вопрос 3: Направление ────────────────────────────────────
+# ─── Вопрос 3: Направление (кнопка или текст) ──────────────────
+@router.callback_query(F.data.startswith("major_idx:"), ProfileState.waiting_major)
+async def process_major_callback(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    idx = int(callback.data.split(":")[1])
+    major = RUDN_INSTITUTES[idx] if 0 <= idx < len(RUDN_INSTITUTES) else "РУДН"
+    await state.update_data(major=major, selected_interests=[])
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer()
+
+    result = await db.execute(select(InterestTag).order_by(InterestTag.id))
+    tags = list(result.scalars().all())
+
+    await state.set_state(ProfileState.waiting_interests)
+    await callback.message.answer(
+        f"✅ Институт: <b>{html.escape(major)}</b>\n\n"
+        "<b>Вопрос 4/5</b>\n"
+        "Выбери свои интересы (можно несколько).\n"
+        "Нажми <b>«✔️ Готово»</b> когда выберешь всё.",
+        parse_mode="HTML",
+        reply_markup=interests_keyboard(tags, selected=[]),
+    )
+
+
 @router.message(ProfileState.waiting_major)
 async def process_major(message: Message, state: FSMContext, db: AsyncSession):
     raw_major = message.text.strip()

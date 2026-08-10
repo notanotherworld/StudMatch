@@ -32,6 +32,33 @@ def year_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+RUDN_INSTITUTES = [
+    "Аграрно-технологический институт",
+    "Институт фармации и биотехнологии",
+    "Институт внешнеэкономической безопасности и таможенного дела",
+    "Институт русского языка",
+    "Институт иностранных языков",
+    "Институт мировой экономики и бизнеса",
+    "Институт экологии",
+    "Медицинский институт",
+    "НОИ современных языков и коммуникаций",
+    "УНИ гравитации и космологии",
+    "УНИ сравнительной образовательной политики",
+    "Юридический институт",
+    "УНИ клинической медицины",
+    "Инженерная академия",
+    "Высшая школа управления",
+]
+
+
+def rudn_institutes_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for idx, inst in enumerate(RUDN_INSTITUTES):
+        builder.button(text=inst, callback_data=f"major_idx:{idx}")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def interests_keyboard(tags: List[InterestTag], selected: List[int] = None) -> InlineKeyboardMarkup:
     """Клавиатура выбора интересов с чекбоксами и кастомным вводом."""
     selected = selected or []
