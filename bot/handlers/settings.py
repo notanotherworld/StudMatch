@@ -146,7 +146,7 @@ async def show_buy(callback: CallbackQuery, user: User):
     )
 
 
-@router.message(F.text == "🔗 Пригласить друга (+1 ⭐️)")
+@router.message(F.text.in_({"🔗 Пригласить друга (+3 ⭐️)", "🔗 Пригласить друга (+1 ⭐️)", "/ref"}))
 @router.callback_query(F.data == "settings:ref_link")
 async def show_referral_link(event, user: User):
     bot_info = await event.bot.get_me()
@@ -156,7 +156,7 @@ async def show_referral_link(event, user: User):
         f"🔗 <b>Приглашай друзей в СтудМэч!</b>\n\n"
         f"Отправь другу свою персональную ссылку:\n"
         f"<code>{ref_url}</code>\n\n"
-        f"🎁 За каждого зарегистрировавшегося друга ты получаешь <b>+1 ⭐️ Суперлайк</b>!"
+        f"🎁 За каждого зарегистрировавшегося друга ты получаешь <b>+3 ⭐️ Суперлайка</b>!"
     )
 
     if isinstance(event, CallbackQuery):

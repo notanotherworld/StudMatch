@@ -79,7 +79,7 @@ def swipe_card_keyboard(profile_user_id: int, superlikes_count: int = 0) -> Inli
     """Кнопки действий под карточкой студента (свайп по одной анкеты)."""
     builder = InlineKeyboardBuilder()
     builder.button(text="❤️ Лайк", callback_data=f"swipe:like:{profile_user_id}")
-    builder.button(text="👎 Дизлайк", callback_data=f"swipe:skip:{profile_user_id}")
+    builder.button(text="⏭ Скип", callback_data=f"swipe:skip:{profile_user_id}")
 
     sl_label = f"⭐ Суперлайк ({superlikes_count})" if superlikes_count > 0 else "⭐ Суперлайк"
     builder.button(text=sl_label, callback_data=f"swipe:superlike:{profile_user_id}")
@@ -167,7 +167,7 @@ def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
     builder.button(text="💎 Премиум и Суперлайки", callback_data="settings:buy")
     builder.button(text="🔒 Скрыть / показать МОЮ анкету", callback_data="settings:toggle_visibility")
-    builder.button(text="🔗 Пригласить друга (+1 ⭐️)", callback_data="settings:ref_link")
+    builder.button(text="🔗 Пригласить друга (+3 ⭐️)", callback_data="settings:ref_link")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -179,7 +179,7 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder.button(text="💘 Мои мэтчи")
     builder.button(text="👤 Мой профиль")
     builder.button(text="⚙️ Настройки")
-    builder.button(text="🔗 Пригласить друга (+1 ⭐️)")
+    builder.button(text="🔗 Пригласить друга (+3 ⭐️)")
     builder.adjust(2, 2, 2)
     return builder.as_markup(resize_keyboard=True, input_field_placeholder="Выбери раздел...")
 

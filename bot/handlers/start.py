@@ -80,16 +80,16 @@ async def consent_accepted(callback: CallbackQuery, state: FSMContext, user: Use
     await set_user_consent(db, user.id)
     user.consent_given = True
 
-    # Награждаем реферера +1 суперлайком — только один раз (#10)
+    # Награждаем реферера +3 суперлайками — только один раз (#10)
     if user.referrer_id and not user.referral_rewarded:
-        await add_superlikes(db, user.referrer_id, 1)
+        await add_superlikes(db, user.referrer_id, 3)
         user.referral_rewarded = True
         await db.commit()
         try:
             await callback.bot.send_message(
                 user.referrer_id,
                 "🎉 <b>Твой друг зарегистрировался в СтудМэч!</b>\n\n"
-                "Тебе начислен <b>+1 ⭐️ Суперлайк</b> за приглашение!",
+                "Тебе начислено <b>+3 ⭐️ Суперлайка</b> за приглашение!",
                 parse_mode="HTML",
             )
         except Exception:

@@ -272,7 +272,7 @@ async def handle_swipe(callback: CallbackQuery, user: User, db: AsyncSession, st
 
         await callback.answer("🎉 Мэтч!")
     else:
-        icons = {"like": "❤️ Лайк", "superlike": "⭐ Суперлайк", "skip": "👎"}
+        icons = {"like": "❤️ Лайк", "superlike": "⭐ Суперлайк", "skip": "⏭ Скип"}
         await callback.answer(icons.get(action_str, "✅"))
 
     # Удаляем или очищаем текущую карточку
