@@ -38,6 +38,11 @@ PRODUCTS = {
         "amount": 99,
         "product": PaymentProduct.superlike_5,
     },
+    "boost_24h": {
+        "label": "🛸 Буст анкеты 24ч",
+        "amount": 99,
+        "product": PaymentProduct.boost_24h,
+    },
 }
 
 

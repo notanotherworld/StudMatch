@@ -44,8 +44,14 @@ async def _build_profile_caption(
     major = html.escape(profile.major or "")
     goal = html.escape(profile.goal or "")
 
+    from datetime import datetime, timezone
+    boost_badge = ""
+    if hasattr(profile, "user") and profile.user and getattr(profile.user, "boost_until", None):
+        if profile.user.boost_until > datetime.now(timezone.utc):
+            boost_badge = " 🌪"
+
     return (
-        f"<b>{name}</b>, {profile.year} курс\n"
+        f"<b>{name}</b>{boost_badge}, {profile.year} курс\n"
         f"📚 {major}\n"
         f"{mode_label}  {rating}\n\n"
         f"💬 <i>{goal}</i>\n\n"

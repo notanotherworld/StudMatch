@@ -126,6 +126,7 @@ def buy_superlike_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="💎 Премиум-подписка — 199 ₽/мес", callback_data="buy:premium_1m")
     builder.button(text="⭐️ 3 суперлайка — 49 ₽", callback_data="buy:superlike_3")
     builder.button(text="⭐️ 5 суперлайков — 99 ₽", callback_data="buy:superlike_5")
+    builder.button(text="🛸 Буст — 99 ₽/сутки", callback_data="buy:boost_24h")
     builder.adjust(1)
     return builder.as_markup()
 
