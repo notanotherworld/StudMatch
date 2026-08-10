@@ -55,9 +55,24 @@ async def _send_hall_of_fame(target_message: Message, user: User, db: AsyncSessi
         text = text_header + text_body + text_footer
 
         builder = InlineKeyboardBuilder()
+
+        # Кнопки быстрого открытия анкеты каждого студента из Зала славы
+        for idx, p in enumerate(profiles, start=1):
+            name = html.escape(p.name or "Студент")
+            medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}."))
+            builder.button(text=f"{medal} {name}", callback_data=f"profile:open:{p.user_id}")
+
+        profile_count = len(profiles)
         builder.button(text="➕ Добавить достижение", callback_data="achievement:add")
         builder.button(text="🔍 Смотреть анкеты", callback_data="top:swipe_next")
-        builder.adjust(1)
+
+        # Формируем сетку: студенты по 2 в ряд, затем доп. кнопки по 1
+        row_sizes = [2] * (profile_count // 2)
+        if profile_count % 2 == 1:
+            row_sizes.append(1)
+        row_sizes.extend([1, 1])
+
+        builder.adjust(*row_sizes)
 
         await target_message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
     except Exception as e:

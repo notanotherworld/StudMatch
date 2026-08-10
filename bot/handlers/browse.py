@@ -133,6 +133,53 @@ async def callback_swipe_next(callback: CallbackQuery, user: User, db: AsyncSess
     await send_next_card(callback.bot, callback.message.chat.id, user, db)
 
 
+@router.callback_query(F.data.startswith("profile:open:"))
+async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSession):
+    """Открыть анкету выбранного студента из Зала славы или мэтча."""
+    try:
+        target_id = int(callback.data.split(":")[2])
+        target = await get_user(db, target_id)
+        if not target or not target.profile:
+            await callback.answer("Анкета пользователя не найдена.", show_alert=True)
+            return
+
+        await callback.answer()
+
+        tags_map = {}
+        if target.profile.interest_ids:
+            result = await db.execute(
+                select(InterestTag).where(InterestTag.id.in_(target.profile.interest_ids))
+            )
+            for tag in result.scalars().all():
+                tags_map[tag.id] = tag
+
+        caption = await _build_profile_caption(target.profile, tags_map)
+        reply_kb = swipe_card_keyboard(target.user_id, superlikes_count=user.superlike_balance)
+
+        if target.profile.avatar_file_id:
+            try:
+                await callback.bot.send_photo(
+                    chat_id=callback.message.chat.id,
+                    photo=target.profile.avatar_file_id,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=reply_kb,
+                )
+                return
+            except Exception:
+                pass
+
+        await callback.bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=caption,
+            parse_mode="HTML",
+            reply_markup=reply_kb,
+        )
+    except Exception as e:
+        logger.error(f"Error opening profile: {e}", exc_info=True)
+        await callback.answer("Не удалось открыть анкету.", show_alert=True)
+
+
 @router.message(F.text.in_({"💘 Мои мэтчи", "Мои мэтчи", "/matches"}))
 async def show_my_matches(message: Message, user: User, db: AsyncSession, state: FSMContext):
     await state.clear()
