@@ -47,7 +47,7 @@ async def _send_hall_of_fame(target_message: Message, user: User, db: AsyncSessi
             medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}."))
             lines.append(f"{medal} <b>{name}</b> ({year_str}) — ⭐ <b>{score}</b> б.")
 
-        text_header = "🏆 <b>Зал славы СтудМэч (Топ-12)</b>\n\n"
+        text_header = "🏅 <b>Зал славы СтудМэч (Топ-12)</b>\n\n"
         text_body = "\n".join(lines) if lines else "<i>Зал славы пока пуст. Будь первым!</i>"
         text_footer = (
             "\n\n💼 <i>Компании видят топ-50. Чем выше ты в этом списке, тем чаще они пишут тебе первыми. Все получится 🤲🏻</i>"

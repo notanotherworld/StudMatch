@@ -180,7 +180,7 @@ async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSessio
         await callback.answer("Не удалось открыть анкету.", show_alert=True)
 
 
-@router.message(F.text.in_({"💘 Мои мэтчи", "Мои мэтчи", "/matches"}))
+@router.message(F.text.in_({"🫂 Мои мэтчи", "💘 Мои мэтчи", "Мои мэтчи", "/matches"}))
 async def show_my_matches(message: Message, user: User, db: AsyncSession, state: FSMContext):
     await state.clear()
     from database.crud import get_user_matches
@@ -188,7 +188,7 @@ async def show_my_matches(message: Message, user: User, db: AsyncSession, state:
 
     if not matches:
         await message.answer(
-            "💘 <b>У тебя пока нет мэтчей</b>\n\n"
+            "🫂 <b>У тебя пока нет мэтчей</b>\n\n"
             "Продолжай смотреть анкеты в разделе <b>«🔍 Смотреть анкеты»</b> — взаимная симпатия появится совсем скоро! 🔥",
             parse_mode="HTML",
             reply_markup=main_menu_keyboard(),
@@ -214,7 +214,7 @@ async def show_my_matches(message: Message, user: User, db: AsyncSession, state:
     builder.adjust(1)
 
     text = (
-        f"💘 <b>Твои мэтчи ({len(matches)}):</b>\n\n" +
+        f"🫂 <b>Твои мэтчи ({len(matches)}):</b>\n\n" +
         "\n".join(lines) +
         "\n\nНажми кнопку ниже, чтобы сразу написать человеку в Telegram!"
     )

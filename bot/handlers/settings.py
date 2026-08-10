@@ -146,7 +146,7 @@ async def show_buy(callback: CallbackQuery, user: User):
     )
 
 
-@router.message(F.text.in_({"🔗 Пригласить друга (+3 ⭐️)", "🔗 Пригласить друга (+1 ⭐️)", "/ref"}))
+@router.message(F.text.func(lambda t: bool(t and ("Пригласить" in t or "ref" in t.lower()))))
 @router.callback_query(F.data == "settings:ref_link")
 async def show_referral_link(event, user: User):
     bot_info = await event.bot.get_me()
@@ -166,7 +166,7 @@ async def show_referral_link(event, user: User):
         await event.answer(text, parse_mode="HTML")
 
 
-@router.message(F.text == "👤 Мой профиль")
+@router.message(F.text.in_({"🐾 Мой профиль", "👤 Мой профиль", "Мой профиль", "/profile"}))
 async def show_my_profile(message: Message, user: User, db: AsyncSession):
     profile = user.profile
     if not profile or not profile.is_complete:

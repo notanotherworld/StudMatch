@@ -165,7 +165,7 @@ def my_profile_keyboard(current_mode: str) -> InlineKeyboardMarkup:
     builder.button(text="✏️ Изменить анкету", callback_data="settings:edit_profile")
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
     builder.button(text="💎 Премиум и Суперлайки", callback_data="settings:buy")
-    builder.button(text="🔗 Пригласить друга (+3 ⭐️)", callback_data="settings:ref_link")
+    builder.button(text="🪢 Пригласить друга (+3 ⭐️)", callback_data="settings:ref_link")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -182,11 +182,11 @@ def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     builder.button(text="🔍 Смотреть анкеты")
-    builder.button(text="🏆 Зал славы")
-    builder.button(text="💘 Мои мэтчи")
-    builder.button(text="👤 Мой профиль")
+    builder.button(text="🏅 Зал славы")
+    builder.button(text="🫂 Мои мэтчи")
+    builder.button(text="🐾 Мой профиль")
     builder.button(text="⚙️ Настройки")
-    builder.button(text="🔗 Пригласить друга (+3 ⭐️)")
+    builder.button(text="🪢 Пригласить друга (+3 ⭐️)")
     builder.adjust(2, 2, 2)
     return builder.as_markup(resize_keyboard=True, input_field_placeholder="Выбери раздел...")
 
