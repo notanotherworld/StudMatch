@@ -158,16 +158,23 @@ def buy_superlike_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
+def my_profile_keyboard(current_mode: str) -> InlineKeyboardMarkup:
     mode_label = "🎯 Карьера" if current_mode == "career" else "❤️ Знакомства"
     builder = InlineKeyboardBuilder()
     builder.button(text=f"Режим: {mode_label}", callback_data="settings:change_mode")
-    builder.button(text="🏷 Изменить интересы", callback_data="settings:edit_interests")
-    builder.button(text="✏️ Перезаполнить анкету", callback_data="settings:edit_profile")
+    builder.button(text="✏️ Изменить анкету", callback_data="settings:edit_profile")
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
     builder.button(text="💎 Премиум и Суперлайки", callback_data="settings:buy")
-    builder.button(text="🔒 Скрыть / показать МОЮ анкету", callback_data="settings:toggle_visibility")
     builder.button(text="🔗 Пригласить друга (+3 ⭐️)", callback_data="settings:ref_link")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🏷 Изменить интересы", callback_data="settings:edit_interests")
+    builder.button(text="🔒 Скрыть / показать МОЮ анкету", callback_data="settings:toggle_visibility")
+    builder.button(text="🔄 Сбросить историю свайпов", callback_data="settings:reset_swipes")
     builder.adjust(1)
     return builder.as_markup()
 

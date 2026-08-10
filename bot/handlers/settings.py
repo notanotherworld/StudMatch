@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.keyboards.swipe import settings_keyboard, mode_keyboard, buy_superlike_keyboard, main_menu_keyboard
+from bot.keyboards.swipe import settings_keyboard, my_profile_keyboard, mode_keyboard, buy_superlike_keyboard, main_menu_keyboard
 from bot.states.fsm import ProfileState
 from database.crud import set_user_mode
 from database.models import User, ModeEnum, Profile, InterestTag, Swipe
@@ -197,7 +197,7 @@ async def show_my_profile(message: Message, user: User, db: AsyncSession):
             photo=profile.avatar_file_id,
             caption=text,
             parse_mode="HTML",
-            reply_markup=settings_keyboard(user.mode.value),
+            reply_markup=my_profile_keyboard(user.mode.value),
         )
     else:
-        await message.answer(text, parse_mode="HTML", reply_markup=settings_keyboard(user.mode.value))
+        await message.answer(text, parse_mode="HTML", reply_markup=my_profile_keyboard(user.mode.value))
