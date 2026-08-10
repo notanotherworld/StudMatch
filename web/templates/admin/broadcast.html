@@ -69,6 +69,21 @@
 
   <!-- Превью и статистика -->
   <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Спецрассылка Яндекс Топ-12 -->
+    <div class="card" style="border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.03);">
+      <div style="font-size:14px;font-weight:600;margin-bottom:8px;color:#FFD700;">🔥 Рассылка «Яндекс Топ-12»</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+        Рассчитывает точное место каждого студента и сколько баллов ему не хватает до попадания в Топ-12 (Яндекс).
+      </p>
+      <form method="POST" action="/admin/broadcast/weekly-yandex" onsubmit="return confirm('Запустить рассылку Яндекс Топ-12 для всех студентов?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-warning btn-sm" style="width:100%;">
+          🚀 Запустить рассылку сейчас
+        </button>
+      </form>
+    </div>
+
     <div class="card">
       <div style="font-size:14px;font-weight:600;margin-bottom:12px;">👁 Превью сообщения</div>
       <div id="preview"

@@ -49,6 +49,10 @@ async def main() -> None:
 
     logger.info("🚀 СтудМэч запущен!")
 
+    # Запускаем фоновую еженедельную рассылку рейтинга (Яндекс Топ-12)
+    from bot.services.weekly_notifications import weekly_notification_loop
+    asyncio.create_task(weekly_notification_loop(bot))
+
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:

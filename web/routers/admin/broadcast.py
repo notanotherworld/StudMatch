@@ -120,3 +120,22 @@ async def send_broadcast(
     await db.commit()
 
     return RedirectResponse("/admin/broadcast", status_code=302)
+
+
+@router.post("/broadcast/weekly-yandex", dependencies=[Depends(check_csrf)])
+async def send_weekly_yandex(
+    admin=Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ручной запуск рассылки Яндекс Топ-12."""
+    from bot.config import settings
+    from aiogram import Bot
+    from bot.services.weekly_notifications import run_weekly_rank_notifications
+
+    bot = Bot(token=settings.BOT_TOKEN)
+    try:
+        await run_weekly_rank_notifications(bot)
+    finally:
+        await bot.session.close()
+
+    return RedirectResponse("/admin/broadcast", status_code=302)
