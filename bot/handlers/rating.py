@@ -32,9 +32,8 @@ async def _send_hall_of_fame(target_message: Message, user: User, db: AsyncSessi
     try:
         result = await db.execute(
             select(Profile)
-            .options(selectinload(Profile.user))
             .where(Profile.is_complete == True, Profile.is_visible == True)
-            .order_by(Profile.rating_score.desc())
+            .order_by(Profile.rating_score.desc().nullslast())
             .limit(12)
         )
         profiles = list(result.scalars().all())
@@ -42,9 +41,11 @@ async def _send_hall_of_fame(target_message: Message, user: User, db: AsyncSessi
         lines = []
         for idx, p in enumerate(profiles, start=1):
             name = html.escape(p.name or "Студент")
-            score = f"{p.rating_score:.0f}"
+            raw_score = p.rating_score if p.rating_score is not None else 0.0
+            score = f"{raw_score:.0f}"
+            year_str = f"{p.year} курс" if p.year else "Студент"
             medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}."))
-            lines.append(f"{medal} <b>{name}</b> ({p.year} курс) — ⭐ <b>{score}</b> б.")
+            lines.append(f"{medal} <b>{name}</b> ({year_str}) — ⭐ <b>{score}</b> б.")
 
         text_header = "🏆 <b>Зал славы СтудМэч (Топ-12)</b>\n\n"
         text_body = "\n".join(lines) if lines else "<i>Зал славы пока пуст. Будь первым!</i>"

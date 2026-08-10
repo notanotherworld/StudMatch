@@ -51,7 +51,7 @@ async def run_weekly_rank_notifications(bot: Bot) -> dict:
 
     # Порог баллов для попадания в Зал славы Топ-12
     top12_index = min(11, len(profiles) - 1)
-    top12_benchmark_score = profiles[top12_index].rating_score if profiles else 50.0
+    top12_benchmark_score = (profiles[top12_index].rating_score or 50.0) if profiles else 50.0
 
     sent = 0
     failed = 0
@@ -61,7 +61,7 @@ async def run_weekly_rank_notifications(bot: Bot) -> dict:
             continue
 
         user_id = profile.user_id
-        score = profile.rating_score
+        score = profile.rating_score or 0.0
 
         if rank <= 12:
             text = (
