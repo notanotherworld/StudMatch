@@ -182,8 +182,8 @@ async def show_my_profile(message: Message, user: User, db: AsyncSession):
         custom_block = f"\n✍️ Свои: <i>{html.escape(profile.custom_interests)}</i>"
 
     text = (
-        f"<b>{html.escape(profile.name or '')}</b>, {profile.year} курс\n"
-        f"📚 {html.escape(profile.major or '')}\n"
+        f"<b>{html.escape(profile.name or '')}</b>, {profile.year} курс\n\n"
+        f"📚 {html.escape(profile.major or '')}\n\n"
         f"{mode_label} · ⭐ {profile.rating_score:.0f} б.\n"
         f"{visibility}\n\n"
         f"💬 <i>{html.escape(profile.goal or '')}</i>\n"

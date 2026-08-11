@@ -51,8 +51,8 @@ async def _build_profile_caption(
             boost_badge = " 🌪"
 
     return (
-        f"<b>{name}</b>{boost_badge}, {profile.year} курс\n"
-        f"📚 {major}\n"
+        f"<b>{name}</b>{boost_badge}, {profile.year} курс\n\n"
+        f"📚 {major}\n\n"
         f"{mode_label}  {rating}\n\n"
         f"💬 <i>{goal}</i>\n\n"
         f"{tags_text}"
@@ -353,7 +353,8 @@ async def prompt_letter(callback: CallbackQuery, state: FSMContext, user: User, 
     target_name = html.escape(target.profile.name or "пользователю")
     await callback.message.answer(
         f"💌 <b>Написать письмо для {target_name}</b>\n\n"
-        f"Введи текст сообщения (до 500 символов):\n"
+        f"Введи текст сообщения\n"
+        f"<i>(до 500 символов)</i>\n\n"
         f"<i>Пример: Привет! Тоже участвую в хакатонах, давай объединимся 🚀</i>",
         parse_mode="HTML",
         reply_markup=builder.as_markup(),
