@@ -183,7 +183,9 @@ async def show_referral_link(event, user: User):
 
 
 @router.message(F.text.in_({"🐾 Мой профиль", "👤 Мой профиль", "Мой профиль", "/profile"}))
-async def show_my_profile(message: Message, user: User, db: AsyncSession):
+async def show_my_profile(message: Message, user: User, db: AsyncSession, state: FSMContext = None):
+    if state:
+        await state.clear()
     profile = user.profile
     if not profile or not profile.is_complete:
         await message.answer("У тебя ещё нет анкеты. Напиши /start чтобы создать.")

@@ -23,7 +23,7 @@ router = Router()
 
 
 async def _build_profile_caption(
-    profile: Profile, tags_map: dict[int, InterestTag]
+    profile: Profile, tags_map: dict[int, InterestTag], user: Optional[User] = None
 ) -> str:
     """Формируем текст карточки студента."""
     tags_text = ""
@@ -36,22 +36,25 @@ async def _build_profile_caption(
         custom = html.escape(profile.custom_interests)
         tags_text += f"\n✍️ {custom}" if tags_text else f"✍️ {custom}"
 
-    user_mode = getattr(profile.user, "mode", None)
+    user_obj = user or (profile.__dict__.get("user") if hasattr(profile, "__dict__") else None)
+    user_mode = getattr(user_obj, "mode", None)
     mode_label = "🎯 Карьера" if (user_mode and user_mode == ModeEnum.career) else "❤️ Знакомства"
-    rating = f"⭐ {profile.rating_score:.0f} б." if profile.rating_score > 0 else ""
+    raw_rating = getattr(profile, "rating_score", 0.0) or 0.0
+    rating = f"⭐ {raw_rating:.0f} б." if raw_rating > 0 else ""
 
-    name = html.escape(profile.name or "")
+    name = html.escape(profile.name or "Студент")
     major = html.escape(profile.major or "")
     goal = html.escape(profile.goal or "")
+    year_str = f"{profile.year} курс" if profile.year else "Студент"
 
     from datetime import datetime, timezone
     boost_badge = ""
-    if hasattr(profile, "user") and profile.user and getattr(profile.user, "boost_until", None):
-        if profile.user.boost_until > datetime.now(timezone.utc):
+    if user_obj and getattr(user_obj, "boost_until", None):
+        if user_obj.boost_until > datetime.now(timezone.utc):
             boost_badge = " 🌪"
 
     return (
-        f"<b>{name}</b>{boost_badge}, {profile.year} курс\n\n"
+        f"<b>{name}</b>{boost_badge}, {year_str}\n\n"
         f"📚 {major}\n\n"
         f"{mode_label}  {rating}\n\n"
         f"💬 <i>{goal}</i>\n\n"
@@ -112,7 +115,9 @@ async def send_next_card(
 
 
 @router.message(F.text.in_({"🔍 Смотреть анкеты", "Смотреть анкеты", "🏆 Свайп анкет", "🔥 Смотреть анкеты", "🔥 Свайп анкет"}))
-async def start_swiping(message: Message, user: User, db: AsyncSession):
+async def start_swiping(message: Message, user: User, db: AsyncSession, state: FSMContext = None):
+    if state:
+        await state.clear()
     if not user.email_verified:
         await message.answer("❌ Сначала пройди верификацию email. Напиши /start")
         return
@@ -153,7 +158,7 @@ async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSessio
             for tag in result.scalars().all():
                 tags_map[tag.id] = tag
 
-        caption = await _build_profile_caption(target.profile, tags_map)
+        caption = await _build_profile_caption(target.profile, tags_map, user=target)
         reply_kb = swipe_card_keyboard(target.user_id, superlikes_count=user.superlike_balance)
 
         if target.profile.avatar_file_id:

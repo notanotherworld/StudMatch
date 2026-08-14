@@ -226,9 +226,9 @@ async def get_next_profile(
         if viewer_profile:
             # 1. Пол кандидата должен совпадать с тем, кого ищет viewer
             if viewer_profile.target_gender == "female":
-                gender_filters.append(Profile.gender == "female")
+                gender_filters.append(or_(Profile.gender == "female", Profile.gender.is_(None)))
             elif viewer_profile.target_gender == "male":
-                gender_filters.append(Profile.gender == "male")
+                gender_filters.append(or_(Profile.gender == "male", Profile.gender.is_(None)))
 
             # 2. Кандидат должен быть согласен на пол viewer'а (или искать Всех/любого)
             if viewer_profile.gender == "male":
