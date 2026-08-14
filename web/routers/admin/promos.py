@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, func, desc
+from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 import uuid
 
@@ -42,12 +43,15 @@ async def promos_page(
 
     top_ambassadors = []
     for inviter_id, count in top_refs_raw:
-        u_res = await db.execute(select(User).where(User.id == inviter_id))
+        u_res = await db.execute(
+            select(User).options(selectinload(User.profile)).where(User.id == inviter_id)
+        )
         inviter = u_res.scalar_one_or_none()
+        name = inviter.profile.name if inviter and inviter.profile and inviter.profile.name else None
         top_ambassadors.append({
             "user_id": inviter_id,
             "username": inviter.tg_username if inviter else None,
-            "name": inviter.profile.name if inviter and inviter.profile else None,
+            "name": name,
             "count": count,
         })
 
