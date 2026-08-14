@@ -2,9 +2,11 @@
 {% block title %}Документы — СтудМэч Admin{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1>📄 Верификация документов</h1>
-  <p>Проверяйте загруженные студентами достижения</p>
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>📄 Верификация документов</h1>
+    <p>Проверяйте загруженные студентами дипломы, справки и достижения</p>
+  </div>
 </div>
 
 <!-- Фильтр статуса -->
@@ -19,13 +21,13 @@
     ❌ Отклонённые
   </a>
 
-  <!-- #5: Пакетное одобрение -->
+  <!-- Пакетное одобрение по типу -->
   {% if current_status == 'pending' and achievements %}
   <div style="margin-left:auto;display:flex;gap:6px;">
     <form method="POST" action="/admin/documents/approve-type">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div style="display:flex;gap:6px;align-items:center;">
-        <select name="ach_type" style="width:160px;padding:6px 10px;font-size:13px;">
+        <select name="ach_type" style="width:170px;padding:8px 12px;font-size:13px;">
           <option value="gpa">📊 GPA (все)</option>
           <option value="olympiad">🏆 Олимпиады (все)</option>
           <option value="participation">🎯 Участие (все)</option>
@@ -42,79 +44,134 @@
 </div>
 
 {% if achievements %}
-<div class="card" style="padding:0;">
-  <table>
-    <thead>
-      <tr>
-        <th>Студент</th>
-        <th>Тип</th>
-        <th>Название</th>
-        <th>Дата</th>
-        <th>Документ</th>
-        <th>Действия</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for a in achievements %}
-      <tr>
-        <td>
-          <a href="/admin/users/{{ a.user_id }}" style="color:var(--accent2);text-decoration:none;">
-            @{{ a.user.tg_username or a.user_id }}
-          </a>
-        </td>
-        <td><span class="badge badge-purple">{{ a.type.value }}</span></td>
-        <td style="max-width:200px;">{{ a.title[:60] }}{% if a.title|length > 60 %}...{% endif %}</td>
-        <td style="color:var(--muted);font-size:13px;">{{ a.created_at.strftime('%d.%m.%Y') }}</td>
-        <td>
-          {% if a.document_url %}
-          <a href="/admin/documents/{{ a.id }}/view" target="_blank" class="btn btn-ghost btn-sm">👁 Открыть</a>
-          {% else %}
-          <span style="color:var(--muted);font-size:13px;">—</span>
-          {% endif %}
-        </td>
-        <td>
+<div class="card" style="padding:0;overflow:hidden;">
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
           {% if current_status == 'pending' %}
-          <div style="display:flex;gap:6px;">
-            <form method="POST" action="/admin/documents/{{ a.id }}/approve" style="display:inline;">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button type="submit" class="btn btn-success btn-sm">✅</button>
-            </form>
-            <form method="POST" action="/admin/documents/{{ a.id }}/reject" style="display:inline;"
-                  onsubmit="event.preventDefault(); showRejectModal('{{ a.id }}')">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button type="button" class="btn btn-danger btn-sm" onclick="showRejectModal('{{ a.id }}')">❌</button>
-            </form>
-          </div>
-          {% else %}
-          {% if a.reject_reason %}
-          <span style="color:var(--danger);font-size:12px;">{{ a.reject_reason[:40] }}</span>
+          <th style="width:40px;text-align:center;">
+            <input type="checkbox" id="selectAllDocs" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);">
+          </th>
           {% endif %}
+          <th>Студент</th>
+          <th>Тип</th>
+          <th>Название</th>
+          <th>Дата</th>
+          <th>Документ</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in achievements %}
+        <tr>
+          {% if current_status == 'pending' %}
+          <td style="text-align:center;">
+            <input type="checkbox" class="doc-cb" value="{{ a.id }}" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);">
+          </td>
           {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          <td>
+            <a href="/admin/users/{{ a.user_id }}" style="color:var(--accent2);text-decoration:none;font-weight:600;"
+               class="copyable" data-copy="{{ a.user.tg_username or a.user_id }}" title="Кликните чтобы скопировать ник">
+              @{{ a.user.tg_username or a.user_id }}
+            </a>
+          </td>
+          <td><span class="badge badge-purple">{{ a.type.value }}</span></td>
+          <td style="max-width:260px;">{{ a.title[:60] }}{% if a.title|length > 60 %}...{% endif %}</td>
+          <td style="color:var(--muted);font-size:13px;" class="mono">{{ a.created_at.strftime('%d.%m.%Y') }}</td>
+          <td>
+            {% if a.document_url %}
+            <a href="/admin/documents/{{ a.id }}/view" target="_blank" class="btn btn-ghost btn-sm">👁 Открыть</a>
+            {% else %}
+            <span style="color:var(--muted);font-size:13px;">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if current_status == 'pending' %}
+            <div style="display:flex;gap:6px;">
+              <form method="POST" action="/admin/documents/{{ a.id }}/approve" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-success btn-sm" title="Одобрить">✅</button>
+              </form>
+              <form method="POST" action="/admin/documents/{{ a.id }}/reject" style="display:inline;"
+                    onsubmit="event.preventDefault(); showRejectModal('{{ a.id }}')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="button" class="btn btn-danger btn-sm" onclick="showRejectModal('{{ a.id }}')" title="Отклонить">❌</button>
+              </form>
+            </div>
+            {% else %}
+              {% if a.reject_reason %}
+              <span style="color:var(--danger);font-size:12px;">{{ a.reject_reason[:40] }}</span>
+              {% else %}
+              <span class="badge badge-success">Подтверждено</span>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% else %}
-<div class="card" style="text-align:center;padding:48px;">
+<div class="card" style="text-align:center;padding:64px;">
   <div style="font-size:48px;margin-bottom:16px;">🎉</div>
-  <div style="color:var(--muted);">Нет документов в этом статусе</div>
+  <div style="font-size:16px;font-weight:600;margin-bottom:8px;">
+    {% if current_status == 'pending' %}Все документы проверены!{% else %}Список пуст{% endif %}
+  </div>
+  <div style="color:var(--muted);">
+    {% if current_status == 'pending' %}Новые загруженные дипломы и справки появятся здесь{% endif %}
+  </div>
 </div>
 {% endif %}
 
-<!-- Модальное окно отклонения -->
-<div id="rejectModal" style="display:none;position:fixed;inset:0;background:#0009;z-index:100;align-items:center;justify-content:center;">
-  <div class="card" style="width:400px;">
-    <h3 style="margin-bottom:16px;">Причина отклонения</h3>
+<!-- Плавающая панель массовых действий (Bulk Actions Bar) -->
+<div id="bulkActionBar" class="bulk-action-bar">
+  <div style="font-weight:700;font-size:14px;color:#fff;">
+    Выбрано: <span id="selectedCount" class="mono" style="color:var(--accent2);">0</span>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button type="button" class="btn btn-success btn-sm" onclick="executeBatchApprove()">
+      ✅ Одобрить выбранные
+    </button>
+    <button type="button" class="btn btn-danger btn-sm" onclick="openBatchRejectModal()">
+      ❌ Отклонить выбранные
+    </button>
+  </div>
+</div>
+
+<!-- Модальное окно единичного отклонения -->
+<div id="rejectModal" style="display:none;position:fixed;inset:0;background:#000a;z-index:100;align-items:center;justify-content:center;">
+  <div class="card" style="width:420px;max-width:92vw;">
+    <h3 style="margin-bottom:16px;font-size:16px;font-weight:700;">❌ Причина отклонения</h3>
     <form id="rejectForm" method="POST">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-group">
-        <textarea name="reason" rows="3" placeholder="Укажи причину..." required></textarea>
+        <label>Укажите причину для студента:</label>
+        <textarea name="reason" rows="3" placeholder="Нечеткое фото, неверный документ..." required></textarea>
       </div>
-      <div style="display:flex;gap:8px;">
-        <button type="submit" class="btn btn-danger">Отклонить</button>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button type="submit" class="btn btn-danger" style="flex:1;justify-content:center;">Отклонить</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Модальное окно массового отклонения -->
+<div id="batchRejectModal" style="display:none;position:fixed;inset:0;background:#000a;z-index:100;align-items:center;justify-content:center;">
+  <div class="card" style="width:420px;max-width:92vw;">
+    <h3 style="margin-bottom:16px;font-size:16px;font-weight:700;">❌ Массовое отклонение</h3>
+    <form method="POST" action="/admin/documents/batch-reject">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="doc_ids" id="batchRejectDocIds" value="">
+      <div class="form-group">
+        <label>Причина отклонения для всех выбранных документов:</label>
+        <textarea name="reason" rows="3" placeholder="Документы не соответствуют требованиям..." required></textarea>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button type="submit" class="btn btn-danger" style="flex:1;justify-content:center;">Отклонить выбранные</button>
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('batchRejectModal').style.display='none'">Отмена</button>
       </div>
     </form>
   </div>
@@ -127,6 +184,65 @@ function showRejectModal(id) {
 }
 function closeModal() {
   document.getElementById('rejectModal').style.display = 'none';
+}
+
+// Checkbox selection and Floating Multi-action bar logic
+const selectAll = document.getElementById('selectAllDocs');
+const rowCheckboxes = document.querySelectorAll('.doc-cb');
+const bulkBar = document.getElementById('bulkActionBar');
+const countSpan = document.getElementById('selectedCount');
+
+function getSelectedIds() {
+  return Array.from(document.querySelectorAll('.doc-cb:checked')).map(cb => cb.value);
+}
+
+function updateBulkBar() {
+  const selected = getSelectedIds();
+  if (countSpan) countSpan.textContent = selected.length;
+  if (bulkBar) {
+    if (selected.length > 0) {
+      bulkBar.classList.add('active');
+    } else {
+      bulkBar.classList.remove('active');
+    }
+  }
+}
+
+if (selectAll) {
+  selectAll.addEventListener('change', () => {
+    rowCheckboxes.forEach(cb => cb.checked = selectAll.checked);
+    updateBulkBar();
+  });
+}
+
+rowCheckboxes.forEach(cb => {
+  cb.addEventListener('change', updateBulkBar);
+});
+
+function executeBatchApprove() {
+  const ids = getSelectedIds();
+  if (!ids.length) return;
+  if (!confirm(`Одобрить выбранные документы (${ids.length} шт.)?`)) return;
+
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/admin/documents/batch-approve';
+  
+  const idInput = document.createElement('input');
+  idInput.type = 'hidden';
+  idInput.name = 'doc_ids';
+  idInput.value = ids.join(',');
+  form.appendChild(idInput);
+
+  document.body.appendChild(form);
+  form.submit();
+}
+
+function openBatchRejectModal() {
+  const ids = getSelectedIds();
+  if (!ids.length) return;
+  document.getElementById('batchRejectDocIds').value = ids.join(',');
+  document.getElementById('batchRejectModal').style.display = 'flex';
 }
 </script>
 {% endblock %}

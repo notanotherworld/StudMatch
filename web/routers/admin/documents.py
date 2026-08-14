@@ -208,3 +208,78 @@ async def approve_by_type(
         pass
 
     return RedirectResponse("/admin/documents", status_code=302)
+
+
+@router.post("/documents/batch-approve", dependencies=[Depends(check_csrf)])
+async def batch_approve_docs(
+    request: Request,
+    doc_ids: str = Form(...),
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    ids = [i.strip() for i in doc_ids.split(",") if i.strip()]
+    notified: set = set()
+    for d_id in ids:
+        await approve_achievement(db, d_id, admin.id)
+        res = await db.execute(select(Achievement).where(Achievement.id == d_id))
+        ach = res.scalar_one_or_none()
+        if ach:
+            notified.add(ach.user_id)
+
+    if notified:
+        try:
+            from aiogram import Bot
+            from bot.config import settings
+            bot = Bot(token=settings.BOT_TOKEN)
+            for uid in notified:
+                try:
+                    await bot.send_message(
+                        uid,
+                        "✅ <b>Ваши достижения подтверждены!</b>\n\nБаллы начислены в рейтинг 🏆",
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
+            await bot.session.close()
+        except Exception:
+            pass
+
+    return RedirectResponse("/admin/documents", status_code=302)
+
+
+@router.post("/documents/batch-reject", dependencies=[Depends(check_csrf)])
+async def batch_reject_docs(
+    request: Request,
+    doc_ids: str = Form(...),
+    reason: str = Form(default="Документ не соответствует требованиям"),
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    ids = [i.strip() for i in doc_ids.split(",") if i.strip()]
+    notified: set = set()
+    for d_id in ids:
+        await reject_achievement(db, d_id, admin.id, reason)
+        res = await db.execute(select(Achievement).where(Achievement.id == d_id))
+        ach = res.scalar_one_or_none()
+        if ach:
+            notified.add(ach.user_id)
+
+    if notified:
+        try:
+            from aiogram import Bot
+            from bot.config import settings
+            bot = Bot(token=settings.BOT_TOKEN)
+            for uid in notified:
+                try:
+                    await bot.send_message(
+                        uid,
+                        f"❌ <b>Достижения отклонены</b>\n\n📋 Причина: {reason}",
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
+            await bot.session.close()
+        except Exception:
+            pass
+
+    return RedirectResponse("/admin/documents", status_code=302)

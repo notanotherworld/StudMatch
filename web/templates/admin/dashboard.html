@@ -5,130 +5,220 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1>📊 Дашборд</h1>
-  <p>Добро пожаловать, <strong>{{ admin.login }}</strong> · {{ admin.role.value }}</p>
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>📊 Аналитический дашборд</h1>
+    <p>Добро пожаловать, <strong>{{ admin.login }}</strong> · <span class="badge badge-purple">{{ admin.role.value }}</span></p>
+  </div>
 </div>
 
 <!-- Основные метрики -->
 <div class="grid grid-4" style="margin-bottom:24px;">
-  <div class="stat-card">
-    <div>
-      <div class="card-title">Всего студентов</div>
-      <div class="card-value">{{ stats.total_users }}</div>
-      <div style="font-size:12px;color:var(--success);margin-top:4px;">+{{ stats.new_today }} сегодня</div>
-    </div>
-    <div class="stat-icon">👥</div>
-  </div>
-  <div class="stat-card">
-    <div>
-      <div class="card-title">Верифицировано</div>
-      <div class="card-value">{{ stats.verified_users }}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px;">+{{ stats.new_week }} за неделю</div>
-    </div>
-    <div class="stat-icon">✅</div>
-  </div>
-  <div class="stat-card">
-    <div>
-      <div class="card-title">Мэтчей за неделю</div>
-      <div class="card-value">{{ stats.matches_week }}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px;">всего {{ stats.total_matches }}</div>
-    </div>
-    <div class="stat-icon">💘</div>
-  </div>
-  <div class="stat-card">
-    <div>
-      <div class="card-title">Документов на проверке</div>
-      <div class="card-value {% if stats.pending_docs > 0 %}style="color:var(--warning)"{% endif %}">
-        {{ stats.pending_docs }}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="card-title">Всего студентов</div>
+        <div class="card-value mono">{{ stats.total_users }}</div>
+        <div style="font-size:12px;color:var(--success);margin-top:6px;font-weight:600;">+{{ stats.new_today }} сегодня</div>
       </div>
-      {% if stats.pending_docs > 0 %}
-      <a href="/admin/documents" style="font-size:12px;color:var(--warning);">Проверить →</a>
-      {% endif %}
+      <div style="font-size:24px;background:var(--surface2);padding:10px;border-radius:12px;">👥</div>
     </div>
-    <div class="stat-icon">📄</div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="card-title">Верифицировано</div>
+        <div class="card-value mono" style="color:var(--success);">{{ stats.verified_users }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;">+{{ stats.new_week }} за 7 дней</div>
+      </div>
+      <div style="font-size:24px;background:var(--surface2);padding:10px;border-radius:12px;">✅</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="card-title">Мэтчей за неделю</div>
+        <div class="card-value mono" style="color:#f472b6;">{{ stats.matches_week }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;">всего {{ stats.total_matches }} мэтчей</div>
+      </div>
+      <div style="font-size:24px;background:var(--surface2);padding:10px;border-radius:12px;">💘</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="card-title">Документов в очереди</div>
+        <div class="card-value mono" style="{% if stats.pending_docs > 0 %}color:var(--warning){% endif %}">
+          {{ stats.pending_docs }}
+        </div>
+        {% if stats.pending_docs > 0 %}
+        <a href="/admin/documents" style="font-size:12px;color:var(--warning);font-weight:600;text-decoration:none;display:inline-block;margin-top:6px;">
+          Проверить →
+        </a>
+        {% else %}
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;">Очередь пуста</div>
+        {% endif %}
+      </div>
+      <div style="font-size:24px;background:var(--surface2);padding:10px;border-radius:12px;">📄</div>
+    </div>
   </div>
 </div>
 
 <!-- Монетизация -->
 <div class="grid grid-2" style="margin-bottom:24px;">
-  <div class="stat-card">
-    <div>
-      <div class="card-title">Выручка за месяц</div>
-      <div class="card-value" style="color:var(--success);">{{ "%.0f"|format(stats.revenue_month) }} ₽</div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="card-title">Выручка за месяц</div>
+        <div class="card-value mono" style="color:var(--success);">{{ "%.0f"|format(stats.revenue_month) }} ₽</div>
+      </div>
+      <div style="font-size:24px;background:rgba(16,185,129,0.1);color:var(--success);padding:10px;border-radius:12px;">💳</div>
     </div>
-    <div class="stat-icon">💳</div>
   </div>
-  <div class="stat-card">
-    <div>
-      <div class="card-title">Всего выручка (ЮКасса)</div>
-      <div class="card-value">{{ "%.0f"|format(stats.revenue_total) }} ₽</div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="card-title">Всего выручка (ЮКасса)</div>
+        <div class="card-value mono" style="color:var(--accent2);">{{ "%.0f"|format(stats.revenue_total) }} ₽</div>
+      </div>
+      <div style="font-size:24px;background:rgba(99,102,241,0.1);color:var(--accent2);padding:10px;border-radius:12px;">📈</div>
     </div>
-    <div class="stat-icon">📈</div>
   </div>
 </div>
 
 <!-- Быстрые действия -->
-<div class="card">
-  <div class="card-title" style="margin-bottom:16px;">Быстрые действия</div>
-  <div style="display:flex;gap:12px;flex-wrap:wrap;">
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-title" style="margin-bottom:16px;">⚡️ Быстрые действия</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
     <a href="/admin/documents?status=pending" class="btn btn-primary">📄 Проверить документы ({{ stats.pending_docs }})</a>
-    <a href="/admin/users" class="btn btn-ghost">👥 Все пользователи</a>
-    <a href="/admin/ratings" class="btn btn-ghost">🏆 Топ рейтинга</a>
+    <a href="/admin/promos" class="btn btn-ghost">🎁 Промокоды</a>
+    <a href="/admin/users" class="btn btn-ghost">👥 Студенты</a>
+    <a href="/admin/ratings" class="btn btn-ghost">🏆 Рейтинг</a>
     <a href="/admin/broadcast" class="btn btn-ghost">📢 Рассылка</a>
     <a href="/admin/reports" class="btn btn-ghost">🚨 Жалобы</a>
-    <a href="/admin/employers" class="btn btn-ghost">👔 Работодатели</a>
+    <a href="/admin/settings" class="btn btn-ghost">⚙️ Настройки</a>
   </div>
 </div>
 
-<!-- #2: Графики -->
-<div class="grid grid-2" style="margin-top:24px;">
+<!-- Графики с переключателем периода -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+  <h2 style="font-size:18px;font-weight:700;">📈 Динамика активности</h2>
+  <div style="display:flex;gap:6px;background:var(--surface2);padding:4px;border-radius:10px;border:1px solid var(--border);">
+    <button type="button" class="btn btn-sm btn-ghost" id="period7Btn" onclick="setChartPeriod(7)" style="padding:4px 12px;font-size:12px;">7 дней</button>
+    <button type="button" class="btn btn-sm btn-primary" id="period30Btn" onclick="setChartPeriod(30)" style="padding:4px 12px;font-size:12px;">30 дней</button>
+  </div>
+</div>
+
+<div class="grid grid-2">
   <div class="card">
-    <div style="font-size:14px;font-weight:600;margin-bottom:16px;">📈 Регистрации за 30 дней</div>
-    <canvas id="regChart" height="120"></canvas>
+    <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text);">👥 Новые регистрации</div>
+    <div style="position:relative;height:200px;">
+      <canvas id="regChart"></canvas>
+    </div>
   </div>
   <div class="card">
-    <div style="font-size:14px;font-weight:600;margin-bottom:16px;">💘 Мэтчи за 30 дней</div>
-    <canvas id="matchChart" height="120"></canvas>
+    <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text);">💘 Взаимные мэтчи</div>
+    <div style="position:relative;height:200px;">
+      <canvas id="matchChart"></canvas>
+    </div>
   </div>
 </div>
 
 <script>
+const regDataRaw = {{ reg_chart_json }};
+const matchDataRaw = {{ matches_chart_json }};
+
 const chartDefaults = {
   responsive: true,
-  plugins: { legend: { display: false } },
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(18, 20, 30, 0.95)',
+      titleColor: '#f8fafc',
+      bodyColor: '#a78bfa',
+      borderColor: 'rgba(255, 255, 255, 0.1)',
+      borderWidth: 1,
+      padding: 10,
+      boxPadding: 4,
+      usePointStyle: true,
+    }
+  },
   scales: {
-    x: { grid: { color: '#2d2d4e' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
-    y: { grid: { color: '#2d2d4e' }, ticks: { color: '#94a3b8' }, beginAtZero: true }
+    x: {
+      grid: { color: 'rgba(255, 255, 255, 0.04)' },
+      ticks: { color: '#94a3b8', font: { size: 10, family: 'JetBrains Mono' } }
+    },
+    y: {
+      grid: { color: 'rgba(255, 255, 255, 0.04)' },
+      ticks: { color: '#94a3b8', font: { size: 10, family: 'JetBrains Mono' } },
+      beginAtZero: true
+    }
   }
 };
 
-const regData = {{ reg_chart_json }};
-new Chart(document.getElementById('regChart'), {
+let regChart = new Chart(document.getElementById('regChart'), {
   type: 'line',
   data: {
-    labels: regData.map(d => d.day),
+    labels: regDataRaw.map(d => d.day),
     datasets: [{
-      data: regData.map(d => d.count),
-      borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.1)',
-      tension: 0.4, fill: true, pointRadius: 3,
+      data: regDataRaw.map(d => d.count),
+      borderColor: '#818cf8',
+      backgroundColor: 'rgba(129, 140, 248, 0.12)',
+      borderWidth: 2.5,
+      tension: 0.4,
+      fill: true,
+      pointBackgroundColor: '#818cf8',
+      pointRadius: 3,
+      pointHoverRadius: 6,
     }]
   },
   options: chartDefaults,
 });
 
-const matchData = {{ matches_chart_json }};
-new Chart(document.getElementById('matchChart'), {
+let matchChart = new Chart(document.getElementById('matchChart'), {
   type: 'line',
   data: {
-    labels: matchData.map(d => d.day),
+    labels: matchDataRaw.map(d => d.day),
     datasets: [{
-      data: matchData.map(d => d.count),
-      borderColor: '#f472b6', backgroundColor: 'rgba(244,114,182,0.1)',
-      tension: 0.4, fill: true, pointRadius: 3,
+      data: matchDataRaw.map(d => d.count),
+      borderColor: '#f472b6',
+      backgroundColor: 'rgba(244, 114, 182, 0.12)',
+      borderWidth: 2.5,
+      tension: 0.4,
+      fill: true,
+      pointBackgroundColor: '#f472b6',
+      pointRadius: 3,
+      pointHoverRadius: 6,
     }]
   },
   options: chartDefaults,
 });
+
+function setChartPeriod(days) {
+  const p7Btn = document.getElementById('period7Btn');
+  const p30Btn = document.getElementById('period30Btn');
+  if (days === 7) {
+    p7Btn.className = 'btn btn-sm btn-primary';
+    p30Btn.className = 'btn btn-sm btn-ghost';
+  } else {
+    p7Btn.className = 'btn btn-sm btn-ghost';
+    p30Btn.className = 'btn btn-sm btn-primary';
+  }
+
+  const regSlice = regDataRaw.slice(-days);
+  regChart.data.labels = regSlice.map(d => d.day);
+  regChart.data.datasets[0].data = regSlice.map(d => d.count);
+  regChart.update();
+
+  const matchSlice = matchDataRaw.slice(-days);
+  matchChart.data.labels = matchSlice.map(d => d.day);
+  matchChart.data.datasets[0].data = matchSlice.map(d => d.count);
+  matchChart.update();
+}
 </script>
 {% endblock %}

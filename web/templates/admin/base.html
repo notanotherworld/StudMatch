@@ -7,7 +7,7 @@
 <meta name="csrf-token" content="{{ csrf_token or request.state.csrf_token or '' }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #090a0f;
@@ -34,7 +34,7 @@
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
   
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
@@ -42,6 +42,12 @@
     flex-direction: column;
     letter-spacing: -0.01em;
     overflow-x: hidden;
+  }
+
+  /* Monospace numbers & tabular data */
+  .mono, code, .card-value, .tabular-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
   }
 
   /* ── Top Mobile Header ── */
@@ -392,6 +398,75 @@
     margin-bottom: 18px;
   }
 
+  /* ── Toast Notifications ── */
+  .toast-container {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+  }
+  .toast {
+    background: rgba(24, 27, 42, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #f8fafc;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: auto;
+    animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes toastIn {
+    from { transform: translateY(-12px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  /* ── Floating Multi-Action Bulk Bar ── */
+  .bulk-action-bar {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(120px);
+    background: rgba(24, 27, 42, 0.95);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(99, 102, 241, 0.25);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 12px 24px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 95;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .bulk-action-bar.active {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Copyable badge helper */
+  .copyable {
+    cursor: pointer;
+    transition: all .15s;
+    user-select: all;
+  }
+  .copyable:hover {
+    filter: brightness(1.2);
+  }
+  .copyable:active {
+    transform: scale(0.96);
+  }
+
   /* ── Responsive Adaptations for Tablets & Mobile ── */
   @media(max-width: 1024px) {
     .main { padding: 24px; }
@@ -470,6 +545,16 @@
     @keyframes slideUpModal {
       from { transform: translateY(100%); }
       to { transform: translateY(0); }
+    }
+
+    /* Floating multi-action bar on mobile */
+    .bulk-action-bar {
+      bottom: 80px;
+      width: calc(100% - 32px);
+      padding: 10px 16px;
+      font-size: 13px;
+      gap: 10px;
+      justify-content: space-between;
     }
 
     /* Touch-friendly buttons on mobile */
@@ -570,6 +655,8 @@
   {% block content %}{% endblock %}
 </main>
 
+<div id="toast-container" class="toast-container"></div>
+
 <script>
   // Mobile Sidebar Drawer
   const toggleBtn = document.getElementById('sidebarToggle');
@@ -599,6 +686,46 @@
       });
     });
   }
+
+  // Toast System
+  function showToast(message, duration = 2500) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      container.className = 'toast-container';
+      document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-10px)';
+      toast.style.transition = 'all 0.25s ease';
+      setTimeout(() => toast.remove(), 250);
+    }, duration);
+  }
+
+  // Click-to-copy utility
+  function copyToClipboard(text, label = 'Скопировано!') {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('📋 ' + label);
+    }).catch(() => {
+      showToast('⚠️ Ошибка копирования');
+    });
+  }
+
+  // Delegated copy handler for elements with class .copyable or data-copy
+  document.addEventListener('click', (e) => {
+    const copyTarget = e.target.closest('[data-copy], .copyable');
+    if (copyTarget) {
+      const val = copyTarget.getAttribute('data-copy') || copyTarget.innerText.trim();
+      copyToClipboard(val);
+    }
+  });
 
   // Universal CSRF Token Injection
   const metaCsrf = document.querySelector('meta[name="csrf-token"]');

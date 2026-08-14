@@ -51,8 +51,9 @@
           {% for p in promos %}
           <tr>
             <td>
-              <code style="font-size:14px;font-weight:700;color:var(--accent2);background:var(--surface2);padding:4px 8px;border-radius:6px;">
-                {{ p.code }}
+              <code class="copyable mono" data-copy="{{ p.code }}" title="Кликните чтобы скопировать"
+                    style="font-size:14px;font-weight:700;color:var(--accent2);background:var(--surface2);padding:4px 8px;border-radius:6px;border:1px dashed rgba(129,140,248,0.4);">
+                {{ p.code }} 📋
               </code>
             </td>
             <td>

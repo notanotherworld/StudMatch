@@ -47,10 +47,10 @@
       {% for u in users %}
       <tr>
         <td>
-          <div style="font-weight:500;">
+          <div style="font-weight:600;" class="copyable" data-copy="{{ u.tg_username or u.id }}" title="Кликните чтобы скопировать">
             {% if u.tg_username %}@{{ u.tg_username }}{% else %}#{{ u.id }}{% endif %}
           </div>
-          <div style="font-size:12px;color:var(--muted);">{{ u.id }}</div>
+          <div style="font-size:12px;color:var(--muted);" class="copyable mono" data-copy="{{ u.id }}" title="Кликните чтобы скопировать ID">{{ u.id }}</div>
         </td>
         <td style="font-size:13px;">
           {% if u.email %}
