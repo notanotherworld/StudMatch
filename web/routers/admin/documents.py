@@ -1,5 +1,5 @@
 """Верификация документов модератором."""
-from fastapi import APIRouter, Request, Depends, Form
+from fastapi import APIRouter, Request, Depends, Form, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from web.dependencies import get_db, get_current_admin, require_superadmin, check_csrf
-from bot.utils.minio_client import get_presigned_url
+from bot.utils.minio_client import get_object_data
 from database.models import Achievement, VerifiedStatus
 from database.crud import approve_achievement, reject_achievement
 
@@ -44,14 +44,23 @@ async def view_document(
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Редирект на временный MinIO URL."""
+    """Прямая отдача/стриминг документа из MinIO в браузер модератора."""
     result = await db.execute(select(Achievement).where(Achievement.id == achievement_id))
     achievement = result.scalar_one_or_none()
     if not achievement or not achievement.document_url:
         return RedirectResponse("/admin/documents")
 
-    presigned = get_presigned_url(achievement.document_url, expires_hours=1)
-    return RedirectResponse(presigned)
+    try:
+        file_bytes, content_type = get_object_data(achievement.document_url)
+        return Response(
+            content=file_bytes,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"inline; filename=doc_{achievement_id}.{content_type.split('/')[-1]}",
+            },
+        )
+    except Exception:
+        return HTMLResponse("<h3>Файл документа не найден в хранилище</h3>", status_code=404)
 
 
 @router.post("/documents/{achievement_id}/approve", dependencies=[Depends(check_csrf)])  # CSRF (#2)

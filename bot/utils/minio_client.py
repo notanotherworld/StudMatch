@@ -73,6 +73,23 @@ def get_presigned_url(object_path: str, expires_hours: int = 1) -> str:
     )
 
 
+def get_object_data(object_path: str) -> tuple[bytes, str]:
+    """Получить байты и content-type объекта напрямую из MinIO."""
+    client = get_minio_client()
+    parts = object_path.split("/", 1)
+    bucket = parts[0]
+    obj = parts[1] if len(parts) > 1 else parts[0]
+    response = client.get_object(bucket, obj)
+    try:
+        data = response.read()
+        ext = obj.rsplit(".", 1)[-1].lower() if "." in obj else "bin"
+        content_type = _get_content_type(ext)
+        return data, content_type
+    finally:
+        response.close()
+        response.release_conn()
+
+
 def _get_content_type(ext: str) -> str:
     types = {
         "pdf": "application/pdf",
