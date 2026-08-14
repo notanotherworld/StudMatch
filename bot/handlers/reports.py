@@ -27,14 +27,13 @@ REPORT_REASONS = [
 @router.callback_query(F.data.startswith("report:"))
 async def start_report(callback: CallbackQuery, user: User, state: FSMContext):
     target_id = int(callback.data.split(":")[1])
-    await state.update_data(report_target_id=target_id)
-    await state.set_state(ReportState.choosing_reason)
+    await state.clear()
     await callback.answer()
 
     builder = InlineKeyboardBuilder()
     for key, label in REPORT_REASONS:
-        builder.button(text=label, callback_data=f"report_reason:{key}")
-    builder.button(text="✕ Отмена", callback_data="report_cancel")
+        builder.button(text=label, callback_data=f"report_reason:{key}:{target_id}")
+    builder.button(text="✕ Отмена", callback_data=f"report_cancel:{target_id}")
     builder.adjust(1)
 
     await callback.message.answer(
@@ -45,22 +44,23 @@ async def start_report(callback: CallbackQuery, user: User, state: FSMContext):
     )
 
 
-from database.crud import create_swipe
-from database.models import User, Report, ReportStatus, DataExportRequest, SwipeAction
-
-
-@router.callback_query(F.data.startswith("report_reason:"), ReportState.choosing_reason)
+@router.callback_query(F.data.startswith("report_reason:"))
 async def finish_report(callback: CallbackQuery, user: User, state: FSMContext, db: AsyncSession):
-    reason_key = callback.data.split(":")[1]
-    reason_label = dict(REPORT_REASONS).get(reason_key, reason_key)
+    parts = callback.data.split(":")
+    reason_key = parts[1]
+    target_id = int(parts[2]) if len(parts) > 2 else None
 
-    data = await state.get_data()
-    target_id = data.get("report_target_id")
+    if not target_id:
+        data = await state.get_data()
+        target_id = data.get("report_target_id")
+
     await state.clear()
 
     if not target_id or target_id == user.id:
         await callback.answer("Ошибка!", show_alert=True)
         return
+
+    reason_label = dict(REPORT_REASONS).get(reason_key, reason_key)
 
     # Проверяем, не жаловался ли уже
     existing = await db.execute(
@@ -93,7 +93,7 @@ async def finish_report(callback: CallbackQuery, user: User, state: FSMContext, 
     await send_next_card(callback.bot, callback.from_user.id, user, db)
 
 
-@router.callback_query(F.data == "report_cancel")
+@router.callback_query(F.data.startswith("report_cancel"))
 async def cancel_report(callback: CallbackQuery, user: User, state: FSMContext, db: AsyncSession):
     await state.clear()
     await callback.answer("Отменено")
