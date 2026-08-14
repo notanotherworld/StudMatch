@@ -283,12 +283,18 @@
   <a href="/admin/tags" {% if '/tags' in request.url.path %}class="active"{% endif %}>🏷 Теги</a>
   <a href="/admin/universities" {% if '/universities' in request.url.path %}class="active"{% endif %}>🎓 Университеты</a>
   <a href="/admin/health" {% if '/health' in request.url.path %}class="active"{% endif %}>🏥 Диагностика</a>
+  <a href="/admin/audit" {% if '/audit' in request.url.path %}class="active"{% endif %}>📜 Журнал аудита</a>
   <div class="sidebar-bottom">
+    <a href="/admin/change-password" style="display:flex;align-items:center;gap:8px;padding:8px 12px;color:var(--muted);text-decoration:none;font-size:14px;border-radius:var(--radius);margin-bottom:6px;"
+       onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'"
+       onmouseout="this.style.background='none';this.style.color='var(--muted)'">
+      🔑 Сменить пароль
+    </a>
     <!-- Logout через POST — защита от CSRF-logout (#6) -->
     <form method="POST" action="/admin/logout" id="logout-form" style="margin:0">
       <input type="hidden" name="csrf_token" id="logout-csrf" value="">
       <button type="submit" style="background:none;border:none;cursor:pointer;
-              color:var(--text);font-size:14px;padding:12px 20px;width:100%;
+              color:var(--text);font-size:14px;padding:10px 12px;width:100%;
               text-align:left;display:flex;align-items:center;gap:8px;
               border-radius:var(--radius);transition:background .2s;"
               onmouseover="this.style.background='var(--surface2)'"

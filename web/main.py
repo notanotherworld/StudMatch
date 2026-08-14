@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from web.routers.admin import (
     auth as admin_auth, dashboard, users, documents, ratings,
     payments as admin_payments, employers, universities,
-    broadcast, tags, reports, health,
+    broadcast, tags, reports, health, audit,
 )
 from web.routers.employer import auth as employer_auth, profiles as employer_profiles
 from web.dependencies import generate_csrf_token
@@ -90,6 +90,7 @@ app.include_router(broadcast.router, prefix="/admin", tags=["Broadcast"])
 app.include_router(tags.router, prefix="/admin", tags=["Tags"])
 app.include_router(reports.router, prefix="/admin", tags=["Reports"])
 app.include_router(health.router, prefix="/admin", tags=["Health"])
+app.include_router(audit.router, prefix="/admin", tags=["Audit"])
 
 # Роутеры — Кабинет HR
 app.include_router(employer_auth.router, prefix="/employer", tags=["Employer Auth"])

@@ -2,7 +2,7 @@
 #7 Детализация монетизации: транзакции, фильтры, статистика по продуктам.
 #10 Экспорт персональных данных: очередь запросов + отправка студенту.
 """
-from fastapi import APIRouter, Request, Depends, Form, Query
+from fastapi import APIRouter, Request, Depends, Form, Query, Response
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +16,59 @@ from database.models import Payment, PaymentStatus, PaymentProduct, User, DataEx
 
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
+
+
+@router.get("/payments/export/csv")
+async def export_payments_csv(
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+    status: str = Query(default=""),
+    product: str = Query(default=""),
+):
+    """Экспорт истории платежей в CSV с UTF-8 BOM для Excel."""
+    filters = []
+    if product and product in [p.value for p in PaymentProduct]:
+        filters.append(Payment.product == PaymentProduct(product))
+    if status and status in [s.value for s in PaymentStatus]:
+        filters.append(Payment.status == PaymentStatus(status))
+
+    query = (
+        select(Payment)
+        .options(selectinload(Payment.user))
+        .where(*filters)
+        .order_by(Payment.created_at.desc())
+    )
+    result = await db.execute(query)
+    all_payments = result.scalars().all()
+
+    output = io.StringIO()
+    output.write("\ufeff")  # UTF-8 BOM
+    writer = csv.writer(output, delimiter=";", quoting=csv.QUOTE_MINIMAL)
+    writer.writerow([
+        "ID Платежа", "ID Пользователя", "Username Telegram", "Email",
+        "Сумма (руб)", "Товар / Услуга", "Статус", "ID ЮKassa", "Дата и время",
+    ])
+
+    for p in all_payments:
+        u = p.user
+        writer.writerow([
+            str(p.id),
+            p.user_id,
+            f"@{u.tg_username}" if u and u.tg_username else "",
+            u.email if u else "",
+            p.amount_rub,
+            p.product.value if hasattr(p.product, 'value') else str(p.product),
+            p.status.value if hasattr(p.status, 'value') else str(p.status),
+            p.yookassa_payment_id or "",
+            p.created_at.strftime("%Y-%m-%d %H:%M:%S") if p.created_at else "",
+        ])
+
+    csv_data = output.getvalue().encode("utf-8-sig")
+    return Response(
+        content=csv_data,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=studmatch_payments.csv"},
+    )
 
 
 @router.get("/payments", response_class=HTMLResponse)

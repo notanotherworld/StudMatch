@@ -117,3 +117,97 @@ async def logout_get():
     response = RedirectResponse(url="/admin/login", status_code=302)
     response.delete_cookie("admin_token")
     return response
+
+
+# ─── Смена пароля администратора ───────────────────────────────
+from web.dependencies import get_current_admin, hash_password
+from web.utils.audit import log_admin_action
+
+
+@router.get("/change-password", response_class=HTMLResponse)
+async def change_password_page(
+    request: Request,
+    admin=Depends(get_current_admin),
+):
+    return templates.TemplateResponse(
+        "admin/change_password.html",
+        {
+            "request": request,
+            "admin": admin,
+            "error": None,
+            "success": None,
+            "csrf_token": getattr(request.state, "csrf_token", ""),
+        },
+    )
+
+
+@router.post("/change-password", dependencies=[Depends(check_csrf)])
+async def change_password(
+    request: Request,
+    old_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    if not verify_password(old_password, admin.password_hash):
+        return templates.TemplateResponse(
+            "admin/change_password.html",
+            {
+                "request": request,
+                "admin": admin,
+                "error": "Текущий пароль указан неверно.",
+                "success": None,
+                "csrf_token": getattr(request.state, "csrf_token", ""),
+            },
+            status_code=400,
+        )
+
+    if len(new_password) < 8:
+        return templates.TemplateResponse(
+            "admin/change_password.html",
+            {
+                "request": request,
+                "admin": admin,
+                "error": "Новый пароль должен содержать не менее 8 символов.",
+                "success": None,
+                "csrf_token": getattr(request.state, "csrf_token", ""),
+            },
+            status_code=400,
+        )
+
+    if new_password != confirm_password:
+        return templates.TemplateResponse(
+            "admin/change_password.html",
+            {
+                "request": request,
+                "admin": admin,
+                "error": "Новый пароль и подтверждение не совпадают.",
+                "success": None,
+                "csrf_token": getattr(request.state, "csrf_token", ""),
+            },
+            status_code=400,
+        )
+
+    new_hash = hash_password(new_password)
+    await db.execute(update(Admin).where(Admin.id == admin.id).values(password_hash=new_hash))
+    await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db, admin, action="admin_password_change",
+        target_type="admin", target_id=str(admin.id),
+        details="Администратор изменил пароль учетной записи",
+        ip_address=client_ip,
+    )
+
+    return templates.TemplateResponse(
+        "admin/change_password.html",
+        {
+            "request": request,
+            "admin": admin,
+            "error": None,
+            "success": "Пароль успешно изменён!",
+            "csrf_token": getattr(request.state, "csrf_token", ""),
+        },
+    )

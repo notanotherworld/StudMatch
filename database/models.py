@@ -383,3 +383,22 @@ class DataExportRequest(Base):
     sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped["User"] = relationship()
+
+
+# ─────────────────────────────────────────────────────────────
+# Журнал аудита действий администраторов
+# ─────────────────────────────────────────────────────────────
+class AdminAuditLog(Base):
+    __tablename__ = "admin_audit_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    admin_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("admins.id", ondelete="SET NULL"), nullable=True)
+    admin_login: Mapped[str] = mapped_column(String(100), default="system")
+    action: Mapped[str] = mapped_column(String(100), nullable=False)
+    target_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    target_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    admin: Mapped[Optional["Admin"]] = relationship()

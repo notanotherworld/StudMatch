@@ -2,9 +2,17 @@
 {% block title %}Пользователи — СтудМэч Admin{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1>👥 Пользователи</h1>
-  <p>Поиск, просмотр профилей, бан</p>
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>👥 Пользователи</h1>
+    <p>Поиск, просмотр профилей, бан и управление</p>
+  </div>
+  <div>
+    <a href="/admin/users/export/csv" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;font-size:14px;"
+       onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+      📥 Экспорт в CSV (Excel)
+    </a>
+  </div>
 </div>
 
 <!-- Поиск -->

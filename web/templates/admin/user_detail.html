@@ -117,7 +117,42 @@
            style="width:100%;justify-content:center;">
           🔎 История свайпов
         </a>
+
+        <!-- Сброс истории свайпов -->
+        <form method="POST" action="/admin/users/{{ user.id }}/reset-swipes"
+              onsubmit="return confirm('Сбросить исходящую историю свайпов? Пользователь сможет снова увидеть все анкеты.')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn btn-ghost" style="width:100%;justify-content:center;color:var(--warning);">
+            🔄 Сбросить свайпы
+          </button>
+        </form>
       </div>
+    </div>
+
+    <!-- ⭐ Управление суперлайками -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:12px;">⭐️ СУПЕРЛАЙКИ</div>
+      <div style="text-align:center;margin-bottom:12px;">
+        <div style="font-size:28px;font-weight:700;color:var(--warning);">
+          ⭐ {{ user.superlike_balance }}
+        </div>
+        <div style="font-size:11px;color:var(--muted);">текущий баланс</div>
+      </div>
+      <form method="POST" action="/admin/users/{{ user.id }}/superlikes">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group" style="margin-bottom:10px;">
+          <label style="font-size:12px;">Количество (+ добавить / − списать)</label>
+          <input type="number" name="delta" value="3" required
+                 style="text-align:center;font-size:15px;font-weight:600;">
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-size:12px;">Причина</label>
+          <input type="text" name="reason" value="Бонус от администрации" style="font-size:12px;">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+          Начислить / Списать
+        </button>
+      </form>
     </div>
 
     <!-- #4: Ручное редактирование рейтинга -->
@@ -131,6 +166,7 @@
         <div style="font-size:11px;color:var(--muted);">текущий балл</div>
       </div>
       <form method="POST" action="/admin/users/{{ user.id }}/rating">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-group">
           <label>Изменение (+ добавить / − убрать)</label>
           <input type="number" name="delta" step="0.5"

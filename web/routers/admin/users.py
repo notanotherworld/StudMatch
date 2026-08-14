@@ -1,15 +1,18 @@
 """Управление пользователями: поиск, бан, сообщения."""
 import html
+import io
+import csv
 import re
-from fastapi import APIRouter, Request, Depends, Form, Query
+from fastapi import APIRouter, Request, Depends, Form, Query, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, or_
+from sqlalchemy import select, update, delete, or_
 from sqlalchemy.orm import selectinload
 
 from web.dependencies import get_db, get_current_admin, check_csrf
-from database.models import User, Profile
+from web.utils.audit import log_admin_action
+from database.models import User, Profile, Swipe
 
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
@@ -48,6 +51,57 @@ async def list_users(
     )
 
 
+@router.get("/users/export/csv")
+async def export_users_csv(
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Экспорт базы пользователей в CSV с UTF-8 BOM для Excel."""
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.profile), selectinload(User.university))
+        .order_by(User.created_at.desc())
+    )
+    all_users = result.scalars().all()
+
+    output = io.StringIO()
+    output.write("\ufeff")  # UTF-8 BOM
+    writer = csv.writer(output, delimiter=";", quoting=csv.QUOTE_MINIMAL)
+    writer.writerow([
+        "ID Пользователя", "Username Telegram", "Email", "Почта подтверждена",
+        "Имя в анкете", "Курс", "ВУЗ / Факультет", "Режим", "Суперлайки",
+        "Рейтинг (баллы)", "Анкета заполнена", "Анкета видна", "Активен", "Дата регистрации",
+    ])
+
+    for u in all_users:
+        prof = u.profile
+        uni = u.university.name if u.university else (prof.major if prof else "")
+        mode_name = "Карьера" if u.mode.value == "career" else "Знакомства"
+        writer.writerow([
+            u.id,
+            f"@{u.tg_username}" if u.tg_username else "",
+            u.email or "",
+            "Да" if u.email_verified else "Нет",
+            prof.name if prof else "",
+            prof.year if prof else "",
+            uni or "",
+            mode_name,
+            u.superlike_balance,
+            f"{prof.rating_score:.0f}" if prof else "0",
+            "Да" if prof and prof.is_complete else "Нет",
+            "Да" if prof and prof.is_visible else "Нет",
+            "Да" if u.is_active else "Заблокирован",
+            u.created_at.strftime("%Y-%m-%d %H:%M:%S") if u.created_at else "",
+        ])
+
+    csv_data = output.getvalue().encode("utf-8-sig")
+    return Response(
+        content=csv_data,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=studmatch_users.csv"},
+    )
+
+
 @router.get("/users/{user_id}", response_class=HTMLResponse)
 async def user_detail(
     user_id: int,
@@ -74,6 +128,7 @@ async def user_detail(
 @router.post("/users/{user_id}/ban", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def ban_user(
     user_id: int,
+    request: Request,
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -84,6 +139,12 @@ async def ban_user(
         update(Profile).where(Profile.user_id == user_id).values(is_visible=False)
     )
     await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db, admin, action="user_ban", target_type="user", target_id=str(user_id),
+        details="Пользователь заблокирован администратором", ip_address=client_ip
+    )
 
     # Уведомляем пользователя
     try:
@@ -101,11 +162,19 @@ async def ban_user(
 @router.post("/users/{user_id}/unban", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def unban_user(
     user_id: int,
+    request: Request,
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(update(User).where(User.id == user_id).values(is_active=True))
     await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db, admin, action="user_unban", target_type="user", target_id=str(user_id),
+        details="Пользователь разблокирован администратором", ip_address=client_ip
+    )
+
     return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
 
 
@@ -150,23 +219,94 @@ async def verify_user_manually(
     return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
 
 
+@router.post("/users/{user_id}/superlikes", dependencies=[Depends(check_csrf)])
+async def adjust_superlikes(
+    user_id: int,
+    request: Request,
+    delta: int = Form(...),
+    reason: str = Form(default="Начисление администратором"),
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Начислить или списать суперлайки."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user:
+        new_balance = max(0, user.superlike_balance + delta)
+        await db.execute(update(User).where(User.id == user_id).values(superlike_balance=new_balance))
+        await db.commit()
+
+        client_ip = request.client.host if request.client else None
+        sign = "+" if delta >= 0 else ""
+        await log_admin_action(
+            db, admin, action="superlikes_adjust", target_type="user", target_id=str(user_id),
+            details=f"Баланс суперлайков изменён на {sign}{delta} (Новый баланс: {new_balance}). Причина: {reason}",
+            ip_address=client_ip,
+        )
+
+        try:
+            from aiogram import Bot
+            from bot.config import settings
+            bot = Bot(token=settings.BOT_TOKEN)
+            await bot.send_message(
+                user_id,
+                f"⭐️ <b>Баланс суперлайков обновлён!</b>\n\n"
+                f"Изменение: <b>{sign}{delta} ⭐️</b>\n"
+                f"Текущий баланс: <b>{new_balance} ⭐️</b>\n"
+                f"Причина: <i>{html.escape(reason)}</i>",
+                parse_mode="HTML",
+            )
+            await bot.session.close()
+        except Exception:
+            pass
+
+    return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
+
+
+@router.post("/users/{user_id}/reset-swipes", dependencies=[Depends(check_csrf)])
+async def reset_user_swipes_admin(
+    user_id: int,
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Сбросить исходящую историю свайпов пользователя."""
+    await db.execute(delete(Swipe).where(Swipe.from_user_id == user_id))
+    await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db, admin, action="reset_swipes", target_type="user", target_id=str(user_id),
+        details="История исходящих свайпов сброшена администратором",
+        ip_address=client_ip,
+    )
+
+    return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
+
 
 @router.post("/users/{user_id}/message", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def send_message_to_user(
     user_id: int,
+    request: Request,
     text: str = Form(...),
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Отправить сообщение студенту через бот (без HTML, XSS-safe #1)."""
-    # Экранируем HTML — не передаём parse_mode="HTML" (#1)
+    """Отправить сообщение студенту через бот."""
     safe_text = html.escape(text.strip()[:4096])
     try:
         from aiogram import Bot
         from bot.config import settings
         bot = Bot(token=settings.BOT_TOKEN)
-        await bot.send_message(user_id, safe_text)  # без parse_mode
+        await bot.send_message(user_id, f"💬 <b>Сообщение от администрации:</b>\n\n{safe_text}", parse_mode="HTML")
         await bot.session.close()
+
+        client_ip = request.client.host if request.client else None
+        await log_admin_action(
+            db, admin, action="send_direct_message", target_type="user", target_id=str(user_id),
+            details=f"Отправлено сообщение: {text[:150]}",
+            ip_address=client_ip,
+        )
     except Exception:
         pass
 
@@ -176,6 +316,7 @@ async def send_message_to_user(
 @router.post("/users/{user_id}/rating", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def adjust_rating(
     user_id: int,
+    request: Request,
     delta: float = Form(...),
     reason: str = Form(default="Ручная корректировка"),
     admin=Depends(get_current_admin),
@@ -192,12 +333,19 @@ async def adjust_rating(
         )
         await db.commit()
 
+        client_ip = request.client.host if request.client else None
+        sign = "+" if delta >= 0 else ""
+        await log_admin_action(
+            db, admin, action="rating_adjust", target_type="user", target_id=str(user_id),
+            details=f"Рейтинг изменён на {sign}{delta:.0f} б. (Новый рейтинг: {new_score:.0f} б.). Причина: {reason}",
+            ip_address=client_ip,
+        )
+
         # Уведомляем студента
         try:
             from aiogram import Bot
             from bot.config import settings
             bot = Bot(token=settings.BOT_TOKEN)
-            sign = "+" if delta >= 0 else ""
             await bot.send_message(
                 user_id,
                 f"⭐ <b>Рейтинг обновлён модератором</b>\n\n"
