@@ -3,6 +3,7 @@
 """
 import html
 from aiogram import Router, F
+from aiogram.filters import StateFilter
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, update, delete
@@ -16,8 +17,10 @@ from database.models import User, ModeEnum, Profile, InterestTag, Swipe
 router = Router()
 
 
-@router.message(F.text == "⚙️ Настройки")
-async def show_settings(message: Message, user: User):
+@router.message(StateFilter("*"), F.text.in_({"⚙️ Настройки", "Настройки", "/settings"}))
+async def show_settings(message: Message, user: User, state: FSMContext = None):
+    if state:
+        await state.clear()
     is_vis = user.profile.is_visible if user.profile else True
     await message.answer(
         "⚙️ <b>Настройки</b>",
@@ -162,9 +165,11 @@ async def show_buy(callback: CallbackQuery, user: User):
     )
 
 
-@router.message(F.text.func(lambda t: bool(t and ("Пригласить" in t or "ref" in t.lower()))))
+@router.message(StateFilter("*"), F.text.func(lambda t: bool(t and ("Пригласить" in t or "ref" in t.lower()))))
 @router.callback_query(F.data == "settings:ref_link")
-async def show_referral_link(event, user: User):
+async def show_referral_link(event, user: User, state: FSMContext = None):
+    if state:
+        await state.clear()
     bot_info = await event.bot.get_me()
     ref_url = f"https://t.me/{bot_info.username}?start=ref_{user.id}"
 
@@ -182,7 +187,7 @@ async def show_referral_link(event, user: User):
         await event.answer(text, parse_mode="HTML")
 
 
-@router.message(F.text.in_({"🐾 Мой профиль", "👤 Мой профиль", "Мой профиль", "/profile"}))
+@router.message(StateFilter("*"), F.text.in_({"🐾 Мой профиль", "👤 Мой профиль", "Мой профиль", "/profile"}))
 async def show_my_profile(message: Message, user: User, db: AsyncSession, state: FSMContext = None):
     if state:
         await state.clear()

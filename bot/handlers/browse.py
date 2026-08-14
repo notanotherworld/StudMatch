@@ -5,6 +5,7 @@
 import html
 from typing import Optional
 from aiogram import Router, F
+from aiogram.filters import StateFilter
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -29,7 +30,7 @@ async def _build_profile_caption(
     tags_text = ""
     if profile.interest_ids:
         tags = [tags_map[tid] for tid in profile.interest_ids if tid in tags_map]
-        tags_text = " ".join(f"#{t.name}" for t in tags)
+        tags_text = " ".join(f"#{html.escape(t.name)}" for t in tags)
 
     # Кастомные интересы
     if profile.custom_interests:
@@ -114,7 +115,7 @@ async def send_next_card(
     )
 
 
-@router.message(F.text.in_({"🔍 Смотреть анкеты", "Смотреть анкеты", "🏆 Свайп анкет", "🔥 Смотреть анкеты", "🔥 Свайп анкет"}))
+@router.message(StateFilter("*"), F.text.in_({"🔍 Смотреть анкеты", "Смотреть анкеты", "🏆 Свайп анкет", "🔥 Смотреть анкеты", "🔥 Свайп анкет"}))
 async def start_swiping(message: Message, user: User, db: AsyncSession, state: FSMContext = None):
     if state:
         await state.clear()
@@ -139,8 +140,10 @@ async def callback_swipe_next(callback: CallbackQuery, user: User, db: AsyncSess
 
 
 @router.callback_query(F.data.startswith("profile:open:"))
-async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSession):
+async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSession, state: FSMContext = None):
     """Открыть анкету выбранного студента из Зала славы или мэтча."""
+    if state:
+        await state.clear()
     try:
         target_id = int(callback.data.split(":")[2])
         target = await get_user(db, target_id)
@@ -171,23 +174,32 @@ async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSessio
                     reply_markup=reply_kb,
                 )
                 return
-            except Exception:
-                pass
+            except Exception as pe:
+                logger.warning(f"send_photo failed: {pe}, trying fallback send_message")
 
-        await callback.bot.send_message(
-            chat_id=callback.message.chat.id,
-            text=caption,
-            parse_mode="HTML",
-            reply_markup=reply_kb,
-        )
+        try:
+            await callback.bot.send_message(
+                chat_id=callback.message.chat.id,
+                text=caption,
+                parse_mode="HTML",
+                reply_markup=reply_kb,
+            )
+        except Exception:
+            clean_text = caption.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
+            await callback.bot.send_message(
+                chat_id=callback.message.chat.id,
+                text=clean_text,
+                reply_markup=reply_kb,
+            )
     except Exception as e:
         logger.error(f"Error opening profile: {e}", exc_info=True)
         await callback.answer("Не удалось открыть анкету.", show_alert=True)
 
 
-@router.message(F.text.in_({"🫂 Мои мэтчи", "💘 Мои мэтчи", "Мои мэтчи", "/matches"}))
-async def show_my_matches(message: Message, user: User, db: AsyncSession, state: FSMContext):
-    await state.clear()
+@router.message(StateFilter("*"), F.text.in_({"🫂 Мои мэтчи", "💘 Мои мэтчи", "Мои мэтчи", "/matches"}))
+async def show_my_matches(message: Message, user: User, db: AsyncSession, state: FSMContext = None):
+    if state:
+        await state.clear()
     from database.crud import get_user_matches
     matches = await get_user_matches(db, user.id)
 

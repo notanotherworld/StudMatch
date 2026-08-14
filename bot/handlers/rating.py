@@ -22,7 +22,7 @@ router = Router()
 
 
 import logging
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 
 logger = logging.getLogger(__name__)
 
@@ -80,9 +80,9 @@ async def _send_hall_of_fame(target_message: Message, user: User, db: AsyncSessi
         await target_message.answer("⚠️ Не удалось загрузить Зал славы. Попробуй ещё раз.")
 
 
-@router.message(F.text.func(lambda t: bool(t and ("Зал славы" in t or "Топ" in t or "halloffame" in t.lower()))))
-@router.message(Command("halloffame"))
-@router.message(Command("top"))
+@router.message(StateFilter("*"), F.text.func(lambda t: bool(t and ("Зал славы" in t or "Топ" in t or "halloffame" in t.lower()))))
+@router.message(StateFilter("*"), Command("halloffame"))
+@router.message(StateFilter("*"), Command("top"))
 async def cmd_hall_of_fame(message: Message, user: User, db: AsyncSession, state: FSMContext):
     await state.clear()
     await _send_hall_of_fame(message, user, db)
