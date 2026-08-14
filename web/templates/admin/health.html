@@ -1,0 +1,97 @@
+{% extends "admin/base.html" %}
+{% block title %}Диагностика — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+  <div>
+    <h1>🏥 Диагностика и проверка сервисов</h1>
+    <p>Работоспособность и пинг всех модулей платформы СтудМэч</p>
+  </div>
+  <button onclick="runCheck()" class="btn btn-primary" id="check-btn">
+    🚀 Запустить проверку сейчас
+  </button>
+</div>
+
+<!-- Общий статус -->
+<div class="card" style="margin-bottom:24px;border:1px solid var(--border);">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+    <div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">ОБЩИЙ СТАТУС ПЛАТФОРМЫ</div>
+      <div style="font-size:24px;font-weight:700;" id="overall-status">
+        {% if diag.overall_status == 'OK' %}
+          <span style="color:#00e676;">✅ ВСЕ СЕРВИСЫ АКТИВНЫ (OK)</span>
+        {% elif diag.overall_status == 'WARN' %}
+          <span style="color:#ffb300;">⚠️ ЕСТЬ ЗАМЕЧАНИЯ (WARNING)</span>
+        {% else %}
+          <span style="color:#ff5252;">🚨 ОБНАРУЖЕН СБОЙ (ERROR)</span>
+        {% endif %}
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:12px;color:var(--muted);">Время проверки</div>
+      <div style="font-size:14px;font-weight:600;" id="diag-timestamp">{{ diag.timestamp }}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px;">
+        Задержка тестирования: <span id="diag-time">{{ diag.total_time_ms }}</span> ms
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Карточки сервисов -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:20px;" id="services-grid">
+  {% for s in diag.services %}
+  <div class="card" style="border:1px solid {% if s.status == 'OK' %}rgba(0,230,118,0.3){% elif s.status == 'WARN' %}rgba(255,179,0,0.3){% else %}rgba(255,82,82,0.4){% endif %};background:{% if s.status == 'OK' %}rgba(0,230,118,0.02){% elif s.status == 'WARN' %}rgba(255,179,0,0.02){% else %}rgba(255,82,82,0.04){% endif %};">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:600;">{{ s.name }}</div>
+      <div>
+        {% if s.status == 'OK' %}
+          <span class="badge" style="background:rgba(0,230,118,0.15);color:#00e676;border:1px solid rgba(0,230,118,0.3);">OK</span>
+        {% elif s.status == 'WARN' %}
+          <span class="badge" style="background:rgba(255,179,0,0.15);color:#ffb300;border:1px solid rgba(255,179,0,0.3);">WARN</span>
+        {% else %}
+          <span class="badge" style="background:rgba(255,82,82,0.15);color:#ff5252;border:1px solid rgba(255,82,82,0.3);">FAIL</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="font-size:13px;color:var(--text);margin-bottom:8px;">
+      {{ s.details }}
+    </div>
+
+    {% if s.latency_ms is not none %}
+    <div style="font-size:12px;color:var(--muted);">
+      Пинг / отклик: <b style="color:var(--text);">{{ s.latency_ms }} ms</b>
+    </div>
+    {% endif %}
+
+    {% if s.error %}
+    <div style="margin-top:10px;padding:8px 10px;background:rgba(255,82,82,0.1);border-radius:6px;font-size:12px;color:#ff5252;">
+      <b>Ошибка:</b> {{ s.error }}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+async function runCheck() {
+  const btn = document.getElementById('check-btn');
+  btn.disabled = true;
+  btn.innerText = '⏳ Проверка...';
+
+  try {
+    const res = await fetch('/admin/health/run', { method: 'POST' });
+    if (res.ok) {
+      location.reload();
+    } else {
+      alert('Ошибка запуска проверки');
+    }
+  } catch (e) {
+    alert('Ошибка запуска проверки: ' + e);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '🚀 Запустить проверку сейчас';
+  }
+}
+</script>
+{% endblock %}

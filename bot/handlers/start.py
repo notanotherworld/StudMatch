@@ -143,3 +143,38 @@ async def cmd_menu(message: Message, user: User):
         )
     else:
         await message.answer("❌ Сначала заполни анкету. Напиши /start")
+
+
+@router.message(Command("health"))
+@router.message(Command("status"))
+async def cmd_health(message: Message, user: User, db: AsyncSession, state: FSMContext = None):
+    """Диагностика и проверка всех систем бота."""
+    if state:
+        await state.clear()
+
+    wait_msg = await message.answer("⏳ <i>Запуск полной диагностики системы...</i>", parse_mode="HTML")
+
+    from bot.services.health_checker import run_full_diagnostics
+    diag = await run_full_diagnostics(message.bot, db=db)
+
+    lines = []
+    for s in diag["services"]:
+        icon = "✅" if s["status"] == "OK" else ("⚠️" if s["status"] == "WARN" else "❌")
+        lat = f" <code>({s['latency_ms']} ms)</code>" if s["latency_ms"] is not None else ""
+        lines.append(f"{icon} <b>{s['name']}</b>{lat}\n└ {s['details']}")
+
+    overall = "✅ ВСЕ СЕРВИСЫ В ПОРЯДКЕ" if diag["overall_status"] == "OK" else ("⚠️ ЕСТЬ ЗАМЕЧАНИЯ" if diag["overall_status"] == "WARN" else "🚨 СБОЙ В РАБОТЕ")
+
+    report_text = (
+        f"🏥 <b>СТАТУС И ДИАГНОСТИКА СИСТЕМЫ</b>\n"
+        f"Время: <code>{diag['timestamp']}</code>\n"
+        f"Статус: <b>{overall}</b> (время проверки: {diag['total_time_ms']} ms)\n\n" +
+        "\n\n".join(lines)
+    )
+
+    try:
+        await wait_msg.delete()
+    except Exception:
+        pass
+
+    await message.answer(report_text, parse_mode="HTML")

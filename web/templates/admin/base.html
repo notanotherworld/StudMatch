@@ -282,6 +282,7 @@
   <a href="/admin/employers" {% if '/employers' in request.url.path %}class="active"{% endif %}>👔 Работодатели</a>
   <a href="/admin/tags" {% if '/tags' in request.url.path %}class="active"{% endif %}>🏷 Теги</a>
   <a href="/admin/universities" {% if '/universities' in request.url.path %}class="active"{% endif %}>🎓 Университеты</a>
+  <a href="/admin/health" {% if '/health' in request.url.path %}class="active"{% endif %}>🏥 Диагностика</a>
   <div class="sidebar-bottom">
     <!-- Logout через POST — защита от CSRF-logout (#6) -->
     <form method="POST" action="/admin/logout" id="logout-form" style="margin:0">

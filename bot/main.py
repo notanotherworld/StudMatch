@@ -53,6 +53,10 @@ async def main() -> None:
     from bot.services.weekly_notifications import weekly_notification_loop
     asyncio.create_task(weekly_notification_loop(bot))
 
+    # Запускаем фоновый мониторинг здоровья системы (раз в час)
+    from bot.services.health_checker import hourly_health_monitor
+    asyncio.create_task(hourly_health_monitor(bot))
+
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
