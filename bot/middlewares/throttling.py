@@ -35,12 +35,13 @@ class ThrottlingMiddleware(BaseMiddleware):
 
         user_id = event.from_user.id
         key = f"throttle:{user_id}"
-        r = get_redis()
-
-        if await r.exists(key):
-            return  # Игнорируем сообщение
-
-        await r.setex(key, int(self.rate_limit), "1")
+        try:
+            r = get_redis()
+            if await r.exists(key):
+                return  # Игнорируем сообщение
+            await r.setex(key, max(1, int(self.rate_limit)), "1")
+        except Exception:
+            pass
         return await handler(event, data)
 
 
@@ -64,13 +65,13 @@ class CallbackThrottlingMiddleware(BaseMiddleware):
 
         user_id = event.from_user.id
         key = f"cb_throttle:{user_id}"
-        r = get_redis()
-
-        if await r.exists(key):
-            await event.answer("⏳ Не так быстро!", show_alert=False)
-            return
-
-        # rate_limit = 0.5s → используем 1s минимум для redis setex (целое число)
-        ttl = max(1, int(self.rate_limit))
-        await r.setex(key, ttl, "1")
+        try:
+            r = get_redis()
+            if await r.exists(key):
+                await event.answer("⏳ Не так быстро!", show_alert=False)
+                return
+            ttl = max(1, int(self.rate_limit))
+            await r.setex(key, ttl, "1")
+        except Exception:
+            pass
         return await handler(event, data)

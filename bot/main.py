@@ -47,6 +47,21 @@ async def main() -> None:
     dp.include_router(payments.router)
     dp.include_router(reports_handler.router)
 
+    # Глобальный обработчик ошибок
+    @dp.error()
+    async def global_error_handler(event, exception):
+        logger.error(f"Global error handler caught: {exception}", exc_info=True)
+        try:
+            if hasattr(event, "update") and event.update.message:
+                await event.update.message.answer(
+                    "⚠️ Произошла временная ошибка. Отправь /start чтобы сбросить меню."
+                )
+            elif hasattr(event, "update") and event.update.callback_query:
+                await event.update.callback_query.answer("⚠️ Ошибка обработки. Попробуй ещё раз.", show_alert=True)
+        except Exception:
+            pass
+        return True
+
     logger.info("🚀 СтудМэч запущен!")
 
     # Запускаем фоновую еженедельную рассылку рейтинга (Яндекс Топ-12)
@@ -58,7 +73,8 @@ async def main() -> None:
     asyncio.create_task(hourly_health_monitor(bot))
 
     try:
-        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+        await bot.delete_webhook(drop_pending_updates=True)
+        await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
     finally:
         await bot.session.close()
         logger.info("Бот остановлен.")
