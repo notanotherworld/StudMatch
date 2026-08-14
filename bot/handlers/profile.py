@@ -173,11 +173,14 @@ async def process_interest(callback: CallbackQuery, state: FSMContext, user: Use
 
     await state.update_data(selected_interests=selected)
 
+    await callback.answer()
     # Обновляем клавиатуру
     result = await db.execute(select(InterestTag).order_by(InterestTag.id))
     tags = list(result.scalars().all())
-    await callback.message.edit_reply_markup(reply_markup=interests_keyboard(tags, selected))
-    await callback.answer()
+    try:
+        await callback.message.edit_reply_markup(reply_markup=interests_keyboard(tags, selected))
+    except Exception:
+        pass
 
 
 @router.message(ProfileState.waiting_custom_interest)

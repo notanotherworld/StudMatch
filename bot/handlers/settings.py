@@ -40,8 +40,9 @@ async def change_mode_prompt(callback: CallbackQuery):
 
 @router.callback_query(F.data == "settings:edit_interests")
 async def edit_interests_prompt(callback: CallbackQuery, user: User, state: FSMContext, db: AsyncSession):
+    await callback.answer()
     if not user.profile:
-        await callback.answer("Сначала заполни анкету!")
+        await callback.answer("Сначала заполни анкету!", show_alert=True)
         return
 
     selected = list(user.profile.interest_ids or [])
