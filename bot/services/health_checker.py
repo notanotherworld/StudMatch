@@ -101,8 +101,8 @@ async def check_minio() -> Dict[str, Any]:
         from bot.utils.minio_client import get_minio_client
         client = get_minio_client()
 
-        # Проверяем существование бакета
-        bucket_exists = client.bucket_exists(settings.MINIO_BUCKET)
+        bucket_name = getattr(settings, "MINIO_BUCKET_DOCUMENTS", "documents")
+        bucket_exists = client.bucket_exists(bucket_name)
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
         if bucket_exists:
@@ -110,7 +110,7 @@ async def check_minio() -> Dict[str, Any]:
                 "name": "MinIO S3 Storage",
                 "status": "OK",
                 "latency_ms": latency_ms,
-                "details": f"Бакет '{settings.MINIO_BUCKET}' доступен ({settings.MINIO_ENDPOINT})",
+                "details": f"Бакет '{bucket_name}' доступен ({settings.MINIO_ENDPOINT})",
                 "error": None,
             }
         else:
@@ -118,7 +118,7 @@ async def check_minio() -> Dict[str, Any]:
                 "name": "MinIO S3 Storage",
                 "status": "WARN",
                 "latency_ms": latency_ms,
-                "details": f"Бакет '{settings.MINIO_BUCKET}' не найден в MinIO",
+                "details": f"Бакет '{bucket_name}' не найден в MinIO",
                 "error": "Bucket missing",
             }
     except Exception as e:

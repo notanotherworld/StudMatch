@@ -165,7 +165,7 @@ async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSessio
                 tags_map[tag.id] = tag
 
         caption = await _build_profile_caption(target.profile, tags_map, user=target)
-        reply_kb = swipe_card_keyboard(target.user_id, superlikes_count=user.superlike_balance)
+        reply_kb = swipe_card_keyboard(target.id, superlikes_count=user.superlike_balance)
 
         if target.profile.avatar_file_id:
             try:
