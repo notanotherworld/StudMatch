@@ -30,12 +30,22 @@ def generate_csrf_token(session_id: str) -> str:
     return _csrf_signer.dumps(session_id)
 
 
-def verify_csrf_token(token: str, session_id: str, max_age: int = 3600) -> bool:
-    """Проверяем CSRF-токен. Возвращает False при неверном/просроченном токене."""
+def verify_csrf_token(token: str, session_id: str, max_age: int = 86400) -> bool:
+    """Проверяем CSRF-токен (TTL 24 часа)."""
     try:
         value = _csrf_signer.loads(token, max_age=max_age)
-        return value == session_id
-    except (BadSignature, SignatureExpired):
+        if value == session_id:
+            return True
+        # Если exact match не прошёл, сверяем id пользователя из JWT-токенов
+        p1 = decode_token(value) if value else None
+        p2 = decode_token(session_id) if session_id else None
+        if p1 and p2:
+            if p1.get("admin_id") and p1.get("admin_id") == p2.get("admin_id"):
+                return True
+            if p1.get("employer_id") and p1.get("employer_id") == p2.get("employer_id"):
+                return True
+        return False
+    except (BadSignature, SignatureExpired, Exception):
         return False
 
 
@@ -47,10 +57,12 @@ async def check_csrf(request: Request) -> None:
     # Берём токен из заголовка или формы
     token = request.headers.get("X-CSRF-Token")
     if not token:
-        form = await request.form()
-        token = form.get("csrf_token", "")
+        try:
+            form = await request.form()
+            token = form.get("csrf_token", "")
+        except Exception:
+            token = ""
 
-    # session_id = значение JWT-куки (без раскрытия содержимого)
     session_id = request.cookies.get("admin_token") or request.cookies.get("employer_token") or ""
 
     if not token or not session_id or not verify_csrf_token(token, session_id):
