@@ -133,8 +133,12 @@ async def _after_consent(message: Message, state: FSMContext, user: User, db: As
         )
 
 
-@router.message(Command("menu"))
-async def cmd_menu(message: Message, user: User):
+from aiogram.filters import StateFilter
+
+@router.message(StateFilter("*"), Command("menu"))
+async def cmd_menu(message: Message, user: User, state: FSMContext = None):
+    if state:
+        await state.clear()
     if user.profile and user.profile.is_complete:
         await message.answer(
             "📋 <b>Главное меню:</b>",
