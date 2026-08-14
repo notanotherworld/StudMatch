@@ -97,6 +97,7 @@
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
         {% for p in search_profiles %}
         <form method="POST" action="/admin/employers/{{ employer.id }}/grant">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="profile_id" value="{{ p.id }}">
           <div style="padding:12px;background:var(--surface2);border-radius:8px;">
             <div style="font-weight:500;margin-bottom:4px;">{{ p.name }}</div>
@@ -130,6 +131,7 @@
     <div class="card">
       <div style="font-size:14px;font-weight:600;margin-bottom:12px;">Управление аккаунтом</div>
       <form method="POST" action="/admin/employers/{{ employer.id }}/toggle">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn {% if employer.is_active %}btn-ghost{% else %}btn-success{% endif %}"
                 style="width:100%;justify-content:center;">
           {% if employer.is_active %}⏸ Отключить аккаунт{% else %}▶️ Включить аккаунт{% endif %}

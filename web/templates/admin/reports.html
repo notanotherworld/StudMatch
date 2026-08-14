@@ -109,6 +109,7 @@
   <div class="card" style="width:420px;">
     <h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">🚫 Заблокировать пользователя</h3>
     <form id="banForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-group">
         <label>Причина блокировки (отправится студенту)</label>
         <textarea name="note" rows="3"
@@ -132,6 +133,7 @@
   <div class="card" style="width:420px;">
     <h3 style="font-size:15px;font-weight:600;margin-bottom:16px;">✕ Снять жалобу</h3>
     <form id="dismissForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-group">
         <label>Причина (только для записи)</label>
         <textarea name="note" rows="2"

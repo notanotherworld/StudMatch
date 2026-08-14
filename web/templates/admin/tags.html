@@ -27,6 +27,7 @@
                 class="btn btn-ghost btn-sm">✏️</button>
         <form method="POST" action="/admin/tags/{{ tag.id }}/delete"
               onsubmit="return confirm('Удалить тег «{{ tag.name }}»? Он пропадёт у всех студентов.')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="btn btn-danger btn-sm">🗑</button>
         </form>
       </div>
@@ -53,6 +54,7 @@
               style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">✕</button>
     </div>
     <form method="POST" action="/admin/tags/create">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-group">
         <label>Эмодзи</label>
         <input type="text" name="emoji" value="🏷" maxlength="4"
@@ -82,6 +84,7 @@
               style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">✕</button>
     </div>
     <form id="editForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-group">
         <label>Эмодзи</label>
         <input id="editEmoji" type="text" name="emoji" maxlength="4"

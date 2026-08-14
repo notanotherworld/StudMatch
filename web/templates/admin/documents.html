@@ -23,6 +23,7 @@
   {% if current_status == 'pending' and achievements %}
   <div style="margin-left:auto;display:flex;gap:6px;">
     <form method="POST" action="/admin/documents/approve-type">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div style="display:flex;gap:6px;align-items:center;">
         <select name="ach_type" style="width:160px;padding:6px 10px;font-size:13px;">
           <option value="gpa">📊 GPA (все)</option>
@@ -75,10 +76,12 @@
           {% if current_status == 'pending' %}
           <div style="display:flex;gap:6px;">
             <form method="POST" action="/admin/documents/{{ a.id }}/approve" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="btn btn-success btn-sm">✅</button>
             </form>
             <form method="POST" action="/admin/documents/{{ a.id }}/reject" style="display:inline;"
                   onsubmit="event.preventDefault(); showRejectModal('{{ a.id }}')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="button" class="btn btn-danger btn-sm" onclick="showRejectModal('{{ a.id }}')">❌</button>
             </form>
           </div>
@@ -105,6 +108,7 @@
   <div class="card" style="width:400px;">
     <h3 style="margin-bottom:16px;">Причина отклонения</h3>
     <form id="rejectForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-group">
         <textarea name="reason" rows="3" placeholder="Укажи причину..." required></textarea>
       </div>

@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram import Bot
 
-from web.dependencies import get_db, get_current_admin, generate_csrf_token
+from web.dependencies import get_db, get_current_admin, generate_csrf_token, check_csrf
 from bot.config import settings
 from bot.services.health_checker import run_full_diagnostics
 
@@ -41,7 +41,7 @@ async def health_page(
     )
 
 
-@router.post("/health/run")
+@router.post("/health/run", dependencies=[Depends(check_csrf)])
 async def run_health_api(
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),

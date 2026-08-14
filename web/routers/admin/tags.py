@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
-from web.dependencies import get_db, get_current_admin
+from web.dependencies import get_db, get_current_admin, check_csrf
 from database.models import InterestTag
 
 router = APIRouter()
@@ -28,7 +28,7 @@ async def tags_page(
     )
 
 
-@router.post("/tags/create")
+@router.post("/tags/create", dependencies=[Depends(check_csrf)])
 async def create_tag(
     name: str = Form(...),
     emoji: str = Form(default="🏷"),
@@ -41,7 +41,7 @@ async def create_tag(
     return RedirectResponse("/admin/tags", status_code=302)
 
 
-@router.post("/tags/{tag_id}/update")
+@router.post("/tags/{tag_id}/update", dependencies=[Depends(check_csrf)])
 async def update_tag(
     tag_id: int,
     name: str = Form(...),
@@ -58,7 +58,7 @@ async def update_tag(
     return RedirectResponse("/admin/tags", status_code=302)
 
 
-@router.post("/tags/{tag_id}/delete")
+@router.post("/tags/{tag_id}/delete", dependencies=[Depends(check_csrf)])
 async def delete_tag(
     tag_id: int,
     admin=Depends(get_current_admin),

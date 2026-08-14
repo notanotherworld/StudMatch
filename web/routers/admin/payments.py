@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone, timedelta
 import io, csv, json
 
-from web.dependencies import get_db, get_current_admin
+from web.dependencies import get_db, get_current_admin, check_csrf
 from database.models import Payment, PaymentStatus, PaymentProduct, User, DataExportRequest, ExportStatus
 
 router = APIRouter()
@@ -180,7 +180,7 @@ async def export_payments_csv(
 
 
 # ─── #10: Экспорт персональных данных ────────────────────────────────────────
-@router.post("/payments/export-data/{request_id}/send")
+@router.post("/payments/export-data/{request_id}/send", dependencies=[Depends(check_csrf)])
 async def send_user_data(
     request_id: str,
     admin=Depends(get_current_admin),

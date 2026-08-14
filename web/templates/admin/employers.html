@@ -52,6 +52,7 @@
         📋 Управление
       </a>
       <form method="POST" action="/admin/employers/{{ emp.id }}/toggle" style="flex:1;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn {% if emp.is_active %}btn-ghost{% else %}btn-success{% endif %} btn-sm"
                 style="width:100%;">
           {% if emp.is_active %}⏸ Отключить{% else %}▶️ Включить{% endif %}
@@ -82,6 +83,7 @@
               style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">✕</button>
     </div>
     <form method="POST" action="/admin/employers/create">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-group">
         <label>Название компании</label>
         <input type="text" name="company_name" placeholder="ООО Ромашка" required>

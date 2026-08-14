@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
-from web.dependencies import get_db, get_current_admin
+from web.dependencies import get_db, get_current_admin, check_csrf
 from database.models import University
 
 router = APIRouter()
@@ -26,7 +26,7 @@ async def list_universities(
     )
 
 
-@router.post("/universities/create")
+@router.post("/universities/create", dependencies=[Depends(check_csrf)])
 async def create_university(
     name: str = Form(...),
     short_name: str = Form(...),
@@ -41,7 +41,7 @@ async def create_university(
     return RedirectResponse("/admin/universities", status_code=302)
 
 
-@router.post("/universities/{uni_id}/toggle")
+@router.post("/universities/{uni_id}/toggle", dependencies=[Depends(check_csrf)])
 async def toggle_university(
     uni_id: int,
     admin=Depends(get_current_admin),

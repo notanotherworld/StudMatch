@@ -47,6 +47,7 @@
         </td>
         <td>
           <form method="POST" action="/admin/universities/{{ uni.id }}/toggle" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit"
                     class="btn {% if uni.is_active %}btn-ghost{% else %}btn-success{% endif %} btn-sm">
               {% if uni.is_active %}Отключить{% else %}Включить{% endif %}
@@ -86,6 +87,7 @@
               style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">✕</button>
     </div>
     <form method="POST" action="/admin/universities/create">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-group">
         <label>Полное название</label>
         <input type="text" name="name"

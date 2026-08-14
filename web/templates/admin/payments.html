@@ -139,6 +139,7 @@
         <td style="font-size:12px;color:var(--muted);">{{ er.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
         <td>
           <form method="POST" action="/admin/payments/export-data/{{ er.id }}/send">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="btn btn-primary btn-sm">📤 Отправить данные</button>
           </form>
         </td>
