@@ -116,7 +116,7 @@ async def process_major(message: Message, state: FSMContext, db: AsyncSession):
 
 # ─── Вопрос 4: Интересы (множественный выбор) ─────────────────
 @router.callback_query(F.data.startswith("interest:"), ProfileState.waiting_interests)
-async def process_interest(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+async def process_interest(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
     value = callback.data.split(":")[1]
 
     if value == "custom":
