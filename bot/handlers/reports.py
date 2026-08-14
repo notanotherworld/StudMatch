@@ -78,9 +78,10 @@ async def finish_report(callback: CallbackQuery, user: User, state: FSMContext, 
 
     # Скрываем пользователя из ленты (скипаем)
     try:
-        await create_swipe(db, swiper_id=user.id, target_id=target_id, action=SwipeAction.dislike)
-    except Exception:
-        pass
+        await create_swipe(db, from_id=user.id, to_id=target_id, action=SwipeAction.dislike)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error recording report skip swipe: {e}", exc_info=True)
 
     await callback.answer("✅ Жалоба отправлена!", show_alert=True)
     try:

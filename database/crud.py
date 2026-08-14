@@ -11,7 +11,7 @@ import string
 
 from database.models import (
     User, Profile, University, EmailToken, Achievement,
-    Swipe, Match, Admin, Employer, EmployerProfileAccess, Payment,
+    Swipe, Match, Admin, Employer, EmployerProfileAccess, Payment, Report,
     VerifiedStatus, SwipeAction, ModeEnum, PaymentStatus, PaymentProduct,
 )
 
@@ -177,11 +177,18 @@ async def get_top_profiles(
     Исключаем: самого пользователя, уже свайпнутых, забаненных.
     Сортировка: буст → рейтинг.
     """
-    # ID уже свайпнутых
+    # ID уже свайпнутых и тех, на кого отправлена жалоба
     swiped_result = await db.execute(
         select(Swipe.to_user_id).where(Swipe.from_user_id == viewer_id)
     )
     swiped_ids = {row[0] for row in swiped_result.all()}
+
+    reported_result = await db.execute(
+        select(Report.reported_id).where(Report.reporter_id == viewer_id)
+    )
+    for row in reported_result.all():
+        swiped_ids.add(row[0])
+
     swiped_ids.add(viewer_id)
 
     now = datetime.now(timezone.utc)
@@ -206,6 +213,8 @@ async def get_top_profiles(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
 async def get_next_profile(
     db: AsyncSession,
     viewer_id: int,
@@ -213,13 +222,20 @@ async def get_next_profile(
 ) -> Optional[Profile]:
     """
     Получить следующую не свайпнутую анкету для поочерёдного свайпа (1 за раз).
-    Исключаем: самого пользователя, уже свайпнутых, забаненных.
+    Исключаем: самого пользователя, уже свайпнутых, тех на кого отправлена жалоба, забаненных.
     Сортировка: буст → рейтинг.
     """
     swiped_result = await db.execute(
         select(Swipe.to_user_id).where(Swipe.from_user_id == viewer_id)
     )
     swiped_ids = {row[0] for row in swiped_result.all()}
+
+    reported_result = await db.execute(
+        select(Report.reported_id).where(Report.reporter_id == viewer_id)
+    )
+    for row in reported_result.all():
+        swiped_ids.add(row[0])
+
     swiped_ids.add(viewer_id)
 
     now = datetime.now(timezone.utc)
