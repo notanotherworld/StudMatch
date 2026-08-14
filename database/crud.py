@@ -143,6 +143,11 @@ async def verify_email_token(db: AsyncSession, user_id: int, token: str) -> bool
 # ─────────────────────────────────────────────────────────────
 # Profiles
 # ─────────────────────────────────────────────────────────────
+async def get_profile(db: AsyncSession, user_id: int) -> Optional[Profile]:
+    result = await db.execute(select(Profile).where(Profile.user_id == user_id))
+    return result.scalar_one_or_none()
+
+
 async def get_or_create_profile(db: AsyncSession, user_id: int) -> Profile:
     result = await db.execute(select(Profile).where(Profile.user_id == user_id))
     profile = result.scalar_one_or_none()
