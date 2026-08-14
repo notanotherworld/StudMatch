@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram import Bot
 
-from web.dependencies import get_db, require_admin, generate_csrf_token
+from web.dependencies import get_db, get_current_admin, generate_csrf_token
 from bot.config import settings
 from bot.services.health_checker import run_full_diagnostics
 
@@ -18,7 +18,7 @@ templates = Jinja2Templates(directory="web/templates")
 @router.get("/health", response_class=HTMLResponse)
 async def health_page(
     request: Request,
-    admin=Depends(require_admin),
+    admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Страница визуальной диагностики всех сервисов платформы."""
@@ -43,7 +43,7 @@ async def health_page(
 
 @router.post("/health/run")
 async def run_health_api(
-    admin=Depends(require_admin),
+    admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """API точка для повторного мгновенного запуска диагностики через AJAX."""

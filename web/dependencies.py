@@ -101,6 +101,9 @@ async def get_current_admin(request: Request, db: AsyncSession = Depends(get_db)
     return admin
 
 
+require_admin = get_current_admin
+
+
 # ─── Зависимость: только суперадмин (#4 RBAC) ────────────────
 async def require_superadmin(admin: Admin = Depends(get_current_admin)) -> Admin:
     """Разрешает доступ только администраторам с ролью superadmin."""
