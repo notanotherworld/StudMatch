@@ -9,7 +9,10 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.keyboards.swipe import settings_keyboard, my_profile_keyboard, mode_keyboard, buy_superlike_keyboard, main_menu_keyboard
+from bot.keyboards.swipe import (
+    settings_keyboard, my_profile_keyboard, mode_keyboard,
+    buy_superlike_keyboard, main_menu_keyboard, interests_keyboard, gender_keyboard,
+)
 from bot.states.fsm import ProfileState
 from database.crud import set_user_mode
 from database.models import User, ModeEnum, Profile, InterestTag, Swipe
@@ -68,7 +71,6 @@ async def edit_profile_prompt(callback: CallbackQuery, state: FSMContext):
 async def edit_gender_prompt(callback: CallbackQuery, state: FSMContext):
     await state.set_state(ProfileState.waiting_gender)
     await callback.answer()
-    from bot.keyboards.swipe import gender_keyboard
     await callback.message.answer(
         "👫 <b>Выбери твой пол:</b>",
         parse_mode="HTML",
