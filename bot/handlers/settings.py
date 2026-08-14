@@ -168,18 +168,27 @@ async def show_referral_link(event, user: User, state: FSMContext = None):
     bot_info = await event.bot.get_me()
     ref_url = f"https://t.me/{bot_info.username}?start=ref_{user.id}"
 
+    from urllib.parse import quote
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    share_text = "Привет! Присоединяйся к СтудМэч — находит друзей, пары и команды для проектов среди студентов! 🎓✨"
+    share_url = f"https://t.me/share/url?url={quote(ref_url)}&text={quote(share_text)}"
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🚀 Поделиться с другом", url=share_url)
+
     text = (
         f"🔗 <b>Приглашай друзей в СтудМэч!</b>\n\n"
-        f"Отправь другу свою персональную ссылку:\n"
-        f"<code>{ref_url}</code>\n\n"
+        f"Нажми на ссылку ниже или кнопку <b>«🚀 Поделиться с другом»</b>:\n"
+        f"👉 <a href=\"{ref_url}\">{ref_url}</a>\n\n"
         f"🎁 За каждого зарегистрировавшегося друга ты получаешь <b>+3 ⭐️ Суперлайка</b>!"
     )
 
     if isinstance(event, CallbackQuery):
         await event.answer()
-        await event.message.answer(text, parse_mode="HTML")
+        await event.message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup(), disable_web_page_preview=True)
     else:
-        await event.answer(text, parse_mode="HTML")
+        await event.answer(text, parse_mode="HTML", reply_markup=builder.as_markup(), disable_web_page_preview=True)
 
 
 @router.message(StateFilter("*"), F.text.in_({"🐾 Мой профиль", "👤 Мой профиль", "Мой профиль", "/profile"}))
