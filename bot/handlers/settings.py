@@ -56,6 +56,13 @@ async def edit_interests_prompt(callback: CallbackQuery, user: User, state: FSMC
     )
 
 
+@router.callback_query(F.data == "settings:edit_profile")
+async def edit_profile_prompt(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    from bot.handlers.profile import start_profile_creation
+    await start_profile_creation(callback.message, state)
+
+
 @router.callback_query(F.data == "settings:edit_gender")
 async def edit_gender_prompt(callback: CallbackQuery, state: FSMContext):
     await state.set_state(ProfileState.waiting_gender)
@@ -65,18 +72,6 @@ async def edit_gender_prompt(callback: CallbackQuery, state: FSMContext):
         "👫 <b>Выбери твой пол:</b>",
         parse_mode="HTML",
         reply_markup=gender_keyboard(),
-    )
-
-    result = await db.execute(select(InterestTag).order_by(InterestTag.id))
-    tags = list(result.scalars().all())
-
-    await callback.answer()
-    await callback.message.answer(
-        "🏷 <b>Редактирование интересов</b>\n\n"
-        "Нажимай на теги, чтобы <b>добавить</b> или <b>удалить</b> их из анкеты.\n"
-        "По окончании нажми <b>✔️ Готово</b>:",
-        parse_mode="HTML",
-        reply_markup=interests_keyboard(tags, selected),
     )
 
 
