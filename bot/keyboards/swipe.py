@@ -28,7 +28,8 @@ def year_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for y in range(1, 7):
         builder.button(text=f"{y} курс", callback_data=f"year:{y}")
-    builder.adjust(3)
+    builder.button(text="❌ Отмена", callback_data="profile:cancel")
+    builder.adjust(3, 3, 1)
     return builder.as_markup()
 
 
@@ -55,6 +56,7 @@ def rudn_institutes_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for idx, inst in enumerate(RUDN_INSTITUTES):
         builder.button(text=inst, callback_data=f"major_idx:{idx}")
+    builder.button(text="❌ Отмена", callback_data="profile:cancel")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -80,7 +82,8 @@ def gender_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="👨 Парень", callback_data="gender:male")
     builder.button(text="👩 Девушка", callback_data="gender:female")
-    builder.adjust(2)
+    builder.button(text="❌ Отмена", callback_data="profile:cancel")
+    builder.adjust(2, 1)
     return builder.as_markup()
 
 
@@ -90,7 +93,8 @@ def target_gender_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="👩 Девушек", callback_data="target_gender:female")
     builder.button(text="👨 Парней", callback_data="target_gender:male")
     builder.button(text="✨ Всех", callback_data="target_gender:all")
-    builder.adjust(3)
+    builder.button(text="❌ Отмена", callback_data="profile:cancel")
+    builder.adjust(3, 1)
     return builder.as_markup()
 
 
@@ -210,6 +214,13 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder.button(text="🪢 Пригласить друга (+3 ⭐️)")
     builder.adjust(2, 2, 2)
     return builder.as_markup(resize_keyboard=True, input_field_placeholder="Выбери раздел...")
+
+
+def cancel_reply_keyboard() -> ReplyKeyboardMarkup:
+    """Клавиатура с кнопкой '❌ Отмена' во время заполнения/редактирования анкеты."""
+    builder = ReplyKeyboardBuilder()
+    builder.button(text="❌ Отмена")
+    return builder.as_markup(resize_keyboard=True, input_field_placeholder="Введи ответ или нажми Отмена...")
 
 
 def remove_keyboard() -> ReplyKeyboardRemove:

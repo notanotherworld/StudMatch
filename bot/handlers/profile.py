@@ -3,6 +3,7 @@
 """
 import html
 from aiogram import Router, F
+from aiogram.filters import StateFilter, CommandObject
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +12,8 @@ from sqlalchemy import select
 from bot.states.fsm import ProfileState
 from bot.keyboards.swipe import (
     year_keyboard, interests_keyboard, main_menu_keyboard, mode_keyboard,
-    rudn_institutes_keyboard, RUDN_INSTITUTES,
+    rudn_institutes_keyboard, RUDN_INSTITUTES, cancel_reply_keyboard,
+    gender_keyboard, target_gender_keyboard,
 )
 from database.crud import get_or_create_profile, update_profile
 from database.models import User, InterestTag
@@ -27,7 +29,111 @@ async def start_profile_creation(message: Message, state: FSMContext) -> None:
         "<b>Вопрос 1/5</b>\n"
         "Как тебя зовут?",
         parse_mode="HTML",
+        reply_markup=cancel_reply_keyboard(),
     )
+
+
+@router.callback_query(F.data == "profile:cancel")
+async def cancel_profile_callback(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
+    """Отмена заполнения анкеты по инлайн-кнопке."""
+    await state.clear()
+    await callback.answer("Редактирование отменено")
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    if user.profile and user.profile.is_complete:
+        await callback.message.answer(
+            "❌ <b>Редактирование анкеты отменено.</b>\nТвоя анкета сохранена без изменений.",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard(),
+        )
+        from bot.handlers.settings import show_my_profile
+        await show_my_profile(callback.message, user, db)
+    else:
+        await callback.message.answer(
+            "⚠️ <b>Заполнение анкеты отменено.</b>\n"
+            "Без заполненной анкеты функции поиска ограничены. Напиши /start в любое время, чтобы продолжить.",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard(),
+        )
+
+
+@router.message(
+    StateFilter(
+        ProfileState.waiting_name,
+        ProfileState.waiting_year,
+        ProfileState.waiting_major,
+        ProfileState.waiting_interests,
+        ProfileState.waiting_custom_interest,
+        ProfileState.waiting_goal,
+        ProfileState.waiting_gender,
+        ProfileState.waiting_target_gender,
+        ProfileState.waiting_photo,
+    ),
+    F.text.func(
+        lambda t: bool(
+            t and (
+                t in {
+                    "❌ Отмена", "Отмена", "/cancel", "🔍 Смотреть анкеты", "Смотреть анкеты",
+                    "🏅 Зал славы", "🫂 Мои мэтчи", "Мои мэтчи", "🐾 Мой профиль",
+                    "👤 Мой профиль", "Мой профиль", "⚙️ Настройки", "Настройки",
+                }
+                or "Пригласить" in t
+                or "ref" in t.lower()
+                or t.startswith("/")
+            )
+        )
+    ),
+)
+async def cancel_or_route_menu_during_profile(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    """Перехват кнопок меню и команды Отмена во время заполнения анкеты."""
+    text_val = message.text.strip()
+    await state.clear()
+
+    if text_val in {"❌ Отмена", "Отмена", "/cancel"}:
+        if user.profile and user.profile.is_complete:
+            await message.answer(
+                "❌ <b>Редактирование анкеты отменено.</b>\nТвоя анкета сохранена без изменений.",
+                parse_mode="HTML",
+                reply_markup=main_menu_keyboard(),
+            )
+            from bot.handlers.settings import show_my_profile
+            await show_my_profile(message, user, db)
+        else:
+            await message.answer(
+                "⚠️ <b>Заполнение анкеты отменено.</b>\n"
+                "Без заполненной анкеты функции поиска ограничены. Напиши /start в любое время, чтобы продолжить.",
+                parse_mode="HTML",
+                reply_markup=main_menu_keyboard(),
+            )
+        return
+
+    # Нажата конкретная кнопка главного меню
+    if text_val in {"🔍 Смотреть анкеты", "Смотреть анкеты"}:
+        from bot.handlers.browse import start_swiping
+        await start_swiping(message, user, db, state)
+    elif "Зал славы" in text_val or text_val == "/halloffame" or text_val == "/top":
+        from bot.handlers.rating import cmd_hall_of_fame
+        await cmd_hall_of_fame(message, user, db, state)
+    elif text_val in {"🫂 Мои мэтчи", "Мои мэтчи", "/matches"}:
+        from bot.handlers.browse import show_my_matches
+        await show_my_matches(message, user, db, state)
+    elif text_val in {"🐾 Мой профиль", "👤 Мой профиль", "Мой профиль", "/profile"}:
+        from bot.handlers.settings import show_my_profile
+        await show_my_profile(message, user, db, state)
+    elif text_val in {"⚙️ Настройки", "Настройки", "/settings"}:
+        from bot.handlers.settings import show_settings
+        await show_settings(message, user, state)
+    elif "Пригласить" in text_val or "ref" in text_val.lower():
+        from bot.handlers.settings import show_referral_link
+        await show_referral_link(message, user, state)
+    elif text_val == "/menu":
+        await message.answer("📋 <b>Главное меню:</b>", parse_mode="HTML", reply_markup=main_menu_keyboard())
+    elif text_val == "/start":
+        from bot.handlers.start import cmd_start
+        await cmd_start(message, CommandObject(prefix="/", command="start", args=None), state, user, db)
 
 
 # ─── Вопрос 1: Имя ────────────────────────────────────────────
@@ -259,26 +365,31 @@ async def process_target_gender(callback: CallbackQuery, state: FSMContext):
 
 
 # ─── Фото ─────────────────────────────────────────────────────
-@router.message(ProfileState.waiting_photo, F.photo)
-async def process_photo(message: Message, state: FSMContext, user: User, db: AsyncSession):
-    # Берём фото максимального качества
-    photo = message.photo[-1]
-    file_id = photo.file_id
-
+async def _save_photo_and_complete(file_id: str, message: Message, state: FSMContext, user: User, db: AsyncSession):
     data = await state.get_data()
+    prof = user.profile
 
-    # Создаём / обновляем профиль
+    name = data.get("name") or (prof.name if prof else "Студент")
+    year = data.get("year") or (prof.year if prof else 1)
+    major = data.get("major") or (prof.major if prof else "РУДН")
+    goal = data.get("goal") or (getattr(prof, "goal", "") if prof else "")
+    interest_ids = data.get("selected_interests") if "selected_interests" in data else (prof.interest_ids if prof else [])
+    custom_interests = data.get("custom_interests") if "custom_interests" in data else (prof.custom_interests if prof else None)
+    gender = data.get("gender") or (prof.gender if prof else None)
+    target_gender = data.get("target_gender") or (prof.target_gender if prof else None)
+
     await get_or_create_profile(db, user.id)
     await update_profile(
         db,
         user.id,
-        name=data["name"],
-        year=data["year"],
-        major=data["major"],
-        interest_ids=data.get("selected_interests", []),
-        goal=data["goal"],
-        gender=data.get("gender"),
-        target_gender=data.get("target_gender"),
+        name=name,
+        year=year,
+        major=major,
+        interest_ids=interest_ids or [],
+        custom_interests=custom_interests,
+        goal=goal,
+        gender=gender,
+        target_gender=target_gender,
         avatar_file_id=file_id,
         is_complete=True,
         is_visible=True,
@@ -287,13 +398,27 @@ async def process_photo(message: Message, state: FSMContext, user: User, db: Asy
     await state.clear()
 
     await message.answer(
-        "🎉 <b>Профиль создан!</b>\n\n"
+        "🎉 <b>Профиль сохранён!</b>\n\n"
         "Теперь выбери режим, в котором хочешь работать:",
         parse_mode="HTML",
         reply_markup=mode_keyboard(),
     )
 
 
+@router.message(ProfileState.waiting_photo, F.photo)
+async def process_photo(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    photo = message.photo[-1]
+    await _save_photo_and_complete(photo.file_id, message, state, user, db)
+
+
+@router.message(ProfileState.waiting_photo, F.document)
+async def process_photo_document(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    if message.document and message.document.mime_type and message.document.mime_type.startswith("image/"):
+        await _save_photo_and_complete(message.document.file_id, message, state, user, db)
+    else:
+        await message.answer("Пожалуйста, отправь фото как изображение (JPG/PNG).")
+
+
 @router.message(ProfileState.waiting_photo)
 async def process_photo_wrong(message: Message):
-    await message.answer("Пожалуйста, отправь фото как изображение (не файл).")
+    await message.answer("Пожалуйста, отправь фото как изображение (или нажми ❌ Отмена).")
