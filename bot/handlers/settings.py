@@ -171,7 +171,7 @@ async def show_referral_link(event, user: User, state: FSMContext = None):
     from urllib.parse import quote
     from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-    share_text = "Привет! Присоединяйся к СтудМэч — находит друзей, пары и команды для проектов среди студентов! 🎓✨"
+    share_text = "Привет! Студмэч🌤 - твоя экосистема в вузе: проекты, работа, друзья и любовь в одном боте. Присоединяйся))"
     share_url = f"https://t.me/share/url?url={quote(ref_url)}&text={quote(share_text)}"
 
     builder = InlineKeyboardBuilder()
