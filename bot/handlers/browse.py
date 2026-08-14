@@ -20,6 +20,9 @@ from bot.states.fsm import LetterState
 from database.crud import get_next_profile, create_swipe, get_user, deduct_superlike
 from database.models import User, Profile, InterestTag, SwipeAction, ModeEnum, Swipe
 
+import logging
+
+logger = logging.getLogger(__name__)
 router = Router()
 
 

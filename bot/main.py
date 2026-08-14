@@ -47,16 +47,18 @@ async def main() -> None:
     dp.include_router(payments.router)
     dp.include_router(reports_handler.router)
 
+    from aiogram.types import ErrorEvent
+
     # Глобальный обработчик ошибок
     @dp.error()
-    async def global_error_handler(event, exception):
-        logger.error(f"Global error handler caught: {exception}", exc_info=True)
+    async def global_error_handler(event: ErrorEvent):
+        logger.error(f"Global error handler caught: {event.exception}", exc_info=event.exception)
         try:
-            if hasattr(event, "update") and event.update.message:
+            if event.update and event.update.message:
                 await event.update.message.answer(
                     "⚠️ Произошла временная ошибка. Отправь /start чтобы сбросить меню."
                 )
-            elif hasattr(event, "update") and event.update.callback_query:
+            elif event.update and event.update.callback_query:
                 await event.update.callback_query.answer("⚠️ Ошибка обработки. Попробуй ещё раз.", show_alert=True)
         except Exception:
             pass
