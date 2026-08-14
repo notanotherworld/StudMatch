@@ -29,7 +29,7 @@ async def _build_profile_caption(
     tags_text = ""
     if profile.interest_ids:
         tags = [tags_map[tid] for tid in profile.interest_ids if tid in tags_map]
-        tags_text = " ".join(f"{t.emoji}{t.name}" for t in tags)
+        tags_text = " ".join(f"#{t.name}" for t in tags)
 
     # Кастомные интересы
     if profile.custom_interests:

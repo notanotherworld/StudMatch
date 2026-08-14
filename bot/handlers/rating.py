@@ -32,7 +32,7 @@ async def _send_hall_of_fame(target_message: Message, user: User, db: AsyncSessi
     try:
         result = await db.execute(
             select(Profile)
-            .where(Profile.is_complete == True, Profile.is_visible == True)
+            .where(Profile.is_complete == True)
             .order_by(Profile.rating_score.desc().nullslast())
             .limit(12)
         )

@@ -18,7 +18,9 @@ class ProfileState(StatesGroup):
     waiting_interests = State()   # Вопрос 4
     waiting_custom_interest = State() # Кастомный интерес
     waiting_goal = State()        # Вопрос 5
-    waiting_photo = State()       # Фото
+    waiting_gender = State()         # Пол
+    waiting_target_gender = State()  # Предпочтение по полу
+    waiting_photo = State()          # Фото
 
 
 class ModeState(StatesGroup):

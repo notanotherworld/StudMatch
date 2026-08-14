@@ -214,10 +214,40 @@ async def process_goal(message: Message, state: FSMContext):
         await message.answer("Цель должна быть от 10 до 300 символов.")
         return
 
-    goal = html.escape(raw_goal)  # Защищаем от HTML-инъекций (#18)
+    goal = html.escape(raw_goal)
     await state.update_data(goal=goal)
-    await state.set_state(ProfileState.waiting_photo)
+    await state.set_state(ProfileState.waiting_gender)
+    from bot.keyboards.swipe import gender_keyboard
     await message.answer(
+        "👫 <b>Укажи твой пол:</b>",
+        parse_mode="HTML",
+        reply_markup=gender_keyboard(),
+    )
+
+
+@router.callback_query(F.data.startswith("gender:"), ProfileState.waiting_gender)
+async def process_gender(callback: CallbackQuery, state: FSMContext):
+    g_val = callback.data.split(":")[1]
+    await state.update_data(gender=g_val)
+    await state.set_state(ProfileState.waiting_target_gender)
+    await callback.answer()
+    await callback.message.edit_reply_markup(reply_markup=None)
+    from bot.keyboards.swipe import target_gender_keyboard
+    await callback.message.answer(
+        "❤️ <b>Кого ты ищешь для знакомств?</b>",
+        parse_mode="HTML",
+        reply_markup=target_gender_keyboard(),
+    )
+
+
+@router.callback_query(F.data.startswith("target_gender:"), ProfileState.waiting_target_gender)
+async def process_target_gender(callback: CallbackQuery, state: FSMContext):
+    tg_val = callback.data.split(":")[1]
+    await state.update_data(target_gender=tg_val)
+    await state.set_state(ProfileState.waiting_photo)
+    await callback.answer()
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.message.answer(
         "📸 <b>Почти готово!</b>\n\n"
         "Загрузи фото профиля — оно будет видно другим студентам.\n"
         "<i>Отправь фото как изображение (не как файл)</i>",
@@ -244,6 +274,8 @@ async def process_photo(message: Message, state: FSMContext, user: User, db: Asy
         major=data["major"],
         interest_ids=data.get("selected_interests", []),
         goal=data["goal"],
+        gender=data.get("gender"),
+        target_gender=data.get("target_gender"),
         avatar_file_id=file_id,
         is_complete=True,
         is_visible=True,

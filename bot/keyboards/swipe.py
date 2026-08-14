@@ -60,18 +60,37 @@ def rudn_institutes_keyboard() -> InlineKeyboardMarkup:
 
 
 def interests_keyboard(tags: List[InterestTag], selected: List[int] = None) -> InlineKeyboardMarkup:
-    """Клавиатура выбора интересов с чекбоксами и кастомным вводом."""
+    """Клавиатура выбора интересов с чекбоксами и кастомным вводом (без эмодзи)."""
     selected = selected or []
     builder = InlineKeyboardBuilder()
     for tag in tags:
         checked = "✅ " if tag.id in selected else ""
         builder.button(
-            text=f"{checked}{tag.emoji} {tag.name}",
+            text=f"{checked}{tag.name}",
             callback_data=f"interest:{tag.id}",
         )
     builder.button(text="✍️ Написать свой", callback_data="interest:custom")
     builder.button(text="✔️ Готово", callback_data="interest:done")
     builder.adjust(2)
+    return builder.as_markup()
+
+
+def gender_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура выбора пола пользователя."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="👨 Парень", callback_data="gender:male")
+    builder.button(text="👩 Девушка", callback_data="gender:female")
+    builder.adjust(2)
+    return builder.as_markup()
+
+
+def target_gender_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура выбора предпочтения по полу для знакомств."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="👩 Девушек", callback_data="target_gender:female")
+    builder.button(text="👨 Парней", callback_data="target_gender:male")
+    builder.button(text="✨ Всех", callback_data="target_gender:all")
+    builder.adjust(3)
     return builder.as_markup()
 
 
@@ -170,10 +189,12 @@ def my_profile_keyboard(current_mode: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def settings_keyboard(current_mode: str) -> InlineKeyboardMarkup:
+def settings_keyboard(current_mode: str, is_visible: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="🏷 Изменить интересы", callback_data="settings:edit_interests")
-    builder.button(text="🔒 Скрыть / показать МОЮ анкету", callback_data="settings:toggle_visibility")
+    builder.button(text="👫 Пол и предпочтения", callback_data="settings:edit_gender")
+    vis_label = "🔒 Скрыть из поиска" if is_visible else "👁 Показывать в поиске"
+    builder.button(text=vis_label, callback_data="settings:toggle_visibility")
     builder.button(text="🔄 Сбросить историю свайпов", callback_data="settings:reset_swipes")
     builder.adjust(1)
     return builder.as_markup()

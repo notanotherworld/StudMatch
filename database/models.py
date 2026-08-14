@@ -168,7 +168,9 @@ class Profile(Base):
     major: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)        # 3
     interest_ids: Mapped[Optional[List[int]]] = mapped_column(ARRAY(Integer), nullable=True)  # 4
     custom_interests: Mapped[Optional[str]] = mapped_column(Text, nullable=True)               # Кастомные интересы
-    goal: Mapped[Optional[str]] = mapped_column(Text, nullable=True)                # 5
+    # Пол и предпочтения (для Знакомств)
+    gender: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)         # "male" / "female"
+    target_gender: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # "female" / "male" / "all"
 
     # Фото — храним Telegram file_id
     avatar_file_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)

@@ -18,10 +18,11 @@ router = Router()
 
 @router.message(F.text == "⚙️ Настройки")
 async def show_settings(message: Message, user: User):
+    is_vis = user.profile.is_visible if user.profile else True
     await message.answer(
         "⚙️ <b>Настройки</b>",
         parse_mode="HTML",
-        reply_markup=settings_keyboard(user.mode.value),
+        reply_markup=settings_keyboard(user.mode.value, is_visible=is_vis),
     )
 
 
@@ -44,9 +45,24 @@ async def edit_interests_prompt(callback: CallbackQuery, user: User, state: FSMC
     await state.update_data(selected_interests=selected, editing_from_settings=True)
     await state.set_state(ProfileState.waiting_interests)
 
-    from sqlalchemy import select
-    from database.models import InterestTag
-    from bot.keyboards.swipe import interests_keyboard
+    result = await db.execute(select(InterestTag).order_by(InterestTag.id))
+    tags = list(result.scalars().all())
+    await callback.message.answer(
+        "Выбери интересующие теги (без эмодзи):",
+        reply_markup=interests_keyboard(tags, selected),
+    )
+
+
+@router.callback_query(F.data == "settings:edit_gender")
+async def edit_gender_prompt(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(ProfileState.waiting_gender)
+    await callback.answer()
+    from bot.keyboards.swipe import gender_keyboard
+    await callback.message.answer(
+        "👫 <b>Выбери твой пол:</b>",
+        parse_mode="HTML",
+        reply_markup=gender_keyboard(),
+    )
 
     result = await db.execute(select(InterestTag).order_by(InterestTag.id))
     tags = list(result.scalars().all())
@@ -93,12 +109,12 @@ async def toggle_visibility(callback: CallbackQuery, user: User, db: AsyncSessio
     )
     await db.commit()
 
-    label = "видна" if new_state else "скрыта"
+    label = "включена в поиске" if new_state else "скрыта из поиска"
     await callback.answer(f"Твоя анкета {label}!")
     msg = (
-        "👀 <b>Твоя анкета снова видна в Топе!</b>\nДругие студенты смогут находить тебя и ставить лайки."
+        "👀 <b>Твоя анкета снова отображается в поиске!</b>\nДругие студенты смогут находить тебя при свайпах."
         if new_state
-        else "🔒 <b>Твоя анкета скрыта из поиска!</b>\nДругие студенты больше не смогут видеть твою анкету в Топе."
+        else "🔒 <b>Твоя анкета скрыта из поиска!</b>\nОна не будет появляться при свайпах, но останется в Зале славы."
     )
     await callback.message.answer(msg, parse_mode="HTML")
 
@@ -174,7 +190,11 @@ async def show_my_profile(message: Message, user: User, db: AsyncSession):
         return
 
     mode_label = "🎯 Карьера" if user.mode == ModeEnum.career else "❤️ Знакомства"
-    visibility = "👀 Видна в топе" if profile.is_visible else "🔒 Скрыта"
+    visibility = "👀 В поиске (свайпах)" if profile.is_visible else "🔒 Скрыта из поиска"
+
+    g_str = "👨 Парень" if profile.gender == "male" else ("👩 Девушка" if profile.gender == "female" else "")
+    tg_str = "👩 Ищу девушек" if profile.target_gender == "female" else ("👨 Ищу парней" if profile.target_gender == "male" else "✨ Ищу всех")
+    gender_info = f"\n{g_str} · {tg_str}" if g_str else ""
 
     # Кастомные интересы в профиле (#14)
     custom_block = ""
@@ -184,7 +204,8 @@ async def show_my_profile(message: Message, user: User, db: AsyncSession):
     text = (
         f"<b>{html.escape(profile.name or '')}</b>, {profile.year} курс\n\n"
         f"📚 {html.escape(profile.major or '')}\n\n"
-        f"{mode_label} · ⭐ {profile.rating_score:.0f} б.\n"
+        f"{mode_label} · ⭐ {profile.rating_score:.0f} б."
+        f"{gender_info}\n"
         f"{visibility}\n\n"
         f"💬 <i>{html.escape(profile.goal or '')}</i>\n"
         f"{custom_block}\n\n"

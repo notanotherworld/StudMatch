@@ -219,6 +219,35 @@ async def get_next_profile(
 
     now = datetime.now(timezone.utc)
 
+    # Фильтры для режима Знакомств (гендер)
+    gender_filters = []
+    if mode == ModeEnum.dating:
+        viewer_profile = await get_profile(db, viewer_id)
+        if viewer_profile:
+            # 1. Пол кандидата должен совпадать с тем, кого ищет viewer
+            if viewer_profile.target_gender == "female":
+                gender_filters.append(Profile.gender == "female")
+            elif viewer_profile.target_gender == "male":
+                gender_filters.append(Profile.gender == "male")
+
+            # 2. Кандидат должен быть согласен на пол viewer'а (или искать Всех/любого)
+            if viewer_profile.gender == "male":
+                gender_filters.append(
+                    or_(
+                        Profile.target_gender == "male",
+                        Profile.target_gender == "all",
+                        Profile.target_gender.is_(None),
+                    )
+                )
+            elif viewer_profile.gender == "female":
+                gender_filters.append(
+                    or_(
+                        Profile.target_gender == "female",
+                        Profile.target_gender == "all",
+                        Profile.target_gender.is_(None),
+                    )
+                )
+
     result = await db.execute(
         select(Profile)
         .options(selectinload(Profile.user))
@@ -230,6 +259,7 @@ async def get_next_profile(
                 User.is_active == True,
                 User.email_verified == True,
                 ~Profile.user_id.in_(swiped_ids),
+                *gender_filters,
             )
         )
         .order_by(
