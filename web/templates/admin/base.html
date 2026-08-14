@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>{% block title %}СтудМэч Admin{% endblock %}</title>
 <meta name="csrf-token" content="{{ csrf_token or request.state.csrf_token or '' }}">
+<link rel="icon" type="image/jpeg" href="/static/img/logo.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -73,7 +74,7 @@
     -webkit-text-fill-color: transparent;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
   .menu-toggle-btn {
     background: var(--surface2);
@@ -136,7 +137,7 @@
     margin-bottom: 12px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
   .sidebar-nav-label {
     font-size: 11px;
@@ -573,7 +574,10 @@
 {% if request.cookies.get('admin_token') %}
 <!-- Mobile Header Bar -->
 <header class="mobile-header">
-  <div class="mobile-header-logo">🎓 СтудМэч</div>
+  <div class="mobile-header-logo">
+    <img src="/static/img/logo.jpg" alt="Logo" style="width:28px;height:28px;border-radius:8px;object-fit:cover;box-shadow:0 2px 8px rgba(99,102,241,0.4);">
+    <span>СтудМэч</span>
+  </div>
   <button class="menu-toggle-btn" id="sidebarToggle" aria-label="Открыть меню">☰</button>
 </header>
 
@@ -582,7 +586,10 @@
 
 <!-- Sidebar -->
 <nav class="sidebar" id="sidebar">
-  <div class="sidebar-logo">🎓 СтудМэч</div>
+  <div class="sidebar-logo">
+    <img src="/static/img/logo.jpg" alt="Logo" style="width:34px;height:34px;border-radius:10px;object-fit:cover;box-shadow:0 2px 12px rgba(99,102,241,0.45);border:1px solid rgba(255,255,255,0.15);">
+    <span>СтудМэч</span>
+  </div>
   
   <div class="sidebar-nav-label">Управление</div>
   <a href="/admin/dashboard" {% if '/dashboard' in request.url.path %}class="active"{% endif %}>📊 Дашборд</a>

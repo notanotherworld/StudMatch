@@ -3,6 +3,7 @@ FastAPI приложение: admin panel + HR cabinet + YooKassa webhook.
 Защиты: CSRF context processor, security headers, OpenAPI отключён в prod.
 """
 from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from contextlib import asynccontextmanager
@@ -77,6 +78,11 @@ async def inject_csrf_into_templates(request: Request, call_next):
 
 # Статика
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return FileResponse("web/static/img/logo.jpg")
 
 app.include_router(admin_auth.router, prefix="/admin", tags=["Admin Auth"])
 app.include_router(dashboard.router, prefix="/admin", tags=["Dashboard"])

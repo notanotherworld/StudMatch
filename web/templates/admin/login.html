@@ -16,8 +16,14 @@
 
 <div class="login-box">
   <div class="login-logo">
-    <h1>🎓 СтудМэч</h1>
-    <p>Панель администратора</p>
+    <div style="display:flex;justify-content:center;margin-bottom:16px;">
+      <img src="/static/img/logo.jpg" alt="StudMatch Logo"
+           style="width:72px;height:72px;border-radius:18px;box-shadow:0 8px 25px rgba(99,102,241,0.35);border:1px solid rgba(255,255,255,0.15);object-fit:cover;">
+    </div>
+    <h1 style="font-size:24px;font-weight:800;background:var(--accent-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+      СтудМэч Admin
+    </h1>
+    <p style="color:var(--muted);font-size:13px;margin-top:4px;">Панель управления платформой</p>
   </div>
 
   {% if error %}
