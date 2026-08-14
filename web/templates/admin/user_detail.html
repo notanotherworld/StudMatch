@@ -259,6 +259,7 @@
     <div class="card">
       <div style="font-size:15px;font-weight:600;margin-bottom:16px;">💬 Отправить сообщение в бот</div>
       <form method="POST" action="/admin/users/{{ user.id }}/message">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-group">
           <!-- Быстрые шаблоны -->
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">

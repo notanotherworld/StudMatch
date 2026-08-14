@@ -349,14 +349,41 @@
     });
   }
 
-  // Подставляем CSRF-токен в logout-форму (#6)
-  // Токен передаётся через meta-тег (csrf_token из контекста шаблона)
+  // Универсальная автоподстановка CSRF-токена во все POST-формы
   const metaCsrf = document.querySelector('meta[name="csrf-token"]');
-  const logoutCsrf = document.getElementById('logout-csrf');
-  if (metaCsrf && logoutCsrf) {
-    logoutCsrf.value = metaCsrf.content;
+  if (metaCsrf && metaCsrf.content) {
+    const csrfVal = metaCsrf.content;
+    const injectCsrf = () => {
+      document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(form => {
+        let input = form.querySelector('input[name="csrf_token"]');
+        if (!input) {
+          input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'csrf_token';
+          form.appendChild(input);
+        }
+        if (!input.value) {
+          input.value = csrfVal;
+        }
+      });
+    };
+    injectCsrf();
+    document.addEventListener('DOMContentLoaded', injectCsrf);
+    document.addEventListener('submit', (e) => {
+      if (e.target && e.target.tagName === 'FORM' && e.target.method.toUpperCase() === 'POST') {
+        let input = e.target.querySelector('input[name="csrf_token"]');
+        if (!input) {
+          input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'csrf_token';
+          e.target.appendChild(input);
+        }
+        if (!input.value) {
+          input.value = csrfVal;
+        }
+      }
+    }, true);
   }
 </script>
-
 </body>
 </html>

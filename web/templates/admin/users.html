@@ -104,6 +104,7 @@
           <a href="/admin/users/{{ u.id }}" class="btn btn-ghost btn-sm">👁</a>
           {% if not u.email_verified %}
           <form method="POST" action="/admin/users/{{ u.id }}/verify-manual" style="display:inline;" onsubmit="return confirm('Подтвердить верификацию студента?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="btn btn-success btn-sm" title="Верифицировать вручную">✅</button>
           </form>
           {% endif %}
