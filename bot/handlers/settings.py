@@ -208,24 +208,32 @@ async def show_my_profile(message: Message, user: User, db: AsyncSession, state:
     if profile.custom_interests:
         custom_block = f"\n✍️ Свои: <i>{html.escape(profile.custom_interests)}</i>"
 
+    email_str = html.escape(user.email or "не указан")
+    score_val = profile.rating_score or 0.0
+    year_str = f"{profile.year} курс" if profile.year else "Студент"
+
     text = (
-        f"<b>{html.escape(profile.name or '')}</b>, {profile.year} курс\n\n"
+        f"<b>{html.escape(profile.name or 'Студент')}</b>, {year_str}\n\n"
         f"📚 {html.escape(profile.major or '')}\n\n"
-        f"{mode_label} · ⭐ {profile.rating_score:.0f} б."
+        f"{mode_label} · ⭐ {score_val:.0f} б."
         f"{gender_info}\n"
         f"{visibility}\n\n"
         f"💬 <i>{html.escape(profile.goal or '')}</i>\n"
         f"{custom_block}\n\n"
         f"⭐ Суперлайков: <b>{user.superlike_balance}</b>\n"
-        f"📧 {user.email}"
+        f"📧 {email_str}"
     )
 
     if profile.avatar_file_id:
-        await message.answer_photo(
-            photo=profile.avatar_file_id,
-            caption=text,
-            parse_mode="HTML",
-            reply_markup=my_profile_keyboard(user.mode.value),
-        )
-    else:
-        await message.answer(text, parse_mode="HTML", reply_markup=my_profile_keyboard(user.mode.value))
+        try:
+            await message.answer_photo(
+                photo=profile.avatar_file_id,
+                caption=text,
+                parse_mode="HTML",
+                reply_markup=my_profile_keyboard(user.mode.value),
+            )
+            return
+        except Exception:
+            pass
+
+    await message.answer(text, parse_mode="HTML", reply_markup=my_profile_keyboard(user.mode.value))
