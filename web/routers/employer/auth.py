@@ -86,11 +86,12 @@ async def login(
 
     token = create_token({"employer_id": employer.id})
     response = RedirectResponse(url="/employer/profiles", status_code=302)
+    is_secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     response.set_cookie(
         "employer_token", token,
         httponly=True,
-        samesite="strict",   # строже "lax" (#5)
-        secure=True,         # только HTTPS (#5)
+        samesite="lax",
+        secure=is_secure,
         max_age=3600 * 8,
     )
     return response
