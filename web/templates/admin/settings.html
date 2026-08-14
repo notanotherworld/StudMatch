@@ -1,0 +1,129 @@
+{% extends "admin/base.html" %}
+{% block title %}Настройки платформы — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>⚙️ Настройки платформы и Feature Flags</h1>
+    <p>Управление режимом техработ, ценами, бонусами и верификацией без перезагрузки бота</p>
+  </div>
+</div>
+
+{% if saved %}
+<div class="card" style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);color:var(--success);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+  <span style="font-size:20px;">✅</span>
+  <div>
+    <strong>Настройки успешно сохранены!</strong> Изменения мгновенно вступили в силу для всех пользователей.
+  </div>
+</div>
+{% endif %}
+
+<form method="POST" action="/admin/settings">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+    <!-- Блок: Режим техработ (Maintenance Mode) -->
+    <div class="card" style="grid-column:span 2;border:1px solid {% if cfg.maintenance_mode == 'true' %}rgba(255,82,82,0.5){% else %}var(--border){% endif %};background:{% if cfg.maintenance_mode == 'true' %}rgba(255,82,82,0.03){% else %}var(--surface){% endif %};">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;">
+          🚧 Режим технического обслуживания (Maintenance Mode)
+        </div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" name="maintenance_mode" value="true"
+                 {% if cfg.maintenance_mode == 'true' %}checked{% endif %}
+                 style="width:20px;height:20px;accent-color:var(--danger);">
+          <span style="font-weight:600;font-size:14px;color:{% if cfg.maintenance_mode == 'true' %}var(--danger){% else %}var(--muted){% endif %};">
+            {% if cfg.maintenance_mode == 'true' %}ВКЛЮЧЁН (Бот закрыт){% else %}Выключен (Бот доступен){% endif %}
+          </span>
+        </label>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">
+        При включении режима бот будет отвечать студентам указанным ниже сообщением.
+      </p>
+      <div class="form-group">
+        <label>Текст сообщения о техработах (поддерживается HTML: &lt;b&gt;, &lt;i&gt;)</label>
+        <textarea name="maintenance_message" rows="3" required
+                  style="font-size:13px;">{{ cfg.maintenance_message }}</textarea>
+      </div>
+    </div>
+
+    <!-- Блок: Цены ЮКасса -->
+    <div class="card">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+        💰 Цены товаров и услуг (ЮКасса)
+      </div>
+      <div class="form-group">
+        <label>⭐️ 3 суперлайка (руб.)</label>
+        <input type="number" name="price_superlike_3" value="{{ cfg.price_superlike_3 }}" required min="1">
+      </div>
+      <div class="form-group">
+        <label>⭐⭐ 10 суперлайков (руб.)</label>
+        <input type="number" name="price_superlike_10" value="{{ cfg.price_superlike_10 }}" required min="1">
+      </div>
+      <div class="form-group">
+        <label>⚡️ Буст анкеты на 24 часа (руб.)</label>
+        <input type="number" name="price_boost_24h" value="{{ cfg.price_boost_24h }}" required min="1">
+      </div>
+    </div>
+
+    <!-- Блок: Реферальная программа и Безопасность -->
+    <div class="card">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+        🪢 Рефералы и Безопасность
+      </div>
+      <div class="form-group">
+        <label>🎁 Награда за приглашённого друга (⭐️ суперлайков)</label>
+        <input type="number" name="referral_reward_superlikes" value="{{ cfg.referral_reward_superlikes }}" required min="1">
+        <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px;">
+          Начисляется автоматически при регистрации друга по реферальной ссылке.
+        </small>
+      </div>
+
+      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:16px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" name="require_email_verification" value="true"
+                 {% if cfg.require_email_verification == 'true' %}checked{% endif %}
+                 style="width:18px;height:18px;accent-color:var(--accent);">
+          <div>
+            <div style="font-weight:600;font-size:14px;">🔒 Обязательная верификация университетской почты</div>
+            <div style="color:var(--muted);font-size:12px;">Если выключить, студенты смогут пользоваться ботом без подтверждения .edu email</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Блок: Баллы рейтинга за достижения -->
+    <div class="card" style="grid-column:span 2;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+        🏆 Начисление баллов рейтинга за подтверждение документов
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;">
+        <div class="form-group">
+          <label>📊 Отличный GPA / сессия</label>
+          <input type="number" name="reward_score_gpa" value="{{ cfg.reward_score_gpa }}" required min="0">
+        </div>
+        <div class="form-group">
+          <label>🥇 Олимпиады и конкурсы</label>
+          <input type="number" name="reward_score_olympiad" value="{{ cfg.reward_score_olympiad }}" required min="0">
+        </div>
+        <div class="form-group">
+          <label>💼 Хакатоны и кейсы</label>
+          <input type="number" name="reward_score_competition" value="{{ cfg.reward_score_competition }}" required min="0">
+        </div>
+        <div class="form-group">
+          <label>🤝 Волонтёрство и участие</label>
+          <input type="number" name="reward_score_participation" value="{{ cfg.reward_score_participation }}" required min="0">
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:24px;display:flex;justify-content:flex-end;">
+    <button type="submit" class="btn btn-primary" style="padding:12px 32px;font-size:15px;font-weight:600;">
+      💾 Сохранить изменения
+    </button>
+  </div>
+</form>
+{% endblock %}

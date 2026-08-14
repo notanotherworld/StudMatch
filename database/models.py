@@ -402,3 +402,49 @@ class AdminAuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     admin: Mapped[Optional["Admin"]] = relationship()
+
+
+# ─────────────────────────────────────────────────────────────
+# Промокоды
+# ─────────────────────────────────────────────────────────────
+class PromoCode(Base):
+    __tablename__ = "promo_codes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    reward_type: Mapped[str] = mapped_column(String(30), nullable=False)  # "superlikes", "boost", "rating"
+    reward_value: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    max_activations: Mapped[int] = mapped_column(Integer, default=0)  # 0 = безлимитно
+    activations_count: Mapped[int] = mapped_column(Integer, default=0)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    activations: Mapped[List["PromoActivation"]] = relationship(back_populates="promo", cascade="all, delete-orphan")
+
+
+class PromoActivation(Base):
+    __tablename__ = "promo_activations"
+    __table_args__ = (
+        UniqueConstraint("user_id", "promo_id", name="uq_user_promo"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    promo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("promo_codes.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    activated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    promo: Mapped["PromoCode"] = relationship(back_populates="activations")
+    user: Mapped["User"] = relationship()
+
+
+# ─────────────────────────────────────────────────────────────
+# Динамические системные настройки платформы
+# ─────────────────────────────────────────────────────────────
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

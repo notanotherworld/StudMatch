@@ -188,6 +188,7 @@ def my_profile_keyboard(current_mode: str) -> InlineKeyboardMarkup:
     builder.button(text="✏️ Изменить анкету", callback_data="settings:edit_profile")
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
     builder.button(text="💎 Премиум и Суперлайки", callback_data="settings:buy")
+    builder.button(text="🎁 Ввести промокод", callback_data="settings:enter_promo")
     builder.button(text="🪢 Пригласить друга (+3 ⭐️)", callback_data="settings:ref_link")
     builder.adjust(1)
     return builder.as_markup()
@@ -200,6 +201,7 @@ def settings_keyboard(current_mode: str, is_visible: bool = True) -> InlineKeybo
     vis_label = "🔒 Скрыть из поиска" if is_visible else "👁 Показывать в поиске"
     builder.button(text=vis_label, callback_data="settings:toggle_visibility")
     builder.button(text="🔄 Сбросить историю свайпов", callback_data="settings:reset_swipes")
+    builder.button(text="🎁 Ввести промокод", callback_data="settings:enter_promo")
     builder.adjust(1)
     return builder.as_markup()
 

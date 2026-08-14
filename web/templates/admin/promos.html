@@ -1,0 +1,218 @@
+{% extends "admin/base.html" %}
+{% block title %}Промокоды и Рефералы — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>🎁 Промокоды и Рефералы</h1>
+    <p>Создание бонусных кодов для студентов и аналитика реферальной программы</p>
+  </div>
+  <button onclick="document.getElementById('createModal').style.display='flex'"
+          class="btn btn-primary">➕ Создать промокод</button>
+</div>
+
+<!-- Статистика -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;margin-bottom:24px;">
+  <div class="card">
+    <div class="card-title">🎁 Всего промокодов</div>
+    <div class="card-value">{{ total_promos }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">⚡️ Активаций промокодов</div>
+    <div class="card-value" style="color:var(--accent2);">{{ total_activations }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">🪢 Приглашённых рефералов</div>
+    <div class="card-value" style="color:var(--success);">{{ total_referrals }}</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start;">
+
+  <!-- Список промокодов -->
+  <div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);font-weight:600;font-size:15px;">
+        Список активных промокодов
+      </div>
+      {% if promos %}
+      <table>
+        <thead>
+          <tr>
+            <th>Код</th>
+            <th>Награда</th>
+            <th>Активации</th>
+            <th>Срок действия</th>
+            <th>Статус</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in promos %}
+          <tr>
+            <td>
+              <code style="font-size:14px;font-weight:700;color:var(--accent2);background:var(--surface2);padding:4px 8px;border-radius:6px;">
+                {{ p.code }}
+              </code>
+            </td>
+            <td>
+              {% if p.reward_type == 'superlikes' %}
+                <span class="badge" style="background:rgba(255,215,0,0.15);color:#FFD700;border:1px solid rgba(255,215,0,0.3);">
+                  ⭐ +{{ p.reward_value }} суперлайков
+                </span>
+              {% elif p.reward_type == 'boost' %}
+                <span class="badge" style="background:rgba(0,212,255,0.15);color:#00d4ff;border:1px solid rgba(0,212,255,0.3);">
+                  ⚡️ Буст на {{ p.reward_value * 24 }}ч
+                </span>
+              {% elif p.reward_type == 'rating' %}
+                <span class="badge" style="background:rgba(124,58,237,0.15);color:#a78bfa;border:1px solid rgba(124,58,237,0.3);">
+                  🏆 +{{ p.reward_value }} б. рейтинга
+                </span>
+              {% else %}
+                <span class="badge">{{ p.reward_type }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <b>{{ p.activations_count }}</b>
+              {% if p.max_activations > 0 %}
+                <span style="color:var(--muted);font-size:12px;">/ {{ p.max_activations }}</span>
+              {% else %}
+                <span style="color:var(--muted);font-size:12px;">(∞)</span>
+              {% endif %}
+            </td>
+            <td style="font-size:13px;color:var(--muted);">
+              {% if p.expires_at %}
+                {{ p.expires_at.strftime('%d.%m.%Y') }}
+              {% else %}
+                Бессрочный
+              {% endif %}
+            </td>
+            <td>
+              {% if p.is_active %}
+                <span class="badge badge-success">Активен</span>
+              {% else %}
+                <span class="badge badge-danger">Отключён</span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="display:flex;gap:6px;">
+                <form method="POST" action="/admin/promos/{{ p.id }}/toggle">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn {% if p.is_active %}btn-ghost{% else %}btn-success{% endif %} btn-sm"
+                          title="{% if p.is_active %}Отключить{% else %}Включить{% endif %}">
+                    {% if p.is_active %}⏸{% else %}▶️{% endif %}
+                  </button>
+                </form>
+                <form method="POST" action="/admin/promos/{{ p.id }}/delete"
+                      onsubmit="return confirm('Удалить промокод {{ p.code }}?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn btn-danger btn-sm" title="Удалить">🗑</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="padding:48px;text-align:center;color:var(--muted);">
+        Промокодов пока нет. Создайте первый код для студентов!
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Топ рефералов / амбассадоров -->
+  <div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);font-weight:600;font-size:15px;">
+        🏆 Топ амбассадоров
+      </div>
+      {% if top_ambassadors %}
+      <table>
+        <thead>
+          <tr>
+            <th>Студент</th>
+            <th style="text-align:right;">Пригласил</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for amb in top_ambassadors %}
+          <tr>
+            <td>
+              <a href="/admin/users/{{ amb.user_id }}" style="color:var(--accent2);text-decoration:none;font-weight:500;">
+                {% if amb.username %}@{{ amb.username }}{% elif amb.name %}{{ amb.name }}{% else %}#{{ amb.user_id }}{% endif %}
+              </a>
+            </td>
+            <td style="text-align:right;font-weight:700;color:var(--success);">
+              +{{ amb.count }} 👥
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="padding:32px;text-align:center;color:var(--muted);font-size:13px;">
+        Пока никто не пригласил друзей по реферальным ссылкам.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Модальное окно создания промокода -->
+<div id="createModal"
+     style="display:none;position:fixed;inset:0;background:#000a;z-index:100;
+            align-items:center;justify-content:center;">
+  <div class="card" style="width:440px;max-width:95vw;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h3 style="font-size:16px;font-weight:600;">➕ Новый промокод</h3>
+      <button onclick="document.getElementById('createModal').style.display='none'"
+              style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <form method="POST" action="/admin/promos/create">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="form-group">
+        <label>Код (будет автоматически переведён в верхний регистр)</label>
+        <input type="text" name="code" placeholder="STUDMATCH2026, WELCOME, YANDEX50"
+               style="font-size:15px;font-weight:600;text-transform:uppercase;" required>
+      </div>
+
+      <div class="form-group">
+        <label>Тип награды</label>
+        <select name="reward_type" style="padding:8px 12px;font-size:14px;" required>
+          <option value="superlikes">⭐️ Суперлайки</option>
+          <option value="boost">⚡️ Буст анкеты (в днях, 1 = 24ч)</option>
+          <option value="rating">🏆 Баллы рейтинга</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Количество награды (напр. 3 суперлайка, 1 день буста, 50 баллов)</label>
+        <input type="number" name="reward_value" value="3" min="1" required
+               style="font-size:15px;font-weight:600;">
+      </div>
+
+      <div class="form-group">
+        <label>Максимум активаций (0 = без ограничений)</label>
+        <input type="number" name="max_activations" value="0" min="0"
+               placeholder="0">
+      </div>
+
+      <div class="form-group">
+        <label>Действует до (необязательно)</label>
+        <input type="date" name="expires_at_str">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">
+          Создать промокод
+        </button>
+        <button type="button" class="btn btn-ghost"
+                onclick="document.getElementById('createModal').style.display='none'">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

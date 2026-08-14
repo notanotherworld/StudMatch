@@ -48,3 +48,8 @@ class LetterState(StatesGroup):
     """Отправка сообщения/письма вместе со свайпом (как в Дайвинчике)."""
     waiting_text = State()
 
+
+class PromoState(StatesGroup):
+    """Ввод промокода."""
+    waiting_promo_code = State()
+
