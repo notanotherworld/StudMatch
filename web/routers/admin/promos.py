@@ -24,44 +24,56 @@ async def promos_page(
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    # Список промокодов
-    result = await db.execute(select(PromoCode).order_by(PromoCode.created_at.desc()))
-    promos = result.scalars().all()
-
-    # Топ амбассадоров (реферальная программа)
-    ref_res = await db.execute(
-        select(
-            User.referred_by,
-            func.count(User.id).label("ref_count"),
-        )
-        .where(User.referred_by.isnot(None))
-        .group_by(User.referred_by)
-        .order_by(desc("ref_count"))
-        .limit(10)
-    )
-    top_refs_raw = ref_res.all()
-
+    promos = []
     top_ambassadors = []
-    for inviter_id, count in top_refs_raw:
-        u_res = await db.execute(
-            select(User).options(selectinload(User.profile)).where(User.id == inviter_id)
-        )
-        inviter = u_res.scalar_one_or_none()
-        name = inviter.profile.name if inviter and inviter.profile and inviter.profile.name else None
-        top_ambassadors.append({
-            "user_id": inviter_id,
-            "username": inviter.tg_username if inviter else None,
-            "name": name,
-            "count": count,
-        })
+    total_promos = 0
+    total_activations = 0
+    total_referrals = 0
 
-    # Общая статистика
-    total_promos = len(promos)
-    total_activations = sum(p.activations_count for p in promos)
-    total_referrals_res = await db.execute(
-        select(func.count(User.id)).where(User.referred_by.isnot(None))
-    )
-    total_referrals = total_referrals_res.scalar_one() or 0
+    try:
+        # Список промокодов
+        result = await db.execute(select(PromoCode).order_by(PromoCode.created_at.desc()))
+        promos = list(result.scalars().all())
+
+        # Топ амбассадоров (реферальная программа)
+        ref_res = await db.execute(
+            select(
+                User.referred_by,
+                func.count(User.id).label("ref_count"),
+            )
+            .where(User.referred_by.isnot(None))
+            .group_by(User.referred_by)
+            .order_by(desc("ref_count"))
+            .limit(10)
+        )
+        top_refs_raw = ref_res.all()
+
+        for inviter_id, count in top_refs_raw:
+            if not inviter_id:
+                continue
+            u_res = await db.execute(
+                select(User).options(selectinload(User.profile)).where(User.id == inviter_id)
+            )
+            inviter = u_res.scalar_one_or_none()
+            username = inviter.tg_username if inviter else None
+            name = inviter.profile.name if inviter and inviter.profile and inviter.profile.name else None
+            top_ambassadors.append({
+                "user_id": inviter_id,
+                "username": username,
+                "name": name,
+                "count": count,
+            })
+
+        # Общая статистика
+        total_promos = len(promos)
+        total_activations = sum(p.activations_count for p in promos)
+        total_referrals_res = await db.execute(
+            select(func.count(User.id)).where(User.referred_by.isnot(None))
+        )
+        total_referrals = total_referrals_res.scalar_one() or 0
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error loading promos page: {e}", exc_info=True)
 
     return templates.TemplateResponse(
         "admin/promos.html",

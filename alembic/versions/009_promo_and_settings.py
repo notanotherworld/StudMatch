@@ -42,7 +42,7 @@ def upgrade() -> None:
     op.create_index("ix_promo_activations_user_id", "promo_activations", ["user_id"])
 
     # ── system_settings ─────────────────────────────────────────
-    system_settings_table = op.create_table(
+    op.create_table(
         "system_settings",
         sa.Column("key", sa.String(length=100), primary_key=True),
         sa.Column("value", sa.Text(), nullable=False),
@@ -51,8 +51,14 @@ def upgrade() -> None:
     )
 
     # ── Seed initial system settings ────────────────────────────
+    sys_table = table(
+        "system_settings",
+        column("key", sa.String),
+        column("value", sa.Text),
+        column("description", sa.String),
+    )
     op.bulk_insert(
-        system_settings_table,
+        sys_table,
         [
             {"key": "maintenance_mode", "value": "false", "description": "Режим технических работ (true/false)"},
             {"key": "maintenance_message", "value": "🛠 <b>Бот на техническом обслуживании</b>\n\nМы проводим плановое обновление. Бот скоро возобновит работу!", "description": "Сообщение при техработах"},
