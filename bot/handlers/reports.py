@@ -45,6 +45,10 @@ async def start_report(callback: CallbackQuery, user: User, state: FSMContext):
     )
 
 
+from database.crud import create_swipe
+from database.models import User, Report, ReportStatus, DataExportRequest, SwipeAction
+
+
 @router.callback_query(F.data.startswith("report_reason:"), ReportState.choosing_reason)
 async def finish_report(callback: CallbackQuery, user: User, state: FSMContext, db: AsyncSession):
     reason_key = callback.data.split(":")[1]
@@ -62,33 +66,44 @@ async def finish_report(callback: CallbackQuery, user: User, state: FSMContext, 
     existing = await db.execute(
         select(Report).where(Report.reporter_id == user.id, Report.reported_id == target_id)
     )
-    if existing.scalar_one_or_none():
-        await callback.answer("Ты уже жаловался на этого пользователя.", show_alert=True)
-        return
+    if not existing.scalar_one_or_none():
+        report = Report(
+            reporter_id=user.id,
+            reported_id=target_id,
+            reason=reason_label,
+            status=ReportStatus.pending,
+        )
+        db.add(report)
+        await db.commit()
 
-    report = Report(
-        reporter_id=user.id,
-        reported_id=target_id,
-        reason=reason_label,
-        status=ReportStatus.pending,
-    )
-    db.add(report)
-    await db.commit()
+    # Скрываем пользователя из ленты (скипаем)
+    try:
+        await create_swipe(db, swiper_id=user.id, target_id=target_id, action=SwipeAction.dislike)
+    except Exception:
+        pass
 
-    await callback.answer()
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.message.answer(
-        "✅ <b>Жалоба отправлена</b>\n\n"
-        "Модератор рассмотрит её в ближайшее время.\nСпасибо, что делаешь платформу безопаснее!",
-        parse_mode="HTML",
-    )
+    await callback.answer("✅ Жалоба отправлена!", show_alert=True)
+    try:
+        await callback.message.delete()
+    except Exception:
+        await callback.message.edit_reply_markup(reply_markup=None)
+
+    # Авто-показ следующей анкеты
+    from bot.handlers.browse import send_next_card
+    await send_next_card(callback.bot, callback.from_user.id, user, db)
 
 
 @router.callback_query(F.data == "report_cancel")
-async def cancel_report(callback: CallbackQuery, state: FSMContext):
+async def cancel_report(callback: CallbackQuery, user: User, state: FSMContext, db: AsyncSession):
     await state.clear()
     await callback.answer("Отменено")
-    await callback.message.edit_reply_markup(reply_markup=None)
+    try:
+        await callback.message.delete()
+    except Exception:
+        await callback.message.edit_reply_markup(reply_markup=None)
+
+    from bot.handlers.browse import send_next_card
+    await send_next_card(callback.bot, callback.from_user.id, user, db)
 
 
 # ─── #10: Запрос на выгрузку данных ─────────────────────────────────────────

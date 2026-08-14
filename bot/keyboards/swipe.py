@@ -107,7 +107,8 @@ def swipe_card_keyboard(profile_user_id: int, superlikes_count: int = 0) -> Inli
     sl_label = f"⭐ Суперлайк ({superlikes_count})" if superlikes_count > 0 else "⭐ Суперлайк"
     builder.button(text=sl_label, callback_data=f"swipe:superlike:{profile_user_id}")
     builder.button(text="💌 Письмо", callback_data=f"swipe:message:{profile_user_id}")
-    builder.adjust(2, 2)
+    builder.button(text="🚨 Пожаловаться", callback_data=f"report:{profile_user_id}")
+    builder.adjust(2, 2, 1)
     return builder.as_markup()
 
 
@@ -128,7 +129,8 @@ def letter_received_keyboard(from_user_id: int) -> InlineKeyboardMarkup:
     builder.button(text="❤️ Лайкнуть в ответ", callback_data=f"swipe:like:{from_user_id}")
     builder.button(text="👀 Профиль", callback_data=f"profile:open:{from_user_id}")
     builder.button(text="⏭ Пропустить", callback_data=f"swipe:skip:{from_user_id}")
-    builder.adjust(1, 2)
+    builder.button(text="🚨 Пожаловаться", callback_data=f"report:{from_user_id}")
+    builder.adjust(1, 2, 1)
     return builder.as_markup()
 
 
@@ -149,7 +151,8 @@ def profile_open_keyboard(profile_user_id: int) -> InlineKeyboardMarkup:
     """Кнопка открыть полный профиль из топа."""
     builder = InlineKeyboardBuilder()
     builder.button(text="👀 Открыть профиль", callback_data=f"profile:open:{profile_user_id}")
-    builder.adjust(1)
+    builder.button(text="🚨 Пожаловаться", callback_data=f"report:{profile_user_id}")
+    builder.adjust(1, 1)
     return builder.as_markup()
 
 
