@@ -218,7 +218,7 @@ async def show_my_profile(message: Message, user: User, db: AsyncSession, state:
         f"{mode_label} · ⭐ {score_val:.0f} б."
         f"{gender_info}\n"
         f"{visibility}\n\n"
-        f"💬 <i>{html.escape(profile.goal or '')}</i>\n"
+        f"💬 <i>{html.escape(getattr(profile, 'goal', '') or '')}</i>\n"
         f"{custom_block}\n\n"
         f"⭐ Суперлайков: <b>{user.superlike_balance}</b>\n"
         f"📧 {email_str}"
