@@ -9,6 +9,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+  // Prevent FOUC / layout shifts on page load
+  (function() {
+    try {
+      if (localStorage.getItem('studmatch_sidebar_collapsed') === 'true' && window.innerWidth > 768) {
+        document.documentElement.classList.add('sidebar-collapsed');
+      }
+    } catch(e) {}
+  })();
+</script>
 <style>
   :root {
     --bg: #090a0f;
@@ -31,7 +41,7 @@
     --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
     --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.25);
     --sidebar-width: 250px;
-    --sidebar-collapsed-width: 68px;
+    --sidebar-collapsed-width: 70px;
   }
 
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
@@ -126,37 +136,39 @@
     position: fixed;
     top: 0; bottom: 0; left: 0;
     z-index: 99;
-    transition: width 0.28s cubic-bezier(0.32, 0.72, 0, 1), transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
     overflow: hidden;
+  }
+  .sidebar.has-transition {
+    transition: width 0.25s cubic-bezier(0.32, 0.72, 0, 1), transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   /* Pinned Sidebar Logo Header */
   .sidebar-logo-header {
-    height: 72px;
-    min-height: 72px;
-    padding: 0 16px;
+    height: 68px;
+    min-height: 68px;
+    padding: 0 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     border-bottom: 1px solid var(--border);
     background: var(--surface);
     z-index: 2;
+    overflow: hidden;
   }
   .sidebar-brand {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     text-decoration: none;
     overflow: hidden;
   }
   .sidebar-brand span {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 800;
     background: var(--accent-gradient);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     white-space: nowrap;
-    transition: opacity 0.2s;
   }
   .sidebar-collapse-btn {
     background: var(--surface2);
@@ -169,8 +181,9 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
+    font-size: 11px;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
   }
   .sidebar-collapse-btn:hover {
     color: var(--text);
@@ -183,10 +196,10 @@
     flex: 1 1 auto;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 12px 10px;
+    padding: 10px 8px;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
   }
   .sidebar-nav-container::-webkit-scrollbar {
     width: 4px;
@@ -203,29 +216,31 @@
   }
 
   .sidebar-nav-label {
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
     text-transform: uppercase;
     color: var(--muted);
     letter-spacing: 0.06em;
-    padding: 12px 10px 4px;
+    padding: 10px 10px 4px;
     white-space: nowrap;
-    opacity: 0.8;
+    opacity: 0.75;
   }
 
   .sidebar a {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 9px 12px;
+    padding: 8px 12px;
     border-radius: 10px;
     color: var(--muted);
     text-decoration: none;
     font-size: 13.5px;
     font-weight: 500;
-    transition: all .18s ease;
+    transition: background 0.15s, color 0.15s;
     white-space: nowrap;
     position: relative;
+    box-sizing: border-box;
+    width: 100%;
   }
   .sidebar a .nav-icon {
     font-size: 16px;
@@ -234,6 +249,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
   }
   .sidebar a:hover {
     background: var(--surface2);
@@ -249,12 +265,12 @@
 
   /* Pinned Sidebar Bottom */
   .sidebar-bottom {
-    padding: 12px 14px;
+    padding: 10px 12px;
     border-top: 1px solid var(--border);
     background: var(--surface);
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     z-index: 2;
   }
 
@@ -262,15 +278,15 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
+    padding: 7px 10px;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 8px;
     color: var(--muted);
     font-size: 12px;
     cursor: pointer;
-    margin-bottom: 6px;
-    transition: all 0.2s;
+    margin-bottom: 4px;
+    transition: all 0.15s;
   }
   .quick-search-trigger:hover {
     background: var(--surface3);
@@ -287,9 +303,16 @@
   }
 
   /* ── Collapsed / Slim Sidebar Mode ── */
+  html.sidebar-collapsed .sidebar,
   body.sidebar-collapsed .sidebar {
     width: var(--sidebar-collapsed-width);
   }
+  html.sidebar-collapsed .sidebar-brand span,
+  html.sidebar-collapsed .sidebar-nav-label,
+  html.sidebar-collapsed .nav-text,
+  html.sidebar-collapsed .search-label,
+  html.sidebar-collapsed .kbd-badge,
+  html.sidebar-collapsed .bottom-text,
   body.sidebar-collapsed .sidebar-brand span,
   body.sidebar-collapsed .sidebar-nav-label,
   body.sidebar-collapsed .nav-text,
@@ -298,34 +321,57 @@
   body.sidebar-collapsed .bottom-text {
     display: none !important;
   }
+  html.sidebar-collapsed .sidebar-logo-header,
   body.sidebar-collapsed .sidebar-logo-header {
-    justify-content: center;
-    padding: 0;
+    justify-content: space-around;
+    padding: 0 6px;
   }
+  html.sidebar-collapsed .sidebar-collapse-btn,
   body.sidebar-collapsed .sidebar-collapse-btn {
-    display: none;
+    display: flex !important;
+    width: 24px;
+    height: 24px;
   }
+  html.sidebar-collapsed .sidebar-nav-container,
   body.sidebar-collapsed .sidebar-nav-container {
-    padding: 12px 6px;
+    padding: 10px 4px;
     align-items: center;
   }
+  html.sidebar-collapsed .sidebar a,
   body.sidebar-collapsed .sidebar a {
     justify-content: center;
-    padding: 10px;
+    padding: 0;
     width: 44px;
-    height: 44px;
+    height: 42px;
     border-radius: 10px;
-    margin-bottom: 2px;
+    margin: 0 auto 2px;
+    gap: 0;
   }
+  html.sidebar-collapsed .quick-search-trigger,
   body.sidebar-collapsed .quick-search-trigger {
     justify-content: center;
-    padding: 10px;
+    padding: 0;
+    width: 44px;
+    height: 38px;
+    margin: 0 auto 4px;
   }
+  html.sidebar-collapsed .sidebar-bottom a,
+  html.sidebar-collapsed .sidebar-bottom button,
+  body.sidebar-collapsed .sidebar-bottom a,
+  body.sidebar-collapsed .sidebar-bottom button {
+    justify-content: center;
+    padding: 0;
+    width: 44px;
+    height: 36px;
+    margin: 0 auto;
+  }
+  html.sidebar-collapsed .sidebar a.active,
   body.sidebar-collapsed .sidebar a.active {
     border-left: none;
     background: var(--accent);
     color: #fff;
   }
+  html.sidebar-collapsed .main,
   body.sidebar-collapsed .main {
     margin-left: var(--sidebar-collapsed-width);
     width: calc(100% - var(--sidebar-collapsed-width));
@@ -378,7 +424,9 @@
     flex: 1;
     padding: 32px 36px;
     width: calc(100% - var(--sidebar-width));
-    transition: margin-left 0.28s cubic-bezier(0.32, 0.72, 0, 1), width 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .main.has-transition {
+    transition: margin-left 0.25s cubic-bezier(0.32, 0.72, 0, 1), width 0.25s cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   /* ── Page Header ── */
@@ -691,59 +739,6 @@
     justify-content: space-between;
   }
 
-  /* ── Responsive Adaptations for Tablets & Laptops (769px – 1180px) ── */
-  @media(min-width: 769px) and (max-width: 1180px) {
-    :root {
-      --sidebar-width: 70px;
-    }
-    .sidebar {
-      width: 70px;
-    }
-    .sidebar-brand span,
-    .sidebar-nav-label,
-    .nav-text,
-    .search-label,
-    .kbd-badge,
-    .bottom-text {
-      display: none !important;
-    }
-    .sidebar-logo-header {
-      justify-content: center;
-      padding: 0;
-    }
-    .sidebar-collapse-btn {
-      display: none;
-    }
-    .sidebar-nav-container {
-      padding: 12px 6px;
-      align-items: center;
-    }
-    .sidebar a {
-      justify-content: center;
-      padding: 10px;
-      width: 44px;
-      height: 44px;
-      border-radius: 10px;
-      margin-bottom: 2px;
-    }
-    .quick-search-trigger {
-      justify-content: center;
-      padding: 10px;
-    }
-    .sidebar a.active {
-      border-left: none;
-      background: var(--accent);
-      color: #fff;
-    }
-    .main {
-      margin-left: 70px;
-      width: calc(100% - 70px);
-      padding: 24px 28px;
-    }
-    .grid-4 { grid-template-columns: repeat(2, 1fr); }
-    .grid-3 { grid-template-columns: repeat(2, 1fr); }
-  }
-
   /* ── Responsive Adaptations for Mobile (< 768px) ── */
   @media(max-width: 768px) {
     .mobile-header { display: flex; }
@@ -751,12 +746,12 @@
 
     .sidebar {
       transform: translateX(-100%);
-      width: 280px;
+      width: 280px !important;
       box-shadow: 8px 0 30px rgba(0,0,0,0.8);
       z-index: 100;
     }
     .sidebar.open {
-      transform: translateX(0);
+      transform: translateX(0) !important;
     }
     .sidebar-brand span,
     .sidebar-nav-label,
@@ -767,6 +762,9 @@
     .sidebar-logo-header {
       justify-content: space-between;
       padding: 0 16px;
+    }
+    .sidebar-collapse-btn {
+      display: none !important;
     }
     .sidebar a {
       justify-content: flex-start !important;
@@ -779,7 +777,7 @@
       width: 100% !important;
       padding: 16px;
       margin-top: 60px;
-      margin-bottom: 74px; /* Space for Mobile Bottom App Bar */
+      margin-bottom: 74px;
     }
 
     .page-header {
@@ -799,7 +797,6 @@
       gap: 14px;
     }
 
-    /* Force desktop 2-col inline grids to stack cleanly on mobile */
     div[style*="grid-template-columns: 1fr 340px"],
     div[style*="grid-template-columns:1fr 340px"],
     div[style*="grid-template-columns: 1fr 360px"],
@@ -812,12 +809,10 @@
       gap: 16px !important;
     }
 
-    /* Prevent iOS auto-zoom on input focus */
     input, select, textarea {
       font-size: 16px !important;
     }
 
-    /* Transform Modals into Native-Style Bottom Sheets on Mobile */
     div[id$="Modal"]:not(.cmd-palette-backdrop) {
       align-items: flex-end !important;
       padding: 0 !important;
@@ -837,7 +832,6 @@
       to { transform: translateY(0); }
     }
 
-    /* Floating multi-action bar on mobile */
     .bulk-action-bar {
       bottom: 80px;
       width: calc(100% - 32px);
@@ -847,13 +841,8 @@
       justify-content: space-between;
     }
 
-    /* Touch-friendly buttons on mobile */
-    .btn {
-      min-height: 44px;
-    }
-    .btn-sm {
-      min-height: 36px;
-    }
+    .btn { min-height: 44px; }
+    .btn-sm { min-height: 36px; }
   }
 </style>
 {% block extra_head %}{% endblock %}
@@ -880,12 +869,12 @@
 <nav class="sidebar" id="sidebar">
   <!-- Pinned Header -->
   <div class="sidebar-logo-header">
-    <a href="/admin/dashboard" class="sidebar-brand">
-      <img src="/static/img/logo.jpg" alt="Logo" style="width:34px;height:34px;border-radius:10px;object-fit:cover;box-shadow:0 2px 12px rgba(99,102,241,0.45);border:1px solid rgba(255,255,255,0.15);">
+    <a href="/admin/dashboard" class="sidebar-brand" title="СтудМэч Admin">
+      <img src="/static/img/logo.jpg" alt="Logo" style="width:34px;height:34px;border-radius:10px;object-fit:cover;box-shadow:0 2px 12px rgba(99,102,241,0.45);border:1px solid rgba(255,255,255,0.15);flex-shrink:0;">
       <span>СтудМэч</span>
     </a>
-    <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Свернуть/Развернуть меню (Slim mode)">
-      ◀
+    <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Свернуть / Развернуть меню" aria-label="Свернуть / Развернуть меню">
+      <span id="collapseIcon">◀</span>
     </button>
   </div>
   
@@ -968,16 +957,17 @@
       <span class="kbd-badge">⌘K</span>
     </div>
 
-    <a href="/admin/change-password" style="padding:7px 10px;font-size:13px;border-radius:var(--radius-sm);" title="Сменить пароль">
+    <a href="/admin/change-password" title="Сменить пароль">
       <span class="nav-icon">🔑</span>
       <span class="bottom-text">Пароль</span>
     </a>
     <form method="POST" action="/admin/logout" id="logout-form" style="margin:0">
       <input type="hidden" name="csrf_token" id="logout-csrf" value="">
       <button type="submit" style="background:none;border:none;cursor:pointer;
-              color:var(--danger);font-size:13px;padding:7px 10px;width:100%;
+              color:var(--danger);font-size:13px;width:100%;
               text-align:left;display:flex;align-items:center;gap:12px;
-              border-radius:var(--radius-sm);transition:background .2s;"
+              border-radius:var(--radius-sm);transition:background .2s;
+              box-sizing:border-box;"
               title="Выйти из системы"
               onmouseover="this.style.background='rgba(244,63,94,0.1)'"
               onmouseout="this.style.background='none'">
@@ -1026,7 +1016,6 @@
       <span class="kbd-badge" style="cursor:pointer;" onclick="closeCmdPalette()">ESC</span>
     </div>
     <div class="cmd-list" id="cmdList">
-      <!-- Items dynamically populated / filtered -->
       <a href="/admin/dashboard" class="cmd-item selected" data-keywords="дашборд аналитика статистика метрики">
         <div class="cmd-item-left"><span>📊</span> <span>Дашборд и аналитика</span></div>
         <span class="cmd-item-category">Управление</span>
@@ -1102,20 +1091,33 @@
 <div id="toast-container" class="toast-container"></div>
 
 <script>
+  // Enable transitions after initial render to avoid load-time jitter
+  window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      const sidebar = document.getElementById('sidebar');
+      const main = document.querySelector('.main');
+      if (sidebar) sidebar.classList.add('has-transition');
+      if (main) main.classList.add('has-transition');
+    }, 60);
+  });
+
   // Sidebar Collapse / Slim Mode toggle
   const collapseBtn = document.getElementById('sidebarCollapseBtn');
-  const isCollapsed = localStorage.getItem('studmatch_sidebar_collapsed') === 'true';
-  if (isCollapsed && window.innerWidth > 1180) {
-    document.body.classList.add('sidebar-collapsed');
-    if (collapseBtn) collapseBtn.innerText = '▶';
+  const collapseIcon = document.getElementById('collapseIcon');
+
+  function updateCollapseIcon() {
+    const isNowCollapsed = document.documentElement.classList.contains('sidebar-collapsed');
+    if (collapseIcon) collapseIcon.innerText = isNowCollapsed ? '▶' : '◀';
   }
+  updateCollapseIcon();
 
   if (collapseBtn) {
-    collapseBtn.addEventListener('click', () => {
-      document.body.classList.toggle('sidebar-collapsed');
-      const collapsedNow = document.body.classList.contains('sidebar-collapsed');
-      localStorage.setItem('studmatch_sidebar_collapsed', collapsedNow);
-      collapseBtn.innerText = collapsedNow ? '▶' : '◀';
+    collapseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.documentElement.classList.toggle('sidebar-collapsed');
+      const isNowCollapsed = document.documentElement.classList.contains('sidebar-collapsed');
+      localStorage.setItem('studmatch_sidebar_collapsed', isNowCollapsed);
+      updateCollapseIcon();
     });
   }
 
