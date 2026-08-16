@@ -38,11 +38,11 @@ async def promos_page(
         # Топ амбассадоров (реферальная программа)
         ref_res = await db.execute(
             select(
-                User.referred_by,
+                User.referrer_id,
                 func.count(User.id).label("ref_count"),
             )
-            .where(User.referred_by.isnot(None))
-            .group_by(User.referred_by)
+            .where(User.referrer_id.isnot(None))
+            .group_by(User.referrer_id)
             .order_by(desc("ref_count"))
             .limit(10)
         )
@@ -68,7 +68,7 @@ async def promos_page(
         total_promos = len(promos)
         total_activations = sum(p.activations_count for p in promos)
         total_referrals_res = await db.execute(
-            select(func.count(User.id)).where(User.referred_by.isnot(None))
+            select(func.count(User.id)).where(User.referrer_id.isnot(None))
         )
         total_referrals = total_referrals_res.scalar_one() or 0
     except Exception as e:
