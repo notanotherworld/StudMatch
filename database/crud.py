@@ -323,8 +323,9 @@ async def create_swipe(
             )
         )
         if reverse.scalar_one_or_none():
-            # Получаем режим от просматривающего
-            db.add(Match(user1_id=from_id, user2_id=to_id, mode=user.mode))
+            from_user = await get_user(db, from_id)
+            user_mode = from_user.mode if from_user and from_user.mode else ModeEnum.dating
+            db.add(Match(user1_id=from_id, user2_id=to_id, mode=user_mode))
             await db.commit()
             return True
     return False
