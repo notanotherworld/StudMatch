@@ -12,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, and_
 
-from web.dependencies import get_db, require_superadmin, check_csrf
+from web.dependencies import get_db, get_current_admin, check_csrf
 from database.models import User, BroadcastLog
 
 router = APIRouter()
@@ -31,7 +31,7 @@ MAX_TEXT_LENGTH = 4096
 @router.get("/broadcast", response_class=HTMLResponse)
 async def broadcast_page(
     request: Request,
-    admin=Depends(require_superadmin),   # только superadmin (#4)
+    admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     from web.dependencies import generate_csrf_token
@@ -56,7 +56,7 @@ async def send_broadcast(
     request: Request,
     text: str = Form(...),
     target: str = Form(...),
-    admin=Depends(require_superadmin),   # только superadmin (#4)
+    admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     # Валидация target (#10 из аудита)
@@ -124,7 +124,7 @@ async def send_broadcast(
 
 @router.post("/broadcast/weekly-yandex", dependencies=[Depends(check_csrf)])
 async def send_weekly_yandex(
-    admin=Depends(require_superadmin),
+    admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Ручной запуск рассылки Яндекс Топ-12."""
@@ -143,7 +143,7 @@ async def send_weekly_yandex(
 
 @router.post("/broadcast/weekly-challenge", dependencies=[Depends(check_csrf)])
 async def send_weekly_challenge(
-    admin=Depends(require_superadmin),
+    admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Ручной запуск рассылки Карьерный челлендж недели."""

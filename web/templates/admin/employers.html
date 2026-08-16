@@ -3,10 +3,10 @@
 
 {% block content %}
 <div class="page-header">
-  <div style="display:flex;align-items:center;justify-content:space-between;">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
       <h1>👔 Работодатели / HR</h1>
-      <p>Управление кабинетами HR и доступом к анкетам</p>
+      <p>Управление кабинетами работодателей, вакансиями и выдачей анкет</p>
     </div>
     <button onclick="document.getElementById('createModal').style.display='flex'"
             class="btn btn-primary">
@@ -16,34 +16,41 @@
 </div>
 
 {% if employers %}
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;">
   {% for emp in employers %}
-  <div class="card" style="{% if not emp.is_active %}opacity:0.6;{% endif %}">
-    <div style="display:flex;align-items:start;justify-content:space-between;margin-bottom:16px;">
-      <div>
-        <div style="font-size:16px;font-weight:700;">{{ emp.company_name }}</div>
-        <div style="font-size:13px;color:var(--muted);margin-top:2px;">👤 {{ emp.contact_name }}</div>
-        <div style="font-size:12px;color:var(--muted);">🔑 {{ emp.login }}</div>
+  <div class="card" style="{% if not emp.is_active %}opacity:0.6;{% endif %}display:flex;flex-direction:column;justify-content:space-between;">
+    <div>
+      <div style="display:flex;align-items:start;justify-content:space-between;margin-bottom:12px;">
+        <div>
+          <div style="font-size:17px;font-weight:700;">{{ emp.company_name }}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:2px;">👤 {{ emp.contact_name }} · <code class="mono">{{ emp.login }}</code></div>
+        </div>
+        <span class="badge {% if emp.is_active %}badge-success{% else %}badge-danger{% endif %}">
+          {% if emp.is_active %}Активен{% else %}Отключён{% endif %}
+        </span>
       </div>
-      <span class="badge {% if emp.is_active %}badge-success{% else %}badge-danger{% endif %}">
-        {% if emp.is_active %}Активен{% else %}Отключён{% endif %}
-      </span>
-    </div>
 
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;
-                padding:12px;background:var(--surface2);border-radius:8px;">
-      <div style="text-align:center;flex:1;">
-        <div style="font-size:22px;font-weight:700;color:var(--accent2);">
-          {{ emp.profile_accesses|length }}
-        </div>
-        <div style="font-size:11px;color:var(--muted);">анкет выдано</div>
+      {% if emp.vacancies_description %}
+      <div style="font-size:12px;color:var(--accent2);background:var(--surface2);padding:6px 10px;border-radius:6px;margin-bottom:12px;border-left:2px solid var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        💼 {{ emp.vacancies_description }}
       </div>
-      <div style="width:1px;height:32px;background:var(--border);"></div>
-      <div style="text-align:center;flex:1;">
-        <div style="font-size:22px;font-weight:700;color:var(--success);">
-          {{ emp.profile_accesses | selectattr('viewed_at') | list | length }}
+      {% endif %}
+
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;
+                  padding:12px;background:var(--surface2);border-radius:10px;">
+        <div style="text-align:center;flex:1;">
+          <div style="font-size:22px;font-weight:800;color:var(--accent2);" class="mono">
+            {{ emp.profile_accesses|length }}
+          </div>
+          <div style="font-size:11px;color:var(--muted);">анкет выдано</div>
         </div>
-        <div style="font-size:11px;color:var(--muted);">просмотрено</div>
+        <div style="width:1px;height:32px;background:var(--border);"></div>
+        <div style="text-align:center;flex:1;">
+          <div style="font-size:22px;font-weight:800;color:var(--success);" class="mono">
+            {{ emp.profile_accesses | selectattr('viewed_at') | list | length }}
+          </div>
+          <div style="font-size:11px;color:var(--muted);">просмотрено</div>
+        </div>
       </div>
     </div>
 
@@ -54,7 +61,7 @@
       <form method="POST" action="/admin/employers/{{ emp.id }}/toggle" style="flex:1;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn {% if emp.is_active %}btn-ghost{% else %}btn-success{% endif %} btn-sm"
-                style="width:100%;">
+                style="width:100%;justify-content:center;">
           {% if emp.is_active %}⏸ Отключить{% else %}▶️ Включить{% endif %}
         </button>
       </form>
@@ -66,7 +73,7 @@
 <div class="card" style="text-align:center;padding:64px;">
   <div style="font-size:48px;margin-bottom:16px;">👔</div>
   <div style="font-size:16px;font-weight:600;margin-bottom:8px;">Работодателей пока нет</div>
-  <div style="color:var(--muted);margin-bottom:20px;">Создайте первый HR-аккаунт</div>
+  <div style="color:var(--muted);margin-bottom:20px;">Создайте первый HR-аккаунт для отбора студентов</div>
   <button onclick="document.getElementById('createModal').style.display='flex'"
           class="btn btn-primary">➕ Создать</button>
 </div>
@@ -76,9 +83,9 @@
 <div id="createModal"
      style="display:none;position:fixed;inset:0;background:#000a;z-index:100;
             align-items:center;justify-content:center;">
-  <div class="card" style="width:440px;">
+  <div class="card" style="width:480px;max-width:92vw;max-height:90vh;overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-      <h3 style="font-size:16px;font-weight:600;">➕ Создать HR-аккаунт</h3>
+      <h3 style="font-size:16px;font-weight:700;">➕ Создать аккаунт работодателя</h3>
       <button onclick="document.getElementById('createModal').style.display='none'"
               style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">✕</button>
     </div>
@@ -86,22 +93,42 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-group">
         <label>Название компании</label>
-        <input type="text" name="company_name" placeholder="ООО Ромашка" required>
+        <input type="text" name="company_name" placeholder="Яндекс, Сбер, ВКонтакте..." required>
       </div>
       <div class="form-group">
-        <label>Имя HR-менеджера</label>
-        <input type="text" name="contact_name" placeholder="Иванова Анна" required>
+        <label>Имя HR / Рекрутера</label>
+        <input type="text" name="contact_name" placeholder="Анна Иванова" required>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label>Логин</label>
+          <input type="text" name="login" placeholder="yandex_hr" required>
+        </div>
+        <div class="form-group">
+          <label>Пароль</label>
+          <input type="password" name="password" placeholder="Минимум 8 символов" required>
+        </div>
       </div>
       <div class="form-group">
-        <label>Логин</label>
-        <input type="text" name="login" placeholder="romashka_hr" required>
+        <label>📝 Описание компании (будет видно студенту)</label>
+        <textarea name="company_description" rows="2" placeholder="Финтех-направление, мобильная разработка..."></textarea>
       </div>
       <div class="form-group">
-        <label>Пароль</label>
-        <input type="password" name="password" placeholder="Минимум 8 символов" required>
+        <label>💼 Открытые вакансии</label>
+        <textarea name="vacancies_description" rows="2" placeholder="Junior Backend Python, Frontend React стажёр..."></textarea>
       </div>
-      <div style="display:flex;gap:8px;">
-        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">Создать</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label>Telegram для связи</label>
+          <input type="text" name="tg_contact" placeholder="@hr_recruiter">
+        </div>
+        <div class="form-group">
+          <label>Сайт компании</label>
+          <input type="url" name="website" placeholder="https://company.ru">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">Создать аккаунт</button>
         <button type="button" class="btn btn-ghost"
                 onclick="document.getElementById('createModal').style.display='none'">Отмена</button>
       </div>

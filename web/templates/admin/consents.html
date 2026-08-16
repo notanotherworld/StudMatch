@@ -1,0 +1,181 @@
+{% extends "admin/base.html" %}
+{% block title %}Согласия на обработку данных (152-ФЗ) — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1>📜 Согласия на обработку данных (152-ФЗ)</h1>
+      <p>Юридический реестр фиксации согласий пользователей на обработку персональных данных</p>
+    </div>
+    <a href="/admin/consents/export/csv?status={{ current_status }}" class="btn btn-ghost"
+       style="border:1px solid var(--border);border-radius:10px;padding:8px 16px;text-decoration:none;color:var(--text);font-weight:600;display:inline-flex;align-items:center;gap:6px;">
+      📥 Экспорт реестра (Excel / CSV)
+    </a>
+  </div>
+</div>
+
+<!-- Метрики соответствия 152-ФЗ -->
+<div class="grid grid-3" style="margin-bottom:24px;">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="card-title">Всего пользователей</div>
+        <div class="card-value mono">{{ total_users }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">в базе данных</div>
+      </div>
+      <div style="font-size:24px;background:var(--surface2);padding:10px;border-radius:12px;">👥</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="card-title">Согласий зафиксировано</div>
+        <div class="card-value mono" style="color:var(--success);">{{ accepted_count }}</div>
+        <div style="font-size:12px;color:var(--success);margin-top:4px;font-weight:600;">
+          {% if total_users > 0 %}{{ "%.1f"|format((accepted_count / total_users) * 100) }}% базы{% else %}100%{% endif %}
+        </div>
+      </div>
+      <div style="font-size:24px;background:rgba(16,185,129,0.1);color:var(--success);padding:10px;border-radius:12px;">🛡</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="card-title">Ожидают согласия</div>
+        <div class="card-value mono" style="color:{% if pending_count > 0 %}var(--warning){% else %}var(--muted){% endif %};">
+          {{ pending_count }}
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">не завершили старт</div>
+      </div>
+      <div style="font-size:24px;background:var(--surface2);padding:10px;border-radius:12px;">⏳</div>
+    </div>
+  </div>
+</div>
+
+<!-- Фильтры и Поиск -->
+<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="?status=all{% if q %}&q={{ q }}{% endif %}"
+       class="btn {% if current_status == 'all' %}btn-primary{% else %}btn-ghost{% endif %} btn-sm">
+      Все ({{ total_users }})
+    </a>
+    <a href="?status=accepted{% if q %}&q={{ q }}{% endif %}"
+       class="btn {% if current_status == 'accepted' %}btn-success{% else %}btn-ghost{% endif %} btn-sm">
+      ✅ Принято ({{ accepted_count }})
+    </a>
+    <a href="?status=pending{% if q %}&q={{ q }}{% endif %}"
+       class="btn {% if current_status == 'pending' %}btn-danger{% else %}btn-ghost{% endif %} btn-sm">
+      ⏳ Ожидает ({{ pending_count }})
+    </a>
+  </div>
+
+  <form method="GET" action="/admin/consents" style="display:flex;gap:6px;max-width:320px;flex:1;">
+    <input type="hidden" name="status" value="{{ current_status }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="Поиск по юзернейму, имени, email..."
+           style="padding:7px 12px;font-size:13px;">
+    <button type="submit" class="btn btn-ghost btn-sm">🔍</button>
+    {% if q %}<a href="/admin/consents?status={{ current_status }}" class="btn btn-ghost btn-sm">✕</a>{% endif %}
+  </form>
+</div>
+
+<!-- Таблица согласий -->
+{% if users %}
+<div class="card" style="padding:0;overflow:hidden;margin-bottom:24px;">
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Пользователь</th>
+          <th>ФИО в анкете</th>
+          <th>Email & Вуз</th>
+          <th>Статус 152-ФЗ</th>
+          <th>Дата согласия (UTC)</th>
+          <th>Версия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>
+            <a href="/admin/users/{{ u.id }}" style="color:var(--accent2);text-decoration:none;font-weight:600;"
+               class="copyable" data-copy="{{ u.tg_username or u.id }}">
+              {% if u.tg_username %}@{{ u.tg_username }}{% else %}#{{ u.id }}{% endif %}
+            </a>
+            <div style="font-size:11px;color:var(--muted);" class="mono">{{ u.id }}</div>
+          </td>
+          <td>
+            {% if u.profile and u.profile.name %}
+              <div style="font-weight:500;">{{ u.profile.name }}</div>
+              <div style="font-size:11px;color:var(--muted);">{{ u.profile.major or '—' }}</div>
+            {% else %}
+              <span style="color:var(--muted);">Анкета не заполнена</span>
+            {% endif %}
+          </td>
+          <td style="font-size:13px;">
+            {% if u.email %}
+              <div>{{ u.email }}</div>
+            {% else %}
+              <div style="color:var(--muted);">—</div>
+            {% endif %}
+            {% if u.university %}
+              <span class="badge badge-purple" style="font-size:10px;margin-top:2px;">{{ u.university.short_name }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.consent_given %}
+              <span class="badge badge-success">✅ Согласие дано</span>
+            {% else %}
+              <span class="badge badge-warning">⏳ Ожидает принятия</span>
+            {% endif %}
+          </td>
+          <td style="font-size:13px;color:var(--muted);" class="mono">
+            {% if u.consent_at %}
+              {{ u.consent_at.strftime('%d.%m.%Y %H:%M:%S') }}
+            {% elif u.consent_given and u.created_at %}
+              {{ u.created_at.strftime('%d.%m.%Y %H:%M') }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);font-size:11px;">
+              v1.0 (152-ФЗ)
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Пагинация -->
+<div style="display:flex;gap:8px;margin-bottom:32px;">
+  {% if page > 1 %}
+  <a href="?status={{ current_status }}&q={{ q }}&page={{ page-1 }}" class="btn btn-ghost btn-sm">← Назад</a>
+  {% endif %}
+  <span style="color:var(--muted);font-size:13px;align-self:center;" class="mono">Стр. {{ page }}</span>
+  {% if users|length == 30 %}
+  <a href="?status={{ current_status }}&q={{ q }}&page={{ page+1 }}" class="btn btn-ghost btn-sm">Вперёд →</a>
+  {% endif %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:48px;color:var(--muted);margin-bottom:24px;">
+  <div style="font-size:36px;margin-bottom:12px;">📜</div>
+  <div>Пользователей по заданным фильтрам не найдено</div>
+</div>
+{% endif %}
+
+<!-- Юридическая справка 152-ФЗ -->
+<div class="card" style="border-left:3px solid var(--accent);background:rgba(99,102,241,0.03);">
+  <div style="font-size:14px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+    ⚖️ Правовое основание обработки персональных данных
+  </div>
+  <div style="font-size:13px;color:var(--muted);line-height:1.5;">
+    В соответствии с Федеральным законом РФ от 27.07.2006 № 152-ФЗ «О персональных данных», фиксация согласия пользователя производится в электронном виде при первом запуске бота (команда <code>/start</code>) перед заполнением анкеты и сбором данных. Факт согласия сохраняется в защищенной базе данных с точным UTC-таймстемпом и ID аккаунта Telegram.
+  </div>
+</div>
+{% endblock %}

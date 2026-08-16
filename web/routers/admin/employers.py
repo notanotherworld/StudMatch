@@ -1,4 +1,4 @@
-"""Управление работодателями и выдача доступа к анкетам."""
+"""Управление работодателями, вакансиями и выдача доступа к анкетам."""
 from fastapi import APIRouter, Request, Depends, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -36,14 +36,22 @@ async def create_employer(
     contact_name: str = Form(...),
     login: str = Form(...),
     password: str = Form(...),
-    admin=Depends(require_superadmin),  # только superadmin (#4)
+    company_description: str = Form(default=""),
+    vacancies_description: str = Form(default=""),
+    tg_contact: str = Form(default=""),
+    website: str = Form(default=""),
+    admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     employer = Employer(
-        company_name=company_name,
-        contact_name=contact_name,
-        login=login,
+        company_name=company_name.strip(),
+        contact_name=contact_name.strip(),
+        login=login.strip(),
         password_hash=hash_password(password),
+        company_description=company_description.strip() or None,
+        vacancies_description=vacancies_description.strip() or None,
+        tg_contact=tg_contact.strip() or None,
+        website=website.strip() or None,
         created_by=admin.id,
     )
     db.add(employer)
@@ -61,7 +69,9 @@ async def employer_detail(
 ):
     result = await db.execute(
         select(Employer)
-        .options(selectinload(Employer.profile_accesses))
+        .options(
+            selectinload(Employer.profile_accesses).selectinload(EmployerProfileAccess.profile).selectinload(Profile.user)
+        )
         .where(Employer.id == employer_id)
     )
     employer = result.scalar_one_or_none()
@@ -73,6 +83,7 @@ async def employer_detail(
     if q:
         search_result = await db.execute(
             select(Profile)
+            .options(selectinload(Profile.user))
             .join(User, Profile.user_id == User.id)
             .where(Profile.name.ilike(f"%{q}%"), Profile.is_complete == True)
             .limit(10)
@@ -89,12 +100,40 @@ async def employer_detail(
     )
 
 
+@router.post("/employers/{employer_id}/update", dependencies=[Depends(check_csrf)])
+async def update_employer(
+    employer_id: int,
+    company_name: str = Form(...),
+    contact_name: str = Form(...),
+    company_description: str = Form(default=""),
+    vacancies_description: str = Form(default=""),
+    tg_contact: str = Form(default=""),
+    website: str = Form(default=""),
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(
+        update(Employer)
+        .where(Employer.id == employer_id)
+        .values(
+            company_name=company_name.strip(),
+            contact_name=contact_name.strip(),
+            company_description=company_description.strip() or None,
+            vacancies_description=vacancies_description.strip() or None,
+            tg_contact=tg_contact.strip() or None,
+            website=website.strip() or None,
+        )
+    )
+    await db.commit()
+    return RedirectResponse(f"/admin/employers/{employer_id}", status_code=302)
+
+
 @router.post("/employers/{employer_id}/grant", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def grant_access(
     employer_id: int,
     profile_id: str = Form(...),
     note: str = Form(default=""),
-    admin=Depends(require_superadmin),  # только superadmin (#4)
+    admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     profile_uuid = uuid.UUID(profile_id)
@@ -106,6 +145,37 @@ async def grant_access(
     )
     db.add(access)
     await db.commit()
+
+    # Уведомляем студента в Telegram с информацией о работодателе и открытых вакансиях
+    prof_res = await db.execute(select(Profile).where(Profile.id == profile_uuid))
+    student_prof = prof_res.scalar_one_or_none()
+    emp_res = await db.execute(select(Employer).where(Employer.id == employer_id))
+    emp = emp_res.scalar_one_or_none()
+
+    if student_prof and emp:
+        try:
+            from aiogram import Bot
+            from bot.config import settings
+            bot = Bot(token=settings.BOT_TOKEN)
+            msg = (
+                f"👔 <b>Вашей анкетой заинтересовался работодатель!</b>\n\n"
+                f"🏢 <b>Компания:</b> {emp.company_name}\n"
+            )
+            if emp.company_description:
+                msg += f"📝 <b>О компании:</b> {emp.company_description}\n"
+            if emp.vacancies_description:
+                msg += f"💼 <b>Свободные вакансии:</b> {emp.vacancies_description}\n"
+            if emp.tg_contact:
+                contact = emp.tg_contact.strip().lstrip("@")
+                msg += f"\n🔗 <b>Контакт для связи:</b> @{contact}"
+            elif emp.website:
+                msg += f"\n🌐 <b>Сайт компании:</b> {emp.website}"
+
+            await bot.send_message(student_prof.user_id, msg, parse_mode="HTML")
+            await bot.session.close()
+        except Exception:
+            pass
+
     return RedirectResponse(f"/admin/employers/{employer_id}", status_code=302)
 
 

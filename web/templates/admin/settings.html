@@ -51,19 +51,23 @@
     <!-- Блок: Цены ЮКасса -->
     <div class="card">
       <div style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
-        💰 Цены товаров и услуг (ЮКасса)
+        💰 Цены товаров и тарифов (ЮКасса)
       </div>
       <div class="form-group">
-        <label>⭐️ 3 суперлайка (руб.)</label>
-        <input type="number" name="price_superlike_3" value="{{ cfg.price_superlike_3 }}" required min="1">
-      </div>
-      <div class="form-group">
-        <label>⭐⭐ 10 суперлайков (руб.)</label>
-        <input type="number" name="price_superlike_10" value="{{ cfg.price_superlike_10 }}" required min="1">
+        <label>💎 Премиум-подписка 1 месяц (руб.)</label>
+        <input type="number" name="price_premium_1m" value="{{ cfg.price_premium_1m or '199' }}" required min="1">
       </div>
       <div class="form-group">
         <label>⚡️ Буст анкеты на 24 часа (руб.)</label>
-        <input type="number" name="price_boost_24h" value="{{ cfg.price_boost_24h }}" required min="1">
+        <input type="number" name="price_boost_24h" value="{{ cfg.price_boost_24h or '99' }}" required min="1">
+      </div>
+      <div class="form-group">
+        <label>⭐️ 3 суперлайка (руб.)</label>
+        <input type="number" name="price_superlike_3" value="{{ cfg.price_superlike_3 or '49' }}" required min="1">
+      </div>
+      <div class="form-group">
+        <label>⭐️ 10 суперлайков (руб.)</label>
+        <input type="number" name="price_superlike_10" value="{{ cfg.price_superlike_10 or '199' }}" required min="1">
       </div>
     </div>
 

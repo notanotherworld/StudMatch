@@ -129,8 +129,8 @@
 </div>
 
 <script>
-const regDataRaw = {{ reg_chart_json }};
-const matchDataRaw = {{ matches_chart_json }};
+const regDataRaw = {{ reg_chart_json | safe }} || [];
+const matchDataRaw = {{ matches_chart_json | safe }} || [];
 
 const chartDefaults = {
   responsive: true,

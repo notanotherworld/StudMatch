@@ -6,34 +6,43 @@
 
 {% block content %}
 <div class="page-header">
-  <div style="display:flex;align-items:center;justify-content:space-between;">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
-      <h1>💰 Монетизация</h1>
-      <p>Транзакции ЮКасса и запросы на выгрузку данных</p>
+      <h1>💰 Монетизация и Платежи</h1>
+      <p>Транзакции ЮKassa, статистика подписок и тарифов</p>
     </div>
     <a href="/admin/payments/export/csv" class="btn btn-ghost" style="border:1px solid var(--border);border-radius:8px;padding:8px 16px;text-decoration:none;color:var(--text);font-weight:600;display:inline-flex;align-items:center;gap:6px;">📥 Экспорт CSV (Excel)</a>
   </div>
 </div>
 
 <!-- Статистика по продуктам -->
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+<div class="grid grid-4" style="margin-bottom:24px;">
   {% for ps in product_stats %}
-  <div class="stat-card">
-    <div>
-      <div class="card-title">
-        {% if ps.product == 'superlike_3' %}⭐ 3 суперлайка
-        {% elif ps.product == 'superlike_10' %}⭐⭐ 10 суперлайков
-        {% else %}⚡ Буст 24ч{% endif %}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="card-title">
+          {% if ps.product == 'premium_1m' %}💎 Премиум 1 мес (199 ₽)
+          {% elif ps.product == 'boost_24h' %}⚡️ Буст 24ч (99 ₽)
+          {% elif ps.product == 'superlike_3' %}⭐️ 3 суперлайка
+          {% elif ps.product == 'superlike_5' %}⭐️ 5 суперлайков
+          {% elif ps.product == 'superlike_10' %}⭐️ 10 суперлайков
+          {% else %}{{ ps.product }}{% endif %}
+        </div>
+        <div class="card-value mono" style="font-size:24px;color:{% if ps.product == 'premium_1m' %}var(--accent2){% else %}var(--success){% endif %};">
+          {{ "%.0f"|format(ps.revenue) }} ₽
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">{{ ps.count }} покупок</div>
       </div>
-      <div class="card-value" style="font-size:24px;">{{ "%.0f"|format(ps.revenue) }} ₽</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px;">{{ ps.count }} покупок</div>
-    </div>
-    <div class="stat-icon">
-      {% if ps.product == 'boost_24h' %}⚡{% else %}⭐{% endif %}
+      <div style="font-size:24px;background:var(--surface2);padding:10px;border-radius:12px;">
+        {% if ps.product == 'premium_1m' %}💎
+        {% elif ps.product == 'boost_24h' %}⚡️
+        {% else %}⭐️{% endif %}
+      </div>
     </div>
   </div>
   {% else %}
-  <div class="card" style="grid-column:span 3;text-align:center;padding:24px;color:var(--muted);">
+  <div class="card" style="grid-column:span 4;text-align:center;padding:24px;color:var(--muted);">
     Платежей ещё нет
   </div>
   {% endfor %}
@@ -43,18 +52,22 @@
 {% if daily_revenue %}
 <div class="card" style="margin-bottom:24px;">
   <div style="font-size:15px;font-weight:600;margin-bottom:16px;">📈 Выручка за 30 дней</div>
-  <canvas id="revenueChart" height="80"></canvas>
+  <div style="height:160px;position:relative;">
+    <canvas id="revenueChart"></canvas>
+  </div>
 </div>
 {% endif %}
 
 <!-- Фильтры транзакций -->
 <form method="GET" action="/admin/payments"
       style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
-  <select name="product" style="width:180px;">
+  <select name="product" style="width:220px;">
     <option value="">Все продукты</option>
-    <option value="superlike_3" {% if current_product=='superlike_3' %}selected{% endif %}>⭐ 3 суперлайка</option>
-    <option value="superlike_10" {% if current_product=='superlike_10' %}selected{% endif %}>⭐⭐ 10 суперлайков</option>
-    <option value="boost_24h" {% if current_product=='boost_24h' %}selected{% endif %}>⚡ Буст 24ч</option>
+    <option value="premium_1m" {% if current_product=='premium_1m' %}selected{% endif %}>💎 Премиум-подписка 1 мес (199 ₽)</option>
+    <option value="boost_24h" {% if current_product=='boost_24h' %}selected{% endif %}>⚡️ Буст 24ч (99 ₽)</option>
+    <option value="superlike_3" {% if current_product=='superlike_3' %}selected{% endif %}>⭐️ 3 суперлайка (49 ₽)</option>
+    <option value="superlike_5" {% if current_product=='superlike_5' %}selected{% endif %}>⭐️ 5 суперлайков (99 ₽)</option>
+    <option value="superlike_10" {% if current_product=='superlike_10' %}selected{% endif %}>⭐️ 10 суперлайков (199 ₽)</option>
   </select>
   <select name="status" style="width:160px;">
     <option value="succeeded" {% if current_status=='succeeded' %}selected{% endif %}>✅ Оплачено</option>
@@ -62,117 +75,139 @@
     <option value="canceled" {% if current_status=='canceled' %}selected{% endif %}>❌ Отменено</option>
   </select>
   <button type="submit" class="btn btn-primary">🔍 Фильтр</button>
-  <a href="/admin/payments" class="btn btn-ghost">✕</a>
+  <a href="/admin/payments" class="btn btn-ghost">✕ Сброс</a>
 </form>
 
 <!-- Таблица транзакций -->
 {% if payments %}
 <div class="card" style="padding:0;overflow:hidden;margin-bottom:24px;">
-  <table>
-    <thead>
-      <tr>
-        <th>ID ЮКасса</th>
-        <th>Пользователь</th>
-        <th>Продукт</th>
-        <th>Сумма</th>
-        <th>Статус</th>
-        <th>Дата</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in payments %}
-      <tr>
-        <td style="font-size:11px;font-family:monospace;color:var(--muted);">
-          {{ (p.yookassa_payment_id or '—')[:20] }}
-        </td>
-        <td>
-          <a href="/admin/users/{{ p.user_id }}" style="color:var(--accent2);text-decoration:none;">
-            {% if p.user and p.user.tg_username %}@{{ p.user.tg_username }}{% else %}#{{ p.user_id }}{% endif %}
-          </a>
-        </td>
-        <td>
-          {% if p.product.value == 'superlike_3' %}<span class="badge badge-purple">⭐ 3 СЛ</span>
-          {% elif p.product.value == 'superlike_10' %}<span class="badge badge-purple">⭐ 10 СЛ</span>
-          {% else %}<span class="badge badge-warning">⚡ Буст</span>{% endif %}
-        </td>
-        <td style="font-weight:600;color:var(--success);">{{ p.amount_rub }} ₽</td>
-        <td>
-          {% if p.status.value == 'succeeded' %}<span class="badge badge-success">✅</span>
-          {% elif p.status.value == 'pending' %}<span class="badge badge-warning">⏳</span>
-          {% else %}<span class="badge badge-danger">❌</span>{% endif %}
-        </td>
-        <td style="font-size:12px;color:var(--muted);">{{ p.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>ID ЮКасса</th>
+          <th>Пользователь</th>
+          <th>Продукт</th>
+          <th>Сумма</th>
+          <th>Статус</th>
+          <th>Дата</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td style="font-size:11px;color:var(--muted);" class="mono">
+            {{ (p.yookassa_payment_id or '—')[:20] }}
+          </td>
+          <td>
+            <a href="/admin/users/{{ p.user_id }}" style="color:var(--accent2);text-decoration:none;font-weight:600;"
+               class="copyable" data-copy="{{ p.user.tg_username or p.user_id }}">
+              {% if p.user and p.user.tg_username %}@{{ p.user.tg_username }}{% else %}#{{ p.user_id }}{% endif %}
+            </a>
+          </td>
+          <td>
+            {% if p.product.value == 'premium_1m' %}
+              <span class="badge badge-purple">💎 Премиум-подписка</span>
+            {% elif p.product.value == 'boost_24h' %}
+              <span class="badge badge-warning">⚡️ Буст 24ч</span>
+            {% elif p.product.value == 'superlike_3' %}
+              <span class="badge badge-purple">⭐️ 3 СЛ</span>
+            {% elif p.product.value == 'superlike_5' %}
+              <span class="badge badge-purple">⭐️ 5 СЛ</span>
+            {% elif p.product.value == 'superlike_10' %}
+              <span class="badge badge-purple">⭐️ 10 СЛ</span>
+            {% else %}
+              <span class="badge badge-purple">{{ p.product.value }}</span>
+            {% endif %}
+          </td>
+          <td style="font-weight:700;color:var(--success);" class="mono">{{ p.amount_rub }} ₽</td>
+          <td>
+            {% if p.status.value == 'succeeded' %}<span class="badge badge-success">✅ Оплачено</span>
+            {% elif p.status.value == 'pending' %}<span class="badge badge-warning">⏳ Ожидает</span>
+            {% else %}<span class="badge badge-danger">❌ Отменено</span>{% endif %}
+          </td>
+          <td style="font-size:12px;color:var(--muted);" class="mono">{{ p.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 <!-- Пагинация -->
 <div style="display:flex;gap:8px;margin-bottom:32px;">
   {% if page > 1 %}<a href="?product={{ current_product }}&status={{ current_status }}&page={{ page-1 }}" class="btn btn-ghost btn-sm">← Назад</a>{% endif %}
-  <span style="color:var(--muted);font-size:13px;align-self:center;">Стр. {{ page }}</span>
+  <span style="color:var(--muted);font-size:13px;align-self:center;" class="mono">Стр. {{ page }}</span>
   {% if payments|length == 30 %}<a href="?product={{ current_product }}&status={{ current_status }}&page={{ page+1 }}" class="btn btn-ghost btn-sm">Вперёд →</a>{% endif %}
 </div>
 {% else %}
-<div class="card" style="text-align:center;padding:32px;color:var(--muted);margin-bottom:24px;">Транзакций не найдено</div>
+<div class="card" style="text-align:center;padding:48px;color:var(--muted);margin-bottom:24px;">
+  <div style="font-size:36px;margin-bottom:12px;">💳</div>
+  <div>Транзакций не найдено</div>
+</div>
 {% endif %}
 
-<!-- #10: Запросы на выгрузку данных -->
+<!-- Запросы на выгрузку данных -->
 {% if export_requests %}
 <div class="card">
   <div style="font-size:15px;font-weight:600;margin-bottom:16px;">
     📥 Запросы на выгрузку данных (ФЗ-152) · {{ export_requests|length }}
   </div>
-  <table>
-    <thead>
-      <tr><th>Пользователь</th><th>Email</th><th>Дата запроса</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for er in export_requests %}
-      <tr>
-        <td>
-          <a href="/admin/users/{{ er.user_id }}" style="color:var(--accent2);text-decoration:none;">
-            {% if er.user and er.user.tg_username %}@{{ er.user.tg_username }}{% else %}#{{ er.user_id }}{% endif %}
-          </a>
-        </td>
-        <td style="font-size:13px;">{{ er.user.email if er.user else '—' }}</td>
-        <td style="font-size:12px;color:var(--muted);">{{ er.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
-        <td>
-          <form method="POST" action="/admin/payments/export-data/{{ er.id }}/send">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="btn btn-primary btn-sm">📤 Отправить данные</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr><th>Пользователь</th><th>Email</th><th>Дата запроса</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for req in export_requests %}
+        <tr>
+          <td>
+            <a href="/admin/users/{{ req.user_id }}" style="color:var(--accent2);text-decoration:none;">
+              {% if req.user and req.user.tg_username %}@{{ req.user.tg_username }}{% else %}#{{ req.user_id }}{% endif %}
+            </a>
+          </td>
+          <td>{{ req.user.email if req.user else '—' }}</td>
+          <td style="color:var(--muted);font-size:13px;" class="mono">{{ req.created_at.strftime('%d.%m.%Y') }}</td>
+          <td>
+            <form method="POST" action="/admin/data-export/{{ req.id }}/process">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-primary btn-sm">📤 Выгрузить и отправить</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endif %}
 
-<script>
 {% if daily_revenue %}
-const revenueData = {{ daily_revenue | tojson }};
+<script>
+const revData = {{ daily_revenue | tojson | safe }};
 new Chart(document.getElementById('revenueChart'), {
-  type: 'bar',
+  type: 'line',
   data: {
-    labels: revenueData.map(d => d.day),
+    labels: revData.map(d => d.day),
     datasets: [{
-      label: 'Выручка (₽)',
-      data: revenueData.map(d => d.revenue),
-      backgroundColor: 'rgba(124, 58, 237, 0.5)',
-      borderColor: 'rgba(124, 58, 237, 1)',
-      borderWidth: 1, borderRadius: 4,
+      data: revData.map(d => d.revenue),
+      borderColor: '#10b981',
+      backgroundColor: 'rgba(16,185,129,0.12)',
+      tension: 0.4,
+      fill: true,
+      pointRadius: 3,
+      borderWidth: 2,
     }]
   },
   options: {
-    responsive: true, plugins: { legend: { display: false } },
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
     scales: {
-      x: { grid: { color: '#2d2d4e' }, ticks: { color: '#94a3b8', font: { size: 11 } } },
-      y: { grid: { color: '#2d2d4e' }, ticks: { color: '#94a3b8' } }
+      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#94a3b8', font: { size: 10, family: 'JetBrains Mono' } } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#94a3b8', font: { size: 10, family: 'JetBrains Mono' } }, beginAtZero: true }
     }
   }
 });
-{% endif %}
 </script>
+{% endif %}
 {% endblock %}
