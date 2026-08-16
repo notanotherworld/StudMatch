@@ -174,12 +174,19 @@ def achievement_type_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def buy_superlike_keyboard() -> InlineKeyboardMarkup:
+def buy_superlike_keyboard(pricing: Optional[dict] = None) -> InlineKeyboardMarkup:
+    pricing = pricing or {}
+    p_vip = pricing.get("price_premium_1m", 199)
+    p_boost = pricing.get("price_boost_24h", 99)
+    p_sl3 = pricing.get("price_superlike_3", 49)
+    p_sl10 = pricing.get("price_superlike_10", 199)
+
     builder = InlineKeyboardBuilder()
-    builder.button(text="💎 Премиум-подписка — 199 ₽/мес", callback_data="buy:premium_1m")
-    builder.button(text="⭐️ 3 суперлайка — 49 ₽", callback_data="buy:superlike_3")
-    builder.button(text="⭐️ 5 суперлайков — 99 ₽", callback_data="buy:superlike_5")
-    builder.button(text="🛸 Буст — 99 ₽/сутки", callback_data="buy:boost_24h")
+    builder.button(text=f"💎 Премиум-подписка — {p_vip} ₽/мес", callback_data="buy:premium_1m")
+    builder.button(text=f"🛸 Буст — {p_boost} ₽/сутки", callback_data="buy:boost_24h")
+    builder.button(text=f"⭐️ 3 суперлайка — {p_sl3} ₽", callback_data="buy:superlike_3")
+    builder.button(text=f"⭐️ 10 суперлайков — {p_sl10} ₽", callback_data="buy:superlike_10")
+    builder.button(text="🎁 Ввести промокод", callback_data="settings:enter_promo")
     builder.adjust(1)
     return builder.as_markup()
 

@@ -16,6 +16,7 @@ from bot.keyboards.swipe import (
 from bot.states.fsm import ProfileState
 from database.crud import set_user_mode
 from database.models import User, ModeEnum, Profile, InterestTag, Swipe
+from bot.utils.dynamic_settings import get_dynamic_pricing
 
 router = Router()
 
@@ -144,22 +145,28 @@ async def reset_user_swipes(event, user: User, db: AsyncSession):
 async def show_buy(callback: CallbackQuery, user: User):
     await callback.answer()
     balance = user.superlike_balance
+    pricing = await get_dynamic_pricing()
+    p_vip = pricing["price_premium_1m"]
+    p_boost = pricing["price_boost_24h"]
+    p_sl3 = pricing["price_superlike_3"]
+    p_sl10 = pricing["price_superlike_10"]
+
     await callback.message.answer(
-        "💎 <b>Премиум-подписка — 199 ₽/мес</b>\n\n"
+        f"💎 <b>Премиум-подписка — {p_vip} ₽/мес</b>\n\n"
         "❤️ Безлимитное количество лайков\n"
         "👀 Повышенная видимость профиля\n"
         "✨ Выделись! Профиль обретает специальный значок\n\n"
-        "❤️🔥 <b>Суперлайк — 49 ₽ (3 шт) / 99 ₽ (5 шт)</b>\n\n"
+        f"⭐️ <b>Суперлайки — {p_sl3} ₽ (3 шт) / {p_sl10} ₽ (10 шт)</b>\n\n"
         "⭐️ Стань звёздочкой! Твой профиль в разделе «мэтч» будет первым\n"
         "🤍 Суперлайк покажет серьезную заинтересованность в человеке\n"
         "📈 Шанс на мэтч выше в 2-3 раза!\n\n"
-        "🛸 <b>Буст — 99 ₽/сутки</b>\n\n"
+        f"🛸 <b>Буст анкеты — {p_boost} ₽/сутки</b>\n\n"
         "📌 Твой профиль в топе 24ч 🗿 Тебя видят чаще\n"
         "Значок 🌪 у аватарки\n\n"
         f"Баланс суперлайков: <b>{balance}</b> ⭐️\n\n"
         "👉 <i>Купить можно ниже (или кнопка ⭐️ под карточкой):</i>",
         parse_mode="HTML",
-        reply_markup=buy_superlike_keyboard(),
+        reply_markup=buy_superlike_keyboard(pricing),
     )
 
 

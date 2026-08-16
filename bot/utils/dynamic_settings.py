@@ -72,3 +72,35 @@ async def set_system_setting(key: str, value: str, description: Optional[str] = 
         await r.setex(cache_key, 300, value)
     except Exception:
         pass
+
+
+async def get_dynamic_pricing() -> dict:
+    """
+    Возвращает актуальные цены тарифов и услуг (ЮКасса), синхронизированные с админкой.
+    """
+    try:
+        price_vip = int(await get_system_setting("price_premium_1m", "199"))
+    except (ValueError, TypeError):
+        price_vip = 199
+
+    try:
+        price_boost = int(await get_system_setting("price_boost_24h", "99"))
+    except (ValueError, TypeError):
+        price_boost = 99
+
+    try:
+        price_sl3 = int(await get_system_setting("price_superlike_3", "49"))
+    except (ValueError, TypeError):
+        price_sl3 = 49
+
+    try:
+        price_sl10 = int(await get_system_setting("price_superlike_10", "199"))
+    except (ValueError, TypeError):
+        price_sl10 = 199
+
+    return {
+        "price_premium_1m": price_vip,
+        "price_boost_24h": price_boost,
+        "price_superlike_3": price_sl3,
+        "price_superlike_10": price_sl10,
+    }

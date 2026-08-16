@@ -15,6 +15,7 @@ import uuid
 from bot.config import settings
 from database.models import User, PaymentProduct, Payment
 from database.crud import create_payment
+from bot.utils.dynamic_settings import get_dynamic_pricing
 
 router = Router()
 
@@ -22,34 +23,40 @@ router = Router()
 Configuration.account_id = settings.YOOKASSA_SHOP_ID
 Configuration.secret_key = settings.YOOKASSA_SECRET_KEY
 
-PRODUCTS = {
-    "premium_1m": {
-        "label": "💎 Премиум-подписка 1 мес",
-        "amount": 199,
-        "product": PaymentProduct.premium_1m,
-    },
-    "superlike_3": {
-        "label": "⭐ 3 суперлайка",
-        "amount": 49,
-        "product": PaymentProduct.superlike_3,
-    },
-    "superlike_5": {
-        "label": "⭐️ 5 суперлайков",
-        "amount": 99,
-        "product": PaymentProduct.superlike_5,
-    },
-    "boost_24h": {
-        "label": "🛸 Буст анкеты 24ч",
-        "amount": 99,
-        "product": PaymentProduct.boost_24h,
-    },
-}
-
 
 @router.callback_query(F.data.startswith("buy:"))
 async def initiate_payment(callback: CallbackQuery, user: User, db: AsyncSession):
     product_key = callback.data.split(":")[1]
-    product_info = PRODUCTS.get(product_key)
+    pricing = await get_dynamic_pricing()
+
+    products_map = {
+        "premium_1m": {
+            "label": "💎 Премиум-подписка 1 мес",
+            "amount": pricing["price_premium_1m"],
+            "product": PaymentProduct.premium_1m,
+        },
+        "boost_24h": {
+            "label": "🛸 Буст анкеты 24ч",
+            "amount": pricing["price_boost_24h"],
+            "product": PaymentProduct.boost_24h,
+        },
+        "superlike_3": {
+            "label": "⭐️ 3 суперлайка",
+            "amount": pricing["price_superlike_3"],
+            "product": PaymentProduct.superlike_3,
+        },
+        "superlike_5": {
+            "label": "⭐️ 5 суперлайков",
+            "amount": 99,
+            "product": PaymentProduct.superlike_5,
+        },
+        "superlike_10": {
+            "label": "⭐️ 10 суперлайков",
+            "amount": pricing["price_superlike_10"],
+            "product": PaymentProduct.superlike_10,
+        },
+    }
+    product_info = products_map.get(product_key)
 
     if not product_info:
         await callback.answer("Неизвестный товар.", show_alert=True)
