@@ -4,7 +4,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
-from typing import List
+from typing import List, Optional, Dict, Any
 from database.models import InterestTag
 
 
