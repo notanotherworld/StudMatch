@@ -8,6 +8,9 @@ from sqlalchemy import select, update, and_, or_, func
 from sqlalchemy.orm import selectinload
 import random
 import string
+import logging
+
+logger = logging.getLogger(__name__)
 
 from database.models import (
     User, Profile, University, EmailToken, Achievement,
@@ -326,45 +329,80 @@ async def create_swipe(
 ) -> bool:
     """
     Сохранить свайп. Возвращает True если это взаимный лайк (мэтч).
+    Защищён от дубликатов, состояний гонки и конфликтов авто-мэтчей.
     """
-    # Проверяем, не было ли уже свайпа
-    existing = await db.execute(
-        select(Swipe).where(and_(Swipe.from_user_id == from_id, Swipe.to_user_id == to_id))
-    )
-    if existing.scalar_one_or_none():
-        return False
+    try:
+        # Проверяем, не было ли уже свайпа
+        existing = await db.execute(
+            select(Swipe).where(and_(Swipe.from_user_id == from_id, Swipe.to_user_id == to_id))
+        )
+        if existing.scalar_one_or_none():
+            return False
 
-    db.add(Swipe(from_user_id=from_id, to_user_id=to_id, action=action, comment=comment))
-    await db.commit()
+        db.add(Swipe(from_user_id=from_id, to_user_id=to_id, action=action, comment=comment))
+        await db.commit()
 
-    # Проверяем взаимный лайк
-    if action in (SwipeAction.like, SwipeAction.superlike):
-        # Если партнер — тестовый профиль со включенным авто-мэтчем
-        target_user = await get_user(db, to_id)
-        if target_user and getattr(target_user, "is_fake", False) and getattr(target_user, "auto_match_mode", "instant") == "instant":
-            db.add(Swipe(from_user_id=to_id, to_user_id=from_id, action=SwipeAction.like))
-            from_user = await get_user(db, from_id)
-            user_mode = from_user.mode if from_user and from_user.mode else ModeEnum.dating
-            db.add(Match(user1_id=from_id, user2_id=to_id, mode=user_mode))
-            await db.commit()
-            return True
+        # Проверяем взаимный лайк
+        if action in (SwipeAction.like, SwipeAction.superlike):
+            # Если партнер — тестовый профиль со включенным авто-мэтчем
+            target_user = await get_user(db, to_id)
+            if target_user and getattr(target_user, "is_fake", False) and getattr(target_user, "auto_match_mode", "instant") == "instant":
+                # Добавляем обратный свайп только если его ещё нет
+                rev_fake = await db.execute(
+                    select(Swipe).where(and_(Swipe.from_user_id == to_id, Swipe.to_user_id == from_id))
+                )
+                if not rev_fake.scalar_one_or_none():
+                    db.add(Swipe(from_user_id=to_id, to_user_id=from_id, action=SwipeAction.like))
+                
+                # Добавляем Match только если его ещё нет
+                exist_match = await db.execute(
+                    select(Match).where(
+                        or_(
+                            and_(Match.user1_id == from_id, Match.user2_id == to_id),
+                            and_(Match.user1_id == to_id, Match.user2_id == from_id),
+                        )
+                    )
+                )
+                if not exist_match.scalar_one_or_none():
+                    from_user = await get_user(db, from_id)
+                    user_mode = from_user.mode if from_user and from_user.mode else ModeEnum.dating
+                    db.add(Match(user1_id=from_id, user2_id=to_id, mode=user_mode))
+                
+                await db.commit()
+                return True
 
-        reverse = await db.execute(
-            select(Swipe).where(
-                and_(
-                    Swipe.from_user_id == to_id,
-                    Swipe.to_user_id == from_id,
-                    Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+            reverse = await db.execute(
+                select(Swipe).where(
+                    and_(
+                        Swipe.from_user_id == to_id,
+                        Swipe.to_user_id == from_id,
+                        Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+                    )
                 )
             )
-        )
-        if reverse.scalar_one_or_none():
-            from_user = await get_user(db, from_id)
-            user_mode = from_user.mode if from_user and from_user.mode else ModeEnum.dating
-            db.add(Match(user1_id=from_id, user2_id=to_id, mode=user_mode))
-            await db.commit()
-            return True
-    return False
+            if reverse.scalar_one_or_none():
+                # Добавляем Match только если его ещё нет
+                exist_match = await db.execute(
+                    select(Match).where(
+                        or_(
+                            and_(Match.user1_id == from_id, Match.user2_id == to_id),
+                            and_(Match.user1_id == to_id, Match.user2_id == from_id),
+                        )
+                    )
+                )
+                if not exist_match.scalar_one_or_none():
+                    from_user = await get_user(db, from_id)
+                    user_mode = from_user.mode if from_user and from_user.mode else ModeEnum.dating
+                    db.add(Match(user1_id=from_id, user2_id=to_id, mode=user_mode))
+                    await db.commit()
+                    return True
+                else:
+                    return False
+        return False
+    except Exception as e:
+        await db.rollback()
+        logger.warning(f"⚠️ Ошибка при обработке свайпа {from_id}->{to_id}: {e}")
+        return False
 
 
 async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, User]]:
