@@ -139,21 +139,3 @@ async def run_weekly_challenge_notifications(bot: Bot) -> dict:
 
     logger.info(f"✅ Челлендж-рассылка завершена: отправлено {sent}, ошибок {failed}")
     return {"sent": sent, "failed": failed}
-
-
-async def weekly_notification_loop(bot: Bot) -> None:
-    """Фоновый цикл: раз в неделю (7 дней) чередует рассылки."""
-    await asyncio.sleep(60)
-    week_counter = 0
-    while True:
-        try:
-            if week_counter % 2 == 0:
-                logger.info("⏰ Запуск еженедельной рассылки (Неделя A: Яндекс Топ-12)...")
-                await run_weekly_rank_notifications(bot)
-            else:
-                logger.info("⏰ Запуск еженедельной рассылки (Неделя B: Карьерный челлендж)...")
-                await run_weekly_challenge_notifications(bot)
-            week_counter += 1
-        except Exception as e:
-            logger.error(f"Ошибка в фоновой рассылке: {e}")
-        await asyncio.sleep(7 * 86400)
