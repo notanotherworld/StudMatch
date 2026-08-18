@@ -13,6 +13,8 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 def ensure_upload_dir_exists():
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+ensure_upload_dir_exists()
+
 
 async def save_avatar_upload(upload_file: Optional[UploadFile]) -> Optional[str]:
     """
