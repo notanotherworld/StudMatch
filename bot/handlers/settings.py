@@ -94,6 +94,7 @@ async def edit_profile_prompt(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "settings:edit_gender")
 async def edit_gender_prompt(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(editing_gender_from_settings=True)
     await state.set_state(ProfileState.waiting_gender)
     await callback.answer()
     await callback.message.answer(

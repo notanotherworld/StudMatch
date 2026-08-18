@@ -381,12 +381,33 @@ async def process_gender(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data.startswith("target_gender:"), ProfileState.waiting_target_gender)
-async def process_target_gender(callback: CallbackQuery, state: FSMContext):
+async def process_target_gender(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
     tg_val = callback.data.split(":")[1]
     await state.update_data(target_gender=tg_val)
-    await state.set_state(ProfileState.waiting_photo)
+    data = await state.get_data()
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)
+
+    # Если пол редактируется из настроек или профиль уже был полностью заполнен
+    if data.get("editing_gender_from_settings") or (user.profile and user.profile.is_complete):
+        gender_val = data.get("gender")
+        await update_profile(db, user.id, gender=gender_val, target_gender=tg_val)
+        await state.clear()
+
+        g_name = "👨 Парень" if gender_val == "male" else ("👩 Девушка" if gender_val == "female" else "Не указан")
+        tg_name = "👩 Девушек" if tg_val == "female" else ("👨 Парней" if tg_val == "male" else "✨ Всех")
+
+        await callback.message.answer(
+            f"✅ <b>Пол и предпочтения успешно сохранены!</b>\n\n"
+            f"• Твой пол: <b>{g_name}</b>\n"
+            f"• Кого ищешь: <b>{tg_name}</b>",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    # Первичное создание профиля (онбординг) — переходим к шагу фото
+    await state.set_state(ProfileState.waiting_photo)
     await callback.message.answer(
         "📸 <b>Почти готово!</b>\n\n"
         "Загрузи фото профиля — оно будет видно другим студентам.\n"
