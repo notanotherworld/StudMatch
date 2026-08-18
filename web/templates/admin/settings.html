@@ -122,6 +122,30 @@
       </div>
     </div>
 
+    <!-- Блок: Автоматическая рассылка об обновлениях -->
+    <div class="card" style="grid-column:span 2;border:1px solid {% if cfg.auto_update_broadcast_enabled == 'true' %}rgba(99,102,241,0.5){% else %}var(--border){% endif %};">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+        <div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;">
+          <span>📢</span> Автоматическая рассылка об обновлениях (при перезапуске бота)
+        </div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" name="auto_update_broadcast_enabled" value="true"
+                 {% if cfg.auto_update_broadcast_enabled == 'true' %}checked{% endif %}
+                 style="width:20px;height:20px;accent-color:var(--accent);">
+          <span style="font-weight:600;font-size:14px;color:{% if cfg.auto_update_broadcast_enabled == 'true' %}var(--accent){% else %}var(--muted){% endif %};">
+            {% if cfg.auto_update_broadcast_enabled == 'true' %}ВКЛЮЧЕНА (Отправлять при релизе){% else %}ВЫКЛЮЧЕНА (Не отправлять){% endif %}
+          </span>
+        </label>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">
+        Если включено, бот автоматически отправит всем активным студентам указанное сообщение один раз при выходе новой версии.
+      </p>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Текст сообщения рассылки об обновлении</label>
+        <textarea name="update_broadcast_text" rows="3" style="font-size:13px;" placeholder="🚀 Мы обновили СтудМэч! Заходи заценить новые возможности прямо сейчас! 🔥">{{ cfg.update_broadcast_text or "🚀 <b>Мы обновили СтудМэч!</b>\n\nЗаходи заценить новые возможности прямо сейчас! 🔥" }}</textarea>
+      </div>
+    </div>
+
     <!-- Блок: Почтовый сервер Яндекс SMTP -->
     <div class="card" style="grid-column:span 2;border:1px solid rgba(99,102,241,0.3);background:rgba(99,102,241,0.03);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">

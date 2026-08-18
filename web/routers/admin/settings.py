@@ -63,9 +63,12 @@ async def save_settings(
     reward_score_olympiad: str = Form(default="50"),
     reward_score_competition: str = Form(default="40"),
     reward_score_participation: str = Form(default="15"),
+    auto_update_broadcast_enabled: str = Form(default="false"),
+    update_broadcast_text: str = Form(default=""),
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
+    from bot.services.update_broadcast import UPDATE_TEXT
     updates = {
         "maintenance_mode": "true" if maintenance_mode == "true" else "false",
         "maintenance_message": maintenance_message.strip(),
@@ -79,6 +82,8 @@ async def save_settings(
         "reward_score_olympiad": reward_score_olympiad.strip(),
         "reward_score_competition": reward_score_competition.strip(),
         "reward_score_participation": reward_score_participation.strip(),
+        "auto_update_broadcast_enabled": "true" if auto_update_broadcast_enabled == "true" else "false",
+        "update_broadcast_text": update_broadcast_text.strip() or UPDATE_TEXT,
     }
 
     for k, v in updates.items():
