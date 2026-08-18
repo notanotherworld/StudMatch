@@ -24,15 +24,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Автоматическое применение миграций БД до head при старте
-    try:
-        from alembic.config import Config
-        from alembic import command
-        alembic_cfg = Config("alembic.ini")
-        command.upgrade(alembic_cfg, "head")
-        logger.info("✅ Миграции БД успешно применены при старте веб-сервиса!")
-    except Exception as e:
-        logger.warning(f"⚠️ Автомиграции при старте: {e}")
+    # Синхронизируем схему базы данных (добавление новых колонок)
+    from database.session import engine
+    from database.migrations import ensure_database_schema
+    await ensure_database_schema(engine)
     yield
 
 
