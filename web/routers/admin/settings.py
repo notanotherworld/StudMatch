@@ -23,9 +23,18 @@ async def settings_page(
     db: AsyncSession = Depends(get_db),
     saved: str = "",
 ):
+    from bot.config import settings
     result = await db.execute(select(SystemSetting))
     all_settings_list = result.scalars().all()
     settings_map = {s.key: s.value for s in all_settings_list}
+
+    smtp_info = {
+        "host": settings.SMTP_HOST,
+        "port": settings.SMTP_PORT,
+        "user": settings.SMTP_USER,
+        "from_email": settings.SMTP_FROM,
+        "is_configured": bool(settings.SMTP_USER and settings.SMTP_PASSWORD),
+    }
 
     return templates.TemplateResponse(
         "admin/settings.html",
@@ -33,6 +42,7 @@ async def settings_page(
             "request": request,
             "admin": admin,
             "cfg": settings_map,
+            "smtp": smtp_info,
             "saved": saved == "1",
         },
     )
@@ -82,3 +92,30 @@ async def save_settings(
     )
 
     return RedirectResponse("/admin/settings?saved=1", status_code=302)
+
+
+@router.post("/settings/test-email", dependencies=[Depends(check_csrf)])
+async def test_email_action(
+    request: Request,
+    target_email: str = Form(...),
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Тестовая отправка письма для проверки настроек SMTP."""
+    from bot.utils.email import send_test_email
+    from fastapi.responses import JSONResponse
+
+    clean_email = target_email.strip()
+    if not clean_email or "@" not in clean_email:
+        return JSONResponse({"success": False, "error": "Некорректный адрес email"})
+
+    res = await send_test_email(clean_email)
+    
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db, admin, action="test_smtp_email", target_type="system", target_id="smtp",
+        details=f"Тест SMTP на {clean_email}: success={res.get('success')}",
+        ip_address=client_ip,
+    )
+
+    return JSONResponse(res)

@@ -22,12 +22,13 @@ class Settings(BaseSettings):
     MINIO_BUCKET_DOCUMENTS: str = "documents"
     MINIO_SECURE: bool = False
 
-    # SMTP
-    SMTP_HOST: str = "smtp.gmail.com"
-    SMTP_PORT: int = 587
+    # SMTP (Яндекс Почта по умолчанию)
+    SMTP_HOST: str = "smtp.yandex.ru"
+    SMTP_PORT: int = 465
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = "СтудМэч <no-reply@studmatch.ru>"
+    SMTP_USE_SSL: bool = True
 
     # YooKassa
     YOOKASSA_SHOP_ID: str = ""
