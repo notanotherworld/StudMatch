@@ -30,7 +30,30 @@ async def show_settings(message: Message, user: User, state: FSMContext = None):
     await message.answer(
         "⚙️ <b>Настройки</b>",
         parse_mode="HTML",
-        reply_markup=settings_keyboard(user.mode.value, is_visible=is_vis),
+        reply_markup=settings_keyboard(user.mode.value, is_visible=is_vis, email_verified=user.email_verified),
+    )
+
+
+@router.callback_query(F.data == "auth:start_verification")
+async def start_verification_callback(callback: CallbackQuery, state: FSMContext, user: User):
+    """Запуск процесса верификации студента из настроек или профиля."""
+    await callback.answer()
+    if user.email_verified:
+        await callback.message.answer("✅ <b>Твой студенческий статус уже верифицирован!</b>", parse_mode="HTML")
+        return
+
+    from bot.states.fsm import AuthState
+    await state.set_state(AuthState.waiting_email)
+    await callback.message.answer(
+        "🎓 <b>Верификация студента</b>\n\n"
+        "Введи свой корпоративный email университета.\n"
+        "Например: <code>ivanov@rudn.ru</code>\n\n"
+        "✨ <b>После подтверждения ты получишь:</b>\n"
+        "• Бейдж <b>[ 🎓 Верифицирован ]</b> в анкете\n"
+        "• <b>+100 баллов</b> к рейтингу в Зале славы ⭐\n"
+        "• <b>+3 ⭐️ Суперлайка</b> на баланс\n"
+        "• Приоритет при показе анкеты в ленте свайпов 🚀",
+        parse_mode="HTML",
     )
 
 

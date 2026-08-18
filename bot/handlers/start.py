@@ -121,16 +121,8 @@ async def update_announcement_open(callback: CallbackQuery, user: User, db: Asyn
 
 
 async def _after_consent(message: Message, state: FSMContext, user: User, db: AsyncSession):
-    """Логика после согласия: email верификация или главное меню."""
-    if not user.email_verified:
-        await state.set_state(AuthState.waiting_email)
-        await message.answer(
-            "📧 <b>Верификация студента</b>\n\n"
-            "Введи свой корпоративный email университета.\n"
-            "Например: <code>ivanov@rudn.ru</code>",
-            parse_mode="HTML",
-        )
-    elif not user.profile or not user.profile.is_complete:
+    """Логика после согласия: мгновенный переход к созданию анкеты или главное меню."""
+    if not user.profile or not user.profile.is_complete:
         from bot.handlers.profile import start_profile_creation
         await start_profile_creation(message, state)
     else:

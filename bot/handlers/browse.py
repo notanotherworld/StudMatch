@@ -45,13 +45,17 @@ async def _build_profile_caption(
         if user_obj.boost_until > datetime.now(timezone.utc):
             boost_badge = " 🌪"
 
+    verified_badge = ""
+    if user_obj and getattr(user_obj, "email_verified", False):
+        verified_badge = " 🎓"
+
     if card_mode == ModeEnum.career:
         skills_text = html.escape(profile.career_custom_skills or "Не указаны")
         goal_text = html.escape(profile.career_goal or "Ищет интересные проекты и стажировки")
         work_fmt = html.escape(profile.career_work_format or "Любой формат")
 
         return (
-            f"<b>{name}</b>{boost_badge}, {year_str} 🎯 <b>[Карьера]</b>\n\n"
+            f"<b>{name}</b>{verified_badge}{boost_badge}, {year_str} 🎯 <b>[Карьера]</b>\n\n"
             f"📚 {major}\n"
             f"💼 Формат: <b>{work_fmt}</b>\n"
             f"⭐ Рейтинг: <b>{rating}</b>\n\n"
@@ -71,7 +75,7 @@ async def _build_profile_caption(
         goal = html.escape(getattr(profile, "goal", "") or "")
 
         return (
-            f"<b>{name}</b>{boost_badge}, {year_str}\n\n"
+            f"<b>{name}</b>{verified_badge}{boost_badge}, {year_str}\n\n"
             f"📚 {major}\n\n"
             f"❤️ Знакомства  {rating}\n\n"
             f"💬 <i>{goal}</i>\n\n"
@@ -166,9 +170,6 @@ async def send_next_card(
 async def start_swiping(message: Message, user: User, db: AsyncSession, state: FSMContext = None):
     if state:
         await state.clear()
-    if not user.email_verified:
-        await message.answer("❌ Сначала пройди верификацию email. Напиши /start")
-        return
 
     if user.mode == ModeEnum.career:
         if not user.profile or not user.profile.career_is_complete:

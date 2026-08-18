@@ -289,13 +289,13 @@ async def get_next_profile(
                 Profile.is_visible == True,
                 is_complete_cond,
                 User.is_active == True,
-                User.email_verified == True,
                 ~Profile.user_id.in_(swiped_ids),
                 *gender_filters,
             )
         )
         .order_by(
             (User.boost_until > now).desc(),
+            User.email_verified.desc(),
             Profile.rating_score.desc(),
         )
         .limit(1)

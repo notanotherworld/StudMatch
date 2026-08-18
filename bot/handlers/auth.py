@@ -141,16 +141,39 @@ async def process_code(message: Message, state: FSMContext, user: User, db: Asyn
     await r.delete(f"email_cooldown:{user.id}")
 
     data = await state.get_data()
-    university_name = data.get("university_name", "твоём университете")
+    university_name = data.get("university_name", "университете")
+
+    # Награждаем пользователя за верификацию: +100 баллов рейтинга и +3 суперлайка
+    from database.crud import add_superlikes, get_profile
+    await add_superlikes(db, user.id, 3)
+
+    prof = await get_profile(db, user.id)
+    if prof:
+        prof.rating_score = (prof.rating_score or 0.0) + 100.0
+        await db.commit()
 
     await state.clear()
 
-    await message.answer(
-        f"✅ <b>Верификация пройдена!</b>\n\n"
-        f"Ты подтверждён как студент <b>{university_name}</b>.\n\n"
-        f"Теперь давай заполним твой профиль 📋",
-        parse_mode="HTML",
-    )
-
-    from bot.handlers.profile import start_profile_creation
-    await start_profile_creation(message, state)
+    if prof and prof.is_complete:
+        from bot.keyboards.swipe import main_menu_keyboard
+        await message.answer(
+            f"🎉 <b>Студенческий статус успешно подтверждён!</b>\n\n"
+            f"🏛 ВУЗ: <b>{university_name}</b>\n"
+            f"В твоей анкете появился бейдж <b>[ 🎓 Верифицирован ]</b>\n\n"
+            f"🎁 <b>Твоя награда:</b>\n"
+            f"• <b>+100 баллов</b> к рейтингу в Зале славы ⭐\n"
+            f"• <b>+3 ⭐️ Суперлайка</b> на баланс\n\n"
+            f"Твоя анкета теперь получает приоритет при поиске и показывается выше! 🚀",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard(),
+        )
+    else:
+        await message.answer(
+            f"✅ <b>Верификация пройдена!</b>\n\n"
+            f"Ты подтверждён как студент <b>{university_name}</b>.\n"
+            f"Тебе начислено <b>+3 ⭐️ Суперлайка</b> и <b>+100 баллов</b> рейтинга!\n\n"
+            f"Теперь давай заполним твой профиль 📋",
+            parse_mode="HTML",
+        )
+        from bot.handlers.profile import start_profile_creation
+        await start_profile_creation(message, state)

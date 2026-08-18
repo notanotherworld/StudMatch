@@ -428,9 +428,16 @@ async def _save_photo_and_complete(file_id: str, message: Message, state: FSMCon
 
     await state.clear()
 
+    verify_tip = ""
+    if not user.email_verified:
+        verify_tip = (
+            "\n\n💡 <i>Совет: подтверди свой студенческий статус в Настройках, "
+            "чтобы получить бейдж <b>[ 🎓 Верифицирован ]</b>, <b>+100 баллов</b> к рейтингу и <b>+3 ⭐️ Суперлайка</b>!</i>"
+        )
+
     await message.answer(
-        "🎉 <b>Профиль сохранён!</b>\n\n"
-        "Теперь выбери режим, в котором хочешь работать:",
+        f"🎉 <b>Профиль сохранён!</b>{verify_tip}\n\n"
+        "Теперь выбери режим, в котором хочешь искать людей:",
         parse_mode="HTML",
         reply_markup=mode_keyboard(),
     )
