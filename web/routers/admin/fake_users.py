@@ -21,6 +21,7 @@ templates = Jinja2Templates(directory="web/templates")
 
 
 @router.get("/users/create-fake", response_class=HTMLResponse)
+@router.get("/fake-users/create", response_class=HTMLResponse)
 async def create_fake_user_page(
     request: Request,
     admin=Depends(get_current_admin),
@@ -48,6 +49,7 @@ async def create_fake_user_page(
 
 
 @router.post("/users/create-fake")
+@router.post("/fake-users/create")
 async def create_fake_user_action(
     request: Request,
     admin=Depends(get_current_admin),

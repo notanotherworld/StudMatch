@@ -95,6 +95,7 @@ async def favicon():
 
 app.include_router(admin_auth.router, prefix="/admin", tags=["Admin Auth"])
 app.include_router(dashboard.router, prefix="/admin", tags=["Dashboard"])
+app.include_router(fake_users.router, prefix="/admin", tags=["Fake Users"])
 app.include_router(users.router, prefix="/admin", tags=["Users"])
 app.include_router(documents.router, prefix="/admin", tags=["Documents"])
 app.include_router(ratings.router, prefix="/admin", tags=["Ratings"])
@@ -109,7 +110,6 @@ app.include_router(audit.router, prefix="/admin", tags=["Audit"])
 app.include_router(promos.router, prefix="/admin", tags=["Promos"])
 app.include_router(admin_settings.router, prefix="/admin", tags=["Settings"])
 app.include_router(consents.router, prefix="/admin", tags=["Consents"])
-app.include_router(fake_users.router, prefix="/admin", tags=["Fake Users"])
 
 # Роутеры — Кабинет HR
 app.include_router(employer_auth.router, prefix="/employer", tags=["Employer Auth"])
