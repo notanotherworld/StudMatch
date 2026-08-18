@@ -14,8 +14,11 @@ echo "🐳 Пересобираем и перезапускаем контейн
 docker compose pull
 docker compose up -d --build --remove-orphans
 
+echo "⏳ Ожидаем запуск сервисов..."
+sleep 4
+
 echo "🗄️ Применяем миграции БД..."
-docker compose exec -T web alembic upgrade head
+docker compose exec -T web alembic upgrade head || docker compose run --rm web alembic upgrade head
 
 echo "🧹 Очистка старых образов..."
 docker image prune -f
