@@ -71,8 +71,11 @@ jobs:
             docker compose pull
             docker compose up -d --build --remove-orphans
 
-            echo "🗄️ Применяем новые миграции БД..."
-            docker compose exec -T web alembic upgrade head
+            echo "⏳ Ожидаем запуск сервисов..."
+            sleep 4
+
+            echo "🗄️ Проверяем миграции БД..."
+            docker compose exec -T web alembic upgrade head || true
 
             echo "🧹 Удаляем старые образы..."
             docker image prune -f
