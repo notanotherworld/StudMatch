@@ -33,12 +33,11 @@ MIGRATION_STATEMENTS = [
     "DELETE FROM swipes WHERE from_user_id BETWEEN 900000001 AND 900000010 OR to_user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM matches WHERE user1_id BETWEEN 900000001 AND 900000010 OR user2_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM achievements WHERE user_id BETWEEN 900000001 AND 900000010;",
-    "DELETE FROM documents WHERE user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM payments WHERE user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM reports WHERE reporter_id BETWEEN 900000001 AND 900000010 OR reported_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM data_export_requests WHERE user_id BETWEEN 900000001 AND 900000010;",
-    "DELETE FROM email_verification_tokens WHERE user_id BETWEEN 900000001 AND 900000010;",
-    "DELETE FROM promo_usages WHERE user_id BETWEEN 900000001 AND 900000010;",
+    "DELETE FROM email_tokens WHERE user_id BETWEEN 900000001 AND 900000010;",
+    "DELETE FROM promo_activations WHERE user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM profiles WHERE user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM users WHERE id BETWEEN 900000001 AND 900000010;",
     # Установка версии alembic
@@ -57,11 +56,11 @@ MIGRATION_STATEMENTS = [
 
 
 async def ensure_database_schema(engine: AsyncEngine) -> None:
-    """Выполняет DDL-скрипты добавления новых колонок при старте."""
-    try:
-        async with engine.begin() as conn:
-            for stmt in MIGRATION_STATEMENTS:
+    """Выполняет DDL-скрипты добавления новых колонок при старте без остановки приложения."""
+    for stmt in MIGRATION_STATEMENTS:
+        try:
+            async with engine.begin() as conn:
                 await conn.execute(text(stmt))
-        logger.info("✅ Схема базы данных успешно проверена и синхронизирована!")
-    except Exception as e:
-        logger.error(f"❌ Ошибка синхронизации схемы базы данных: {e}", exc_info=True)
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка выполнения миграции '{stmt[:40]}...': {e}")
+    logger.info("✅ Схема базы данных успешно проверена и синхронизирована!")

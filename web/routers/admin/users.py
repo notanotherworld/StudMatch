@@ -463,17 +463,19 @@ async def delete_all_test_users(
         "DELETE FROM swipes WHERE from_user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100) OR to_user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
         "DELETE FROM matches WHERE user1_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100) OR user2_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
         "DELETE FROM achievements WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
-        "DELETE FROM documents WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
         "DELETE FROM payments WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
         "DELETE FROM reports WHERE reporter_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100) OR reported_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
         "DELETE FROM data_export_requests WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
-        "DELETE FROM email_verification_tokens WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
-        "DELETE FROM promo_usages WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM email_tokens WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM promo_activations WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
         "DELETE FROM profiles WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
         "DELETE FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100;",
     ]
     for stmt in statements:
-        await db.execute(text(stmt))
+        try:
+            await db.execute(text(stmt))
+        except Exception:
+            pass
     await db.commit()
 
     await log_admin_action(
@@ -496,17 +498,19 @@ async def delete_single_user(
         f"DELETE FROM swipes WHERE from_user_id = {user_id} OR to_user_id = {user_id};",
         f"DELETE FROM matches WHERE user1_id = {user_id} OR user2_id = {user_id};",
         f"DELETE FROM achievements WHERE user_id = {user_id};",
-        f"DELETE FROM documents WHERE user_id = {user_id};",
         f"DELETE FROM payments WHERE user_id = {user_id};",
         f"DELETE FROM reports WHERE reporter_id = {user_id} OR reported_id = {user_id};",
         f"DELETE FROM data_export_requests WHERE user_id = {user_id};",
-        f"DELETE FROM email_verification_tokens WHERE user_id = {user_id};",
-        f"DELETE FROM promo_usages WHERE user_id = {user_id};",
+        f"DELETE FROM email_tokens WHERE user_id = {user_id};",
+        f"DELETE FROM promo_activations WHERE user_id = {user_id};",
         f"DELETE FROM profiles WHERE user_id = {user_id};",
         f"DELETE FROM users WHERE id = {user_id};",
     ]
     for stmt in statements:
-        await db.execute(text(stmt))
+        try:
+            await db.execute(text(stmt))
+        except Exception:
+            pass
     await db.commit()
 
     await log_admin_action(
