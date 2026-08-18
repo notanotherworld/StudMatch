@@ -727,22 +727,24 @@
     background: var(--surface2);
     padding: 2px 8px;
     border-radius: 6px;
+  }
+
   /* ── Emergency Shield Styles ── */
   .emergency-nav-btn {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    border-radius: var(--radius-sm);
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
     background: rgba(239, 68, 68, 0.12);
     border: 1px solid rgba(239, 68, 68, 0.35);
     color: #f87171;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     width: 100%;
-    margin-top: 8px;
-    transition: all 0.2s ease;
+    margin-bottom: 4px;
+    transition: all 0.18s ease;
     box-sizing: border-box;
     text-align: left;
   }
@@ -752,21 +754,31 @@
     color: #fff;
   }
   .emergency-pulse-dot {
-    width: 9px;
-    height: 9px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: var(--muted);
     margin-left: auto;
     transition: all 0.3s ease;
+    flex-shrink: 0;
   }
   .emergency-pulse-dot.active {
     background: #ef4444;
-    box-shadow: 0 0 12px #ef4444;
+    box-shadow: 0 0 10px #ef4444;
     animation: pulseRed 1.2s infinite;
   }
   @keyframes pulseRed {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.35; transform: scale(1.4); }
+  }
+
+  html.sidebar-collapsed .emergency-nav-btn,
+  body.sidebar-collapsed .emergency-nav-btn {
+    justify-content: center;
+    padding: 0;
+    width: 44px;
+    height: 38px;
+    margin: 0 auto 4px;
   }
 
   .emergency-modal-backdrop {
@@ -1025,17 +1037,16 @@
       <span class="nav-icon">📜</span>
       <span class="nav-text">Аудит</span>
     </a>
-
-    <div class="sidebar-nav-label" style="color:#f87171;margin-top:12px;">Безопасность</div>
-    <button type="button" class="emergency-nav-btn" onclick="openEmergencyModal()" title="Экстренная остановка и защита от атак">
-      <span class="nav-icon">🚨</span>
-      <span class="nav-text">Экстренный щит</span>
-      <span class="emergency-pulse-dot" id="emergencyStatusDot"></span>
-    </button>
   </div>
 
   <!-- Pinned Bottom -->
   <div class="sidebar-bottom">
+    <button type="button" class="emergency-nav-btn" onclick="openEmergencyModal()" title="Экстренный щит и защита от атак">
+      <span class="nav-icon">🚨</span>
+      <span class="bottom-text">Щит защиты</span>
+      <span class="emergency-pulse-dot" id="emergencyStatusDot"></span>
+    </button>
+
     <div class="quick-search-trigger" onclick="openCmdPalette()" title="Поиск и быстрый переход (Ctrl+K)">
       <span style="display:flex;align-items:center;gap:6px;">
         <span>🔍</span>
