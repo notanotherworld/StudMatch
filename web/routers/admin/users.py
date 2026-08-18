@@ -51,6 +51,8 @@ async def list_users(
         except Exception:
             pass
 
+        query = select(User).options(selectinload(User.profile), selectinload(User.university))
+
         if filter_type == "spammers":
             spammer_conditions = [User.flood_ban_count > 0, User.is_flagged_spammer == True]
             if active_banned_ids:
