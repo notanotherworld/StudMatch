@@ -10,6 +10,10 @@ git remote set-url origin https://github.com/notanotherworld/StudMatch.git
 git fetch origin main
 git reset --hard origin/main
 
+echo "📁 Подготавливаем папки..."
+mkdir -p web/static/uploads/avatars
+chmod -R 777 web/static/uploads 2>/dev/null || true
+
 echo "🐳 Пересобираем и перезапускаем контейнеры..."
 docker compose pull
 docker compose up -d --build --remove-orphans

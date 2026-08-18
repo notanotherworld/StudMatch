@@ -11,9 +11,15 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 def ensure_upload_dir_exists():
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    try:
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+    except Exception:
+        pass
 
-ensure_upload_dir_exists()
+try:
+    ensure_upload_dir_exists()
+except Exception:
+    pass
 
 
 async def save_avatar_upload(upload_file: Optional[UploadFile]) -> Optional[str]:
@@ -34,14 +40,17 @@ async def save_avatar_upload(upload_file: Optional[UploadFile]) -> Optional[str]
 
     ensure_upload_dir_exists()
 
-    content = await upload_file.read()
-    if len(content) == 0 or len(content) > MAX_FILE_SIZE:
+    try:
+        content = await upload_file.read()
+        if len(content) == 0 or len(content) > MAX_FILE_SIZE:
+            return None
+
+        unique_filename = f"{uuid.uuid4().hex}{ext}"
+        target_path = os.path.join(UPLOAD_DIR, unique_filename)
+
+        with open(target_path, "wb") as f:
+            f.write(content)
+
+        return f"/static/uploads/avatars/{unique_filename}"
+    except Exception:
         return None
-
-    unique_filename = f"{uuid.uuid4().hex}{ext}"
-    target_path = os.path.join(UPLOAD_DIR, unique_filename)
-
-    with open(target_path, "wb") as f:
-        f.write(content)
-
-    return f"/static/uploads/avatars/{unique_filename}"
