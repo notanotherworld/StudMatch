@@ -111,6 +111,15 @@ async def consent_declined(callback: CallbackQuery, state: FSMContext):
     await state.clear()
 
 
+@router.callback_query(F.data == "update:open")
+async def update_announcement_open(callback: CallbackQuery, user: User, db: AsyncSession, state: FSMContext):
+    """Обработка кнопки «🚀 Открыть СтудМэч» из рассылки об обновлении."""
+    await callback.answer()
+    if state:
+        await state.clear()
+    await _after_consent(callback.message, state, user, db)
+
+
 async def _after_consent(message: Message, state: FSMContext, user: User, db: AsyncSession):
     """Логика после согласия: email верификация или главное меню."""
     if not user.email_verified:

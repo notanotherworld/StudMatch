@@ -70,16 +70,18 @@
   <!-- Превью и статистика -->
   <div style="display:flex;flex-direction:column;gap:16px;">
 
-    <!-- Спецрассылка Яндекс Топ-12 -->
-    <div class="card" style="border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.03);">
-      <div style="font-size:14px;font-weight:600;margin-bottom:8px;color:#FFD700;">🔥 Рассылка «Яндекс Топ-12»</div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
-        Рассчитывает точное место каждого студента и сколько баллов ему не хватает до попадания в Топ-12 (Яндекс).
+    <!-- Спецрассылка: Обновление платформы -->
+    <div class="card" style="border:1px solid rgba(99,102,241,0.4);background:rgba(99,102,241,0.06);">
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--accent2);">
+        🚀 Рассылка об обновлении бота
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.4;">
+        Отправляет уведомление о выходе новых функций (раздельные анкеты Знакомств и Карьеры, навыки, ссылки на портфолио, улучшенный поиск) с кнопкой <b>«🚀 Открыть СтудМэч»</b>.
       </p>
-      <form method="POST" action="/admin/broadcast/weekly-yandex" onsubmit="return confirm('Запустить рассылку Яндекс Топ-12 для всех студентов?')">
+      <form method="POST" action="/admin/broadcast/system-update" onsubmit="return confirm('Отправить рассылку об обновлении всем студентам?')">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="btn btn-warning btn-sm" style="width:100%;">
-          🚀 Запустить рассылку сейчас
+        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
+          ✨ Запустить рассылку об обновлении
         </button>
       </form>
     </div>
@@ -92,8 +94,8 @@
       </p>
       <form method="POST" action="/admin/broadcast/weekly-challenge" onsubmit="return confirm('Запустить рассылку Карьерный челлендж для всех студентов?')">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
-          🎯 Запустить рассылку сейчас
+        <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;border-color:#00d4ff;color:#00d4ff;">
+          🎯 Запустить челлендж
         </button>
       </form>
     </div>

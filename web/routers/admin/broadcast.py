@@ -122,6 +122,41 @@ async def send_broadcast(
     return RedirectResponse("/admin/broadcast", status_code=302)
 
 
+@router.post("/broadcast/system-update", dependencies=[Depends(check_csrf)])
+async def send_system_update(
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ручной запуск рассылки об обновлении платформы."""
+    from bot.config import settings
+    from aiogram import Bot
+    from bot.services.update_broadcast import send_update_announcement
+
+    bot = Bot(token=settings.BOT_TOKEN)
+    try:
+        res = await send_update_announcement(bot)
+    finally:
+        await bot.session.close()
+
+    # Записываем в лог рассылок
+    log = BroadcastLog(
+        text="🚀 Рассылка об обновлении платформы (Новые фичи)",
+        target="all",
+        sent_count=res.get("sent", 0),
+        failed_count=res.get("failed", 0),
+        admin_id=admin.id,
+    )
+    db.add(log)
+    await db.commit()
+
+    await log_admin_action(
+        db, admin.id, "system_update_broadcast",
+        f"Рассылка об обновлении: отправлено {res.get('sent', 0)}, ошибок {res.get('failed', 0)}"
+    )
+
+    return RedirectResponse("/admin/broadcast", status_code=302)
+
+
 @router.post("/broadcast/weekly-yandex", dependencies=[Depends(check_csrf)])
 async def send_weekly_yandex(
     admin=Depends(get_current_admin),

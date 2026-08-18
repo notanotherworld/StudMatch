@@ -70,7 +70,11 @@ async def main() -> None:
 
     logger.info("🚀 СтудМэч запущен!")
 
-    # Запускаем фоновую еженедельную рассылку рейтинга (Яндекс Топ-12)
+    # Запускаем фоновую стартовую рассылку об обновлении платформы
+    from bot.services.update_broadcast import run_startup_update_broadcast
+    asyncio.create_task(run_startup_update_broadcast(bot))
+
+    # Запускаем фоновую еженедельную рассылку рейтинга
     from bot.services.weekly_notifications import weekly_notification_loop
     asyncio.create_task(weekly_notification_loop(bot))
 
