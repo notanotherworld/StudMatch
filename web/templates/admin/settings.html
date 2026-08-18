@@ -138,21 +138,12 @@
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
-        <!-- Информация о сервере и инструкция -->
+        <!-- Информация о сервере -->
         <div>
-          <div style="font-size:13px;color:var(--text);margin-bottom:10px;line-height:1.6;">
+          <div style="font-size:13px;color:var(--text);margin-bottom:10px;line-height:1.8;">
             <div>• <b>Хост:</b> <code>{{ smtp.host }}:{{ smtp.port }} (SSL)</code></div>
             <div>• <b>Отправитель:</b> <code>{{ smtp.from_email }}</code></div>
             <div>• <b>Логин:</b> <code>{{ smtp.user or 'Не задан' }}</code></div>
-          </div>
-
-          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12px;color:var(--muted);line-height:1.5;">
-            <strong style="color:var(--text);display:block;margin-bottom:4px;">🔑 Как подключить Яндекс Почту бесплатно:</strong>
-            1. Перейдите в <a href="https://id.yandex.ru/security" target="_blank" style="color:var(--accent2);text-decoration:underline;">Яндекс ID -> Безопасность</a>.<br>
-            2. В блоке <b>«Пароли приложений»</b> нажмите «Создать» и выберите <b>«Почта»</b>.<br>
-            3. В файле <code>.env</code> на VPS укажите ваш email и сгенерированный 16-значный пароль:<br>
-            <code>SMTP_USER=ваша_почта@yandex.ru</code><br>
-            <code>SMTP_PASSWORD=пароль_приложения</code>
           </div>
         </div>
 
