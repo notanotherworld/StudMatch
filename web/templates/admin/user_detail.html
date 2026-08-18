@@ -61,7 +61,7 @@
         </div>
         <div>
           <div style="color:var(--muted);font-size:11px;">Режим</div>
-          <div>{% if user.mode.value == 'career' %}🎯 Карьера{% else %}❤️ Знакомства{% endif %}</div>
+          <div>{% if (user.mode|string).endswith('career') %}🎯 Карьера{% else %}❤️ Знакомства{% endif %}</div>
         </div>
         <div>
           <div style="color:var(--muted);font-size:11px;">Суперлайков</div>
@@ -73,7 +73,7 @@
         </div>
         <div>
           <div style="color:var(--muted);font-size:11px;">Зарегистрирован</div>
-          <div>{{ user.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+          <div>{{ user.created_at.strftime('%d.%m.%Y %H:%M') if user.created_at else '—' }}</div>
         </div>
       </div>
     </div>

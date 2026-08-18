@@ -51,11 +51,14 @@ async def list_users(
     result = await db.execute(query)
     users = result.scalars().all()
 
+    from web.dependencies import generate_csrf_token
+    token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
+
     return templates.TemplateResponse(
         "admin/users.html",
         {"request": request, "admin": admin, "users": users, "q": q, "page": page,
          "is_fake": is_fake,
-         "csrf_token": getattr(request.state, "csrf_token", "")},
+         "csrf_token": token_str},
     )
 
 
@@ -123,13 +126,13 @@ async def user_detail(
         .where(User.id == user_id)
     )
     user = result.scalar_one_or_none()
-    if not user:
-        return RedirectResponse("/admin/users")
+    from web.dependencies import generate_csrf_token
+    token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
 
     return templates.TemplateResponse(
         "admin/user_detail.html",
         {"request": request, "admin": admin, "user": user,
-         "csrf_token": getattr(request.state, "csrf_token", "")},
+         "csrf_token": token_str},
     )
 
 
