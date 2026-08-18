@@ -24,12 +24,18 @@ async def list_users(
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
     q: str = Query(default=""),
+    is_fake: Optional[str] = Query(default=None),
     page: int = Query(default=1),
 ):
     per_page = 20
     offset = (page - 1) * per_page
 
     query = select(User).options(selectinload(User.profile), selectinload(User.university))
+
+    if is_fake == "true":
+        query = query.where(User.is_fake == True)
+    elif is_fake == "false":
+        query = query.where(User.is_fake == False)
 
     if q:
         query = query.join(User.profile, isouter=True).where(
@@ -47,6 +53,7 @@ async def list_users(
     return templates.TemplateResponse(
         "admin/users.html",
         {"request": request, "admin": admin, "users": users, "q": q, "page": page,
+         "is_fake": is_fake,
          "csrf_token": getattr(request.state, "csrf_token", "")},
     )
 

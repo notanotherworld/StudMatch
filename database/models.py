@@ -133,6 +133,8 @@ class User(Base):
     consent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_fake: Mapped[bool] = mapped_column(Boolean, default=False)  # Фейковая/тестовая анкета от админа
+    auto_match_mode: Mapped[Optional[str]] = mapped_column(String(20), default="instant", nullable=True)  # instant, delayed, none
     mode: Mapped[ModeEnum] = mapped_column(Enum(ModeEnum), default=ModeEnum.dating)
     superlike_balance: Mapped[int] = mapped_column(Integer, default=0)
     boost_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

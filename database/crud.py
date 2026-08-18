@@ -339,6 +339,16 @@ async def create_swipe(
 
     # Проверяем взаимный лайк
     if action in (SwipeAction.like, SwipeAction.superlike):
+        # Если партнер — тестовый профиль со включенным авто-мэтчем
+        target_user = await get_user(db, to_id)
+        if target_user and getattr(target_user, "is_fake", False) and getattr(target_user, "auto_match_mode", "instant") == "instant":
+            db.add(Swipe(from_user_id=to_id, to_user_id=from_id, action=SwipeAction.like))
+            from_user = await get_user(db, from_id)
+            user_mode = from_user.mode if from_user and from_user.mode else ModeEnum.dating
+            db.add(Match(user1_id=from_id, user2_id=to_id, mode=user_mode))
+            await db.commit()
+            return True
+
         reverse = await db.execute(
             select(Swipe).where(
                 and_(

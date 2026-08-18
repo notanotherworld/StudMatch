@@ -79,6 +79,25 @@ async def _build_profile_caption(
         )
 
 
+import os
+from aiogram.types import FSInputFile, URLInputFile
+
+def _get_photo_input(photo_id: Optional[str]):
+    """Возвращает InputFile (FSInputFile, URLInputFile или file_id) для Telegram."""
+    if not photo_id:
+        return None
+    if photo_id.startswith("http://") or photo_id.startswith("https://"):
+        return URLInputFile(photo_id)
+    if photo_id.startswith("/static/") or photo_id.startswith("static/") or photo_id.startswith("web/"):
+        clean_path = photo_id.lstrip("/")
+        if not clean_path.startswith("web/"):
+            clean_path = os.path.join("web", clean_path)
+        if os.path.exists(clean_path):
+            return FSInputFile(clean_path)
+        return None
+    return photo_id
+
+
 async def send_next_card(
     bot,
     chat_id: int,
@@ -121,18 +140,19 @@ async def send_next_card(
         photo_id = profile.avatar_file_id
         kb = swipe_card_keyboard(profile.user_id, superlikes_count=user.superlike_balance)
 
-    if photo_id:
+    photo_input = _get_photo_input(photo_id)
+    if photo_input:
         try:
             await bot.send_photo(
                 chat_id=chat_id,
-                photo=photo_id,
+                photo=photo_input,
                 caption=caption,
                 parse_mode="HTML",
                 reply_markup=kb,
             )
             return
-        except Exception:
-            pass
+        except Exception as pe:
+            logger.warning(f"send_photo failed with input {photo_input}: {pe}")
 
     await bot.send_message(
         chat_id=chat_id,
@@ -206,11 +226,12 @@ async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSessio
         caption = await _build_profile_caption(target.profile, tags_map, user=target)
         reply_kb = swipe_card_keyboard(target.id, superlikes_count=user.superlike_balance)
 
-        if target.profile.avatar_file_id:
+        photo_input = _get_photo_input(target.profile.avatar_file_id)
+        if photo_input:
             try:
                 await callback.bot.send_photo(
                     chat_id=callback.message.chat.id,
-                    photo=target.profile.avatar_file_id,
+                    photo=photo_input,
                     caption=caption,
                     parse_mode="HTML",
                     reply_markup=reply_kb,

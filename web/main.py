@@ -12,7 +12,7 @@ from web.routers.admin import (
     auth as admin_auth, dashboard, users, documents, ratings,
     payments as admin_payments, employers, universities,
     broadcast, tags, reports, health, audit, promos, settings as admin_settings,
-    consents,
+    consents, fake_users,
 )
 from web.routers.employer import auth as employer_auth, profiles as employer_profiles
 from web.dependencies import generate_csrf_token
@@ -101,6 +101,7 @@ app.include_router(audit.router, prefix="/admin", tags=["Audit"])
 app.include_router(promos.router, prefix="/admin", tags=["Promos"])
 app.include_router(admin_settings.router, prefix="/admin", tags=["Settings"])
 app.include_router(consents.router, prefix="/admin", tags=["Consents"])
+app.include_router(fake_users.router, prefix="/admin", tags=["Fake Users"])
 
 # Роутеры — Кабинет HR
 app.include_router(employer_auth.router, prefix="/employer", tags=["Employer Auth"])

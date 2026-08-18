@@ -314,10 +314,13 @@ async def show_my_profile(
 
     reply_kb = my_profile_keyboard(user, current_view=current_view_param)
 
-    if photo_file_id:
+    from bot.handlers.browse import _get_photo_input
+    photo_input = _get_photo_input(photo_file_id)
+
+    if photo_input:
         try:
             await message.answer_photo(
-                photo=photo_file_id,
+                photo=photo_input,
                 caption=text,
                 parse_mode="HTML",
                 reply_markup=reply_kb,

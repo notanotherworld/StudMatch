@@ -7,7 +7,10 @@
     <h1>👥 Пользователи</h1>
     <p>Поиск, просмотр профилей, бан и управление</p>
   </div>
-  <div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <a href="/admin/users/create-fake" class="btn btn-primary" style="font-size:13px;">
+      ➕ Создать тестовую анкету
+    </a>
     <a href="/admin/users/export/csv" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;font-size:14px;"
        onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
       📥 Экспорт в CSV (Excel)
@@ -15,16 +18,31 @@
   </div>
 </div>
 
-<!-- Поиск -->
-<form method="GET" action="/admin/users" style="margin-bottom:24px;display:flex;gap:12px;">
-  <input
-    type="text" name="q" value="{{ q }}"
-    placeholder="Поиск по @username, email или имени..."
-    style="max-width:400px;"
-  >
-  <button type="submit" class="btn btn-primary">🔍 Найти</button>
-  {% if q %}<a href="/admin/users" class="btn btn-ghost">✕ Сбросить</a>{% endif %}
-</form>
+<!-- Фильтры & Поиск -->
+<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+  <form method="GET" action="/admin/users" style="display:flex;gap:12px;flex:1;max-width:480px;">
+    {% if is_fake %}<input type="hidden" name="is_fake" value="{{ is_fake }}">{% endif %}
+    <input
+      type="text" name="q" value="{{ q }}"
+      placeholder="Поиск по @username, email или имени..."
+    >
+    <button type="submit" class="btn btn-primary">🔍 Найти</button>
+    {% if q %}<a href="/admin/users{% if is_fake %}?is_fake={{ is_fake }}{% endif %}" class="btn btn-ghost">✕ Сбросить</a>{% endif %}
+  </form>
+
+  <!-- Вкладки фильтрации -->
+  <div style="display:flex;gap:6px;background:var(--surface);padding:4px;border-radius:10px;border:1px solid var(--border);">
+    <a href="/admin/users" class="btn btn-sm {% if not is_fake %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
+      Все
+    </a>
+    <a href="/admin/users?is_fake=false" class="btn btn-sm {% if is_fake == 'false' %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
+      🎓 Студенты
+    </a>
+    <a href="/admin/users?is_fake=true" class="btn btn-sm {% if is_fake == 'true' %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
+      🎭 Тестовые анкеты
+    </a>
+  </div>
+</div>
 
 <!-- Таблица -->
 {% if users %}
@@ -40,15 +58,18 @@
         <th>Режим</th>
         <th>Статус</th>
         <th>Дата</th>
-        <th></th>
+        <th>Действия</th>
       </tr>
     </thead>
     <tbody>
       {% for u in users %}
       <tr>
         <td>
-          <div style="font-weight:600;" class="copyable" data-copy="{{ u.tg_username or u.id }}" title="Кликните чтобы скопировать">
+          <div style="display:flex;align-items:center;gap:6px;font-weight:600;" class="copyable" data-copy="{{ u.tg_username or u.id }}" title="Кликните чтобы скопировать">
             {% if u.tg_username %}@{{ u.tg_username }}{% else %}#{{ u.id }}{% endif %}
+            {% if u.is_fake %}
+              <span class="badge badge-warning" style="font-size:10px;padding:1px 6px;">TEST</span>
+            {% endif %}
           </div>
           <div style="font-size:12px;color:var(--muted);" class="copyable mono" data-copy="{{ u.id }}" title="Кликните чтобы скопировать ID">{{ u.id }}</div>
         </td>
@@ -70,7 +91,7 @@
           {% else %}—{% endif %}
         </td>
         <td style="font-size:13px;">
-          {% if u.profile and u.profile.is_complete %}
+          {% if u.profile and (u.profile.is_complete or u.profile.career_is_complete) %}
             {{ u.profile.name }}, {{ u.profile.year }} к.
           {% else %}
             <span style="color:var(--muted);">Не заполнена</span>
@@ -85,7 +106,7 @@
           {% if u.mode.value == 'career' %}
             <span class="badge badge-purple">🎯 Карьера</span>
           {% else %}
-            <span style="color:#f472b6;font-size:12px;">❤️ Знакомства</span>
+            <span class="badge" style="background:var(--accent2-soft);color:var(--accent2);font-size:12px;">❤️ Знакомства</span>
           {% endif %}
         </td>
         <td>
@@ -96,18 +117,27 @@
           {% else %}
             <span class="badge badge-warning">⏳ Не верифицирован</span>
           {% endif %}
-        </td>
         <td style="font-size:12px;color:var(--muted);">
-          {{ u.created_at.strftime('%d.%m.%y') }}
+          {{ u.created_at.strftime('%d.%m.%Y') }}
         </td>
-        <td style="display:flex;gap:4px;align-items:center;">
-          <a href="/admin/users/{{ u.id }}" class="btn btn-ghost btn-sm">👁</a>
-          {% if not u.email_verified %}
-          <form method="POST" action="/admin/users/{{ u.id }}/verify-manual" style="display:inline;" onsubmit="return confirm('Подтвердить верификацию студента?')">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="btn btn-success btn-sm" title="Верифицировать вручную">✅</button>
-          </form>
-          {% endif %}
+        <td>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <a href="/admin/users/{{ u.id }}" class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:12px;">
+              Профиль →
+            </a>
+            {% if not u.email_verified %}
+            <form method="POST" action="/admin/users/{{ u.id }}/verify-manual" style="display:inline;margin:0;" onsubmit="return confirm('Подтвердить верификацию студента?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-success btn-sm" style="padding:4px 8px;font-size:12px;" title="Верифицировать вручную">✅</button>
+            </form>
+            {% endif %}
+            {% if u.is_fake %}
+            <form method="POST" action="/admin/users/{{ u.id }}/delete-fake" onsubmit="return confirm('Удалить тестовую анкету #{{ u.id }}?')" style="display:inline;margin:0;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-danger btn-sm" style="padding:4px 8px;font-size:12px;" title="Удалить тестовую анкету">🗑</button>
+            </form>
+            {% endif %}
+          </div>
         </td>
       </tr>
       {% endfor %}

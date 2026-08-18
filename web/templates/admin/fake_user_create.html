@@ -1,0 +1,478 @@
+{% extends "admin/base.html" %}
+{% block title %}Создание тестовой анкеты — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <a href="/admin/users" class="btn btn-ghost btn-sm" style="margin-bottom:8px;">← Все пользователи</a>
+    <h1>🎭 Создание тестовой анкеты</h1>
+    <p>Создайте реалистичную анкету для наполнения ленты поиска и тестирования свайпов</p>
+  </div>
+  <button type="button" class="btn btn-ghost" id="randomizeBtn" style="border-color:var(--accent);color:var(--accent2);">
+    🎲 Автозаполнение реалистичными данными
+  </button>
+</div>
+
+<form method="POST" action="/admin/users/create-fake" enctype="multipart/form-data" id="fakeUserForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;">
+    
+    <!-- Левая колонка: Форма с вкладками -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      
+      <!-- 1. Основные реквизиты -->
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+          <span>👤</span> Основные данные студента
+        </div>
+
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="form-group">
+            <label>Имя студента *</label>
+            <input type="text" name="name" id="inputName" required placeholder="напр. Алина" value="Алина">
+          </div>
+
+          <div class="form-group">
+            <label>Telegram Username (для перехода при мэтче)</label>
+            <input type="text" name="tg_username" id="inputUsername" placeholder="напр. alina_rudn" value="alina_rudn">
+          </div>
+        </div>
+
+        <div class="grid grid-3">
+          <div class="form-group">
+            <label>Курс</label>
+            <select name="year" id="inputYear">
+              <option value="1">1 курс</option>
+              <option value="2" selected>2 курс</option>
+              <option value="3">3 курс</option>
+              <option value="4">4 курс</option>
+              <option value="5">5 курс</option>
+              <option value="6">6 курс (Магистратура)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>ВУЗ</label>
+            <select name="university_id" id="inputUni">
+              {% for u in universities %}
+                <option value="{{ u.id }}">{{ u.name }}</option>
+              {% else %}
+                <option value="">РУДН (по умолчанию)</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Баллы рейтинга</label>
+            <input type="number" name="rating_score" id="inputRating" value="65" step="1">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Факультет / Направление</label>
+          <input type="text" name="major" id="inputMajor" placeholder="напр. Факультет гуманитарных и социальных наук" value="Факультет гуманитарных и социальных наук">
+        </div>
+      </div>
+
+      <!-- 2. Анкета «❤️ Знакомства» -->
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="display:flex;align-items:center;gap:8px;">
+            <span>❤️</span> Анкета: Знакомства
+          </span>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin:0;">
+            <input type="checkbox" name="is_dating_complete" id="checkDatingComplete" checked style="width:auto;">
+            Анкета активна
+          </label>
+        </div>
+
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="form-group">
+            <label>Пол</label>
+            <select name="gender" id="inputGender">
+              <option value="female" selected>👩 Девушка</option>
+              <option value="male">👨 Парень</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Кого ищет</label>
+            <select name="target_gender" id="inputTargetGender">
+              <option value="male" selected>👨 Парней</option>
+              <option value="female">👩 Девушек</option>
+              <option value="all">✨ Всех</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>О себе / Вайб (текст в дейтинге)</label>
+          <textarea name="goal" id="inputGoal" rows="3" placeholder="Люблю кофе, прогулки по паркам, музыку и классные разговоры обо всём на свете ☕️✨">Люблю кофе, прогулки по паркам, музыку и классные разговоры обо всём на свете ☕️✨</textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Интересы и теги (через запятую)</label>
+          <input type="text" name="custom_interests" id="inputInterests" placeholder="Кофе, Путешествия, Искусство, Кино" value="Кофе, Путешествия, Искусство, Кино">
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label>📸 Фото для Знакомств (JPG/PNG/WEBP)</label>
+          <input type="file" name="dating_photo" id="inputDatingPhoto" accept="image/jpeg,image/png,image/webp">
+        </div>
+      </div>
+
+      <!-- 3. Анкета «🎯 Карьера» -->
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="display:flex;align-items:center;gap:8px;">
+            <span>🎯</span> Профессиональная анкета: Карьера
+          </span>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin:0;">
+            <input type="checkbox" name="is_career_complete" id="checkCareerComplete" checked style="width:auto;">
+            Анкета активна
+          </label>
+        </div>
+
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="form-group">
+            <label>Формат работы</label>
+            <select name="career_work_format" id="inputWorkFormat">
+              <option value="🌐 Удалённо" selected>🌐 Удалённо (Remote)</option>
+              <option value="🏢 Офис">🏢 Офис</option>
+              <option value="⚖️ Гибрид">⚖️ Гибрид</option>
+              <option value="⏱ Гибкий график / Part-time">⏱ Гибкий график / Part-time</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Ссылка на портфолио / Резюме / GitHub</label>
+            <input type="text" name="career_portfolio_url" id="inputPortfolio" placeholder="https://github.com/username или Behance" value="https://behance.net/portfolio">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Навыки и стек технологий (через запятую)</label>
+          <input type="text" name="career_custom_skills" id="inputSkills" placeholder="UI/UX, Figma, Web Design, Прототипирование" value="UI/UX Design, Figma, Прототипирование, Исследования">
+        </div>
+
+        <div class="form-group">
+          <label>Карьерная цель / Опыт</label>
+          <textarea name="career_goal" id="inputCareerGoal" rows="3" placeholder="Ищу стажировку продуктовым дизайнером, участвую в студенческих кейс-чемпионатах и хакатонах 🚀">Ищу стажировку продуктовым дизайнером, участвую в студенческих кейс-чемпионатах и хакатонах 🚀</textarea>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label>📸 Деловое фото для Карьеры (необязательно, если пусто — возьмется фото Знакомств)</label>
+          <input type="file" name="career_photo" id="inputCareerPhoto" accept="image/jpeg,image/png,image/webp">
+        </div>
+      </div>
+
+      <!-- 4. Настройки поведения -->
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+          <span>⚙️</span> Авто-мэтчи и видимость
+        </div>
+
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Реакция на свайп вправо (лайк от студента)</label>
+            <select name="auto_match_mode" id="inputAutoMatch">
+              <option value="instant" selected>⚡️ Мгновенный взаимный мэтч (сразу открывает диалог)</option>
+              <option value="none">🛑 Без взаимного лайка (только показ в ленте)</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0;display:flex;align-items:center;padding-top:24px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+              <input type="checkbox" name="is_visible" checked style="width:auto;">
+              <span>👁 Показывать анкету в общем поиске</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Кнопка сохранения -->
+      <div style="display:flex;gap:12px;">
+        <button type="submit" class="btn btn-primary" style="padding:12px 28px;font-size:15px;">
+          ✨ Создать анкету и запустить в поиск
+        </button>
+        <a href="/admin/users" class="btn btn-ghost" style="padding:12px 20px;">Отмена</a>
+      </div>
+
+    </div>
+
+    <!-- Правая колонка: Live Preview виджет смартфона -->
+    <div style="position:sticky;top:24px;">
+      <div class="card" style="padding:16px;background:rgba(18,20,30,0.95);border-radius:24px;border:1px solid rgba(255,255,255,0.12);box-shadow:0 20px 50px rgba(0,0,0,0.6);">
+        
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">
+            📱 Предпросмотр в боте
+          </div>
+          <div style="display:flex;gap:4px;">
+            <button type="button" class="btn btn-ghost btn-sm" id="tabPreviewDating" style="padding:3px 8px;font-size:11px;background:var(--surface3);">❤️ Знакомства</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="tabPreviewCareer" style="padding:3px 8px;font-size:11px;">🎯 Карьера</button>
+          </div>
+        </div>
+
+        <!-- Mockup Карточка Telegram -->
+        <div style="background:var(--surface2);border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,0.06);">
+          
+          <!-- Mockup Фото -->
+          <div id="previewPhotoContainer" style="height:240px;background:linear-gradient(135deg, #1e2238 0%, #121420 100%);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;">
+            <img id="previewImg" src="" style="width:100%;height:100%;object-fit:cover;display:none;">
+            <div id="previewPlaceholder" style="text-align:center;color:var(--muted);">
+              <div style="font-size:42px;margin-bottom:4px;">📸</div>
+              <div style="font-size:12px;">Фото профиля</div>
+            </div>
+            <div style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;color:#fff;" id="previewRatingBadge">
+              ⭐ 65 б.
+            </div>
+          </div>
+
+          <!-- Mockup Текст -->
+          <div style="padding:14px;font-size:13px;line-height:1.45;">
+            <div style="font-size:16px;font-weight:800;margin-bottom:2px;" id="previewTitle">
+              Алина, 2 курс
+            </div>
+            <div style="color:var(--muted);font-size:12px;margin-bottom:10px;" id="previewMajor">
+              📚 Факультет гуманитарных и социальных наук
+            </div>
+
+            <div id="previewDatingBody">
+              <div style="font-size:12px;color:var(--accent2);margin-bottom:8px;" id="previewModeLabel">
+                ❤️ Знакомства
+              </div>
+              <div style="font-style:italic;color:var(--text);margin-bottom:10px;" id="previewBio">
+                💬 «Люблю кофе, прогулки по паркам, музыку и классные разговоры обо всём на свете ☕️✨»
+              </div>
+              <div style="font-size:12px;color:var(--accent2);font-weight:500;" id="previewTags">
+                #Кофе #Путешествия #Искусство #Кино
+              </div>
+            </div>
+
+            <div id="previewCareerBody" style="display:none;">
+              <div style="font-size:12px;color:var(--accent2);margin-bottom:6px;">
+                🎯 Карьера · <span id="previewFormat">🌐 Удалённо</span>
+              </div>
+              <div style="margin-bottom:8px;font-size:12px;">
+                <b style="color:var(--muted);">Стек:</b> <span id="previewSkills" style="color:var(--accent2);">UI/UX Design, Figma, Прототипирование</span>
+              </div>
+              <div style="font-style:italic;color:var(--text);margin-bottom:8px;font-size:12px;" id="previewCareerBio">
+                «Ищу стажировку продуктовым дизайнером, участвую в кейс-чемпионатах 🚀»
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Mockup Кнопки свайпа -->
+          <div style="padding:8px 12px 12px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <div style="background:var(--surface3);padding:6px;border-radius:8px;text-align:center;font-size:12px;font-weight:600;">❤️ Лайк</div>
+            <div style="background:var(--surface3);padding:6px;border-radius:8px;text-align:center;font-size:12px;font-weight:600;">⏭ Скип</div>
+            <div style="grid-column:span 2;background:rgba(99,102,241,0.15);color:var(--accent2);padding:5px;border-radius:8px;text-align:center;font-size:11px;font-weight:600;">⭐ Суперлайк</div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</form>
+
+<script>
+  // Presets data for realistic student generation
+  const PRESETS = [
+    {
+      name: "Алина",
+      gender: "female",
+      target_gender: "male",
+      year: 2,
+      major: "Факультет гуманитарных и социальных наук",
+      rating: 70,
+      username: "alina_rudn",
+      goal: "Люблю кофе, выставки современного искусства, уютные вечера и умные беседы обо всём ☕️🎨",
+      interests: "Кофе, Искусство, Кино, Книги, Путешествия",
+      skills: "Копирайтинг, SMM, Английский C1, Анализ текстов",
+      career_goal: "Ищу стажировку в медиа или коммуникационном агентстве, развиваю свой блог 📝",
+      work_format: "🌐 Удалённо",
+      portfolio: "https://t.me/alina_blog"
+    },
+    {
+      name: "Максим",
+      gender: "male",
+      target_gender: "female",
+      year: 3,
+      major: "Институт цифровых технологий (ИИ / Data Science)",
+      rating: 85,
+      username: "max_dev_ai",
+      goal: "Кодю по ночам, играю в волейбол по выходным и слушаю инди-рок 🎸🎧",
+      interests: "Программирование, Волейбол, Музыка, Видеоигры",
+      skills: "Python, PyTorch, SQL, FastAPI, Docker, Git",
+      career_goal: "Ищу команду на Всероссийский хакатон по ML и стажировку Junior ML Engineer 🤖",
+      work_format: "⚖️ Гибрид",
+      portfolio: "https://github.com/max-rudn-ml"
+    },
+    {
+      name: "София",
+      gender: "female",
+      target_gender: "male",
+      year: 4,
+      major: "Экономический факультет (Маркетинг & FinTech)",
+      rating: 90,
+      username: "sofia_finance",
+      goal: "Обожаю активный лайфстайл, горные лыжи и новые классные знакомства 🏔✨",
+      interests: "Спорт, Маркетинг, Путешествия, Фотография",
+      skills: "Product Management, Excel / Финансовые модели, Figma, CustDev",
+      career_goal: "Участвую в кейс-чемпионатах Changellenge, ищу стажировку в консалтинге или банке 💼",
+      work_format: "🏢 Офис",
+      portfolio: "https://notion.so/sofia-cases"
+    },
+    {
+      name: "Дмитрий",
+      gender: "male",
+      target_gender: "female",
+      year: 2,
+      major: "Инженерная академия (Архитектура & Дизайн)",
+      rating: 60,
+      username: "dima_arch",
+      goal: "Ценю эстетику, черчу здания, катаюсь на сноуборде и люблю живые разговоры 🏂🏛",
+      interests: "Дизайн, Сноуборд, Архитектура, Фотография",
+      skills: "3D Моделирование, Blender, AutoCAD, UI/UX, Adobe Photoshop",
+      career_goal: "Готовлю портфолио для архитектурного бюро, ищу совместные проекты 📐",
+      work_format: "⏱ Гибкий график / Part-time",
+      portfolio: "https://behance.net/dima_arch"
+    }
+  ];
+
+  let currentPreviewMode = 'dating';
+  let datingPhotoDataUrl = null;
+  let careerPhotoDataUrl = null;
+
+  // Tab preview switches
+  const btnDating = document.getElementById('tabPreviewDating');
+  const btnCareer = document.getElementById('tabPreviewCareer');
+  const previewDatingBody = document.getElementById('previewDatingBody');
+  const previewCareerBody = document.getElementById('previewCareerBody');
+
+  btnDating.addEventListener('click', () => {
+    currentPreviewMode = 'dating';
+    btnDating.style.background = 'var(--surface3)';
+    btnCareer.style.background = 'transparent';
+    previewDatingBody.style.display = 'block';
+    previewCareerBody.style.display = 'none';
+    updatePreview();
+  });
+
+  btnCareer.addEventListener('click', () => {
+    currentPreviewMode = 'career';
+    btnCareer.style.background = 'var(--surface3)';
+    btnDating.style.background = 'transparent';
+    previewDatingBody.style.display = 'none';
+    previewCareerBody.style.display = 'block';
+    updatePreview();
+  });
+
+  // Inputs
+  const inputName = document.getElementById('inputName');
+  const inputYear = document.getElementById('inputYear');
+  const inputMajor = document.getElementById('inputMajor');
+  const inputRating = document.getElementById('inputRating');
+  const inputGoal = document.getElementById('inputGoal');
+  const inputInterests = document.getElementById('inputInterests');
+  const inputSkills = document.getElementById('inputSkills');
+  const inputCareerGoal = document.getElementById('inputCareerGoal');
+  const inputWorkFormat = document.getElementById('inputWorkFormat');
+  const inputDatingPhoto = document.getElementById('inputDatingPhoto');
+  const inputCareerPhoto = document.getElementById('inputCareerPhoto');
+
+  // Preview elements
+  const previewImg = document.getElementById('previewImg');
+  const previewPlaceholder = document.getElementById('previewPlaceholder');
+  const previewRatingBadge = document.getElementById('previewRatingBadge');
+  const previewTitle = document.getElementById('previewTitle');
+  const previewMajor = document.getElementById('previewMajor');
+  const previewBio = document.getElementById('previewBio');
+  const previewTags = document.getElementById('previewTags');
+  const previewSkills = document.getElementById('previewSkills');
+  const previewCareerBio = document.getElementById('previewCareerBio');
+  const previewFormat = document.getElementById('previewFormat');
+
+  function updatePreview() {
+    const name = inputName.value.trim() || 'Студент';
+    const year = inputYear.value || '1';
+    previewTitle.innerText = `${name}, ${year} курс`;
+    previewMajor.innerText = `📚 ${inputMajor.value.trim() || 'Вуз'}`;
+    previewRatingBadge.innerText = `⭐ ${inputRating.value || '0'} б.`;
+
+    // Dating
+    previewBio.innerText = `💬 «${inputGoal.value.trim() || 'О себе'}»`;
+    const tagsArr = (inputInterests.value || '').split(',').map(t => t.trim()).filter(Boolean);
+    previewTags.innerText = tagsArr.map(t => `#${t}`).join(' ');
+
+    // Career
+    previewSkills.innerText = inputSkills.value.trim() || 'Не указаны';
+    previewCareerBio.innerText = `«${inputCareerGoal.value.trim() || 'Карьерная цель'}»`;
+    previewFormat.innerText = inputWorkFormat.value;
+
+    // Photos
+    const activePhoto = (currentPreviewMode === 'career' && careerPhotoDataUrl) ? careerPhotoDataUrl : datingPhotoDataUrl;
+    if (activePhoto) {
+      previewImg.src = activePhoto;
+      previewImg.style.display = 'block';
+      previewPlaceholder.style.display = 'none';
+    } else {
+      previewImg.style.display = 'none';
+      previewPlaceholder.style.display = 'block';
+    }
+  }
+
+  // Handle Photo files selection
+  function handleFileInput(input, callback) {
+    if (input.files && input.files[0]) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        callback(e.target.result);
+        updatePreview();
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+  }
+
+  inputDatingPhoto.addEventListener('change', () => {
+    handleFileInput(inputDatingPhoto, (dataUrl) => { datingPhotoDataUrl = dataUrl; });
+  });
+
+  inputCareerPhoto.addEventListener('change', () => {
+    handleFileInput(inputCareerPhoto, (dataUrl) => { careerPhotoDataUrl = dataUrl; });
+  });
+
+  // Attach live update listeners
+  [inputName, inputYear, inputMajor, inputRating, inputGoal, inputInterests, inputSkills, inputCareerGoal, inputWorkFormat].forEach(el => {
+    if (el) el.addEventListener('input', updatePreview);
+    if (el) el.addEventListener('change', updatePreview);
+  });
+
+  // Randomizer button
+  document.getElementById('randomizeBtn').addEventListener('click', () => {
+    const p = PRESETS[Math.floor(Math.random() * PRESETS.length)];
+    inputName.value = p.name;
+    document.getElementById('inputGender').value = p.gender;
+    document.getElementById('inputTargetGender').value = p.target_gender;
+    inputYear.value = p.year;
+    inputMajor.value = p.major;
+    inputRating.value = p.rating;
+    document.getElementById('inputUsername').value = p.username;
+    inputGoal.value = p.goal;
+    inputInterests.value = p.interests;
+    inputSkills.value = p.skills;
+    inputCareerGoal.value = p.career_goal;
+    inputWorkFormat.value = p.work_format;
+    document.getElementById('inputPortfolio').value = p.portfolio;
+    updatePreview();
+    showToast('🎲 Анкета заполнена реалистичными данными!');
+  });
+
+  updatePreview();
+</script>
+{% endblock %}
