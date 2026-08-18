@@ -190,26 +190,80 @@
   <!-- Правая колонка -->
   <div style="display:flex;flex-direction:column;gap:16px;">
 
-    <!-- Анкета -->
-    {% if user.profile and user.profile.is_complete %}
+    <!-- Анкета: Знакомства и Карьера -->
+    {% if user.profile %}
     <div class="card">
-      <div style="font-size:15px;font-weight:600;margin-bottom:16px;">📋 Анкета</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div style="font-size:15px;font-weight:700;">❤️ Анкета: Знакомства</div>
+        {% if user.profile.is_complete %}
+          <span class="badge badge-success">✅ Заполнена</span>
+        {% else %}
+          <span class="badge badge-warning">⏳ Не заполнена</span>
+        {% endif %}
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:14px;">
         <div>
           <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Курс</div>
-          <div>{{ user.profile.year }} курс</div>
+          <div>{{ user.profile.year or '—' }} курс</div>
         </div>
         <div>
           <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Направление</div>
-          <div>{{ user.profile.major }}</div>
-        </div>
-        <div style="grid-column:span 2;">
-          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Цель</div>
-          <div>{{ user.profile.goal }}</div>
+          <div>{{ user.profile.major or '—' }}</div>
         </div>
         <div>
-          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Видимость</div>
-          <div>{% if user.profile.is_visible %}👁 Видна{% else %}🔒 Скрыта{% endif %}</div>
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Пол</div>
+          <div>{% if user.profile.gender == 'male' %}👨 Парень{% elif user.profile.gender == 'female' %}👩 Девушка{% else %}—{% endif %}</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Кого ищет</div>
+          <div>{% if user.profile.target_gender == 'female' %}👩 Девушек{% elif user.profile.target_gender == 'male' %}👨 Парней{% else %}✨ Всех{% endif %}</div>
+        </div>
+        <div style="grid-column:span 2;">
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">О себе / Вайб</div>
+          <div>{{ user.profile.goal or '—' }}</div>
+        </div>
+        {% if user.profile.custom_interests %}
+        <div style="grid-column:span 2;">
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Свои интересы</div>
+          <div>✍️ {{ user.profile.custom_interests }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div style="font-size:15px;font-weight:700;">🎯 Профессиональная анкета: Карьера</div>
+        {% if user.profile.career_is_complete %}
+          <span class="badge badge-success">✅ Заполнена</span>
+        {% else %}
+          <span class="badge badge-warning">⏳ Не заполнена</span>
+        {% endif %}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:14px;">
+        <div style="grid-column:span 2;">
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Навыки и стек технологий</div>
+          <div style="font-weight:600;color:var(--accent2);">{{ user.profile.career_custom_skills or '—' }}</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Формат работы</div>
+          <div>{{ user.profile.career_work_format or '—' }}</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Портфолио / Резюме</div>
+          <div>
+            {% if user.profile.career_portfolio_url %}
+              <a href="{{ user.profile.career_portfolio_url }}" target="_blank" style="color:var(--accent2);word-break:break-all;">
+                🔗 {{ user.profile.career_portfolio_url }}
+              </a>
+            {% else %}
+              —
+            {% endif %}
+          </div>
+        </div>
+        <div style="grid-column:span 2;">
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Карьерная цель / Опыт</div>
+          <div>{{ user.profile.career_goal or '—' }}</div>
         </div>
       </div>
     </div>

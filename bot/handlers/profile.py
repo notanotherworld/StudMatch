@@ -9,27 +9,51 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from bot.states.fsm import ProfileState
+from bot.states.fsm import ProfileState, CareerProfileState
 from bot.keyboards.swipe import (
     year_keyboard, interests_keyboard, main_menu_keyboard, mode_keyboard,
     rudn_institutes_keyboard, RUDN_INSTITUTES, cancel_reply_keyboard,
     gender_keyboard, target_gender_keyboard,
+    career_skills_keyboard, career_work_format_keyboard, CAREER_SKILLS_LIST,
 )
-from database.crud import get_or_create_profile, update_profile
-from database.models import User, InterestTag
+from database.crud import get_or_create_profile, update_profile, update_career_profile
+from database.models import User, InterestTag, ModeEnum
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 router = Router()
 
 
 async def start_profile_creation(message: Message, state: FSMContext) -> None:
-    """Начать заполнение анкеты с первого вопроса."""
+    """Начать заполнение анкеты знакомств с первого вопроса."""
     await state.set_state(ProfileState.waiting_name)
     await message.answer(
-        "📋 <b>Создание анкеты</b>\n\n"
+        "📋 <b>Создание анкеты «❤️ Знакомства»</b>\n\n"
         "<b>Вопрос 1/5</b>\n"
         "Как тебя зовут?",
         parse_mode="HTML",
         reply_markup=cancel_reply_keyboard(),
+    )
+
+
+async def start_career_profile_creation(event, state: FSMContext, user: User, db: AsyncSession) -> None:
+    """Начать заполнение профессиональной анкеты «🎯 Карьера»."""
+    message = event if isinstance(event, Message) else event.message
+    
+    # Если базовые данные (имя/вуз/курс) еще не заполнены
+    if not user.profile or not user.profile.name:
+        await state.update_data(career_after=True)
+        await start_profile_creation(message, state)
+        return
+
+    await state.set_state(CareerProfileState.waiting_career_skills)
+    await state.update_data(selected_career_skills=[], user_id=user.id)
+    
+    await message.answer(
+        "🎯 <b>Анкета «Карьера»: Шаг 1/4 — Навыки и стек</b>\n\n"
+        "Выбери ключевые навыки из списка (можно выбрать несколько) или напиши свои.\n"
+        "Когда закончишь — нажми <b>✔️ Готово</b>:",
+        parse_mode="HTML",
+        reply_markup=career_skills_keyboard([]),
     )
 
 
@@ -71,6 +95,12 @@ async def cancel_profile_callback(callback: CallbackQuery, state: FSMContext, us
         ProfileState.waiting_gender,
         ProfileState.waiting_target_gender,
         ProfileState.waiting_photo,
+        CareerProfileState.waiting_career_skills,
+        CareerProfileState.waiting_career_custom_skills,
+        CareerProfileState.waiting_career_goal,
+        CareerProfileState.waiting_career_portfolio,
+        CareerProfileState.waiting_career_work_format,
+        CareerProfileState.waiting_career_photo,
     ),
     F.text.func(
         lambda t: bool(
@@ -422,3 +452,223 @@ async def process_photo_document(message: Message, state: FSMContext, user: User
 @router.message(ProfileState.waiting_photo)
 async def process_photo_wrong(message: Message):
     await message.answer("Пожалуйста, отправь фото как изображение (или нажми ❌ Отмена).")
+
+
+# ─────────────────────────────────────────────────────────────
+# FSM: Анкета «🎯 Карьера»
+# ─────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("cskill:"), CareerProfileState.waiting_career_skills)
+async def process_career_skill_callback(callback: CallbackQuery, state: FSMContext):
+    action = callback.data.split(":")[1]
+    data = await state.get_data()
+    selected: list = list(data.get("selected_career_skills", []))
+
+    if action == "custom":
+        await state.set_state(CareerProfileState.waiting_career_custom_skills)
+        await callback.answer()
+        await callback.message.answer(
+            "✍️ <b>Напиши свои навыки или технологии через запятую:</b>\n"
+            "<i>(Например: FastApi, Docker, PostgreSQL, Flutter, Английский C1)</i>",
+            parse_mode="HTML",
+            reply_markup=cancel_reply_keyboard(),
+        )
+        return
+
+    if action == "done":
+        await callback.answer()
+        await state.set_state(CareerProfileState.waiting_career_goal)
+        await callback.message.answer(
+            "🎯 <b>Анкета «Карьера»: Шаг 2/4 — Карьерная цель и опыт</b>\n\n"
+            "Расскажи о своих целях и что ищешь:\n"
+            "<i>(Например: Ищу стажировку Python-разработчиком, готовлюсь к хакатонам, ищу команду в стартап или ментора)</i>",
+            parse_mode="HTML",
+            reply_markup=cancel_reply_keyboard(),
+        )
+        return
+
+    # Выбор конкретного скилла
+    try:
+        idx = int(action)
+        skill_name = CAREER_SKILLS_LIST[idx]
+        if skill_name in selected:
+            selected.remove(skill_name)
+        else:
+            selected.append(skill_name)
+        await state.update_data(selected_career_skills=selected)
+        await callback.message.edit_reply_markup(
+            reply_markup=career_skills_keyboard(selected)
+        )
+        await callback.answer()
+    except Exception:
+        await callback.answer()
+
+
+@router.message(CareerProfileState.waiting_career_custom_skills)
+async def process_career_custom_skills(message: Message, state: FSMContext):
+    custom_skills = html.escape(message.text.strip())
+    data = await state.get_data()
+    prev_custom = data.get("custom_skills", "")
+    full_custom = f"{prev_custom}, {custom_skills}".strip(", ") if prev_custom else custom_skills
+    await state.update_data(custom_skills=full_custom)
+
+    await message.answer(f"✅ Добавлены навыки: <b>{html.escape(custom_skills)}</b>", parse_mode="HTML")
+    
+    await state.set_state(CareerProfileState.waiting_career_skills)
+    selected = list(data.get("selected_career_skills", []))
+    await message.answer(
+        "Выбери ещё навыки из списка или нажми <b>✔️ Готово</b>:",
+        parse_mode="HTML",
+        reply_markup=career_skills_keyboard(selected),
+    )
+
+
+@router.message(CareerProfileState.waiting_career_goal)
+async def process_career_goal(message: Message, state: FSMContext):
+    raw_goal = message.text.strip()
+    if len(raw_goal) < 5 or len(raw_goal) > 400:
+        await message.answer("Цель должна быть от 5 до 400 символов.")
+        return
+
+    goal = html.escape(raw_goal)
+    await state.update_data(career_goal=goal)
+    await state.set_state(CareerProfileState.waiting_career_portfolio)
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Пропустить ⏭", callback_data="portfolio:skip")
+    builder.button(text="❌ Отмена", callback_data="profile:cancel")
+    builder.adjust(1)
+
+    await message.answer(
+        "🔗 <b>Анкета «Карьера»: Шаг 3/4 — Портфолио / Резюме / GitHub</b>\n\n"
+        "Отправь ссылку на свой GitHub, Behance, Notion, резюме на HeadHunter или LinkedIn:\n"
+        "<i>(Если ссылки нет, нажми «Пропустить»)</i>",
+        parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+    )
+
+
+@router.callback_query(F.data == "portfolio:skip", CareerProfileState.waiting_career_portfolio)
+async def process_portfolio_skip(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(career_portfolio_url=None)
+    await state.set_state(CareerProfileState.waiting_career_work_format)
+    await callback.answer()
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.message.answer(
+        "💼 <b>Анкета «Карьера»: Шаг 4/4 — Формат работы</b>\n\n"
+        "Какой формат работы тебе наиболее интересен?",
+        parse_mode="HTML",
+        reply_markup=career_work_format_keyboard(),
+    )
+
+
+@router.message(CareerProfileState.waiting_career_portfolio)
+async def process_portfolio_url(message: Message, state: FSMContext):
+    url_text = message.text.strip()
+    if not (url_text.startswith("http://") or url_text.startswith("https://") or "t.me/" in url_text or "github.com" in url_text or "hh.ru" in url_text):
+        url_text = f"https://{url_text}"
+
+    await state.update_data(career_portfolio_url=url_text)
+    await state.set_state(CareerProfileState.waiting_career_work_format)
+
+    await message.answer(
+        "💼 <b>Анкета «Карьера»: Шаг 4/4 — Формат работы</b>\n\n"
+        "Какой формат работы тебе наиболее интересен?",
+        parse_mode="HTML",
+        reply_markup=career_work_format_keyboard(),
+    )
+
+
+@router.callback_query(F.data.startswith("wformat:"), CareerProfileState.waiting_career_work_format)
+async def process_career_work_format(callback: CallbackQuery, state: FSMContext, user: User):
+    fmt_val = callback.data.split(":")[1]
+    format_map = {
+        "remote": "🌐 Удалённо",
+        "office": "🏢 Офис",
+        "hybrid": "⚖️ Гибрид",
+        "part_time": "⏱ Гибкий график / Part-time",
+        "skip": None,
+    }
+    work_format = format_map.get(fmt_val)
+    await state.update_data(career_work_format=work_format)
+    await state.set_state(CareerProfileState.waiting_career_photo)
+    await callback.answer()
+    await callback.message.edit_reply_markup(reply_markup=None)
+
+    builder = InlineKeyboardBuilder()
+    if user.profile and user.profile.avatar_file_id:
+        builder.button(text="📸 Использовать фото из Знакомств", callback_data="career_photo:use_dating")
+    builder.button(text="❌ Отмена", callback_data="profile:cancel")
+    builder.adjust(1)
+
+    await callback.message.answer(
+        "📸 <b>Деловое фото для Карьеры</b>\n\n"
+        "Загрузи портретное/деловое фото для профессиональной анкеты.\n"
+        "<i>Оно будет отображаться работодателям (HR) и студентам в карьерном поиске.</i>",
+        parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+    )
+
+
+async def _save_career_profile_and_complete(
+    file_id: Optional[str], message: Message, state: FSMContext, user: User, db: AsyncSession
+):
+    data = await state.get_data()
+    selected_skills = data.get("selected_career_skills", [])
+    custom_skills = data.get("custom_skills", "")
+    
+    # Объединяем навыки
+    skills_text_parts = list(selected_skills)
+    if custom_skills:
+        skills_text_parts.append(custom_skills)
+    skills_combined = ", ".join(skills_text_parts) if skills_text_parts else None
+
+    career_goal = data.get("career_goal")
+    career_portfolio_url = data.get("career_portfolio_url")
+    career_work_format = data.get("career_work_format")
+
+    photo_id = file_id or (user.profile.avatar_file_id if user.profile else None)
+
+    await update_career_profile(
+        db,
+        user.id,
+        career_goal=career_goal,
+        career_custom_skills=skills_combined,
+        career_portfolio_url=career_portfolio_url,
+        career_work_format=career_work_format,
+        career_avatar_file_id=photo_id,
+        career_is_complete=True,
+    )
+
+    await state.clear()
+
+    await message.answer(
+        "🎉 <b>Профессиональная анкета «🎯 Карьера» успешно сохранена!</b>\n\n"
+        "Теперь работодатели (HR) и студенты могут видеть твои навыки и проекты при поиске.\n"
+        "Ты можешь переключаться между Знакомствами и Карьерой в любой момент в настройках!",
+        parse_mode="HTML",
+        reply_markup=main_menu_keyboard(),
+    )
+    from bot.handlers.settings import show_my_profile
+    await show_my_profile(message, user, db, view_mode="career")
+
+
+@router.callback_query(F.data == "career_photo:use_dating", CareerProfileState.waiting_career_photo)
+async def process_career_photo_use_dating(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
+    await callback.answer()
+    dating_photo = user.profile.avatar_file_id if user.profile else None
+    await _save_career_profile_and_complete(dating_photo, callback.message, state, user, db)
+
+
+@router.message(CareerProfileState.waiting_career_photo, F.photo)
+async def process_career_photo(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    photo = message.photo[-1]
+    await _save_career_profile_and_complete(photo.file_id, message, state, user, db)
+
+
+@router.message(CareerProfileState.waiting_career_photo, F.document)
+async def process_career_photo_document(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    if message.document and message.document.mime_type and message.document.mime_type.startswith("image/"):
+        await _save_career_profile_and_complete(message.document.file_id, message, state, user, db)
+    else:
+        await message.answer("Пожалуйста, отправь фото как изображение (JPG/PNG).")

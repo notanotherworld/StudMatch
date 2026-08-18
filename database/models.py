@@ -181,7 +181,16 @@ class Profile(Base):
 
     # Видимость в топе
     is_visible: Mapped[bool] = mapped_column(Boolean, default=True)
-    is_complete: Mapped[bool] = mapped_column(Boolean, default=False)  # Анкета заполнена
+    is_complete: Mapped[bool] = mapped_column(Boolean, default=False)  # Анкета знакомств заполнена
+
+    # Профессиональная анкета (Карьера)
+    career_avatar_file_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)  # Деловое фото
+    career_goal: Mapped[Optional[str]] = mapped_column(Text, nullable=True)                    # Карьерная цель / опыт
+    career_skills: Mapped[Optional[List[int]]] = mapped_column(ARRAY(Integer), nullable=True)  # Навыки / стек (ID тегов)
+    career_custom_skills: Mapped[Optional[str]] = mapped_column(Text, nullable=True)          # Свободные навыки
+    career_portfolio_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)   # GitHub / Behance / Резюме
+    career_work_format: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)      # Удалённо / Офис / Гибрид
+    career_is_complete: Mapped[bool] = mapped_column(Boolean, default=False)                   # Анкета карьеры заполнена
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

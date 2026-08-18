@@ -191,28 +191,114 @@ def buy_superlike_keyboard(pricing: Optional[dict] = None) -> InlineKeyboardMark
     return builder.as_markup()
 
 
-def my_profile_keyboard(current_mode: str) -> InlineKeyboardMarkup:
-    mode_label = "🎯 Карьера" if current_mode == "career" else "❤️ Знакомства"
+CAREER_SKILLS_LIST = [
+    "🐍 Python / AI",
+    "📊 Data Analytics / SQL",
+    "💻 Frontend (React/Vue)",
+    "⚙️ Backend (Go/Java/Node)",
+    "🎨 UI/UX / Figma",
+    "🚀 Product Management",
+    "📈 Маркетинг / SMM",
+    "📱 Mobile (iOS/Android)",
+    "🧪 QA / Тестирование",
+    "💼 Project Management",
+    "💰 Sales / Продажи",
+    "✍️ Копирайтинг / PR",
+    "👥 HR / Рекрутинг",
+    "🏛 FinTech / Финансы",
+]
+
+
+def career_skills_keyboard(selected: List[str] = None) -> InlineKeyboardMarkup:
+    """Клавиатура выбора профессиональных навыков/стека с чекбоксами."""
+    selected = selected or []
     builder = InlineKeyboardBuilder()
+    for idx, skill in enumerate(CAREER_SKILLS_LIST):
+        checked = "✅ " if skill in selected else ""
+        builder.button(
+            text=f"{checked}{skill}",
+            callback_data=f"cskill:{idx}",
+        )
+    builder.button(text="✍️ Написать свой навык", callback_data="cskill:custom")
+    builder.button(text="✔️ Готово", callback_data="cskill:done")
+    builder.adjust(2)
+    return builder.as_markup()
+
+
+def career_work_format_keyboard() -> InlineKeyboardMarkup:
+    """Выбор предпочтительного формата работы."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🌐 Удалённо (Remote)", callback_data="wformat:remote")
+    builder.button(text="🏢 Офис (Office)", callback_data="wformat:office")
+    builder.button(text="⚖️ Гибрид (Hybrid)", callback_data="wformat:hybrid")
+    builder.button(text="⏱ Гибкий график / Part-time", callback_data="wformat:part_time")
+    builder.button(text="❌ Пропустить", callback_data="wformat:skip")
+    builder.adjust(2, 2, 1)
+    return builder.as_markup()
+
+
+def career_swipe_card_keyboard(
+    profile_user_id: int, portfolio_url: Optional[str] = None, superlikes_count: int = 0
+) -> InlineKeyboardMarkup:
+    """Кнопки действий под карьерной анкетой студента."""
+    builder = InlineKeyboardBuilder()
+    if portfolio_url and portfolio_url.startswith("http"):
+        builder.button(text="🔗 Портфолио / Резюме", url=portfolio_url)
+
+    builder.button(text="🤝 Коннект", callback_data=f"swipe:like:{profile_user_id}")
+    builder.button(text="⏭ Скип", callback_data=f"swipe:skip:{profile_user_id}")
+
+    sl_label = f"⭐ Суперлайк ({superlikes_count})" if superlikes_count > 0 else "⭐ Суперлайк"
+    builder.button(text=sl_label, callback_data=f"swipe:superlike:{profile_user_id}")
+    builder.button(text="💌 Письмо", callback_data=f"swipe:message:{profile_user_id}")
+    builder.button(text="🚨 Пожаловаться", callback_data=f"report:{profile_user_id}")
+
+    if portfolio_url and portfolio_url.startswith("http"):
+        builder.adjust(1, 2, 2, 1)
+    else:
+        builder.adjust(2, 2, 1)
+    return builder.as_markup()
+
+
+def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyboardMarkup:
+    """Клавиатура управления профилем с отображением статуса обеих анкет."""
+    p = user.profile
+    dating_ok = "✅" if (p and p.is_complete) else "⚠️"
+    career_ok = "✅" if (p and p.career_is_complete) else "⚠️"
+
+    mode_label = "🎯 Карьера" if user.mode == ModeEnum.career else "❤️ Знакомства"
+    builder = InlineKeyboardBuilder()
+
+    # Переключатели просмотра анкет
+    builder.button(text=f"❤️ Знакомства {dating_ok}", callback_data="profile:view_dating")
+    builder.button(text=f"🎯 Карьера {career_ok}", callback_data="profile:view_career")
+
+    # Редактирование
+    if current_view == "career" or (current_view == "current" and user.mode == ModeEnum.career):
+        builder.button(text="✏️ Редактировать Карьеру", callback_data="settings:edit_career_profile")
+    else:
+        builder.button(text="✏️ Редактировать Знакомства", callback_data="settings:edit_profile")
+
     builder.button(text=f"Режим: {mode_label}", callback_data="settings:change_mode")
-    builder.button(text="✏️ Изменить анкету", callback_data="settings:edit_profile")
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
     builder.button(text="💎 Премиум и Суперлайки", callback_data="settings:buy")
     builder.button(text="🎁 Ввести промокод", callback_data="settings:enter_promo")
     builder.button(text="🪢 Пригласить друга (+3 ⭐️)", callback_data="settings:ref_link")
-    builder.adjust(1)
+    builder.adjust(2, 1, 1, 2, 1)
     return builder.as_markup()
 
 
 def settings_keyboard(current_mode: str, is_visible: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="🏷 Изменить интересы", callback_data="settings:edit_interests")
+    builder.button(text="❤️ Редактировать Знакомства", callback_data="settings:edit_profile")
+    builder.button(text="🎯 Редактировать Карьеру", callback_data="settings:edit_career_profile")
+    builder.button(text="🏷 Изменить интересы (Знакомства)", callback_data="settings:edit_interests")
     builder.button(text="👫 Пол и предпочтения", callback_data="settings:edit_gender")
     vis_label = "🔒 Скрыть из поиска" if is_visible else "👁 Показывать в поиске"
     builder.button(text=vis_label, callback_data="settings:toggle_visibility")
     builder.button(text="🔄 Сбросить историю свайпов", callback_data="settings:reset_swipes")
     builder.button(text="🎁 Ввести промокод", callback_data="settings:enter_promo")
-    builder.adjust(1)
+    builder.adjust(2, 1, 1, 1, 1, 1)
     return builder.as_markup()
 
 

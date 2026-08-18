@@ -23,6 +23,15 @@ class ProfileState(StatesGroup):
     waiting_photo = State()          # Фото
 
 
+class CareerProfileState(StatesGroup):
+    waiting_career_skills = State()
+    waiting_career_custom_skills = State()
+    waiting_career_goal = State()
+    waiting_career_portfolio = State()
+    waiting_career_work_format = State()
+    waiting_career_photo = State()
+
+
 class ModeState(StatesGroup):
     choosing_mode = State()
 

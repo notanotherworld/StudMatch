@@ -45,7 +45,7 @@
   <!-- Правая колонка: детали -->
   <div>
     <div class="card">
-      <div style="font-size:16px;font-weight:600;margin-bottom:20px;">📋 Анкета</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:20px;">🎯 Профессиональная анкета студента</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div>
           <div style="font-size:12px;color:var(--muted);">Курс</div>
@@ -56,14 +56,30 @@
           <div style="font-size:15px;font-weight:500;margin-top:2px;">{{ profile.major }}</div>
         </div>
         <div style="grid-column:span 2;">
-          <div style="font-size:12px;color:var(--muted);">Цель</div>
-          <div style="font-size:15px;margin-top:2px;">{{ profile.goal }}</div>
+          <div style="font-size:12px;color:var(--muted);">🛠 Навыки и стек технологий</div>
+          <div style="font-size:15px;font-weight:600;color:var(--accent2);margin-top:2px;">
+            {{ profile.career_custom_skills or 'Не указаны' }}
+          </div>
         </div>
         <div>
-          <div style="font-size:12px;color:var(--muted);">Режим</div>
+          <div style="font-size:12px;color:var(--muted);">Формат работы</div>
+          <div style="font-size:15px;margin-top:2px;">{{ profile.career_work_format or 'Любой формат' }}</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);">Портфолио / Резюме</div>
           <div style="font-size:15px;margin-top:2px;">
-            {% if user.mode.value == 'career' %}🎯 Карьера{% else %}❤️ Знакомства{% endif %}
+            {% if profile.career_portfolio_url %}
+              <a href="{{ profile.career_portfolio_url }}" target="_blank" style="color:var(--accent2);text-decoration:underline;">
+                🔗 Открыть портфолио
+              </a>
+            {% else %}
+              —
+            {% endif %}
           </div>
+        </div>
+        <div style="grid-column:span 2;">
+          <div style="font-size:12px;color:var(--muted);">🎯 Карьерная цель / Опыт</div>
+          <div style="font-size:15px;margin-top:2px;">{{ profile.career_goal or profile.goal or '—' }}</div>
         </div>
       </div>
     </div>

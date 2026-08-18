@@ -192,6 +192,11 @@ async def get_top_profiles(
     swiped_ids.add(viewer_id)
 
     now = datetime.now(timezone.utc)
+    is_complete_cond = (
+        Profile.career_is_complete == True
+        if mode == ModeEnum.career
+        else Profile.is_complete == True
+    )
 
     result = await db.execute(
         select(Profile)
@@ -200,7 +205,7 @@ async def get_top_profiles(
         .where(
             and_(
                 Profile.is_visible == True,
-                Profile.is_complete == True,
+                is_complete_cond,
                 User.is_active == True,
                 User.email_verified == True,
                 ~Profile.user_id.in_(swiped_ids),
@@ -269,6 +274,12 @@ async def get_next_profile(
                     )
                 )
 
+    is_complete_cond = (
+        Profile.career_is_complete == True
+        if mode == ModeEnum.career
+        else Profile.is_complete == True
+    )
+
     result = await db.execute(
         select(Profile)
         .options(selectinload(Profile.user))
@@ -276,7 +287,7 @@ async def get_next_profile(
         .where(
             and_(
                 Profile.is_visible == True,
-                Profile.is_complete == True,
+                is_complete_cond,
                 User.is_active == True,
                 User.email_verified == True,
                 ~Profile.user_id.in_(swiped_ids),
@@ -290,6 +301,21 @@ async def get_next_profile(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def update_career_profile(
+    db: AsyncSession, user_id: int, **kwargs
+) -> Optional[Profile]:
+    """Обновить профессиональную анкету (Карьера)."""
+    profile = await get_profile(db, user_id)
+    if not profile:
+        profile = await create_profile(db, user_id)
+    for key, value in kwargs.items():
+        if hasattr(profile, key):
+            setattr(profile, key, value)
+    await db.commit()
+    await db.refresh(profile)
+    return profile
 
 
 # ─────────────────────────────────────────────────────────────

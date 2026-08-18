@@ -14,7 +14,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 
 from bot.keyboards.swipe import (
-    swipe_card_keyboard, main_menu_keyboard, letter_received_keyboard, match_keyboard,
+    swipe_card_keyboard, career_swipe_card_keyboard, main_menu_keyboard, letter_received_keyboard, match_keyboard,
 )
 from bot.states.fsm import LetterState
 from database.crud import get_next_profile, create_swipe, get_user, deduct_superlike
@@ -27,29 +27,17 @@ router = Router()
 
 
 async def _build_profile_caption(
-    profile: Profile, tags_map: dict[int, InterestTag], user: Optional[User] = None
+    profile: Profile, tags_map: dict[int, InterestTag], user: Optional[User] = None, mode: Optional[ModeEnum] = None
 ) -> str:
-    """Формируем текст карточки студента."""
-    tags_text = ""
-    if profile.interest_ids:
-        tags = [tags_map[tid] for tid in profile.interest_ids if tid in tags_map]
-        tags_text = " ".join(f"#{html.escape(t.name)}" for t in tags)
-
-    # Кастомные интересы
-    if profile.custom_interests:
-        custom = html.escape(profile.custom_interests)
-        tags_text += f"\n✍️ {custom}" if tags_text else f"✍️ {custom}"
-
+    """Формируем текст карточки студента в зависимости от режима."""
     user_obj = user or (profile.__dict__.get("user") if hasattr(profile, "__dict__") else None)
-    user_mode = getattr(user_obj, "mode", None)
-    mode_label = "🎯 Карьера" if (user_mode and user_mode == ModeEnum.career) else "❤️ Знакомства"
-    raw_rating = getattr(profile, "rating_score", 0.0) or 0.0
-    rating = f"⭐ {raw_rating:.0f} б." if raw_rating > 0 else ""
+    card_mode = mode or getattr(user_obj, "mode", ModeEnum.dating)
 
     name = html.escape(profile.name or "Студент")
     major = html.escape(profile.major or "")
-    goal = html.escape(profile.goal or "")
     year_str = f"{profile.year} курс" if profile.year else "Студент"
+    raw_rating = getattr(profile, "rating_score", 0.0) or 0.0
+    rating = f"⭐ {raw_rating:.0f} б." if raw_rating > 0 else ""
 
     from datetime import datetime, timezone
     boost_badge = ""
@@ -57,13 +45,38 @@ async def _build_profile_caption(
         if user_obj.boost_until > datetime.now(timezone.utc):
             boost_badge = " 🌪"
 
-    return (
-        f"<b>{name}</b>{boost_badge}, {year_str}\n\n"
-        f"📚 {major}\n\n"
-        f"{mode_label}  {rating}\n\n"
-        f"💬 <i>{goal}</i>\n\n"
-        f"{tags_text}"
-    )
+    if card_mode == ModeEnum.career:
+        skills_text = html.escape(profile.career_custom_skills or "Не указаны")
+        goal_text = html.escape(profile.career_goal or "Ищет интересные проекты и стажировки")
+        work_fmt = html.escape(profile.career_work_format or "Любой формат")
+
+        return (
+            f"<b>{name}</b>{boost_badge}, {year_str} 🎯 <b>[Карьера]</b>\n\n"
+            f"📚 {major}\n"
+            f"💼 Формат: <b>{work_fmt}</b>\n"
+            f"⭐ Рейтинг: <b>{rating}</b>\n\n"
+            f"🛠 <b>Навыки и стек:</b>\n{skills_text}\n\n"
+            f"🎯 <b>Цель / Опыт:</b>\n<i>{goal_text}</i>"
+        )
+    else:
+        tags_text = ""
+        if profile.interest_ids:
+            tags = [tags_map[tid] for tid in profile.interest_ids if tid in tags_map]
+            tags_text = " ".join(f"#{html.escape(t.name)}" for t in tags)
+
+        if profile.custom_interests:
+            custom = html.escape(profile.custom_interests)
+            tags_text += f"\n✍️ {custom}" if tags_text else f"✍️ {custom}"
+
+        goal = html.escape(getattr(profile, "goal", "") or "")
+
+        return (
+            f"<b>{name}</b>{boost_badge}, {year_str}\n\n"
+            f"📚 {major}\n\n"
+            f"❤️ Знакомства  {rating}\n\n"
+            f"💬 <i>{goal}</i>\n\n"
+            f"{tags_text}"
+        )
 
 
 async def send_next_card(
@@ -95,26 +108,37 @@ async def send_next_card(
         for tag in result.scalars().all():
             tags_map[tag.id] = tag
 
-    caption = await _build_profile_caption(profile, tags_map)
+    caption = await _build_profile_caption(profile, tags_map, mode=user.mode)
 
-    if profile.avatar_file_id:
+    if user.mode == ModeEnum.career:
+        photo_id = profile.career_avatar_file_id or profile.avatar_file_id
+        kb = career_swipe_card_keyboard(
+            profile.user_id,
+            portfolio_url=profile.career_portfolio_url,
+            superlikes_count=user.superlike_balance,
+        )
+    else:
+        photo_id = profile.avatar_file_id
+        kb = swipe_card_keyboard(profile.user_id, superlikes_count=user.superlike_balance)
+
+    if photo_id:
         try:
             await bot.send_photo(
                 chat_id=chat_id,
-                photo=profile.avatar_file_id,
+                photo=photo_id,
                 caption=caption,
                 parse_mode="HTML",
-                reply_markup=swipe_card_keyboard(profile.user_id, superlikes_count=user.superlike_balance),
+                reply_markup=kb,
             )
             return
         except Exception:
-            pass  # если фото не загрузилось, отправляем текстом
+            pass
 
     await bot.send_message(
         chat_id=chat_id,
         text=caption,
         parse_mode="HTML",
-        reply_markup=swipe_card_keyboard(profile.user_id, superlikes_count=user.superlike_balance),
+        reply_markup=kb,
     )
 
 
@@ -125,9 +149,24 @@ async def start_swiping(message: Message, user: User, db: AsyncSession, state: F
     if not user.email_verified:
         await message.answer("❌ Сначала пройди верификацию email. Напиши /start")
         return
-    if not user.profile or not user.profile.is_complete:
-        await message.answer("❌ Сначала заполни анкету. Напиши /start")
-        return
+
+    if user.mode == ModeEnum.career:
+        if not user.profile or not user.profile.career_is_complete:
+            from aiogram.utils.keyboard import InlineKeyboardBuilder
+            b = InlineKeyboardBuilder()
+            b.button(text="🚀 Заполнить анкету Карьеры", callback_data="settings:edit_career_profile")
+            b.adjust(1)
+            await message.answer(
+                "❌ <b>Твоя профессиональная анкета «🎯 Карьера» ещё не заполнена!</b>\n\n"
+                "Заполни свои навыки, стек и цели, чтобы начать карьерный нетворкинг и быть заметным для работодателей.",
+                parse_mode="HTML",
+                reply_markup=b.as_markup(),
+            )
+            return
+    else:
+        if not user.profile or not user.profile.is_complete:
+            await message.answer("❌ Сначала заполни анкету знакомств. Напиши /start")
+            return
 
     await send_next_card(message.bot, message.chat.id, user, db)
 

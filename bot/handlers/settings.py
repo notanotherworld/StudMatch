@@ -79,19 +79,53 @@ async def edit_gender_prompt(callback: CallbackQuery, state: FSMContext):
     )
 
 
+@router.callback_query(F.data == "settings:edit_career_profile")
+async def edit_career_profile_prompt(callback: CallbackQuery, user: User, state: FSMContext, db: AsyncSession):
+    await callback.answer()
+    from bot.handlers.profile import start_career_profile_creation
+    await start_career_profile_creation(callback, state, user, db)
+
+
+@router.callback_query(F.data == "profile:view_dating")
+async def view_dating_profile_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    await callback.answer()
+    await show_my_profile(callback.message, user, db, view_mode="dating")
+
+
+@router.callback_query(F.data == "profile:view_career")
+async def view_career_profile_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    await callback.answer()
+    await show_my_profile(callback.message, user, db, view_mode="career")
+
+
 @router.callback_query(F.data.startswith("mode:"))
-async def set_mode(callback: CallbackQuery, user: User, db: AsyncSession):
+async def set_mode(callback: CallbackQuery, user: User, db: AsyncSession, state: FSMContext = None):
     mode_str = callback.data.split(":")[1]
     mode = ModeEnum.career if mode_str == "career" else ModeEnum.dating
     await set_user_mode(db, user.id, mode)
 
     label = "🎯 Карьера" if mode == ModeEnum.career else "❤️ Знакомства"
+    await callback.answer(f"Режим изменён: {label}")
+    await callback.message.edit_reply_markup(reply_markup=None)
+
+    if mode == ModeEnum.career and (not user.profile or not user.profile.career_is_complete):
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🚀 Заполнить анкету Карьеры", callback_data="settings:edit_career_profile")
+        builder.adjust(1)
+        await callback.message.answer(
+            f"✅ Режим изменён на <b>{label}</b>\n\n"
+            "⚠️ <b>Твоя профессиональная анкета ещё не заполнена!</b>\n"
+            "Укажи свои навыки, стек технологий и формат работы, чтобы тебя видели работодатели (HR) и студенты.",
+            parse_mode="HTML",
+            reply_markup=builder.as_markup(),
+        )
+        return
+
     extra_text = (
         "\n\n💼 <i>Компании видят топ-50. Чем выше ты в этом списке, тем чаще они пишут тебе первыми. Все получится 🤲🏻</i>"
         if mode == ModeEnum.career else ""
     )
-    await callback.answer(f"Режим изменён: {label}")
-    await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer(
         f"✅ Режим изменён на <b>{label}</b>{extra_text}",
         parse_mode="HTML",
@@ -131,7 +165,7 @@ async def reset_user_swipes(event, user: User, db: AsyncSession):
 
     msg_text = (
         "🔄 <b>История свайпов полностью сброшена!</b>\n\n"
-        "Теперь нажми <b>🏆 Топ студентов</b> в меню, чтобы просмотреть все 10 тестовых анкет заново."
+        "Теперь нажми <b>🔍 Смотреть анкеты</b> в меню, чтобы просмотреть анкеты заново."
     )
 
     if isinstance(event, CallbackQuery):
@@ -202,52 +236,94 @@ async def show_referral_link(event, user: User, state: FSMContext = None):
 
 
 @router.message(StateFilter("*"), F.text.in_({"🐾 Мой профиль", "👤 Мой профиль", "Мой профиль", "/profile"}))
-async def show_my_profile(message: Message, user: User, db: AsyncSession, state: FSMContext = None):
+async def show_my_profile(
+    message: Message,
+    user: User,
+    db: AsyncSession,
+    state: FSMContext = None,
+    view_mode: str = "current",
+):
     if state:
         await state.clear()
     profile = user.profile
-    if not profile or not profile.is_complete:
+    if not profile or not profile.name:
         await message.answer("У тебя ещё нет анкеты. Напиши /start чтобы создать.")
         return
 
-    mode_label = "🎯 Карьера" if user.mode == ModeEnum.career else "❤️ Знакомства"
-    visibility = "👀 В поиске (свайпах)" if profile.is_visible else "🔒 Скрыта из поиска"
-
-    g_str = "👨 Парень" if profile.gender == "male" else ("👩 Девушка" if profile.gender == "female" else "")
-    tg_str = "👩 Ищу девушек" if profile.target_gender == "female" else ("👨 Ищу парней" if profile.target_gender == "male" else "✨ Ищу всех")
-    gender_info = f"\n{g_str} · {tg_str}" if g_str else ""
-
-    # Кастомные интересы в профиле (#14)
-    custom_block = ""
-    if profile.custom_interests:
-        custom_block = f"\n✍️ Свои: <i>{html.escape(profile.custom_interests)}</i>"
-
-    email_str = html.escape(user.email or "не указан")
     score_val = profile.rating_score or 0.0
     year_str = f"{profile.year} курс" if profile.year else "Студент"
+    name = html.escape(profile.name or "Студент")
+    major = html.escape(profile.major or "")
+    email_str = html.escape(user.email or "не указан")
 
-    text = (
-        f"<b>{html.escape(profile.name or 'Студент')}</b>, {year_str}\n\n"
-        f"📚 {html.escape(profile.major or '')}\n\n"
-        f"{mode_label} · ⭐ {score_val:.0f} б."
-        f"{gender_info}\n"
-        f"{visibility}\n\n"
-        f"💬 <i>{html.escape(getattr(profile, 'goal', '') or '')}</i>\n"
-        f"{custom_block}\n\n"
-        f"⭐ Суперлайков: <b>{user.superlike_balance}</b>\n"
-        f"📧 {email_str}"
-    )
+    # Определяем какой режим показывать
+    is_career_view = (view_mode == "career") or (view_mode == "current" and user.mode == ModeEnum.career)
 
-    if profile.avatar_file_id:
+    if is_career_view:
+        # Карьерная анкета
+        photo_file_id = profile.career_avatar_file_id or profile.avatar_file_id
+        skills_text = html.escape(profile.career_custom_skills or "Не указаны")
+        goal_text = html.escape(profile.career_goal or "Не указана")
+        work_fmt = html.escape(profile.career_work_format or "Не указан")
+        portfolio_str = f"\n🔗 <b>Портфолио/Резюме:</b> {html.escape(profile.career_portfolio_url)}" if profile.career_portfolio_url else ""
+        status_str = "✅ Заполнена" if profile.career_is_complete else "⚠️ Не заполнена (нажми кнопку ниже)"
+
+        text = (
+            f"<b>{name}</b>, {year_str} 🎯 <b>[Карьера]</b>\n"
+            f"<i>Статус: {status_str}</i>\n\n"
+            f"📚 {major}\n"
+            f"💼 Формат: {work_fmt}\n"
+            f"⭐ Рейтинг: <b>{score_val:.0f} б.</b>\n\n"
+            f"🛠 <b>Навыки и стек:</b>\n{skills_text}\n\n"
+            f"🎯 <b>Цель / Опыт:</b>\n<i>{goal_text}</i>"
+            f"{portfolio_str}\n\n"
+            f"⭐️ Суперлайков: <b>{user.superlike_balance}</b>\n"
+            f"📧 {email_str}"
+        )
+        current_view_param = "career"
+    else:
+        # Анкета Знакомств
+        photo_file_id = profile.avatar_file_id
+        g_str = "👨 Парень" if profile.gender == "male" else ("👩 Девушка" if profile.gender == "female" else "")
+        tg_str = "👩 Ищу девушек" if profile.target_gender == "female" else ("👨 Ищу парней" if profile.target_gender == "male" else "✨ Ищу всех")
+        gender_info = f"\n{g_str} · {tg_str}" if g_str else ""
+
+        tags_text = ""
+        if profile.interest_ids:
+            res = await db.execute(select(InterestTag).where(InterestTag.id.in_(profile.interest_ids)))
+            tags = res.scalars().all()
+            tags_text = " ".join(f"#{html.escape(t.name)}" for t in tags)
+        if profile.custom_interests:
+            tags_text += f"\n✍️ Свои: {html.escape(profile.custom_interests)}"
+
+        goal_text = html.escape(getattr(profile, "goal", "") or "")
+        status_str = "✅ Заполнена" if profile.is_complete else "⚠️ Не заполнена"
+
+        text = (
+            f"<b>{name}</b>, {year_str} ❤️ <b>[Знакомства]</b>\n"
+            f"<i>Статус: {status_str}</i>\n\n"
+            f"📚 {major}\n"
+            f"⭐ Рейтинг: <b>{score_val:.0f} б.</b>"
+            f"{gender_info}\n\n"
+            f"💬 <b>О себе:</b>\n<i>{goal_text}</i>\n\n"
+            f"{tags_text}\n\n"
+            f"⭐️ Суперлайков: <b>{user.superlike_balance}</b>\n"
+            f"📧 {email_str}"
+        )
+        current_view_param = "dating"
+
+    reply_kb = my_profile_keyboard(user, current_view=current_view_param)
+
+    if photo_file_id:
         try:
             await message.answer_photo(
-                photo=profile.avatar_file_id,
+                photo=photo_file_id,
                 caption=text,
                 parse_mode="HTML",
-                reply_markup=my_profile_keyboard(user.mode.value),
+                reply_markup=reply_kb,
             )
             return
         except Exception:
             pass
 
-    await message.answer(text, parse_mode="HTML", reply_markup=my_profile_keyboard(user.mode.value))
+    await message.answer(text, parse_mode="HTML", reply_markup=reply_kb)
