@@ -4,8 +4,8 @@ from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
-from typing import List, Optional, Dict, Any
-from database.models import InterestTag
+from typing import List, Optional, Dict, Any, Set
+from database.models import InterestTag, User, ModeEnum
 
 
 def consent_keyboard() -> InlineKeyboardMarkup:
