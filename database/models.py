@@ -379,7 +379,13 @@ class BroadcastLog(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     admin_id: Mapped[int] = mapped_column(Integer, ForeignKey("admins.id"))
     text: Mapped[str] = mapped_column(Text, nullable=False)
-    target: Mapped[str] = mapped_column(String(50), nullable=False)  # all/verified/career/dating
+    target: Mapped[str] = mapped_column(String(50), nullable=False)  # all/verified/career/dating/custom
+    target_filters: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON с параметрами фильтрации
+    photo_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    button_text: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    button_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="completed")  # completed, pending, processing, cancelled, failed
     sent_count: Mapped[int] = mapped_column(Integer, default=0)
     failed_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

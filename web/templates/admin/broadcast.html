@@ -1,156 +1,412 @@
 {% extends "admin/base.html" %}
-{% block title %}Рассылка — СтудМэч Admin{% endblock %}
+{% block title %}Центр рассылок — СтудМэч Admin{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1>📢 Массовая рассылка</h1>
-  <p>Отправить сообщение сразу всем или выбранной аудитории</p>
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>📢 Центр управления рассылками</h1>
+    <p>Точечный таргетинг по полу, курсу, вузу, навыкам и рейтингу с отложенным запуском</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div style="background:var(--surface2);border:1px solid var(--border);padding:8px 16px;border-radius:10px;font-size:13px;">
+      👥 Активных студентов: <strong style="color:var(--accent2);">{{ total_users_count }}</strong>
+    </div>
+  </div>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;">
 
-  <!-- Форма рассылки -->
-  <div class="card">
-    <div style="font-size:15px;font-weight:600;margin-bottom:20px;">✏️ Новое сообщение</div>
-    <form method="POST" action="/admin/broadcast/send"
-          onsubmit="return confirm('Отправить рассылку? Это действие нельзя отменить.')">
+  <!-- Левая колонка: Конструктор точечной рассылки -->
+  <div style="display:flex;flex-direction:column;gap:20px;">
+    
+    <form method="POST" action="/admin/broadcast/send" enctype="multipart/form-data" id="broadcastForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="form-group">
-        <label>Аудитория</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          {% for key, label in target_labels.items() %}
-          <label style="display:flex;align-items:center;gap:8px;padding:10px 14px;
-                        background:var(--surface2);border-radius:8px;cursor:pointer;
-                        border:1px solid var(--border);font-size:13px;color:var(--text);">
-            <input type="radio" name="target" value="{{ key }}"
-                   {% if key == 'all' %}checked{% endif %}
-                   style="width:auto;accent-color:var(--accent);">
-            {{ label }}
+
+      <!-- 1. Настройка таргетинга -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span>🎯</span> Сегментация и таргетинг аудитории
+        </div>
+
+        <div class="grid grid-3">
+          <div class="form-group">
+            <label>Режим анкеты</label>
+            <select name="mode" id="targetMode" class="filter-input">
+              <option value="all" selected>✨ Все режимы</option>
+              <option value="career">🎯 Только Карьера</option>
+              <option value="dating">❤️ Только Знакомства</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Пол студентов</label>
+            <select name="gender" id="targetGender" class="filter-input">
+              <option value="all" selected>👫 Любой пол</option>
+              <option value="male">👨 Парни</option>
+              <option value="female">👩 Девушки</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Курс обучения</label>
+            <select name="year" id="targetYear" class="filter-input">
+              <option value="all" selected>🎓 Все курсы (1–6)</option>
+              <option value="1">1 курс</option>
+              <option value="2">2 курс</option>
+              <option value="3">3 курс</option>
+              <option value="4">4 курс</option>
+              <option value="5">5 курс</option>
+              <option value="6">6 курс (Магистратура)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="form-group">
+            <label>ВУЗ</label>
+            <select name="university_id" id="targetUni" class="filter-input">
+              <option value="" selected>🏛 Все университеты</option>
+              {% for u in universities %}
+                <option value="{{ u.id }}">{{ u.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Поиск по навыкам / стеку / интересам</label>
+            <input type="text" name="skills_query" id="targetSkills" class="filter-input" placeholder="напр. Python, Дизайн, Маркетинг">
+          </div>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="form-group">
+            <label>Минимальный рейтинг (баллы)</label>
+            <input type="number" name="min_rating" id="targetMinRating" class="filter-input" placeholder="от 0">
+          </div>
+          <div class="form-group">
+            <label>Максимальный рейтинг (баллы)</label>
+            <input type="number" name="max_rating" id="targetMaxRating" class="filter-input" placeholder="до 1000">
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:12px;border-top:1px solid var(--border);">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin:0;">
+            <input type="checkbox" name="verified_only" id="targetVerified" class="filter-input" checked style="width:auto;">
+            <span>Только верифицированные студенты (email подтверждён)</span>
           </label>
-          {% endfor %}
+
+          <!-- Живой счетчик получателей -->
+          <div style="background:rgba(99,102,241,0.12);border:1px solid var(--accent);padding:6px 14px;border-radius:12px;display:flex;align-items:center;gap:6px;font-size:13px;">
+            <span>🎯 Получателей:</span>
+            <strong id="recipientCount" style="color:var(--accent2);font-size:15px;">...</strong>
+          </div>
         </div>
       </div>
 
-      <div class="form-group">
-        <label>Текст сообщения (plain text — HTML-теги не поддерживаются)</label>
-        <textarea id="broadcastText" name="text" rows="8"
-                  placeholder="Привет! Хотим сообщить, что..."
-                  oninput="updatePreview()" required></textarea>
-      </div>
+      <!-- 2. Содержание сообщения и медиа -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span>✍️</span> Текст и медиа рассылки
+        </div>
 
-      <!-- Шаблоны -->
-      <div style="margin-bottom:16px;">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Быстрые шаблоны:</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button type="button" class="btn btn-ghost btn-sm"
-            onclick="setTemplate('🎉 <b>Новые возможности в СтудМэч!</b>\n\nМы обновили платформу. Заходи и смотри!')">
-            🎉 Анонс
-          </button>
-          <button type="button" class="btn btn-ghost btn-sm"
-            onclick="setTemplate('🏆 <b>Рейтинг обновлён!</b>\n\nПроверь свою позицию в топе студентов.')">
-            🏆 Рейтинг
-          </button>
-          <button type="button" class="btn btn-ghost btn-sm"
-            onclick="setTemplate('⭐ <b>Специальное предложение!</b>\n\nСегодня только: 3 суперлайка за полцены!')">
-            💰 Акция
-          </button>
-          <button type="button" class="btn btn-ghost btn-sm"
-            onclick="setTemplate('⚠️ <b>Важное уведомление</b>\n\nУважаемые пользователи, обратите внимание...')">
-            ⚠️ Важное
-          </button>
+        <div class="form-group">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <label style="margin:0;">Текст сообщения (поддерживаются HTML-теги: &lt;b&gt;, &lt;i&gt;, &lt;code&gt;)</label>
+            <span style="font-size:11px;color:var(--muted);" id="charCount">0 / 4096</span>
+          </div>
+          <textarea id="broadcastText" name="text" rows="6" placeholder="Привет! 🚀 Хотим поделиться важными новостями..." required></textarea>
+        </div>
+
+        <!-- Шаблоны быстрого заполнения -->
+        <div style="margin-bottom:16px;">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Готовые шаблоны:</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="setTemplate('🚀 <b>Большое обновление СтудМэч!</b>\n\nМы запустили раздельные анкеты для Знакомств и Карьеры, добавили поиск по навыкам и ссылки на портфолио.\n\nЗаходи и проверь свой профиль прямо сейчас! 🔥', '🚀 Открыть СтудМэч', 'profile')">
+              🚀 Релиз платформы
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="setTemplate('💼 <b>Новые возможности для IT-специалистов!</b>\n\nКомпании-партнёры открыли набор на летние стажировки. Заполни навыки в разделе «🎯 Карьера», чтобы попасть в поле зрения HR!', '🎯 Заполнить анкету Карьеры', 'career')">
+              💼 Карьерные вакансии
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="setTemplate('🏆 <b>Обновление Зала славы!</b>\n\nБаллы рейтинга пересчитаны. Загрузи свои свежие достижения и поднимись в топ!', '🏆 Зал славы', 'top')">
+              🏆 Рейтинг и топ
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>📸 Фото-баннер (JPG/PNG/WEBP, до 10MB)</label>
+            <input type="file" name="photo" id="broadcastPhoto" accept="image/jpeg,image/png,image/webp">
+          </div>
+
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Текст кнопки (необязательно)</label>
+            <input type="text" name="button_text" id="btnText" placeholder="напр. 🚀 Открыть СтудМэч">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:14px;margin-bottom:0;">
+          <label>Ссылка для кнопки (URL вида https://... или раздел: profile / career / top)</label>
+          <input type="text" name="button_url" id="btnUrl" placeholder="https://t.me/... или profile">
         </div>
       </div>
 
-      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;">
-        📤 Отправить рассылку
+      <!-- 3. Таймер отправки -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span>⏰</span> Время отправки и планировщик
+        </div>
+
+        <div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 16px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);">
+            <input type="radio" name="send_type" value="now" checked id="sendNowRadio" style="width:auto;">
+            <span style="font-weight:600;">⚡️ Отправить прямо сейчас</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 16px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);">
+            <input type="radio" name="send_type" value="scheduled" id="sendScheduledRadio" style="width:auto;">
+            <span style="font-weight:600;">⏰ Запланировать по таймеру</span>
+          </label>
+        </div>
+
+        <div id="scheduledTimeContainer" style="display:none;margin-top:12px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Дата и время отправки (по вашему местному времени)</label>
+            <input type="datetime-local" name="scheduled_datetime" id="scheduledDatetime" style="max-width:320px;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Кнопка запуска -->
+      <button type="submit" class="btn btn-primary" id="submitBtn" style="width:100%;justify-content:center;padding:14px;font-size:16px;font-weight:700;">
+        📤 Запустить рассылку
       </button>
+
     </form>
   </div>
 
-  <!-- Превью и статистика -->
-  <div style="display:flex;flex-direction:column;gap:16px;">
+  <!-- Правая колонка: Live Preview + История и Запланированные -->
+  <div style="display:flex;flex-direction:column;gap:20px;position:sticky;top:24px;">
 
-    <!-- Спецрассылка: Обновление платформы -->
-    <div class="card" style="border:1px solid rgba(99,102,241,0.4);background:rgba(99,102,241,0.06);">
-      <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--accent2);">
-        🚀 Рассылка об обновлении бота
+    <!-- Превью смартфона -->
+    <div class="card" style="padding:16px;background:rgba(18,20,30,0.95);border-radius:20px;border:1px solid rgba(255,255,255,0.1);">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:12px;">
+        📱 Предпросмотр сообщения
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.4;">
-        Отправляет уведомление о выходе новых функций (раздельные анкеты Знакомств и Карьеры, навыки, ссылки на портфолио, улучшенный поиск) с кнопкой <b>«🚀 Открыть СтудМэч»</b>.
-      </p>
-      <form method="POST" action="/admin/broadcast/system-update" onsubmit="return confirm('Отправить рассылку об обновлении всем студентам?')">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
-          ✨ Запустить рассылку об обновлении
-        </button>
-      </form>
-    </div>
 
-    <!-- Спецрассылка Карьерный челлендж -->
-    <div class="card" style="border:1px solid rgba(0,212,255,0.3);background:rgba(0,212,255,0.03);">
-      <div style="font-size:14px;font-weight:600;margin-bottom:8px;color:#00d4ff;">🎯 Карьерный челлендж недели</div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
-        Призывает выполнить 3 задания дня (+60 бонусных баллов) и подняться на 3-5 мест в Зале славы.
-      </p>
-      <form method="POST" action="/admin/broadcast/weekly-challenge" onsubmit="return confirm('Запустить рассылку Карьерный челлендж для всех студентов?')">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;border-color:#00d4ff;color:#00d4ff;">
-          🎯 Запустить челлендж
-        </button>
-      </form>
-    </div>
+      <div style="background:var(--surface2);border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,0.06);">
+        <!-- Превью фото -->
+        <div id="previewImgContainer" style="display:none;max-height:180px;overflow:hidden;">
+          <img id="previewImg" src="" style="width:100%;height:auto;object-fit:cover;">
+        </div>
 
-    <div class="card">
-      <div style="font-size:14px;font-weight:600;margin-bottom:12px;">👁 Превью сообщения</div>
-      <div id="preview"
-           style="background:var(--surface2);border-radius:10px;padding:14px;
-                  font-size:14px;min-height:80px;color:var(--text);line-height:1.5;">
-        <span style="color:var(--muted);">Начни вводить текст...</span>
+        <!-- Превью текст -->
+        <div id="previewText" style="padding:14px;font-size:13px;line-height:1.5;color:var(--text);white-space:pre-wrap;">
+          <span style="color:var(--muted);">Начните вводить текст рассылки...</span>
+        </div>
+
+        <!-- Превью кнопка -->
+        <div id="previewBtnContainer" style="padding:0 12px 12px;display:none;">
+          <div id="previewBtnText" style="background:rgba(99,102,241,0.2);color:var(--accent2);border:1px solid var(--accent);padding:8px;border-radius:8px;text-align:center;font-size:13px;font-weight:600;">
+            Кнопка
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <div style="font-size:14px;font-weight:600;margin-bottom:12px;">📋 История рассылок</div>
+    <!-- Запланированные рассылки и история -->
+    <div class="card" style="padding:16px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+        <span>📋 Рассылки и задачи</span>
+      </div>
+
       {% if history %}
-      <div style="display:flex;flex-direction:column;gap:10px;max-height:400px;overflow-y:auto;">
+      <div style="display:flex;flex-direction:column;gap:10px;max-height:480px;overflow-y:auto;">
         {% for h in history %}
-        <div style="padding:10px;background:var(--surface2);border-radius:8px;font-size:13px;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-            <span class="badge badge-purple">{{ h.target }}</span>
-            <span style="color:var(--muted);">{{ h.created_at.strftime('%d.%m %H:%M') }}</span>
+        <div style="padding:12px;background:var(--surface2);border-radius:10px;font-size:13px;border-left:3px solid {% if h.status == 'pending' %}var(--warning){% elif h.status == 'completed' %}var(--success){% else %}var(--muted){% endif %};">
+          
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <div>
+              {% if h.status == 'pending' %}
+                <span class="badge badge-warning">⏳ В очереди</span>
+              {% elif h.status == 'processing' %}
+                <span class="badge badge-purple">⚡️ Отправляется</span>
+              {% elif h.status == 'cancelled' %}
+                <span class="badge badge-danger">🚫 Отменено</span>
+              {% else %}
+                <span class="badge badge-success">✅ Отправлено</span>
+              {% endif %}
+            </div>
+            <div style="font-size:11px;color:var(--muted);">
+              {{ h.created_at.strftime('%d.%m %H:%M') }}
+            </div>
           </div>
-          <div style="margin-bottom:6px;color:var(--text);">
-            {{ h.text[:80] }}{% if h.text|length > 80 %}...{% endif %}
+
+          <div style="margin-bottom:8px;font-size:12px;line-height:1.4;">
+            {{ h.text[:90] }}{% if h.text|length > 90 %}...{% endif %}
           </div>
-          <div style="display:flex;gap:12px;font-size:12px;">
-            <span style="color:var(--success);">✅ {{ h.sent_count }}</span>
-            <span style="color:var(--danger);">❌ {{ h.failed_count }}</span>
+
+          {% if h.scheduled_at and h.status == 'pending' %}
+          <div style="font-size:11px;color:var(--warning);margin-bottom:8px;">
+            ⏰ Запуск: <b>{{ h.scheduled_at.strftime('%d.%m.%Y %H:%M') }} UTC</b>
           </div>
+          {% endif %}
+
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;padding-top:6px;border-top:1px solid var(--border);">
+            <div>
+              <span style="color:var(--success);">✅ {{ h.sent_count }}</span>
+              <span style="color:var(--danger);margin-left:6px;">❌ {{ h.failed_count }}</span>
+            </div>
+            
+            <div style="display:flex;gap:6px;">
+              {% if h.status == 'pending' %}
+              <form method="POST" action="/admin/broadcast/{{ h.id }}/cancel" onsubmit="return confirm('Отменить запланированную рассылку?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;color:var(--warning);" title="Отменить рассылку">✕ Отменить</button>
+              </form>
+              {% endif %}
+              <form method="POST" action="/admin/broadcast/{{ h.id }}/delete" onsubmit="return confirm('Удалить из истории?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;color:var(--muted);" title="Удалить">🗑</button>
+              </form>
+            </div>
+          </div>
+
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <div style="color:var(--muted);font-size:13px;">Рассылок ещё не было</div>
+      <div style="color:var(--muted);font-size:13px;text-align:center;padding:16px 0;">Рассылок ещё не было</div>
       {% endif %}
     </div>
+
   </div>
 
 </div>
 
 <script>
-function updatePreview() {
-  const text = document.getElementById('broadcastText').value;
-  const preview = document.getElementById('preview');
-  if (text.trim()) {
-    preview.innerHTML = text.replace(/\n/g, '<br>');
-  } else {
-    preview.innerHTML = '<span style="color:var(--muted);">Начни вводить текст...</span>';
-  }
-}
+  // Live Preview Elements
+  const textInput = document.getElementById('broadcastText');
+  const previewText = document.getElementById('previewText');
+  const charCount = document.getElementById('charCount');
+  const photoInput = document.getElementById('broadcastPhoto');
+  const previewImgContainer = document.getElementById('previewImgContainer');
+  const previewImg = document.getElementById('previewImg');
+  const btnTextInput = document.getElementById('btnText');
+  const btnUrlInput = document.getElementById('btnUrl');
+  const previewBtnContainer = document.getElementById('previewBtnContainer');
+  const previewBtnText = document.getElementById('previewBtnText');
 
-function setTemplate(text) {
-  document.getElementById('broadcastText').value = text;
-  updatePreview();
-}
+  // Scheduler Elements
+  const sendNowRadio = document.getElementById('sendNowRadio');
+  const sendScheduledRadio = document.getElementById('sendScheduledRadio');
+  const scheduledContainer = document.getElementById('scheduledTimeContainer');
+  const submitBtn = document.getElementById('submitBtn');
+
+  // Filter Elements
+  const filterInputs = document.querySelectorAll('.filter-input');
+  const recipientCount = document.getElementById('recipientCount');
+
+  // Update text preview
+  textInput.addEventListener('input', () => {
+    const val = textInput.value;
+    charCount.innerText = `${val.length} / 4096`;
+    if (val.trim()) {
+      previewText.innerText = val;
+    } else {
+      previewText.innerHTML = '<span style="color:var(--muted);">Начните вводить текст рассылки...</span>';
+    }
+  });
+
+  // Update photo preview
+  photoInput.addEventListener('change', () => {
+    if (photoInput.files && photoInput.files[0]) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImg.src = e.target.result;
+        previewImgContainer.style.display = 'block';
+      };
+      reader.readAsDataURL(photoInput.files[0]);
+    } else {
+      previewImgContainer.style.display = 'none';
+    }
+  });
+
+  // Update button preview
+  function updateBtnPreview() {
+    const val = btnTextInput.value.trim();
+    if (val) {
+      previewBtnText.innerText = val;
+      previewBtnContainer.style.display = 'block';
+    } else {
+      previewBtnContainer.style.display = 'none';
+    }
+  }
+  btnTextInput.addEventListener('input', updateBtnPreview);
+
+  // Scheduler switches
+  sendNowRadio.addEventListener('change', () => {
+    scheduledContainer.style.display = 'none';
+    submitBtn.innerText = '📤 Запустить рассылку сейчас';
+  });
+  sendScheduledRadio.addEventListener('change', () => {
+    scheduledContainer.style.display = 'block';
+    submitBtn.innerText = '⏰ Запланировать рассылку по таймеру';
+  });
+
+  // Template setter
+  function setTemplate(text, btnTitle = '', btnUrl = '') {
+    textInput.value = text;
+    textInput.dispatchEvent(new Event('input'));
+    if (btnTitle) {
+      btnTextInput.value = btnTitle;
+      btnUrlInput.value = btnUrl;
+      updateBtnPreview();
+    }
+  }
+
+  // Recipient Counter Debounced AJAX
+  let countDebounceTimer = null;
+  function refreshRecipientCount() {
+    clearTimeout(countDebounceTimer);
+    recipientCount.innerText = '⏳...';
+    countDebounceTimer = setTimeout(async () => {
+      const payload = {
+        mode: document.getElementById('targetMode').value,
+        gender: document.getElementById('targetGender').value,
+        year: document.getElementById('targetYear').value,
+        university_id: document.getElementById('targetUni').value,
+        skills_query: document.getElementById('targetSkills').value,
+        min_rating: document.getElementById('targetMinRating').value,
+        max_rating: document.getElementById('targetMaxRating').value,
+        verified_only: document.getElementById('targetVerified').checked,
+      };
+
+      try {
+        const res = await fetch('/admin/broadcast/count-recipients', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          recipientCount.innerText = `${data.count} чел.`;
+        } else {
+          recipientCount.innerText = '—';
+        }
+      } catch (e) {
+        recipientCount.innerText = '—';
+      }
+    }, 300);
+  }
+
+  filterInputs.forEach(input => {
+    input.addEventListener('change', refreshRecipientCount);
+    input.addEventListener('input', refreshRecipientCount);
+  });
+
+  // Initial count load
+  refreshRecipientCount();
 </script>
 {% endblock %}

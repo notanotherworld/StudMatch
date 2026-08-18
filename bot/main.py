@@ -79,6 +79,10 @@ async def main() -> None:
     from bot.services.update_broadcast import run_startup_update_broadcast
     asyncio.create_task(run_startup_update_broadcast(bot))
 
+    # Запускаем фоновый планировщик отложенных рассылок (каждые 30 сек)
+    from bot.services.scheduler import broadcast_scheduler_loop
+    asyncio.create_task(broadcast_scheduler_loop(bot))
+
     # Запускаем фоновый мониторинг здоровья системы (раз в час)
     from bot.services.health_checker import hourly_health_monitor
     asyncio.create_task(hourly_health_monitor(bot))
