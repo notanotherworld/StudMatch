@@ -1494,6 +1494,23 @@
       }
     }, true);
 
+    // Auto-inject X-CSRF-Token in all fetch requests
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options = {}) {
+      if (options && options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method.toUpperCase())) {
+        options.headers = options.headers || {};
+        if (options.headers instanceof Headers) {
+          if (!options.headers.has('X-CSRF-Token')) options.headers.set('X-CSRF-Token', csrfVal);
+        } else if (Array.isArray(options.headers)) {
+          options.headers.push(['X-CSRF-Token', csrfVal]);
+        } else {
+          options.headers['X-CSRF-Token'] = options.headers['X-CSRF-Token'] || csrfVal;
+        }
+      }
+      return originalFetch.call(this, url, options);
+    };
+  }
+
   // ─── Emergency Shield Modal & Live Toggle ───
   const emergencyModal = document.getElementById('emergencyModal');
   const emergencyTopBanner = document.getElementById('emergencyTopBanner');
