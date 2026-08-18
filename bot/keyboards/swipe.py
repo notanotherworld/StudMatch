@@ -278,6 +278,7 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
         builder.button(text="✏️ Редактировать Карьеру", callback_data="settings:edit_career_profile")
     else:
         builder.button(text="✏️ Редактировать Знакомства", callback_data="settings:edit_profile")
+        builder.button(text="📸 Изменить фото/видео", callback_data="settings:edit_media")
 
     if not user.email_verified:
         builder.button(text="🎓 Подтвердить статус (+100⭐)", callback_data="auth:start_verification")
@@ -288,9 +289,9 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
     builder.button(text="🎁 Ввести промокод", callback_data="settings:enter_promo")
     builder.button(text="🪢 Пригласить друга (+3 ⭐️)", callback_data="settings:ref_link")
     if not user.email_verified:
-        builder.adjust(2, 1, 1, 1, 2, 1)
+        builder.adjust(2, 2 if current_view != "career" else 1, 1, 1, 2, 1)
     else:
-        builder.adjust(2, 1, 1, 2, 1)
+        builder.adjust(2, 2 if current_view != "career" else 1, 1, 2, 1)
     return builder.as_markup()
 
 
@@ -300,6 +301,7 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
         builder.button(text="🎓 Подтвердить статус студента (+100⭐)", callback_data="auth:start_verification")
     builder.button(text="❤️ Редактировать Знакомства", callback_data="settings:edit_profile")
     builder.button(text="🎯 Редактировать Карьеру", callback_data="settings:edit_career_profile")
+    builder.button(text="📸 Изменить фото/видео", callback_data="settings:edit_media")
     builder.button(text="🏷 Изменить интересы (Знакомства)", callback_data="settings:edit_interests")
     builder.button(text="👫 Пол и предпочтения", callback_data="settings:edit_gender")
     vis_label = "🔒 Скрыть из поиска" if is_visible else "👁 Показывать в поиске"
@@ -307,9 +309,19 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
     builder.button(text="🔄 Сбросить историю свайпов", callback_data="settings:reset_swipes")
     builder.button(text="🎁 Ввести промокод", callback_data="settings:enter_promo")
     if not email_verified:
-        builder.adjust(1, 2, 1, 1, 1, 1, 1)
+        builder.adjust(1, 2, 1, 1, 1, 1, 1, 1)
     else:
-        builder.adjust(2, 1, 1, 1, 1, 1)
+        builder.adjust(2, 1, 1, 1, 1, 1, 1)
+    return builder.as_markup()
+
+
+def media_upload_keyboard(uploaded_photos_count: int = 0, has_video: bool = False) -> InlineKeyboardMarkup:
+    """Клавиатура управления загрузкой медиа (до 3 фото и 1 видео)."""
+    builder = InlineKeyboardBuilder()
+    if uploaded_photos_count > 0:
+        builder.button(text="✔️ Завершить загрузку", callback_data="media:done")
+    builder.button(text="❌ Отмена", callback_data="media:cancel")
+    builder.adjust(1)
     return builder.as_markup()
 
 

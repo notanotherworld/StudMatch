@@ -144,19 +144,85 @@ async def send_next_card(
         photo_id = profile.avatar_file_id
         kb = swipe_card_keyboard(profile.user_id, superlikes_count=user.superlike_balance)
 
-    photo_input = _get_photo_input(photo_id)
-    if photo_input:
-        try:
-            await bot.send_photo(
-                chat_id=chat_id,
-                photo=photo_input,
-                caption=caption,
-                parse_mode="HTML",
-                reply_markup=kb,
-            )
-            return
-        except Exception as pe:
-            logger.warning(f"send_photo failed with input {photo_input}: {pe}")
+    from aiogram.types import InputMediaPhoto, InputMediaVideo
+
+    # Формируем список медиа (до 3 фото и 1 видео)
+    photos = list(profile.photos) if profile.photos else ([profile.avatar_file_id] if profile.avatar_file_id else [])
+    if user.mode == ModeEnum.career and profile.career_avatar_file_id:
+        if profile.career_avatar_file_id not in photos:
+            photos = [profile.career_avatar_file_id] + photos
+
+    # Ограничиваем до 3 фото
+    photos = photos[:3]
+    video_id = profile.video_file_id
+
+    # Если медиа больше одного — отправляем медиагруппу (альбом)
+    total_media_count = len(photos) + (1 if video_id else 0)
+
+    if total_media_count > 1:
+        media_group = []
+        is_first = True
+        for p_id in photos:
+            p_input = _get_photo_input(p_id)
+            if p_input:
+                if is_first:
+                    media_group.append(InputMediaPhoto(media=p_input, caption=caption, parse_mode="HTML"))
+                    is_first = False
+                else:
+                    media_group.append(InputMediaPhoto(media=p_input))
+
+        if video_id:
+            v_input = _get_photo_input(video_id)
+            if v_input:
+                if is_first:
+                    media_group.append(InputMediaVideo(media=v_input, caption=caption, parse_mode="HTML"))
+                    is_first = False
+                else:
+                    media_group.append(InputMediaVideo(media=v_input))
+
+        if media_group:
+            try:
+                await bot.send_media_group(chat_id=chat_id, media=media_group)
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text="👇 <b>Твой выбор:</b>",
+                    parse_mode="HTML",
+                    reply_markup=kb,
+                )
+                return
+            except Exception as me:
+                logger.warning(f"send_media_group failed: {me}, fallback to single photo")
+
+    # Если одно фото или fallback
+    if photos:
+        p_input = _get_photo_input(photos[0])
+        if p_input:
+            try:
+                await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=p_input,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=kb,
+                )
+                return
+            except Exception as pe:
+                logger.warning(f"send_photo failed with input {p_input}: {pe}")
+
+    if video_id:
+        v_input = _get_photo_input(video_id)
+        if v_input:
+            try:
+                await bot.send_video(
+                    chat_id=chat_id,
+                    video=v_input,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=kb,
+                )
+                return
+            except Exception as ve:
+                logger.warning(f"send_video failed: {ve}")
 
     await bot.send_message(
         chat_id=chat_id,

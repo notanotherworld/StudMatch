@@ -408,18 +408,48 @@ async def process_target_gender(callback: CallbackQuery, state: FSMContext, user
 
     # Первичное создание профиля (онбординг) — переходим к шагу фото
     await state.set_state(ProfileState.waiting_photo)
+    await state.update_data(photos=[], video_file_id=None)
+    from bot.keyboards.swipe import media_upload_keyboard
     await callback.message.answer(
-        "📸 <b>Почти готово!</b>\n\n"
-        "Загрузи фото профиля — оно будет видно другим студентам.\n"
-        "<i>Отправь фото как изображение (не как файл)</i>",
+        "📸 <b>Загрузи медиа для анкеты!</b>\n\n"
+        "• Можно отправить <b>до 3 фото</b> и <b>1 видео</b> (до 10 МБ 🎥)\n"
+        "• Первое фото станет твоей главной аватаркой.\n\n"
+        "<i>Отправляй фото или видео, затем нажми <b>✔️ Завершить загрузку</b></i>",
         parse_mode="HTML",
+        reply_markup=media_upload_keyboard(0, False),
     )
 
 
-# ─── Фото ─────────────────────────────────────────────────────
-async def _save_photo_and_complete(file_id: str, message: Message, state: FSMContext, user: User, db: AsyncSession):
+# ─── Фото и Видео ─────────────────────────────────────────────
+async def _save_media_and_complete(
+    photos: list[str],
+    video_file_id: Optional[str],
+    message: Message,
+    state: FSMContext,
+    user: User,
+    db: AsyncSession,
+):
     data = await state.get_data()
     prof = user.profile
+
+    if data.get("editing_media_from_settings"):
+        main_avatar = photos[0] if photos else (prof.avatar_file_id if prof else None)
+        await update_profile(
+            db,
+            user.id,
+            avatar_file_id=main_avatar,
+            photos=photos,
+            video_file_id=video_file_id,
+        )
+        await state.clear()
+        await message.answer(
+            "✅ <b>Фото и видео в твоей анкете успешно обновлены!</b>",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard(),
+        )
+        from bot.handlers.settings import show_my_profile
+        await show_my_profile(message, user, db)
+        return
 
     name = data.get("name") or (prof.name if prof else "Студент")
     year = data.get("year") or (prof.year if prof else 1)
@@ -429,6 +459,7 @@ async def _save_photo_and_complete(file_id: str, message: Message, state: FSMCon
     custom_interests = data.get("custom_interests") if "custom_interests" in data else (prof.custom_interests if prof else None)
     gender = data.get("gender") or (prof.gender if prof else None)
     target_gender = data.get("target_gender") or (prof.target_gender if prof else None)
+    main_avatar = photos[0] if photos else (prof.avatar_file_id if prof else None)
 
     await get_or_create_profile(db, user.id)
     await update_profile(
@@ -442,7 +473,9 @@ async def _save_photo_and_complete(file_id: str, message: Message, state: FSMCon
         goal=goal,
         gender=gender,
         target_gender=target_gender,
-        avatar_file_id=file_id,
+        avatar_file_id=main_avatar,
+        photos=photos,
+        video_file_id=video_file_id,
         is_complete=True,
         is_visible=True,
     )
@@ -464,23 +497,114 @@ async def _save_photo_and_complete(file_id: str, message: Message, state: FSMCon
     )
 
 
+@router.callback_query(F.data == "media:done", ProfileState.waiting_photo)
+async def process_media_done_callback(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
+    data = await state.get_data()
+    photos = list(data.get("photos", []))
+    video_id = data.get("video_file_id")
+
+    if not photos and not (user.profile and user.profile.avatar_file_id):
+        await callback.answer("Пожалуйста, загрузи хотя бы 1 фото для анкеты!", show_alert=True)
+        return
+
+    await callback.answer()
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await _save_media_and_complete(photos, video_id, callback.message, state, user, db)
+
+
+@router.callback_query(F.data == "media:cancel", ProfileState.waiting_photo)
+async def process_media_cancel_callback(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
+    await callback.answer()
+    await state.clear()
+    await callback.message.answer(
+        "❌ <b>Загрузка медиа отменена.</b>",
+        parse_mode="HTML",
+        reply_markup=main_menu_keyboard(),
+    )
+    from bot.handlers.settings import show_my_profile
+    await show_my_profile(callback.message, user, db)
+
+
 @router.message(ProfileState.waiting_photo, F.photo)
 async def process_photo(message: Message, state: FSMContext, user: User, db: AsyncSession):
     photo = message.photo[-1]
-    await _save_photo_and_complete(photo.file_id, message, state, user, db)
+    data = await state.get_data()
+    photos = list(data.get("photos", []))
+    video_id = data.get("video_file_id")
+
+    if len(photos) >= 3:
+        from bot.keyboards.swipe import media_upload_keyboard
+        await message.answer(
+            "⚠️ Ты уже загрузил максимум <b>3 фото</b>!\n"
+            "Нажми <b>✔️ Завершить загрузку</b> или отправь 1 видео (до 10 МБ).",
+            parse_mode="HTML",
+            reply_markup=media_upload_keyboard(len(photos), bool(video_id)),
+        )
+        return
+
+    photos.append(photo.file_id)
+    await state.update_data(photos=photos)
+
+    from bot.keyboards.swipe import media_upload_keyboard
+    v_status = "📹 1 видео добавлено" if video_id else "нет видео"
+    await message.answer(
+        f"✅ Фото <b>{len(photos)}/3</b> сохранено! ({v_status})\n\n"
+        f"<i>Можешь отправить ещё {3 - len(photos)} фото или 1 видео (до 10 МБ), либо нажать кнопку ниже:</i>",
+        parse_mode="HTML",
+        reply_markup=media_upload_keyboard(len(photos), bool(video_id)),
+    )
+
+
+@router.message(ProfileState.waiting_photo, F.video | F.video_note)
+async def process_video(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    v_obj = message.video or message.video_note
+    max_bytes = 10 * 1024 * 1024  # 10 MB
+
+    if v_obj.file_size and v_obj.file_size > max_bytes:
+        mb_size = v_obj.file_size / (1024 * 1024)
+        await message.answer(
+            f"⚠️ <b>Размер видео ({mb_size:.1f} МБ) превышает лимит 10 МБ.</b>\n"
+            f"Пожалуйста, отправь более короткое видео или видеовизитку (кружочек).",
+            parse_mode="HTML",
+        )
+        return
+
+    data = await state.get_data()
+    photos = list(data.get("photos", []))
+    await state.update_data(video_file_id=v_obj.file_id)
+
+    from bot.keyboards.swipe import media_upload_keyboard
+    await message.answer(
+        f"✅ <b>Видео успешно загружено!</b> 🎥\n"
+        f"Фото в анкете: <b>{len(photos)}/3</b>.\n\n"
+        f"<i>Нажми <b>✔️ Завершить загрузку</b> или отправь фото:</i>",
+        parse_mode="HTML",
+        reply_markup=media_upload_keyboard(len(photos), True),
+    )
 
 
 @router.message(ProfileState.waiting_photo, F.document)
 async def process_photo_document(message: Message, state: FSMContext, user: User, db: AsyncSession):
     if message.document and message.document.mime_type and message.document.mime_type.startswith("image/"):
-        await _save_photo_and_complete(message.document.file_id, message, state, user, db)
-    else:
-        await message.answer("Пожалуйста, отправь фото как изображение (JPG/PNG).")
+        data = await state.get_data()
+        photos = list(data.get("photos", []))
+        if len(photos) < 3:
+            photos.append(message.document.file_id)
+            await state.update_data(photos=photos)
+            from bot.keyboards.swipe import media_upload_keyboard
+            await message.answer(
+                f"✅ Фото <b>{len(photos)}/3</b> сохранено!\n"
+                f"Нажми <b>✔️ Завершить загрузку</b> или отправь ещё фото/видео.",
+                parse_mode="HTML",
+                reply_markup=media_upload_keyboard(len(photos), bool(data.get("video_file_id"))),
+            )
+            return
+    await message.answer("Пожалуйста, отправь фото как изображение или видео до 10 МБ.")
 
 
 @router.message(ProfileState.waiting_photo)
 async def process_photo_wrong(message: Message):
-    await message.answer("Пожалуйста, отправь фото как изображение (или нажми ❌ Отмена).")
+    await message.answer("Пожалуйста, отправь фото как изображение или видео (до 10 МБ).")
 
 
 # ─────────────────────────────────────────────────────────────

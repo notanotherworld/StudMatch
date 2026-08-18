@@ -175,8 +175,10 @@ class Profile(Base):
     gender: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)         # "male" / "female"
     target_gender: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # "female" / "male" / "all"
 
-    # Фото — храним Telegram file_id
-    avatar_file_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    # Медиа — храним Telegram file_id (до 3 фото и 1 видео)
+    avatar_file_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)  # Главное фото
+    photos: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String), nullable=True, default=list)  # Все фото (до 3)
+    video_file_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)  # Видео (до 10MB)
 
     # Рейтинг
     rating_score: Mapped[float] = mapped_column(Float, default=0.0)

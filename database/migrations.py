@@ -40,15 +40,18 @@ MIGRATION_STATEMENTS = [
     "DELETE FROM promo_activations WHERE user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM profiles WHERE user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM users WHERE id BETWEEN 900000001 AND 900000010;",
+    # 015_profile_multi_media (до 3 фото и 1 видео в профиле)
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS photos TEXT[];",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS video_file_id VARCHAR(200);",
     # Установка версии alembic
     """
     DO $$
     BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version') THEN
-            UPDATE alembic_version SET version_num = '014_delete_legacy_mock_profiles';
+            UPDATE alembic_version SET version_num = '015_profile_multi_media';
         ELSE
             CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));
-            INSERT INTO alembic_version (version_num) VALUES ('014_delete_legacy_mock_profiles');
+            INSERT INTO alembic_version (version_num) VALUES ('015_profile_multi_media');
         END IF;
     END $$;
     """

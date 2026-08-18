@@ -104,6 +104,22 @@ async def edit_gender_prompt(callback: CallbackQuery, state: FSMContext):
     )
 
 
+@router.callback_query(F.data == "settings:edit_media")
+async def edit_media_prompt(callback: CallbackQuery, state: FSMContext, user: User):
+    await callback.answer()
+    from bot.keyboards.swipe import media_upload_keyboard
+    await state.set_state(ProfileState.waiting_photo)
+    await state.update_data(photos=[], video_file_id=None, editing_media_from_settings=True)
+    await callback.message.answer(
+        "📸 <b>Обновление фото и видео в анкете:</b>\n\n"
+        "• Отправь <b>до 3 фото</b> и <b>1 видео</b> (до 10 МБ 🎥).\n"
+        "• Первое отправленное фото станет твоей главной аватаркой.\n\n"
+        "<i>Отправляй фото или видео по одному, затем нажми <b>✔️ Завершить загрузку</b></i>",
+        parse_mode="HTML",
+        reply_markup=media_upload_keyboard(0, False),
+    )
+
+
 @router.callback_query(F.data == "settings:edit_career_profile")
 async def edit_career_profile_prompt(callback: CallbackQuery, user: User, state: FSMContext, db: AsyncSession):
     await callback.answer()
@@ -340,18 +356,84 @@ async def show_my_profile(
     reply_kb = my_profile_keyboard(user, current_view=current_view_param)
 
     from bot.handlers.browse import _get_photo_input
-    photo_input = _get_photo_input(photo_file_id)
+    from aiogram.types import InputMediaPhoto, InputMediaVideo
 
-    if photo_input:
-        try:
-            await message.answer_photo(
-                photo=photo_input,
-                caption=text,
-                parse_mode="HTML",
-                reply_markup=reply_kb,
-            )
-            return
-        except Exception:
-            pass
+    if is_career_view:
+        # Для карьеры отправляем деловое фото
+        photo_input = _get_photo_input(photo_file_id)
+        if photo_input:
+            try:
+                await message.answer_photo(
+                    photo=photo_input,
+                    caption=text,
+                    parse_mode="HTML",
+                    reply_markup=reply_kb,
+                )
+                return
+            except Exception:
+                pass
+    else:
+        # Для знакомств проверяем всю галерею (до 3 фото + 1 видео)
+        photos = list(profile.photos) if profile.photos else ([profile.avatar_file_id] if profile.avatar_file_id else [])
+        photos = photos[:3]
+        video_id = profile.video_file_id
+        total_media_count = len(photos) + (1 if video_id else 0)
+
+        if total_media_count > 1:
+            media_group = []
+            is_first = True
+            for p_id in photos:
+                p_input = _get_photo_input(p_id)
+                if p_input:
+                    if is_first:
+                        media_group.append(InputMediaPhoto(media=p_input, caption=text, parse_mode="HTML"))
+                        is_first = False
+                    else:
+                        media_group.append(InputMediaPhoto(media=p_input))
+
+            if video_id:
+                v_input = _get_photo_input(video_id)
+                if v_input:
+                    if is_first:
+                        media_group.append(InputMediaVideo(media=v_input, caption=text, parse_mode="HTML"))
+                        is_first = False
+                    else:
+                        media_group.append(InputMediaVideo(media=v_input))
+
+            if media_group:
+                try:
+                    await message.answer_media_group(media=media_group)
+                    await message.answer("👇 <b>Управление профилем:</b>", parse_mode="HTML", reply_markup=reply_kb)
+                    return
+                except Exception:
+                    pass
+
+        if photos:
+            p_input = _get_photo_input(photos[0])
+            if p_input:
+                try:
+                    await message.answer_photo(
+                        photo=p_input,
+                        caption=text,
+                        parse_mode="HTML",
+                        reply_markup=reply_kb,
+                    )
+                    return
+                except Exception:
+                    pass
+
+        if video_id:
+            v_input = _get_photo_input(video_id)
+            if v_input:
+                try:
+                    await message.answer_video(
+                        video=v_input,
+                        caption=text,
+                        parse_mode="HTML",
+                        reply_markup=reply_kb,
+                    )
+                    return
+                except Exception:
+                    pass
 
     await message.answer(text, parse_mode="HTML", reply_markup=reply_kb)
