@@ -18,8 +18,21 @@ from web.routers.employer import auth as employer_auth, profiles as employer_pro
 from web.dependencies import generate_csrf_token
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Автоматическое применение миграций БД до head при старте
+    try:
+        from alembic.config import Config
+        from alembic import command
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("✅ Миграции БД успешно применены при старте веб-сервиса!")
+    except Exception as e:
+        logger.warning(f"⚠️ Автомиграции при старте: {e}")
     yield
 
 

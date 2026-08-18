@@ -23,6 +23,16 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
+    # Применяем миграции БД при старте
+    try:
+        from alembic.config import Config
+        from alembic import command
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("✅ Миграции БД проверены при старте бота!")
+    except Exception as e:
+        logger.warning(f"⚠️ Миграции БД при старте бота: {e}")
+
     # FSM хранилище в Redis
     storage = RedisStorage.from_url(settings.REDIS_URL)
 
