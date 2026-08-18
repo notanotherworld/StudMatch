@@ -26,18 +26,25 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
     q: str = Query(default=""),
     is_fake: Optional[str] = Query(default=None),
+    filter_type: Optional[str] = Query(default=None),
     page: int = Query(default=1),
 ):
     try:
+        from sqlalchemy import func
         per_page = 20
         offset = max(0, (page - 1) * per_page)
 
         query = select(User).options(selectinload(User.profile), selectinload(User.university))
 
-        if is_fake == "true":
-            query = query.where(User.is_fake == True)
-        elif is_fake == "false":
-            query = query.where(or_(User.is_fake == False, User.is_fake.is_(None)))
+        if filter_type == "spammers":
+            query = query.where(or_(User.flood_ban_count > 0, User.is_flagged_spammer == True))
+            query = query.order_by(User.flood_ban_count.desc(), User.last_banned_at.desc().nullslast())
+        else:
+            if is_fake == "true":
+                query = query.where(User.is_fake == True)
+            elif is_fake == "false":
+                query = query.where(or_(User.is_fake == False, User.is_fake.is_(None)))
+            query = query.order_by(User.created_at.desc().nullslast())
 
         if q:
             query = query.join(User.profile, isouter=True).where(
@@ -48,9 +55,13 @@ async def list_users(
                 )
             )
 
-        query = query.order_by(User.created_at.desc().nullslast()).offset(offset).limit(per_page)
+        query = query.offset(offset).limit(per_page)
         result = await db.execute(query)
         users = list(result.scalars().all())
+
+        spammers_count = await db.scalar(
+            select(func.count(User.id)).where(or_(User.flood_ban_count > 0, User.is_flagged_spammer == True))
+        ) or 0
 
         from web.dependencies import generate_csrf_token
         token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
@@ -64,6 +75,8 @@ async def list_users(
                 "q": q,
                 "page": page,
                 "is_fake": is_fake,
+                "filter_type": filter_type,
+                "spammers_count": spammers_count,
                 "csrf_token": token_str,
             },
         )
@@ -81,6 +94,8 @@ async def list_users(
                 "q": q,
                 "page": 1,
                 "is_fake": is_fake,
+                "filter_type": filter_type,
+                "spammers_count": 0,
                 "csrf_token": token_str,
                 "error_msg": str(e),
             },
@@ -106,7 +121,8 @@ async def export_users_csv(
     writer.writerow([
         "ID Пользователя", "Username Telegram", "Email", "Почта подтверждена",
         "Имя в анкете", "Курс", "ВУЗ / Факультет", "Режим", "Суперлайки",
-        "Рейтинг (баллы)", "Анкета заполнена", "Анкета видна", "Активен", "Дата регистрации",
+        "Рейтинг (баллы)", "Анкета заполнена", "Анкета видна", "Активен",
+        "Банов за флуд", "Спамер", "Дата регистрации",
     ])
 
     for u in all_users:
@@ -123,10 +139,12 @@ async def export_users_csv(
             uni or "",
             mode_name,
             u.superlike_balance,
-            f"{prof.rating_score:.0f}" if prof else "0",
+            f"{prof.rating_score:.0f}" if prof and prof.rating_score is not None else "0",
             "Да" if prof and prof.is_complete else "Нет",
             "Да" if prof and prof.is_visible else "Нет",
             "Да" if u.is_active else "Заблокирован",
+            u.flood_ban_count,
+            "Да" if u.is_flagged_spammer else "Нет",
             u.created_at.strftime("%Y-%m-%d %H:%M:%S") if u.created_at else "",
         ])
 
@@ -151,14 +169,76 @@ async def user_detail(
         .where(User.id == user_id)
     )
     user = result.scalar_one_or_none()
+
+    from bot.middlewares.throttling import get_redis, format_ban_ttl
+    ban_ttl = 0
+    ban_level = 0
+    try:
+        r = get_redis()
+        ban_ttl = await r.ttl(f"temp_ban:{user_id}")
+        raw_level = await r.get(f"flood_ban_level:{user_id}")
+        ban_level = int(raw_level) if raw_level else 0
+    except Exception:
+        pass
+
+    temp_ban_info = {
+        "is_banned": ban_ttl > 0,
+        "ttl": max(0, ban_ttl),
+        "time_left_str": format_ban_ttl(ban_ttl) if ban_ttl > 0 else None,
+        "ban_level": ban_level,
+    }
+
     from web.dependencies import generate_csrf_token
     token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
 
     return templates.TemplateResponse(
         "admin/user_detail.html",
-        {"request": request, "admin": admin, "user": user,
-         "csrf_token": token_str},
+        {
+            "request": request,
+            "admin": admin,
+            "user": user,
+            "temp_ban_info": temp_ban_info,
+            "csrf_token": token_str,
+        },
     )
+
+
+@router.post("/users/{user_id}/unban-flood", dependencies=[Depends(check_csrf)])
+async def unban_user_flood(
+    user_id: int,
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Досрочное снятие бана за флуд в Redis и сброс статуса спамера."""
+    from bot.middlewares.throttling import get_redis
+    try:
+        r = get_redis()
+        await r.delete(f"temp_ban:{user_id}", f"flood_viols:{user_id}", f"cb_viols:{user_id}", f"warn_throttle:{user_id}")
+    except Exception:
+        pass
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db, admin, action="unban_flood", target_type="user", target_id=str(user_id),
+        details="Досрочно снята блокировка за спам/флуд", ip_address=client_ip
+    )
+
+    # Уведомляем пользователя в Telegram
+    try:
+        from aiogram import Bot
+        from bot.config import settings
+        bot = Bot(token=settings.BOT_TOKEN)
+        await bot.send_message(
+            user_id,
+            "🟢 <b>Блокировка за частые запросы снята администратором!</b>\n\nВы снова можете полноценно пользоваться ботом (/start).",
+            parse_mode="HTML"
+        )
+        await bot.session.close()
+    except Exception:
+        pass
+
+    return RedirectResponse(f"/admin/users/{user_id}?unbanned_flood=1", status_code=302)
 
 
 @router.post("/users/{user_id}/ban", dependencies=[Depends(check_csrf)])  # CSRF (#2)

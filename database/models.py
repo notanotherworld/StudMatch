@@ -138,6 +138,9 @@ class User(Base):
     mode: Mapped[ModeEnum] = mapped_column(Enum(ModeEnum), default=ModeEnum.dating)
     superlike_balance: Mapped[int] = mapped_column(Integer, default=0)
     boost_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    flood_ban_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    is_flagged_spammer: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    last_banned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

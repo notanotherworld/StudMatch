@@ -46,15 +46,18 @@
   </form>
 
   <!-- Вкладки фильтрации -->
-  <div style="display:flex;gap:6px;background:var(--surface);padding:4px;border-radius:10px;border:1px solid var(--border);">
-    <a href="/admin/users" class="btn btn-sm {% if not is_fake %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
+  <div style="display:flex;gap:6px;background:var(--surface);padding:4px;border-radius:10px;border:1px solid var(--border);flex-wrap:wrap;">
+    <a href="/admin/users" class="btn btn-sm {% if not is_fake and not filter_type %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
       Все
     </a>
-    <a href="/admin/users?is_fake=false" class="btn btn-sm {% if is_fake == 'false' %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
+    <a href="/admin/users?is_fake=false" class="btn btn-sm {% if is_fake == 'false' and not filter_type %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
       🎓 Студенты
     </a>
-    <a href="/admin/users?is_fake=true" class="btn btn-sm {% if is_fake == 'true' %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
+    <a href="/admin/users?is_fake=true" class="btn btn-sm {% if is_fake == 'true' and not filter_type %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
       🎭 Тестовые анкеты
+    </a>
+    <a href="/admin/users?filter_type=spammers" class="btn btn-sm {% if filter_type == 'spammers' %}btn-danger{% else %}btn-ghost{% endif %}" style="border:none;{% if filter_type != 'spammers' %}color:#f87171;{% endif %}font-weight:600;">
+      🚨 Нарушители (Флуд) ({{ spammers_count }})
     </a>
   </div>
 </div>
@@ -80,10 +83,13 @@
       {% for u in users %}
       <tr>
         <td>
-          <div style="display:flex;align-items:center;gap:6px;font-weight:600;" class="copyable" data-copy="{{ u.tg_username or u.id }}" title="Кликните чтобы скопировать">
+          <div style="display:flex;align-items:center;gap:6px;font-weight:600;flex-wrap:wrap;" class="copyable" data-copy="{{ u.tg_username or u.id }}" title="Кликните чтобы скопировать">
             {% if u.tg_username %}@{{ u.tg_username }}{% else %}#{{ u.id }}{% endif %}
             {% if u.is_fake %}
               <span class="badge badge-warning" style="font-size:10px;padding:1px 6px;">TEST</span>
+            {% endif %}
+            {% if u.flood_ban_count and u.flood_ban_count > 0 %}
+              <span class="badge badge-danger" style="font-size:10px;padding:1px 6px;background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.4);color:#f87171;" title="Банов за спам/флуд: {{ u.flood_ban_count }}">🚨 {{ u.flood_ban_count }} бан(а)</span>
             {% endif %}
           </div>
           <div style="font-size:12px;color:var(--muted);" class="copyable mono" data-copy="{{ u.id }}" title="Кликните чтобы скопировать ID">{{ u.id }}</div>
@@ -127,6 +133,8 @@
         <td>
           {% if not u.is_active %}
             <span class="badge badge-danger">🚫 Забанен</span>
+          {% elif u.is_flagged_spammer %}
+            <span class="badge badge-warning" style="color:#fbbf24;border-color:rgba(251,191,36,0.4);">⚡️ Спамер</span>
           {% elif u.email_verified %}
             <span class="badge badge-success">✅ Верифицирован</span>
           {% else %}
@@ -162,11 +170,11 @@
 <!-- Пагинация -->
 <div style="display:flex;gap:8px;margin-top:16px;align-items:center;">
   {% if page > 1 %}
-    <a href="?q={{ q }}&page={{ page - 1 }}" class="btn btn-ghost btn-sm">← Назад</a>
+    <a href="?q={{ q }}&filter_type={{ filter_type or '' }}&is_fake={{ is_fake or '' }}&page={{ page - 1 }}" class="btn btn-ghost btn-sm">← Назад</a>
   {% endif %}
   <span style="color:var(--muted);font-size:13px;">Страница {{ page }}</span>
   {% if users|length == 20 %}
-    <a href="?q={{ q }}&page={{ page + 1 }}" class="btn btn-ghost btn-sm">Вперёд →</a>
+    <a href="?q={{ q }}&filter_type={{ filter_type or '' }}&is_fake={{ is_fake or '' }}&page={{ page + 1 }}" class="btn btn-ghost btn-sm">Вперёд →</a>
   {% endif %}
 </div>
 
