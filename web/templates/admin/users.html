@@ -24,6 +24,15 @@
   </div>
 </div>
 
+{% if error_msg %}
+<div class="card" style="background:rgba(255,82,82,0.1);border:1px solid rgba(255,82,82,0.3);color:var(--danger);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+  <span style="font-size:20px;">⚠️</span>
+  <div>
+    <strong>Ошибка:</strong> {{ error_msg }}
+  </div>
+</div>
+{% endif %}
+
 <!-- Фильтры & Поиск -->
 <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
   <form method="GET" action="/admin/users" style="display:flex;gap:12px;flex:1;max-width:480px;">

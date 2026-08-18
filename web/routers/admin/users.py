@@ -28,38 +28,63 @@ async def list_users(
     is_fake: Optional[str] = Query(default=None),
     page: int = Query(default=1),
 ):
-    per_page = 20
-    offset = (page - 1) * per_page
+    try:
+        per_page = 20
+        offset = max(0, (page - 1) * per_page)
 
-    query = select(User).options(selectinload(User.profile), selectinload(User.university))
+        query = select(User).options(selectinload(User.profile), selectinload(User.university))
 
-    if is_fake == "true":
-        query = query.where(User.is_fake == True)
-    elif is_fake == "false":
-        query = query.where(User.is_fake == False)
+        if is_fake == "true":
+            query = query.where(User.is_fake == True)
+        elif is_fake == "false":
+            query = query.where(or_(User.is_fake == False, User.is_fake.is_(None)))
 
-    if q:
-        query = query.join(User.profile, isouter=True).where(
-            or_(
-                User.tg_username.ilike(f"%{q}%"),
-                User.email.ilike(f"%{q}%"),
-                Profile.name.ilike(f"%{q}%"),
+        if q:
+            query = query.join(User.profile, isouter=True).where(
+                or_(
+                    User.tg_username.ilike(f"%{q}%"),
+                    User.email.ilike(f"%{q}%"),
+                    Profile.name.ilike(f"%{q}%"),
+                )
             )
+
+        query = query.order_by(User.created_at.desc().nullslast()).offset(offset).limit(per_page)
+        result = await db.execute(query)
+        users = list(result.scalars().all())
+
+        from web.dependencies import generate_csrf_token
+        token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
+
+        return templates.TemplateResponse(
+            "admin/users.html",
+            {
+                "request": request,
+                "admin": admin,
+                "users": users,
+                "q": q,
+                "page": page,
+                "is_fake": is_fake,
+                "csrf_token": token_str,
+            },
         )
-
-    query = query.order_by(User.created_at.desc()).offset(offset).limit(per_page)
-    result = await db.execute(query)
-    users = result.scalars().all()
-
-    from web.dependencies import generate_csrf_token
-    token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
-
-    return templates.TemplateResponse(
-        "admin/users.html",
-        {"request": request, "admin": admin, "users": users, "q": q, "page": page,
-         "is_fake": is_fake,
-         "csrf_token": token_str},
-    )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error in list_users: {e}", exc_info=True)
+        from web.dependencies import generate_csrf_token
+        token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
+        return templates.TemplateResponse(
+            "admin/users.html",
+            {
+                "request": request,
+                "admin": admin,
+                "users": [],
+                "q": q,
+                "page": 1,
+                "is_fake": is_fake,
+                "csrf_token": token_str,
+                "error_msg": str(e),
+            },
+        )
 
 
 @router.get("/users/export/csv")
