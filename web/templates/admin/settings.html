@@ -23,6 +23,68 @@
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
 
+    <!-- Блок: Экстренная защита и безопасность (Kill Switch & Anti-DDoS) -->
+    <div class="card" style="grid-column:span 2;border:1px solid rgba(239,68,68,0.5);background:rgba(239,68,68,0.02);">
+      <div style="font-size:17px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:10px;color:#f87171;">
+        <span>🚨</span> Экстренная защита платформы и остановка при атаках (Anti-DDoS Shield)
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+        Инструменты экстренного реагирования при спаме, флуде или попытках перегрузить сервер и базу данных недобросовестными пользователями.
+      </p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;margin-bottom:16px;">
+        <!-- 1. Kill Switch -->
+        <div style="background:var(--surface2);padding:14px;border-radius:12px;border:1px solid rgba(239,68,68,0.3);">
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+            <input type="checkbox" name="emergency_mode" value="true"
+                   {% if cfg.emergency_mode == 'true' %}checked{% endif %}
+                   style="width:20px;height:20px;accent-color:#ef4444;margin-top:2px;">
+            <div>
+              <div style="font-weight:700;font-size:14px;color:#f87171;">🔴 Экстренная заморозка бота (Kill Switch)</div>
+              <div style="color:var(--muted);font-size:12px;margin-top:2px;">
+                Мгновенный отказ всех запросов от пользователей (0ms). Доступ открыт только админам.
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <!-- 2. Freeze Registrations -->
+        <div style="background:var(--surface2);padding:14px;border-radius:12px;border:1px solid rgba(251,191,36,0.3);">
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+            <input type="checkbox" name="freeze_registrations" value="true"
+                   {% if cfg.freeze_registrations == 'true' %}checked{% endif %}
+                   style="width:20px;height:20px;accent-color:#fbbf24;margin-top:2px;">
+            <div>
+              <div style="font-weight:700;font-size:14px;color:#fbbf24;">🛑 Заморозка новых регистраций</div>
+              <div style="color:var(--muted);font-size:12px;margin-top:2px;">
+                Блокирует /start для новичков и спам кодами на почту. Действующие студенты пользуются ботом без ограничений.
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <!-- 3. Strict Anti-Flood -->
+        <div style="background:var(--surface2);padding:14px;border-radius:12px;border:1px solid rgba(59,130,246,0.3);">
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+            <input type="checkbox" name="anti_flood_strict" value="true"
+                   {% if cfg.anti_flood_strict == 'true' %}checked{% endif %}
+                   style="width:20px;height:20px;accent-color:#3b82f6;margin-top:2px;">
+            <div>
+              <div style="font-weight:700;font-size:14px;color:#60a5fa;">🛡 Усиленный Anti-DDoS фильтр</div>
+              <div style="color:var(--muted);font-size:12px;margin-top:2px;">
+                Лимит 1 запрос в 3 сек. Авто-бан спамеров на 30 минут в Redis при попытке флуда.
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Текст сообщения при экстренной остановке</label>
+        <textarea name="emergency_message" rows="2" style="font-size:13px;">{{ cfg.emergency_message or "🚨 <b>Сервер временно недоступен</b>\n\nВключён режим защиты от перегрузки. Мы восстановим доступ в ближайшее время!" }}</textarea>
+      </div>
+    </div>
+
     <!-- Блок: Режим техработ (Maintenance Mode) -->
     <div class="card" style="grid-column:span 2;border:1px solid {% if cfg.maintenance_mode == 'true' %}rgba(255,82,82,0.5){% else %}var(--border){% endif %};background:{% if cfg.maintenance_mode == 'true' %}rgba(255,82,82,0.03){% else %}var(--surface){% endif %};">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">

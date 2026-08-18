@@ -727,6 +727,85 @@
     background: var(--surface2);
     padding: 2px 8px;
     border-radius: 6px;
+  /* ── Emergency Shield Styles ── */
+  .emergency-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #f87171;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 8px;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+    text-align: left;
+  }
+  .emergency-nav-btn:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: rgba(239, 68, 68, 0.7);
+    color: #fff;
+  }
+  .emergency-pulse-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--muted);
+    margin-left: auto;
+    transition: all 0.3s ease;
+  }
+  .emergency-pulse-dot.active {
+    background: #ef4444;
+    box-shadow: 0 0 12px #ef4444;
+    animation: pulseRed 1.2s infinite;
+  }
+  @keyframes pulseRed {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(1.4); }
+  }
+
+  .emergency-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    z-index: 250;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.2s ease;
+  }
+  .emergency-modal-backdrop.open {
+    display: flex;
+  }
+  .emergency-modal-card {
+    width: 640px;
+    max-width: 94vw;
+    background: #111420;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 20px;
+    box-shadow: 0 25px 70px rgba(0,0,0,0.8), 0 0 40px rgba(239, 68, 68, 0.2);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .emergency-row-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    gap: 16px;
+  }
+  .emergency-row-item:last-child {
+    border-bottom: none;
   }
   .cmd-footer {
     padding: 10px 20px;
@@ -857,6 +936,7 @@
     <span>СтудМэч</span>
   </div>
   <div style="display:flex;gap:8px;align-items:center;">
+    <button class="menu-toggle-btn" style="color:#ef4444;border-color:rgba(239,68,68,0.4);" onclick="openEmergencyModal()" aria-label="Щит защиты" title="Экстренный щит">🚨</button>
     <button class="menu-toggle-btn" onclick="openCmdPalette()" aria-label="Поиск">🔍</button>
     <button class="menu-toggle-btn" id="sidebarToggle" aria-label="Открыть меню">☰</button>
   </div>
@@ -945,6 +1025,13 @@
       <span class="nav-icon">📜</span>
       <span class="nav-text">Аудит</span>
     </a>
+
+    <div class="sidebar-nav-label" style="color:#f87171;margin-top:12px;">Безопасность</div>
+    <button type="button" class="emergency-nav-btn" onclick="openEmergencyModal()" title="Экстренная остановка и защита от атак">
+      <span class="nav-icon">🚨</span>
+      <span class="nav-text">Экстренный щит</span>
+      <span class="emergency-pulse-dot" id="emergencyStatusDot"></span>
+    </button>
   </div>
 
   <!-- Pinned Bottom -->
@@ -1082,6 +1169,95 @@
       <span>СтудМэч QuickNav</span>
     </div>
   </div>
+</div>
+
+<!-- Emergency Shield Modal -->
+<div id="emergencyModal" class="emergency-modal-backdrop" onclick="if(event.target===this) closeEmergencyModal()">
+  <div class="emergency-modal-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:22px;">🚨</span>
+        <div>
+          <div style="font-size:17px;font-weight:700;color:#fff;">Экстренная защита и остановка бота</div>
+          <div style="font-size:12px;color:var(--muted);">Моментальное отражение атак и защита базы данных</div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="closeEmergencyModal()" style="font-size:16px;padding:4px 8px;">✕</button>
+    </div>
+
+    <div style="padding:8px 0;background:var(--surface);">
+      <!-- 1. Kill switch -->
+      <div class="emergency-row-item">
+        <div>
+          <div style="font-weight:700;font-size:15px;color:#f87171;display:flex;align-items:center;gap:8px;">
+            <span>🔴</span> Полная экстренная заморозка бота (Kill Switch)
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">
+            Моментальный отказ всех входящих сообщений (0ms нагрузка). Администраторы сохраняют доступ.
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;cursor:pointer;">
+          <input type="checkbox" id="modal_emergency_mode" onchange="toggleEmergencyShield('emergency_mode', this.checked)" style="width:22px;height:22px;accent-color:#ef4444;">
+        </label>
+      </div>
+
+      <!-- 2. Freeze reg -->
+      <div class="emergency-row-item">
+        <div>
+          <div style="font-weight:700;font-size:15px;color:#fbbf24;display:flex;align-items:center;gap:8px;">
+            <span>🛑</span> Заморозка новых регистраций
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">
+            Блокирует команду /start для новичков и спам кодами на почту. Действующие студенты могут пользоваться ботом.
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;cursor:pointer;">
+          <input type="checkbox" id="modal_freeze_registrations" onchange="toggleEmergencyShield('freeze_registrations', this.checked)" style="width:22px;height:22px;accent-color:#fbbf24;">
+        </label>
+      </div>
+
+      <!-- 3. Strict Anti-DDoS -->
+      <div class="emergency-row-item">
+        <div>
+          <div style="font-weight:700;font-size:15px;color:#60a5fa;display:flex;align-items:center;gap:8px;">
+            <span>🛡</span> Усиленный Anti-DDoS щит
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">
+            Лимит 1 запрос в 3 сек. При попытке флуда нарушитель автоматически банится на 30 минут в Redis.
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;cursor:pointer;">
+          <input type="checkbox" id="modal_anti_flood_strict" onchange="toggleEmergencyShield('anti_flood_strict', this.checked)" style="width:22px;height:22px;accent-color:#3b82f6;">
+        </label>
+      </div>
+
+      <!-- 4. Maintenance -->
+      <div class="emergency-row-item">
+        <div>
+          <div style="font-weight:700;font-size:15px;color:var(--text);display:flex;align-items:center;gap:8px;">
+            <span>🛠</span> Режим технических работ
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">
+            Показывает студентам стандартную заглушку о плановом обновлении.
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;cursor:pointer;">
+          <input type="checkbox" id="modal_maintenance_mode" onchange="toggleEmergencyShield('maintenance_mode', this.checked)" style="width:22px;height:22px;accent-color:var(--accent);">
+        </label>
+      </div>
+    </div>
+
+    <div style="padding:14px 20px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);">
+      <span style="font-size:12px;color:var(--muted);">Настройки применяются моментально (0ms)</span>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="closeEmergencyModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sticky Emergency Alert Top Banner -->
+<div id="emergencyTopBanner" style="display:none;background:linear-gradient(90deg, #dc2626, #991b1b);color:#fff;padding:10px 16px;text-align:center;font-weight:600;font-size:14px;box-shadow:0 4px 16px rgba(220,38,38,0.4);align-items:center;justify-content:center;gap:12px;z-index:99;position:sticky;top:0;">
+  <span>🚨 <b>ВНИМАНИЕ: АКТИВИРОВАН РЕЖИМ ЗАЩИТЫ ОТ АТАК!</b></span>
+  <button onclick="openEmergencyModal()" class="btn btn-sm" style="background:#fff;color:#991b1b;font-weight:700;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;">Управление щитом ⚙️</button>
 </div>
 
 <main class="main">
@@ -1307,22 +1483,73 @@
       }
     }, true);
 
-    // Auto-inject X-CSRF-Token in all fetch requests
-    const originalFetch = window.fetch;
-    window.fetch = function(url, options = {}) {
-      if (options && options.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method.toUpperCase())) {
-        options.headers = options.headers || {};
-        if (options.headers instanceof Headers) {
-          if (!options.headers.has('X-CSRF-Token')) options.headers.set('X-CSRF-Token', csrfVal);
-        } else if (Array.isArray(options.headers)) {
-          options.headers.push(['X-CSRF-Token', csrfVal]);
-        } else {
-          options.headers['X-CSRF-Token'] = options.headers['X-CSRF-Token'] || csrfVal;
+  // ─── Emergency Shield Modal & Live Toggle ───
+  const emergencyModal = document.getElementById('emergencyModal');
+  const emergencyTopBanner = document.getElementById('emergencyTopBanner');
+  const emergencyStatusDot = document.getElementById('emergencyStatusDot');
+
+  function openEmergencyModal() {
+    if (!emergencyModal) return;
+    emergencyModal.classList.add('open');
+    refreshEmergencyStatusUI();
+  }
+
+  function closeEmergencyModal() {
+    if (!emergencyModal) return;
+    emergencyModal.classList.remove('open');
+  }
+
+  async function refreshEmergencyStatusUI() {
+    try {
+      const res = await fetch('/admin/emergency/status');
+      const data = await res.json();
+      if (data.success && data.status) {
+        const s = data.status;
+        const emCheck = document.getElementById('modal_emergency_mode');
+        const frCheck = document.getElementById('modal_freeze_registrations');
+        const afCheck = document.getElementById('modal_anti_flood_strict');
+        const mmCheck = document.getElementById('modal_maintenance_mode');
+
+        if (emCheck) emCheck.checked = (s.emergency_mode === 'true');
+        if (frCheck) frCheck.checked = (s.freeze_registrations === 'true');
+        if (afCheck) afCheck.checked = (s.anti_flood_strict === 'true');
+        if (mmCheck) mmCheck.checked = (s.maintenance_mode === 'true');
+
+        const isAnyActive = (s.emergency_mode === 'true' || s.freeze_registrations === 'true' || s.anti_flood_strict === 'true' || s.maintenance_mode === 'true');
+        if (emergencyTopBanner) emergencyTopBanner.style.display = isAnyActive ? 'flex' : 'none';
+        if (emergencyStatusDot) {
+          if (isAnyActive) emergencyStatusDot.classList.add('active');
+          else emergencyStatusDot.classList.remove('active');
         }
       }
-      return originalFetch.call(this, url, options);
-    };
+    } catch (e) {
+      console.warn('Failed to load emergency status', e);
+    }
   }
+
+  async function toggleEmergencyShield(key, isChecked) {
+    const val = isChecked ? 'true' : 'false';
+    try {
+      showToast('⏳ Обновление режима безопасности...');
+      const res = await fetch('/admin/emergency/quick-toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: key, value: val }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`✅ Режим ${key}: ${isChecked ? 'ВКЛЮЧЁН 🔴' : 'выключен 🟢'}`);
+        refreshEmergencyStatusUI();
+      } else {
+        showToast(`⚠️ Ошибка: ${data.error || 'Не удалось применить'}`);
+      }
+    } catch (e) {
+      showToast(`⚠️ Ошибка сети: ${e.message}`);
+    }
+  }
+
+  // Initial status check on load
+  document.addEventListener('DOMContentLoaded', refreshEmergencyStatusUI);
 </script>
 </body>
 </html>

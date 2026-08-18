@@ -65,6 +65,10 @@ async def save_settings(
     reward_score_participation: str = Form(default="15"),
     auto_update_broadcast_enabled: str = Form(default="false"),
     update_broadcast_text: str = Form(default=""),
+    emergency_mode: str = Form(default="false"),
+    freeze_registrations: str = Form(default="false"),
+    anti_flood_strict: str = Form(default="false"),
+    emergency_message: str = Form(default=""),
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -72,6 +76,10 @@ async def save_settings(
     updates = {
         "maintenance_mode": "true" if maintenance_mode == "true" else "false",
         "maintenance_message": maintenance_message.strip(),
+        "emergency_mode": "true" if emergency_mode == "true" else "false",
+        "freeze_registrations": "true" if freeze_registrations == "true" else "false",
+        "anti_flood_strict": "true" if anti_flood_strict == "true" else "false",
+        "emergency_message": emergency_message.strip() or "🚨 <b>Сервер временно недоступен</b>\n\nВключён режим защиты от перегрузки. Доступ будет восстановлен в ближайшее время!",
         "price_premium_1m": price_premium_1m.strip(),
         "price_boost_24h": price_boost_24h.strip(),
         "price_superlike_3": price_superlike_3.strip(),
@@ -92,11 +100,59 @@ async def save_settings(
     client_ip = request.client.host if request.client else None
     await log_admin_action(
         db, admin, action="update_system_settings", target_type="system", target_id="settings",
-        details=f"Обновлены настройки платформы (Maintenance: {updates['maintenance_mode']}, EmailReq: {updates['require_email_verification']})",
+        details=f"Обновлены настройки безопасности (Emergency: {updates['emergency_mode']}, FreezeReg: {updates['freeze_registrations']}, StrictAntiDDoS: {updates['anti_flood_strict']})",
         ip_address=client_ip,
     )
 
     return RedirectResponse("/admin/settings?saved=1", status_code=302)
+
+
+@router.post("/emergency/quick-toggle")
+async def quick_toggle_emergency(
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Быстрое переключение экстренных режимов защиты в 1 клик через AJAX."""
+    from fastapi.responses import JSONResponse
+    try:
+        body = await request.json()
+        key = body.get("key")
+        value = "true" if str(body.get("value")).lower() in ("true", "1", "yes") else "false"
+
+        allowed_keys = {"emergency_mode", "freeze_registrations", "anti_flood_strict", "maintenance_mode"}
+        if key not in allowed_keys:
+            return JSONResponse({"success": False, "error": "Недопустимый ключ настройки"}, status_code=400)
+
+        await set_system_setting(key, value)
+
+        client_ip = request.client.host if request.client else None
+        await log_admin_action(
+            db, admin, action="emergency_toggle", target_type="security", target_id=key,
+            details=f"Экстренное переключение режима {key} -> {value}",
+            ip_address=client_ip,
+        )
+
+        return JSONResponse({"success": True, "key": key, "value": value})
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@router.get("/emergency/status")
+async def get_emergency_status(
+    admin=Depends(get_current_admin),
+):
+    """Получение текущего статуса всех защитных механизмов."""
+    from fastapi.responses import JSONResponse
+    from bot.utils.dynamic_settings import get_system_setting
+
+    status = {
+        "emergency_mode": await get_system_setting("emergency_mode", "false"),
+        "freeze_registrations": await get_system_setting("freeze_registrations", "false"),
+        "anti_flood_strict": await get_system_setting("anti_flood_strict", "false"),
+        "maintenance_mode": await get_system_setting("maintenance_mode", "false"),
+    }
+    return JSONResponse({"success": True, "status": status})
 
 
 @router.post("/settings/test-email", dependencies=[Depends(check_csrf)])

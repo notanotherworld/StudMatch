@@ -10,6 +10,11 @@
     <h1>📊 Аналитический дашборд</h1>
     <p>Добро пожаловать, <strong>{{ admin.login }}</strong> · <span class="badge badge-purple">{{ admin.role.value }}</span></p>
   </div>
+  <div>
+    <button type="button" class="btn btn-danger btn-sm" onclick="openEmergencyModal()" style="display:flex;align-items:center;gap:6px;font-weight:700;box-shadow:0 4px 14px rgba(239,68,68,0.3);">
+      <span>🚨</span> Экстренный щит / Защита от атак
+    </button>
+  </div>
 </div>
 
 <!-- Основные метрики -->
