@@ -2,6 +2,7 @@
 Создание анкеты — 5 вопросов + фото (FSM).
 """
 import html
+from typing import Optional, List, Dict, Any, Set
 from aiogram import Router, F
 from aiogram.filters import StateFilter, CommandObject
 from aiogram.types import Message, CallbackQuery

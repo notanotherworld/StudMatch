@@ -2,6 +2,7 @@
 Настройки: смена режима, видимость анкеты, покупка суперлайков.
 """
 import html
+from typing import Optional, List, Dict, Any, Set
 from aiogram import Router, F
 from aiogram.filters import StateFilter
 from aiogram.types import Message, CallbackQuery
