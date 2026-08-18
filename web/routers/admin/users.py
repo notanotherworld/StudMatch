@@ -172,14 +172,22 @@ async def user_detail(
 
     from bot.middlewares.throttling import get_redis, format_ban_ttl
     ban_ttl = 0
-    ban_level = 0
+    ban_level = 1
     try:
         r = get_redis()
         ban_ttl = await r.ttl(f"temp_ban:{user_id}")
+        raw_val = await r.get(f"temp_ban:{user_id}")
         raw_level = await r.get(f"flood_ban_level:{user_id}")
-        ban_level = int(raw_level) if raw_level else 0
+        if raw_val and str(raw_val).isdigit() and int(raw_val) > 0:
+            ban_level = int(raw_val)
+        elif raw_level and str(raw_level).isdigit() and int(raw_level) > 0:
+            ban_level = int(raw_level)
+        elif user and user.flood_ban_count > 0:
+            ban_level = user.flood_ban_count
+        else:
+            ban_level = 1
     except Exception:
-        pass
+        ban_level = 1
 
     temp_ban_info = {
         "is_banned": ban_ttl > 0,
