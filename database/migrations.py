@@ -28,12 +28,17 @@ MIGRATION_STATEMENTS = [
     "ALTER TABLE broadcast_logs ADD COLUMN IF NOT EXISTS button_url VARCHAR(500);",
     "ALTER TABLE broadcast_logs ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP WITH TIME ZONE;",
     "ALTER TABLE broadcast_logs ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'completed';",
-    # 014_delete_legacy_mock_profiles (удаление старых тестовых анкет 900000001..900000010)
+    # 014_delete_legacy_mock_profiles (полное каскадное удаление старых тестовых анкет 900000001..900000010)
+    "UPDATE users SET referrer_id = NULL WHERE referrer_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM swipes WHERE from_user_id BETWEEN 900000001 AND 900000010 OR to_user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM matches WHERE user1_id BETWEEN 900000001 AND 900000010 OR user2_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM achievements WHERE user_id BETWEEN 900000001 AND 900000010;",
+    "DELETE FROM documents WHERE user_id BETWEEN 900000001 AND 900000010;",
+    "DELETE FROM payments WHERE user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM reports WHERE reporter_id BETWEEN 900000001 AND 900000010 OR reported_id BETWEEN 900000001 AND 900000010;",
+    "DELETE FROM data_export_requests WHERE user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM email_verification_tokens WHERE user_id BETWEEN 900000001 AND 900000010;",
+    "DELETE FROM promo_usages WHERE user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM profiles WHERE user_id BETWEEN 900000001 AND 900000010;",
     "DELETE FROM users WHERE id BETWEEN 900000001 AND 900000010;",
     # Установка версии alembic

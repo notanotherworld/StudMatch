@@ -11,6 +11,12 @@
     <a href="/admin/users/create-fake" class="btn btn-primary" style="font-size:13px;">
       ➕ Создать тестовую анкету
     </a>
+    <form method="POST" action="/admin/users/delete-all-test" onsubmit="return confirm('Удалить ВСЕ тестовые анкеты (900000001..900000010 и сгенерированные) из базы данных?')" style="margin:0;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-danger" style="font-size:13px;padding:8px 14px;">
+        🧹 Очистить все тестовые анкеты
+      </button>
+    </form>
     <a href="/admin/users/export/csv" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;font-size:14px;"
        onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
       📥 Экспорт в CSV (Excel)
@@ -130,13 +136,10 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="btn btn-success btn-sm" style="padding:4px 8px;font-size:12px;" title="Верифицировать вручную">✅</button>
             </form>
-            {% endif %}
-            {% if u.is_fake %}
-            <form method="POST" action="/admin/users/{{ u.id }}/delete-fake" onsubmit="return confirm('Удалить тестовую анкету #{{ u.id }}?')" style="display:inline;margin:0;">
+            <form method="POST" action="/admin/users/{{ u.id }}/delete" onsubmit="return confirm('Удалить пользователя #{{ u.id }} ({% if u.profile %}{{ u.profile.name }}{% else %}без анкеты{% endif %})?')" style="display:inline;margin:0;">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button type="submit" class="btn btn-danger btn-sm" style="padding:4px 8px;font-size:12px;" title="Удалить тестовую анкету">🗑</button>
+              <button type="submit" class="btn btn-danger btn-sm" style="padding:4px 8px;font-size:12px;" title="Удалить пользователя">🗑</button>
             </form>
-            {% endif %}
           </div>
         </td>
       </tr>

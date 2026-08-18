@@ -421,3 +421,68 @@ async def user_swipes(
             "direction": direction, "user_id": user_id,
         },
     )
+
+
+@router.post("/users/delete-all-test", dependencies=[Depends(check_csrf)])
+async def delete_all_test_users(
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Удаляет все тестовые и фейковые анкеты из базы данных."""
+    from sqlalchemy import text
+    statements = [
+        "UPDATE users SET referrer_id = NULL WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100;",
+        "DELETE FROM swipes WHERE from_user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100) OR to_user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM matches WHERE user1_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100) OR user2_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM achievements WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM documents WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM payments WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM reports WHERE reporter_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100) OR reported_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM data_export_requests WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM email_verification_tokens WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM promo_usages WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM profiles WHERE user_id IN (SELECT id FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100);",
+        "DELETE FROM users WHERE is_fake = TRUE OR id BETWEEN 900000001 AND 900000100;",
+    ]
+    for stmt in statements:
+        await db.execute(text(stmt))
+    await db.commit()
+
+    await log_admin_action(
+        db, admin, action="delete_all_test_users", target_type="user",
+        details="Удалены все тестовые и фейковые анкеты",
+    )
+    return RedirectResponse("/admin/users", status_code=302)
+
+
+@router.post("/users/{user_id}/delete", dependencies=[Depends(check_csrf)])
+async def delete_single_user(
+    user_id: int,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Каскадное удаление конкретного пользователя."""
+    from sqlalchemy import text
+    statements = [
+        f"UPDATE users SET referrer_id = NULL WHERE referrer_id = {user_id};",
+        f"DELETE FROM swipes WHERE from_user_id = {user_id} OR to_user_id = {user_id};",
+        f"DELETE FROM matches WHERE user1_id = {user_id} OR user2_id = {user_id};",
+        f"DELETE FROM achievements WHERE user_id = {user_id};",
+        f"DELETE FROM documents WHERE user_id = {user_id};",
+        f"DELETE FROM payments WHERE user_id = {user_id};",
+        f"DELETE FROM reports WHERE reporter_id = {user_id} OR reported_id = {user_id};",
+        f"DELETE FROM data_export_requests WHERE user_id = {user_id};",
+        f"DELETE FROM email_verification_tokens WHERE user_id = {user_id};",
+        f"DELETE FROM promo_usages WHERE user_id = {user_id};",
+        f"DELETE FROM profiles WHERE user_id = {user_id};",
+        f"DELETE FROM users WHERE id = {user_id};",
+    ]
+    for stmt in statements:
+        await db.execute(text(stmt))
+    await db.commit()
+
+    await log_admin_action(
+        db, admin, action="delete_user", target_type="user", target_id=str(user_id),
+        details=f"Удален пользователь #{user_id}",
+    )
+    return RedirectResponse("/admin/users", status_code=302)
