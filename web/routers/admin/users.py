@@ -34,10 +34,28 @@ async def list_users(
         per_page = 20
         offset = max(0, (page - 1) * per_page)
 
-        query = select(User).options(selectinload(User.profile), selectinload(User.university))
+        active_banned_ids = set()
+        try:
+            from bot.middlewares.throttling import get_redis
+            r = get_redis()
+            keys = await r.keys("temp_ban:*")
+            for k in keys:
+                uid_str = k.split(":")[-1]
+                if uid_str.isdigit():
+                    active_banned_ids.add(int(uid_str))
+            lvl_keys = await r.keys("flood_ban_level:*")
+            for k in lvl_keys:
+                uid_str = k.split(":")[-1]
+                if uid_str.isdigit():
+                    active_banned_ids.add(int(uid_str))
+        except Exception:
+            pass
 
         if filter_type == "spammers":
-            query = query.where(or_(User.flood_ban_count > 0, User.is_flagged_spammer == True))
+            spammer_conditions = [User.flood_ban_count > 0, User.is_flagged_spammer == True]
+            if active_banned_ids:
+                spammer_conditions.append(User.id.in_(list(active_banned_ids)))
+            query = query.where(or_(*spammer_conditions))
             query = query.order_by(User.flood_ban_count.desc(), User.last_banned_at.desc().nullslast())
         else:
             if is_fake == "true":
@@ -59,9 +77,12 @@ async def list_users(
         result = await db.execute(query)
         users = list(result.scalars().all())
 
+        count_conditions = [User.flood_ban_count > 0, User.is_flagged_spammer == True]
+        if active_banned_ids:
+            count_conditions.append(User.id.in_(list(active_banned_ids)))
         spammers_count = await db.scalar(
-            select(func.count(User.id)).where(or_(User.flood_ban_count > 0, User.is_flagged_spammer == True))
-        ) or 0
+            select(func.count(User.id)).where(or_(*count_conditions))
+        ) or len(active_banned_ids)
 
         from web.dependencies import generate_csrf_token
         token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
@@ -77,6 +98,7 @@ async def list_users(
                 "is_fake": is_fake,
                 "filter_type": filter_type,
                 "spammers_count": spammers_count,
+                "active_banned_ids": active_banned_ids,
                 "csrf_token": token_str,
             },
         )

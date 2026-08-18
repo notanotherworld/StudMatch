@@ -42,24 +42,41 @@ def format_ban_ttl(ttl_seconds: int) -> str:
 async def record_user_ban_in_db(user_id: int) -> None:
     """Асинхронно фиксирует факт бана и статус спамера в PostgreSQL."""
     try:
-        from database.session import async_session
+        from database.session import AsyncSessionLocal
         from database.models import User
         from sqlalchemy import update, func
+        from sqlalchemy.sql.functions import coalesce
 
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 update(User)
                 .where(User.id == user_id)
                 .values(
-                    flood_ban_count=User.flood_ban_count + 1,
+                    flood_ban_count=coalesce(User.flood_ban_count, 0) + 1,
                     is_flagged_spammer=True,
                     last_banned_at=func.now(),
                 )
             )
-            await session.execute(stmt)
-            await session.commit()
+            result = await session.execute(stmt)
+            if result.rowcount == 0:
+                # Если пользователь ещё не успел зарегистрироваться, создаём запись нарушителя
+                new_user = User(
+                    id=user_id,
+                    flood_ban_count=1,
+                    is_flagged_spammer=True,
+                    last_banned_at=func.now(),
+                    is_active=True,
+                )
+                session.add(new_user)
+                try:
+                    await session.commit()
+                except Exception:
+                    await session.rollback()
+            else:
+                await session.commit()
+            logger.info(f"✅ Записан бан за флуд в БД для пользователя #{user_id}")
     except Exception as e:
-        logger.warning(f"⚠️ Не удалось записать бан в БД для пользователя {user_id}: {e}")
+        logger.error(f"⚠️ Ошибка записи бана в БД для пользователя {user_id}: {e}", exc_info=True)
 
 
 async def apply_progressive_flood_ban(r: aioredis.Redis, user_id: int) -> Tuple[int, str, int]:

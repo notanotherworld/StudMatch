@@ -88,8 +88,8 @@
             {% if u.is_fake %}
               <span class="badge badge-warning" style="font-size:10px;padding:1px 6px;">TEST</span>
             {% endif %}
-            {% if u.flood_ban_count and u.flood_ban_count > 0 %}
-              <span class="badge badge-danger" style="font-size:10px;padding:1px 6px;background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.4);color:#f87171;" title="Банов за спам/флуд: {{ u.flood_ban_count }}">🚨 {{ u.flood_ban_count }} бан(а)</span>
+            {% if (u.flood_ban_count and u.flood_ban_count > 0) or (active_banned_ids and u.id in active_banned_ids) %}
+              <span class="badge badge-danger" style="font-size:10px;padding:1px 6px;background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.4);color:#f87171;" title="Банов за спам/флуд: {{ u.flood_ban_count or 1 }}">🚨 {{ u.flood_ban_count or 1 }} бан(а)</span>
             {% endif %}
           </div>
           <div style="font-size:12px;color:var(--muted);" class="copyable mono" data-copy="{{ u.id }}" title="Кликните чтобы скопировать ID">{{ u.id }}</div>
@@ -133,6 +133,8 @@
         <td>
           {% if not u.is_active %}
             <span class="badge badge-danger">🚫 Забанен</span>
+          {% elif active_banned_ids and u.id in active_banned_ids %}
+            <span class="badge badge-danger" style="background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.5);color:#f87171;">⏳ В бане</span>
           {% elif u.is_flagged_spammer %}
             <span class="badge badge-warning" style="color:#fbbf24;border-color:rgba(251,191,36,0.4);">⚡️ Спамер</span>
           {% elif u.email_verified %}
