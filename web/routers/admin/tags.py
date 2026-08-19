@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request, Depends, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func, text
 from typing import Optional
 
 from web.dependencies import get_db, get_current_admin, check_csrf, generate_csrf_token
@@ -70,10 +70,21 @@ async def create_tag(
             )
             return RedirectResponse("/admin/tags?success=Тег+успешно+обновлен", status_code=302)
 
-        tag = InterestTag(name=clean_name, emoji=clean_emoji)
+        # Вычисляем гарантированный свободный ID для исключения сбоя последовательностей Postgres
+        max_id = await db.scalar(select(func.max(InterestTag.id))) or 0
+        next_id = max_id + 1
+
+        tag = InterestTag(id=next_id, name=clean_name, emoji=clean_emoji)
         db.add(tag)
         await db.commit()
         await db.refresh(tag)
+
+        # Синхронизируем автоинкрементную последовательность таблицы
+        try:
+            await db.execute(text("SELECT setval('interest_tags_id_seq', (SELECT MAX(id) FROM interest_tags))"))
+            await db.commit()
+        except Exception:
+            pass
 
         await log_admin_action(
             db=db,
@@ -84,7 +95,7 @@ async def create_tag(
         return RedirectResponse("/admin/tags?success=Тег+успешно+создан", status_code=302)
     except Exception as e:
         await db.rollback()
-        return RedirectResponse(f"/admin/tags?error=Ошибка+сохранения:+{str(e)[:50]}", status_code=302)
+        return RedirectResponse(f"/admin/tags?error=Ошибка+сохранения:+{str(e)[:60]}", status_code=302)
 
 
 @router.post("/tags/{tag_id}/update", dependencies=[Depends(check_csrf)])

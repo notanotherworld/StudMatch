@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request, Depends, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func, text
 from typing import Optional
 
 from web.dependencies import get_db, get_current_admin, check_csrf, generate_csrf_token
@@ -59,7 +59,11 @@ async def create_university(
         return RedirectResponse("/admin/universities?error=Заполните+все+обязательные+поля", status_code=302)
 
     try:
+        max_id = await db.scalar(select(func.max(University.id))) or 0
+        next_id = max_id + 1
+
         uni = University(
+            id=next_id,
             name=clean_name,
             short_name=clean_short_name,
             email_domains=clean_email_domains,
@@ -68,6 +72,13 @@ async def create_university(
         db.add(uni)
         await db.commit()
         await db.refresh(uni)
+
+        # Синхронизируем последовательность таблицы
+        try:
+            await db.execute(text("SELECT setval('universities_id_seq', (SELECT MAX(id) FROM universities))"))
+            await db.commit()
+        except Exception:
+            pass
 
         await log_admin_action(
             db=db,
@@ -78,7 +89,7 @@ async def create_university(
         return RedirectResponse("/admin/universities?success=Университет+успешно+добавлен", status_code=302)
     except Exception as e:
         await db.rollback()
-        return RedirectResponse(f"/admin/universities?error=Ошибка+создания:+{str(e)[:50]}", status_code=302)
+        return RedirectResponse(f"/admin/universities?error=Ошибка+создания:+{str(e)[:60]}", status_code=302)
 
 
 @router.post("/universities/{uni_id}/toggle", dependencies=[Depends(check_csrf)])
