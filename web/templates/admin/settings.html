@@ -110,85 +110,6 @@
       </div>
     </div>
 
-    <!-- Блок: Конструктор тарифов и услуг ЮКасса -->
-    <div class="card" style="grid-column:span 2;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;">
-            💰 Тарифы, услуги и цены (ЮКасса)
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <a href="/admin/tariffs" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);text-decoration:none;">
-            💳 Открыть страницу тарифов →
-          </a>
-          <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('addProductModal').style.display='flex'">
-            ➕ Добавить услугу / тариф
-          </button>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:14px;">
-        {% for prod in products_catalog %}
-        <div style="background:var(--surface2);padding:14px;border-radius:12px;border:1px solid var(--border);display:flex;flex-direction:column;justify-content:space-between;{% if not prod.is_active %}opacity:0.6;{% endif %}">
-          <div>
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:24px;">{{ prod.emoji }}</span>
-                <div>
-                  <div style="font-weight:700;font-size:14px;color:var(--text);">{{ prod.name }}</div>
-                  <div style="font-size:11px;color:var(--muted);" class="mono">{{ prod.id }}</div>
-                </div>
-              </div>
-              <div>
-                {% if prod.bonus_type == 'premium' %}
-                  <span class="badge badge-purple" style="font-size:10px;">💎 {{ prod.bonus_value }} дн.</span>
-                {% elif prod.bonus_type == 'boost' %}
-                  <span class="badge badge-warning" style="font-size:10px;">⚡️ {{ prod.bonus_value }} ч.</span>
-                {% elif prod.bonus_type == 'superlikes' %}
-                  <span class="badge badge-purple" style="font-size:10px;">⭐️ {{ prod.bonus_value }} СЛ</span>
-                {% else %}
-                  <span class="badge badge-success" style="font-size:10px;">💼 Услуга</span>
-                {% endif %}
-              </div>
-            </div>
-
-            {% if prod.description %}
-            <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.3;">
-              {{ prod.description }}
-            </div>
-            {% endif %}
-          </div>
-
-          <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:10px;margin-top:6px;gap:8px;">
-            <div style="display:flex;align-items:center;gap:6px;">
-              <label style="font-size:12px;font-weight:600;color:var(--muted);">Цена:</label>
-              <div style="position:relative;width:100px;">
-                <input type="number" name="product_price_{{ prod.id }}" value="{{ prod.price }}" min="1" required
-                       style="padding:6px 24px 6px 8px;font-size:13px;font-weight:700;font-family:monospace;width:100%;">
-                <span style="position:absolute;right:8px;top:6px;font-size:12px;color:var(--muted);">₽</span>
-              </div>
-            </div>
-
-            <div style="display:flex;gap:6px;">
-              <button type="submit" formaction="/admin/settings/products/{{ prod.id }}/toggle" formmethod="POST"
-                      class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px;" title="Включить / Выключить">
-                {% if prod.is_active %}🟢 Вкл{% else %}⏸ Выкл{% endif %}
-              </button>
-              {% if not prod.is_default %}
-              <button type="submit" formaction="/admin/settings/products/{{ prod.id }}/delete" formmethod="POST"
-                      class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px;color:var(--danger);"
-                      onclick="return confirm('Удалить эту дополнительную услугу?')" title="Удалить услугу">
-                🗑
-              </button>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-
     <!-- Блок: Реферальная программа и Безопасность -->
     <div class="card">
       <div style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
@@ -307,7 +228,6 @@
         </div>
       </div>
     </div>
-
   </div>
 
   <div style="margin-top:24px;display:flex;justify-content:flex-end;">
@@ -316,79 +236,6 @@
     </button>
   </div>
 </form>
-
-<!-- Модальное окно добавления тарифа / услуги -->
-<div id="addProductModal"
-     style="display:none;position:fixed;inset:0;background:#000a;z-index:100;
-            align-items:center;justify-content:center;">
-  <div class="card" style="width:480px;max-width:92vw;max-height:90vh;overflow-y:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-      <h3 style="font-size:16px;font-weight:700;">➕ Добавить тариф или услугу</h3>
-      <button type="button" onclick="document.getElementById('addProductModal').style.display='none'"
-              style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">✕</button>
-    </div>
-
-    <form method="POST" action="/admin/settings/products/add">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token or '' }}">
-      
-      <div class="form-group">
-        <label>Эмодзи иконка</label>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-          <input type="text" id="prodEmojiInput" name="emoji" value="🎁" style="width:60px;font-size:20px;text-align:center;" required>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('prodEmojiInput').value='💎'">💎</button>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('prodEmojiInput').value='⚡️'">⚡️</button>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('prodEmojiInput').value='⭐️'">⭐️</button>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('prodEmojiInput').value='👑'">👑</button>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('prodEmojiInput').value='🚀'">🚀</button>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('prodEmojiInput').value='💼'">💼</button>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('prodEmojiInput').value='🎯'">🎯</button>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('prodEmojiInput').value='🎓'">🎓</button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Название услуги / тарифа</label>
-        <input type="text" name="name" placeholder="Например: Премиум 3 месяца или VIP Ревью резюме" required>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-group">
-          <label>Стоимость (руб.)</label>
-          <input type="number" name="price" placeholder="299" min="1" required>
-        </div>
-        <div class="form-group">
-          <label>Тип бонуса</label>
-          <select name="bonus_type" style="width:100%;">
-            <option value="premium">💎 Дни Премиума</option>
-            <option value="boost">⚡️ Часы Буста анкеты</option>
-            <option value="superlikes">⭐️ Пакет суперлайков</option>
-            <option value="custom">💼 Другая / Кастомная услуга</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Количество бонуса (дней / часов / лайков)</label>
-        <input type="number" name="bonus_value" value="30" min="1" required>
-        <small style="color:var(--muted);font-size:11px;">Для премиума — кол-во дней, для буста — часов, для суперлайков — штук.</small>
-      </div>
-
-      <div class="form-group">
-        <label>Описание преимущества (для студента)</label>
-        <textarea name="description" rows="2" placeholder="Что получает студент при оплате этой услуги..."></textarea>
-      </div>
-
-      <div style="display:flex;gap:10px;margin-top:20px;">
-        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">
-          ➕ Создать услугу
-        </button>
-        <button type="button" class="btn btn-ghost" onclick="document.getElementById('addProductModal').style.display='none'">
-          Отмена
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
 
 <script>
 async function sendTestEmail() {
