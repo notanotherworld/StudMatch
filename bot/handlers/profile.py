@@ -322,6 +322,10 @@ async def process_interest(callback: CallbackQuery, state: FSMContext, user: Use
 
 @router.message(ProfileState.waiting_custom_interest)
 async def process_custom_interest(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    if not message.text:
+        await message.answer("Пожалуйста, напиши свой интерес текстом.")
+        return
+
     raw_custom = message.text.strip()[:100]
     custom_text = html.escape(raw_custom)  # Защищаем от HTML-инъекций (#18)
     data = await state.get_data()
@@ -333,6 +337,7 @@ async def process_custom_interest(message: Message, state: FSMContext, user: Use
     await message.answer(f"✅ Добавлен свой интерес: <b>{custom_text}</b>", parse_mode="HTML")
 
     if data.get("editing_from_settings"):
+        await update_profile(db, user.id, interest_ids=selected, custom_interests=custom_text)
         await state.clear()
         await message.answer("✅ <b>Интересы обновлены!</b>", parse_mode="HTML", reply_markup=main_menu_keyboard())
     else:

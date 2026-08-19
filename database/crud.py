@@ -163,10 +163,22 @@ async def get_or_create_profile(db: AsyncSession, user_id: int) -> Profile:
 
 
 async def update_profile(db: AsyncSession, user_id: int, **kwargs) -> Profile:
-    await db.execute(update(Profile).where(Profile.user_id == user_id).values(**kwargs))
-    await db.commit()
     result = await db.execute(select(Profile).where(Profile.user_id == user_id))
-    return result.scalar_one()
+    profile = result.scalar_one_or_none()
+    if not profile:
+        profile = Profile(user_id=user_id, **kwargs)
+        db.add(profile)
+        await db.commit()
+        await db.refresh(profile)
+        return profile
+
+    for key, value in kwargs.items():
+        if hasattr(profile, key):
+            setattr(profile, key, value)
+
+    await db.commit()
+    await db.refresh(profile)
+    return profile
 
 
 async def get_top_profiles(

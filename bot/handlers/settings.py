@@ -74,13 +74,20 @@ async def edit_interests_prompt(callback: CallbackQuery, user: User, state: FSMC
         return
 
     selected = list(user.profile.interest_ids or [])
-    await state.update_data(selected_interests=selected, editing_from_settings=True)
+    custom_interests = user.profile.custom_interests
+    await state.update_data(
+        selected_interests=selected,
+        custom_interests=custom_interests,
+        editing_from_settings=True,
+    )
     await state.set_state(ProfileState.waiting_interests)
 
     result = await db.execute(select(InterestTag).order_by(InterestTag.id))
     tags = list(result.scalars().all())
+    custom_note = f"\n\n✍️ <i>Текущий свой интерес: {user.profile.custom_interests}</i>" if user.profile.custom_interests else ""
     await callback.message.answer(
-        "Выбери интересующие теги (без эмодзи):",
+        f"Выбери интересующие теги или нажми <b>✍️ Написать свой</b>:{custom_note}",
+        parse_mode="HTML",
         reply_markup=interests_keyboard(tags, selected),
     )
 
