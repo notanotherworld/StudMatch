@@ -82,8 +82,8 @@ async def add_custom_product(
         return RedirectResponse("/admin/settings?error=Укажите+название+услуги", status_code=302)
 
     # Генерируем уникальный slug-идентификатор
-    import transliterate
     try:
+        import transliterate
         slug = transliterate.translit(clean_name, 'ru', reversed=True)
     except Exception:
         slug = clean_name

@@ -178,8 +178,8 @@ async def add_tariff(
     if not clean_name:
         return RedirectResponse("/admin/tariffs?error=Укажите+название+услуги", status_code=302)
 
-    import transliterate
     try:
+        import transliterate
         slug = transliterate.translit(clean_name, 'ru', reversed=True)
     except Exception:
         slug = clean_name

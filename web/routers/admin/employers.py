@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, or_
 from sqlalchemy.orm import selectinload
+from typing import Optional
 import uuid
 
 from web.dependencies import get_db, get_current_admin, require_superadmin, hash_password, check_csrf, generate_csrf_token
