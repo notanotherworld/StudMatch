@@ -59,7 +59,7 @@ async def set_system_setting(key: str, value: str, description: Optional[str] = 
             .values(key=key, value=value, description=description)
             .on_conflict_do_update(
                 index_elements=[SystemSetting.key],
-                set_={"value": value, "description": description or SystemSetting.description},
+                set_={"value": value},
             )
         )
         await db.execute(stmt)
@@ -149,35 +149,16 @@ async def get_payment_products_catalog() -> list[dict]:
 
     if not catalog:
         catalog = [dict(p) for p in DEFAULT_PAYMENT_PRODUCTS]
-
-    # Подтягиваем индивидуальные оверрайды цен если они были заданы отдельно
-    for item in catalog:
-        pid = item.get("id")
-        if pid == "premium_1m":
-            try:
-                item["price"] = int(await get_system_setting("price_premium_1m", str(item.get("price", 199))))
-            except Exception:
-                pass
-        elif pid == "boost_24h":
-            try:
-                item["price"] = int(await get_system_setting("price_boost_24h", str(item.get("price", 99))))
-            except Exception:
-                pass
-        elif pid == "superlike_3":
-            try:
-                item["price"] = int(await get_system_setting("price_superlike_3", str(item.get("price", 49))))
-            except Exception:
-                pass
-        elif pid == "superlike_5":
-            try:
-                item["price"] = int(await get_system_setting("price_superlike_5", str(item.get("price", 99))))
-            except Exception:
-                pass
-        elif pid == "superlike_10":
-            try:
-                item["price"] = int(await get_system_setting("price_superlike_10", str(item.get("price", 199))))
-            except Exception:
-                pass
+        # Подтягиваем индивидуальные оверрайды только если каталог ещё не был сохранён
+        for item in catalog:
+            pid = item.get("id")
+            if pid in ("premium_1m", "boost_24h", "superlike_3", "superlike_5", "superlike_10"):
+                try:
+                    val = await get_system_setting(f"price_{pid}", "")
+                    if val and val.isdigit():
+                        item["price"] = int(val)
+                except Exception:
+                    pass
 
     return catalog
 

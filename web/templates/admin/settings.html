@@ -118,9 +118,14 @@
             💰 Тарифы, услуги и цены (ЮКасса)
           </div>
         </div>
-        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('addProductModal').style.display='flex'">
-          ➕ Добавить услугу / тариф
-        </button>
+        <div style="display:flex;gap:8px;">
+          <a href="/admin/tariffs" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);text-decoration:none;">
+            💳 Открыть страницу тарифов →
+          </a>
+          <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('addProductModal').style.display='flex'">
+            ➕ Добавить услугу / тариф
+          </button>
+        </div>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:14px;">

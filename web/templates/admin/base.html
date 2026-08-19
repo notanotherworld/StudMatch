@@ -1007,6 +1007,10 @@
       <span class="nav-icon">💰</span>
       <span class="nav-text">Платежи</span>
     </a>
+    <a href="/admin/tariffs" {% if '/tariffs' in request.url.path %}class="active"{% endif %} title="Тарифы и цены">
+      <span class="nav-icon">💳</span>
+      <span class="nav-text">Тарифы и цены</span>
+    </a>
     <a href="/admin/promos" {% if '/promos' in request.url.path %}class="active"{% endif %} title="Промокоды">
       <span class="nav-icon">🎁</span>
       <span class="nav-text">Промокоды</span>

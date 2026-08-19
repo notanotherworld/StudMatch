@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 
 from web.routers.admin import (
     auth as admin_auth, dashboard, users, documents, ratings,
-    payments as admin_payments, employers, universities,
+    payments as admin_payments, tariffs as admin_tariffs, employers, universities,
     broadcast, tags, reports, health, audit, promos, settings as admin_settings,
     consents, fake_users,
 )
@@ -113,6 +113,7 @@ app.include_router(users.router, prefix="/admin", tags=["Users"])
 app.include_router(documents.router, prefix="/admin", tags=["Documents"])
 app.include_router(ratings.router, prefix="/admin", tags=["Ratings"])
 app.include_router(admin_payments.router, prefix="/admin", tags=["Payments"])
+app.include_router(admin_tariffs.router, prefix="/admin", tags=["Tariffs"])
 app.include_router(employers.router, prefix="/admin", tags=["Employers"])
 app.include_router(universities.router, prefix="/admin", tags=["Universities"])
 app.include_router(broadcast.router, prefix="/admin", tags=["Broadcast"])

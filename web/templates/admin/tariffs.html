@@ -1,0 +1,249 @@
+{% extends "admin/base.html" %}
+{% block title %}Тарифы и цены — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1>💳 Тарифы, услуги и цены (ЮКасса)</h1>
+      <p>Управление стоимостью подписок, бустов, суперлайков и создание дополнительных услуг</p>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button type="button" class="btn btn-primary" onclick="document.getElementById('addTariffModal').style.display='flex'">
+        ➕ Создать тариф / услугу
+      </button>
+      <button type="button" class="btn btn-ghost" onclick="document.getElementById('tariffPricesForm').submit()" style="border:1px solid var(--border);">
+        💾 Сохранить все цены
+      </button>
+    </div>
+  </div>
+</div>
+
+{% if success_msg %}
+<div class="card" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:var(--success);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+  <span style="font-size:20px;">✅</span>
+  <div><strong>Успешно!</strong> {{ success_msg }}</div>
+</div>
+{% endif %}
+
+{% if error_msg %}
+<div class="card" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:var(--danger);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+  <span style="font-size:20px;">❌</span>
+  <div><strong>Внимание:</strong> {{ error_msg }}</div>
+</div>
+{% endif %}
+
+<!-- KPI плашки -->
+<div class="grid grid-3" style="margin-bottom:24px;">
+  <div class="card">
+    <div class="card-title">📦 Активных тарифов и услуг</div>
+    <div class="card-value mono" style="font-size:24px;color:var(--accent2);">
+      {{ catalog|length }}
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px;">Доступно для покупки в боте</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🛍 Всего покупок тарифов</div>
+    <div class="card-value mono" style="font-size:24px;color:var(--success);">
+      {{ total_sales_count }}
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px;">Успешных транзакций через ЮКассу</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💰 Суммарная выручка</div>
+    <div class="card-value mono" style="font-size:24px;color:var(--warning);">
+      {{ "%.0f"|format(total_sales_revenue) }} ₽
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px;">За всё время работы платформы</div>
+  </div>
+</div>
+
+<!-- Форма массового сохранения цен -->
+<form id="tariffPricesForm" method="POST" action="/admin/tariffs/save-prices">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(340px, 1fr));gap:16px;margin-bottom:24px;">
+    {% for item in catalog %}
+    <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;position:relative;border:1px solid {% if item.is_active %}var(--border){% else %}rgba(255,255,255,0.04){% endif %};{% if not item.is_active %}opacity:0.6;background:rgba(255,255,255,0.01);{% endif %}">
+      
+      <div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:28px;">{{ item.emoji }}</span>
+            <div>
+              <div style="font-weight:700;font-size:15px;color:var(--text);">{{ item.name }}</div>
+              <div style="font-size:11px;color:var(--muted);" class="mono">{{ item.id }}</div>
+            </div>
+          </div>
+          <div>
+            {% if item.bonus_type == 'premium' %}
+              <span class="badge badge-purple">💎 {{ item.bonus_value }} дн.</span>
+            {% elif item.bonus_type == 'boost' %}
+              <span class="badge badge-warning">⚡️ {{ item.bonus_value }} ч.</span>
+            {% elif item.bonus_type == 'superlikes' %}
+              <span class="badge badge-purple">⭐️ {{ item.bonus_value }} СЛ</span>
+            {% else %}
+              <span class="badge badge-success">💼 Услуга</span>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if item.description %}
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.4;">
+          {{ item.description }}
+        </p>
+        {% endif %}
+
+        <div style="display:flex;gap:12px;margin-bottom:16px;font-size:12px;color:var(--muted);background:var(--surface2);padding:8px 12px;border-radius:8px;">
+          <div>🛍 <strong>{{ item.sales_count }}</strong> покупок</div>
+          <div>•</div>
+          <div>💰 <strong>{{ "%.0f"|format(item.sales_revenue) }} ₽</strong> выручки</div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <label style="font-size:12px;font-weight:700;color:var(--text);">Цена:</label>
+          <div style="position:relative;width:120px;">
+            <input type="number" id="input_price_{{ item.id }}" name="price_{{ item.id }}" value="{{ item.price }}" min="1" required
+                   style="padding:8px 28px 8px 10px;font-size:14px;font-weight:700;font-family:monospace;width:100%;"
+                   onchange="autoSavePrice('{{ item.id }}')" onkeydown="if(event.key==='Enter'){event.preventDefault();autoSavePrice('{{ item.id }}');}">
+            <span style="position:absolute;right:10px;top:8px;font-size:13px;color:var(--muted);">₽</span>
+          </div>
+          <span id="save_badge_{{ item.id }}" style="font-size:11px;color:var(--success);display:none;">✓</span>
+        </div>
+
+        <div style="display:flex;gap:6px;">
+          <button type="submit" formaction="/admin/tariffs/{{ item.id }}/toggle" formmethod="POST"
+                  class="btn btn-ghost btn-sm" style="font-size:12px;padding:6px 10px;" title="Включить / Выключить">
+            {% if item.is_active %}🟢 Вкл{% else %}⏸ Выкл{% endif %}
+          </button>
+
+          {% if not item.is_default %}
+          <button type="submit" formaction="/admin/tariffs/{{ item.id }}/delete" formmethod="POST"
+                  class="btn btn-ghost btn-sm" style="font-size:12px;padding:6px 10px;color:var(--danger);"
+                  onclick="return confirm('Удалить этот тариф?')" title="Удалить тариф">
+            🗑
+          </button>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+    <button type="submit" class="btn btn-primary" style="padding:12px 32px;font-size:15px;font-weight:600;">
+      💾 Сохранить изменения цен
+    </button>
+  </div>
+</form>
+
+<!-- Модальное окно добавления тарифа / услуги -->
+<div id="addTariffModal"
+     style="display:none;position:fixed;inset:0;background:#000a;z-index:100;
+            align-items:center;justify-content:center;">
+  <div class="card" style="width:480px;max-width:92vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h3 style="font-size:16px;font-weight:700;">➕ Добавить тариф или услугу</h3>
+      <button type="button" onclick="document.getElementById('addTariffModal').style.display='none'"
+              style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">✕</button>
+    </div>
+
+    <form method="POST" action="/admin/tariffs/add">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      
+      <div class="form-group">
+        <label>Эмодзи иконка</label>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+          <input type="text" id="tariffEmojiInput" name="emoji" value="💎" style="width:60px;font-size:20px;text-align:center;" required>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('tariffEmojiInput').value='💎'">💎</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('tariffEmojiInput').value='⚡️'">⚡️</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('tariffEmojiInput').value='⭐️'">⭐️</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('tariffEmojiInput').value='👑'">👑</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('tariffEmojiInput').value='🚀'">🚀</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('tariffEmojiInput').value='💼'">💼</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('tariffEmojiInput').value='🎯'">🎯</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('tariffEmojiInput').value='🎓'">🎓</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Название услуги / тарифа</label>
+        <input type="text" name="name" placeholder="Например: Премиум 3 месяца или VIP Ревью резюме" required>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label>Стоимость (руб.)</label>
+          <input type="number" name="price" placeholder="299" min="1" required>
+        </div>
+        <div class="form-group">
+          <label>Тип бонуса</label>
+          <select name="bonus_type" style="width:100%;">
+            <option value="premium">💎 Дни Премиума</option>
+            <option value="boost">⚡️ Часы Буста анкеты</option>
+            <option value="superlikes">⭐️ Пакет суперлайков</option>
+            <option value="custom">💼 Другая / Кастомная услуга</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Количество бонуса (дней / часов / лайков)</label>
+        <input type="number" name="bonus_value" value="30" min="1" required>
+        <small style="color:var(--muted);font-size:11px;">Для премиума — кол-во дней, для буста — часов, для суперлайков — штук.</small>
+      </div>
+
+      <div class="form-group">
+        <label>Описание преимущества (для студента)</label>
+        <textarea name="description" rows="2" placeholder="Что получает студент при оплате этой услуги..."></textarea>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:20px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">
+          ➕ Создать услугу
+        </button>
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('addTariffModal').style.display='none'">
+          Отмена
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+async function autoSavePrice(productId) {
+  const input = document.getElementById('input_price_' + productId);
+  const badge = document.getElementById('save_badge_' + productId);
+  if (!input) return;
+
+  const price = parseInt(input.value, 10);
+  if (isNaN(price) || price <= 0) return;
+
+  try {
+    const res = await fetch('/admin/tariffs/update-single', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        product_id: productId,
+        price: price,
+      }),
+    });
+    const data = await res.json();
+    if (data.success && badge) {
+      badge.style.display = 'inline';
+      badge.innerText = '✓ Сохранено';
+      setTimeout(() => { badge.style.display = 'none'; }, 2500);
+    }
+  } catch (e) {
+    console.error("Auto-save price error:", e);
+  }
+}
+</script>
+{% endblock %}
