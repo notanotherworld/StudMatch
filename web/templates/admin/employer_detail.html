@@ -3,7 +3,7 @@
 
 {% block content %}
 <!-- Шапка -->
-<div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;flex-wrap:wrap;">
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
   <a href="/admin/employers" class="btn btn-ghost btn-sm">← Работодатели</a>
   <div>
     <h1 style="font-size:22px;font-weight:800;letter-spacing:-0.02em;">👔 {{ employer.company_name }}</h1>
@@ -15,6 +15,18 @@
     {% if employer.is_active %}Активен{% else %}Отключён{% endif %}
   </span>
 </div>
+
+{% if error_msg %}
+<div class="alert alert-danger" style="margin-bottom:20px;padding:12px 16px;background:rgba(239,68,68,0.1);border:1px solid var(--danger);border-radius:10px;color:var(--danger);font-size:14px;display:flex;align-items:center;gap:8px;">
+  <span>❌</span> <strong>Ошибка:</strong> {{ error_msg }}
+</div>
+{% endif %}
+
+{% if success_msg %}
+<div class="alert alert-success" style="margin-bottom:20px;padding:12px 16px;background:rgba(16,185,129,0.1);border:1px solid var(--success);border-radius:10px;color:var(--success);font-size:14px;display:flex;align-items:center;gap:8px;">
+  <span>✅</span> <strong>Успех:</strong> {{ success_msg }}
+</div>
+{% endif %}
 
 <div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;">
 

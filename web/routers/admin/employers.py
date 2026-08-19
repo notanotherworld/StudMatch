@@ -114,11 +114,16 @@ async def employer_detail(
     q: str = Query(default=""),
     university_id: int = Query(default=0),
     year: int = Query(default=0),
+    error: Optional[str] = Query(default=None),
+    success: Optional[str] = Query(default=None),
 ):
     result = await db.execute(
         select(Employer)
         .options(
-            selectinload(Employer.profile_accesses).selectinload(EmployerProfileAccess.profile).selectinload(Profile.user)
+            selectinload(Employer.profile_accesses)
+            .selectinload(EmployerProfileAccess.profile)
+            .selectinload(Profile.user)
+            .selectinload(User.university)
         )
         .where(Employer.id == employer_id)
     )
@@ -192,6 +197,8 @@ async def employer_detail(
             "universities": universities,
             "search_profiles": search_profiles,
             "csrf_token": token_str,
+            "error_msg": error,
+            "success_msg": success,
         },
     )
 
@@ -232,7 +239,7 @@ async def update_employer(
         details=f"Обновлены данные работодателя #{employer_id} «{clean_company}»",
     )
 
-    return RedirectResponse(f"/admin/employers/{employer_id}", status_code=302)
+    return RedirectResponse(f"/admin/employers/{employer_id}?success=Данные+компании+обновлены", status_code=302)
 
 
 @router.post("/employers/{employer_id}/grant", dependencies=[Depends(check_csrf)])
@@ -243,59 +250,81 @@ async def grant_access(
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    profile_uuid = uuid.UUID(profile_id)
-    access = EmployerProfileAccess(
-        employer_id=employer_id,
-        profile_id=profile_uuid,
-        granted_by=admin.id,
-        note=note.strip() or None,
-    )
-    db.add(access)
-    await db.commit()
+    try:
+        profile_uuid = uuid.UUID(str(profile_id).strip())
+    except Exception:
+        return RedirectResponse(f"/admin/employers/{employer_id}?error=Некорректный+идентификатор+анкеты", status_code=302)
 
-    prof_res = await db.execute(select(Profile).where(Profile.id == profile_uuid))
-    student_prof = prof_res.scalar_one_or_none()
-    emp_res = await db.execute(select(Employer).where(Employer.id == employer_id))
-    emp = emp_res.scalar_one_or_none()
-
-    student_name = student_prof.name if student_prof else profile_id
-    emp_name = emp.company_name if emp else str(employer_id)
-
-    await log_admin_action(
-        db=db,
-        admin=admin,
-        action="grant_employer_profile_access",
-        target_type="employer",
-        target_id=str(employer_id),
-        details=f"Выдан доступ к анкете студента {student_name} работодателю «{emp_name}» (заметка: {note})",
-    )
-
-    # Уведомляем студента в Telegram с информацией о работодателе и открытых вакансиях
-    if student_prof and emp:
-        try:
-            from aiogram import Bot
-            from bot.config import settings
-            bot = Bot(token=settings.BOT_TOKEN)
-            msg = (
-                f"👔 <b>Вашей анкетой заинтересовался работодатель!</b>\n\n"
-                f"🏢 <b>Компания:</b> {emp.company_name}\n"
+    try:
+        # Проверяем, существует ли уже доступ
+        existing = await db.scalar(
+            select(EmployerProfileAccess).where(
+                EmployerProfileAccess.employer_id == employer_id,
+                EmployerProfileAccess.profile_id == profile_uuid,
             )
-            if emp.company_description:
-                msg += f"📝 <b>О компании:</b> {emp.company_description}\n"
-            if emp.vacancies_description:
-                msg += f"💼 <b>Свободные вакансии:</b> {emp.vacancies_description}\n"
-            if emp.tg_contact:
-                contact = emp.tg_contact.strip().lstrip("@")
-                msg += f"\n🔗 <b>Контакт для связи:</b> @{contact}"
-            elif emp.website:
-                msg += f"\n🌐 <b>Сайт компании:</b> {emp.website}"
+        )
+        if existing:
+            if note.strip():
+                existing.note = note.strip()
+                await db.commit()
+            return RedirectResponse(f"/admin/employers/{employer_id}?success=Доступ+к+анкете+уже+был+выдан+ранее", status_code=302)
 
-            await bot.send_message(student_prof.user_id, msg, parse_mode="HTML")
-            await bot.session.close()
-        except Exception:
-            pass
+        access = EmployerProfileAccess(
+            id=uuid.uuid4(),
+            employer_id=employer_id,
+            profile_id=profile_uuid,
+            granted_by=admin.id,
+            note=note.strip() or None,
+        )
+        db.add(access)
+        await db.commit()
 
-    return RedirectResponse(f"/admin/employers/{employer_id}", status_code=302)
+        prof_res = await db.execute(select(Profile).where(Profile.id == profile_uuid))
+        student_prof = prof_res.scalar_one_or_none()
+        emp_res = await db.execute(select(Employer).where(Employer.id == employer_id))
+        emp = emp_res.scalar_one_or_none()
+
+        student_name = student_prof.name if student_prof else str(profile_uuid)
+        emp_name = emp.company_name if emp else str(employer_id)
+
+        await log_admin_action(
+            db=db,
+            admin=admin,
+            action="grant_employer_profile_access",
+            target_type="employer",
+            target_id=str(employer_id),
+            details=f"Выдан доступ к анкете студента {student_name} работодателю «{emp_name}» (заметка: {note})",
+        )
+
+        # Уведомляем студента в Telegram с информацией о работодателе и открытых вакансиях
+        if student_prof and emp:
+            try:
+                from aiogram import Bot
+                from bot.config import settings
+                bot = Bot(token=settings.BOT_TOKEN)
+                msg = (
+                    f"👔 <b>Вашей анкетой заинтересовался работодатель!</b>\n\n"
+                    f"🏢 <b>Компания:</b> {emp.company_name}\n"
+                )
+                if emp.company_description:
+                    msg += f"📝 <b>О компании:</b> {emp.company_description}\n"
+                if emp.vacancies_description:
+                    msg += f"💼 <b>Свободные вакансии:</b> {emp.vacancies_description}\n"
+                if emp.tg_contact:
+                    contact = emp.tg_contact.strip().lstrip("@")
+                    msg += f"\n🔗 <b>Контакт для связи:</b> @{contact}"
+                elif emp.website:
+                    msg += f"\n🌐 <b>Сайт компании:</b> {emp.website}"
+
+                await bot.send_message(student_prof.user_id, msg, parse_mode="HTML")
+                await bot.session.close()
+            except Exception:
+                pass
+
+        return RedirectResponse(f"/admin/employers/{employer_id}?success=Кандидат+успешно+выдан+работодателю", status_code=302)
+    except Exception as e:
+        await db.rollback()
+        return RedirectResponse(f"/admin/employers/{employer_id}?error=Ошибка+выдачи:+{str(e)[:50]}", status_code=302)
 
 
 @router.post("/employers/{employer_id}/toggle", dependencies=[Depends(check_csrf)])

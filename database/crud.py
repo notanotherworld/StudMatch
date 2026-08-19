@@ -565,7 +565,11 @@ async def get_employer_profiles(
 ) -> List[EmployerProfileAccess]:
     result = await db.execute(
         select(EmployerProfileAccess)
-        .options(selectinload(EmployerProfileAccess.profile))
+        .options(
+            selectinload(EmployerProfileAccess.profile)
+            .selectinload(Profile.user)
+            .selectinload(User.university)
+        )
         .where(EmployerProfileAccess.employer_id == employer_id)
         .order_by(EmployerProfileAccess.granted_at.desc())
     )

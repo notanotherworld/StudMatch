@@ -47,7 +47,9 @@ async def profile_detail(
     result = await db.execute(
         select(EmployerProfileAccess)
         .options(
-            selectinload(EmployerProfileAccess.profile).selectinload(Profile.user),
+            selectinload(EmployerProfileAccess.profile)
+            .selectinload(Profile.user)
+            .selectinload(User.university),
         )
         .where(
             EmployerProfileAccess.id == access_uuid,
