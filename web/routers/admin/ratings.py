@@ -44,12 +44,20 @@ async def ratings_page(
     unis = await db.execute(select(University).where(University.is_active == True))
     universities = unis.scalars().all()
 
+    from web.dependencies import generate_csrf_token
+    token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
+
     return templates.TemplateResponse(
         "admin/ratings.html",
         {
-            "request": request, "admin": admin,
-            "profiles": profiles, "universities": universities,
-            "university_id": university_id, "major": major, "page": page,
+            "request": request,
+            "admin": admin,
+            "profiles": profiles,
+            "universities": universities,
+            "university_id": university_id,
+            "major": major,
+            "page": page,
+            "csrf_token": token_str,
         },
     )
 

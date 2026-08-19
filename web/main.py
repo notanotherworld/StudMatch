@@ -85,6 +85,19 @@ async def inject_csrf_into_templates(request: Request, call_next):
     response = await call_next(request)
     return response
 
+# Обработчик ошибок для предотвращения белого экрана
+from fastapi import HTTPException
+from fastapi.responses import RedirectResponse
+from fastapi.exception_handlers import http_exception_handler
+
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code == 403 and "Invalid CSRF token" in str(exc.detail):
+        referer = request.headers.get("referer") or "/admin/dashboard"
+        sep = "&" if "?" in referer else "?"
+        return RedirectResponse(f"{referer}{sep}error=Сессия+обновлена,+повторите+действие", status_code=302)
+    return await http_exception_handler(request, exc)
+
 # Статика
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
 

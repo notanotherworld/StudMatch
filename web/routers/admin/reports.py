@@ -43,14 +43,18 @@ async def reports_page(
         .where(Report.status == ReportStatus.pending)
         .group_by(Report.reported_id)
     )
-    report_counts = {row[0]: row[1] for row in count_result.all()}
+    from web.dependencies import generate_csrf_token
+    token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
 
     return templates.TemplateResponse(
         "admin/reports.html",
         {
-            "request": request, "admin": admin,
-            "reports": reports, "current_status": status,
+            "request": request,
+            "admin": admin,
+            "reports": reports,
+            "current_status": status,
             "report_counts": report_counts,
+            "csrf_token": token_str,
         },
     )
 

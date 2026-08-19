@@ -30,11 +30,18 @@ async def list_documents(
         .where(Achievement.verified == status_enum)
         .order_by(Achievement.created_at.desc())
     )
-    achievements = result.scalars().all()
+    from web.dependencies import generate_csrf_token
+    token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
 
     return templates.TemplateResponse(
         "admin/documents.html",
-        {"request": request, "admin": admin, "achievements": achievements, "current_status": status},
+        {
+            "request": request,
+            "admin": admin,
+            "achievements": achievements,
+            "current_status": status,
+            "csrf_token": token_str,
+        },
     )
 
 

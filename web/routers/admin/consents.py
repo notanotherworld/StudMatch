@@ -65,6 +65,9 @@ async def consents_page(
     result = await db.execute(query)
     users = result.scalars().all()
 
+    from web.dependencies import generate_csrf_token
+    token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
+
     return templates.TemplateResponse(
         "admin/consents.html",
         {
@@ -77,6 +80,7 @@ async def consents_page(
             "current_status": status,
             "q": q,
             "page": page,
+            "csrf_token": token_str,
         },
     )
 
