@@ -170,41 +170,71 @@
   <!-- Правая колонка: выдача доступа и управление -->
   <div style="display:flex;flex-direction:column;gap:20px;">
     <div class="card">
-      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">➕ Выдать доступ к анкете</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">➕ Подбор & Выдача кандидатов</div>
 
-      <!-- Поиск студента -->
-      <form method="GET" action="/admin/employers/{{ employer.id }}" style="margin-bottom:16px;">
-        <div style="display:flex;gap:8px;">
-          <input type="text" name="q" value="{{ q }}" placeholder="Имя студента..." style="flex:1;">
-          <button type="submit" class="btn btn-ghost btn-sm">🔍</button>
+      <!-- Поиск студента по навыкам, вузу, специальности, имени -->
+      <form method="GET" action="/admin/employers/{{ employer.id }}" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+        <input type="text" name="q" value="{{ q }}" placeholder="Стек (Python, QA), спец-ть, @ник, имя..." style="width:100%;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <select name="university_id" style="font-size:12px;padding:6px 8px;">
+            <option value="0">Все ВУЗы</option>
+            {% for uni in universities %}
+            <option value="{{ uni.id }}" {% if university_id == uni.id %}selected{% endif %}>{{ uni.short_name }}</option>
+            {% endfor %}
+          </select>
+          <select name="year" style="font-size:12px;padding:6px 8px;">
+            <option value="0">Все курсы</option>
+            <option value="1" {% if year == 1 %}selected{% endif %}>1 курс</option>
+            <option value="2" {% if year == 2 %}selected{% endif %}>2 курс</option>
+            <option value="3" {% if year == 3 %}selected{% endif %}>3 курс</option>
+            <option value="4" {% if year == 4 %}selected{% endif %}>4 курс</option>
+            <option value="5" {% if year == 5 %}selected{% endif %}>5 курс</option>
+            <option value="6" {% if year == 6 %}selected{% endif %}>6 курс / Маг.</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button type="submit" class="btn btn-primary btn-sm" style="flex:1;justify-content:center;">🔍 Найти кандидатов</button>
+          {% if q or university_id or year %}
+          <a href="/admin/employers/{{ employer.id }}" class="btn btn-ghost btn-sm">✕</a>
+          {% endif %}
         </div>
       </form>
 
       {% if search_profiles %}
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;max-height:480px;overflow-y:auto;">
         {% for p in search_profiles %}
-        <form method="POST" action="/admin/employers/{{ employer.id }}/grant">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <form method="POST" action="/admin/employers/{{ employer.id }}/grant" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token or '' }}">
           <input type="hidden" name="profile_id" value="{{ p.id }}">
           <div style="padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);">
-            <div style="font-weight:600;margin-bottom:4px;">{{ p.name }}</div>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
-              {{ p.major }} · {{ p.year }} курс · ⭐{{ p.rating_score|int }}
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <div style="font-weight:700;font-size:14px;">{{ p.name or 'Без имени' }}</div>
+              <span class="badge badge-purple" style="font-size:10px;">⭐ {{ p.rating_score|int }} баллов</span>
             </div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">
+              {% if p.user and p.user.tg_username %}<strong style="color:var(--accent2);">@{{ p.user.tg_username }}</strong> · {% endif %}
+              {% if p.user and p.user.university %}{{ p.user.university.short_name }} · {% endif %}
+              {{ p.year }} к. · {{ p.major or '—' }}
+            </div>
+            {% if p.career_skills %}
+            <div style="font-size:11px;color:#93c5fd;background:rgba(59,130,246,0.1);padding:4px 8px;border-radius:6px;margin-bottom:8px;line-height:1.3;">
+              🛠 <strong>Стек:</strong> {{ p.career_skills[:60] }}{% if p.career_skills|length > 60 %}...{% endif %}
+            </div>
+            {% endif %}
             <div class="form-group" style="margin-bottom:8px;">
-              <input type="text" name="note" placeholder="Пометка (напр. Стажировка 2026)"
-                     style="font-size:13px;padding:6px 10px;">
+              <input type="text" name="note" placeholder="Пометка для HR (напр. Backend Junior 2026)"
+                     style="font-size:12px;padding:6px 10px;">
             </div>
-            <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">
+            <button type="submit" class="btn btn-success btn-sm" style="width:100%;justify-content:center;">
               ✅ Выдать доступ & Уведомить
             </button>
           </div>
         </form>
         {% endfor %}
       </div>
-      {% elif q %}
-      <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">
-        Ничего не найдено по «{{ q }}»
+      {% elif q or university_id or year %}
+      <div style="color:var(--muted);font-size:13px;margin-bottom:16px;text-align:center;padding:12px;background:var(--surface2);border-radius:8px;">
+        Кажется, подходящих кандидатов не найдено. Попробуйте изменить запрос или фильтр вуза.
       </div>
       {% endif %}
 

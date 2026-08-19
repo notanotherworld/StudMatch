@@ -66,6 +66,8 @@ async def employer_detail(
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
     q: str = Query(default=""),
+    university_id: int = Query(default=0),
+    year: int = Query(default=0),
 ):
     result = await db.execute(
         select(Employer)
@@ -78,24 +80,72 @@ async def employer_detail(
     if not employer:
         return RedirectResponse("/admin/employers")
 
-    # Поиск студентов для выдачи доступа
+    # Получаем список вузов для фильтра
+    unis_res = await db.execute(select(University).where(University.is_active == True).order_by(University.name))
+    universities = unis_res.scalars().all()
+
+    # Комплексный поиск студентов для выдачи доступа
     search_profiles = []
-    if q:
+    clean_q = q.strip()
+    clean_q_term = clean_q.lstrip("@")
+
+    conditions = [
+        or_(Profile.is_complete == True, Profile.career_is_complete == True),
+        User.is_active == True,
+    ]
+
+    if clean_q_term:
+        q_filters = [
+            Profile.name.ilike(f"%{clean_q_term}%"),
+            Profile.major.ilike(f"%{clean_q_term}%"),
+            Profile.bio.ilike(f"%{clean_q_term}%"),
+            Profile.career_bio.ilike(f"%{clean_q_term}%"),
+            Profile.career_skills.ilike(f"%{clean_q_term}%"),
+            User.tg_username.ilike(f"%{clean_q_term}%"),
+            User.email.ilike(f"%{clean_q_term}%"),
+        ]
+        if clean_q_term.isdigit():
+            q_filters.append(User.id == int(clean_q_term))
+        conditions.append(or_(*q_filters))
+
+    if university_id:
+        conditions.append(User.university_id == university_id)
+    if year:
+        conditions.append(Profile.year == year)
+
+    # Исключаем анкеты, к которым уже выдан доступ этому работодателю
+    already_granted_profile_ids = [acc.profile_id for acc in employer.profile_accesses if acc.profile_id]
+    if already_granted_profile_ids:
+        conditions.append(~Profile.id.in_(already_granted_profile_ids))
+
+    if clean_q or university_id or year:
         search_result = await db.execute(
             select(Profile)
-            .options(selectinload(Profile.user))
+            .options(
+                selectinload(Profile.user).selectinload(User.university),
+                selectinload(Profile.user).selectinload(User.achievements),
+            )
             .join(User, Profile.user_id == User.id)
-            .where(Profile.name.ilike(f"%{q}%"), Profile.is_complete == True)
-            .limit(10)
+            .where(*conditions)
+            .order_by(Profile.rating_score.desc())
+            .limit(20)
         )
         search_profiles = search_result.scalars().all()
+
+    token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
 
     return templates.TemplateResponse(
         "admin/employer_detail.html",
         {
-            "request": request, "admin": admin,
-            "employer": employer, "q": q,
+            "request": request,
+            "admin": admin,
+            "employer": employer,
+            "q": q,
+            "university_id": university_id,
+            "year": year,
+            "universities": universities,
             "search_profiles": search_profiles,
+            "csrf_token": token_str,
         },
     )
 
