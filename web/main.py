@@ -92,10 +92,15 @@ from fastapi.exception_handlers import http_exception_handler
 
 @app.exception_handler(HTTPException)
 async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    # Если зависимость вернула редирект (302 на /admin/login)
+    if exc.status_code in (301, 302, 303, 307, 308) and exc.headers and "Location" in exc.headers:
+        return RedirectResponse(exc.headers["Location"], status_code=exc.status_code)
+
     if exc.status_code == 403 and "Invalid CSRF token" in str(exc.detail):
         referer = request.headers.get("referer") or "/admin/dashboard"
         sep = "&" if "?" in referer else "?"
         return RedirectResponse(f"{referer}{sep}error=Сессия+обновлена,+повторите+действие", status_code=302)
+
     return await http_exception_handler(request, exc)
 
 # Статика
