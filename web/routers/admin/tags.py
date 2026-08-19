@@ -63,10 +63,10 @@ async def create_tag(
             existing.emoji = clean_emoji
             await db.commit()
             await log_admin_action(
-                admin_id=admin.id,
+                db=db,
+                admin=admin,
                 action="update_tag",
                 details=f"Обновлен существующий тег #{existing.id} «{clean_name}» {clean_emoji}",
-                db=db,
             )
             return RedirectResponse("/admin/tags?success=Тег+успешно+обновлен", status_code=302)
 
@@ -76,10 +76,10 @@ async def create_tag(
         await db.refresh(tag)
 
         await log_admin_action(
-            admin_id=admin.id,
+            db=db,
+            admin=admin,
             action="create_tag",
             details=f"Создан новый тег #{tag.id} «{clean_name}» {clean_emoji}",
-            db=db,
         )
         return RedirectResponse("/admin/tags?success=Тег+успешно+создан", status_code=302)
     except Exception as e:
@@ -108,10 +108,10 @@ async def update_tag(
             await db.commit()
 
             await log_admin_action(
-                admin_id=admin.id,
+                db=db,
+                admin=admin,
                 action="update_tag",
                 details=f"Обновлен тег #{tag_id} -> «{clean_name}» {clean_emoji}",
-                db=db,
             )
             return RedirectResponse("/admin/tags?success=Тег+сохранен", status_code=302)
         return RedirectResponse("/admin/tags?error=Тег+не+найден", status_code=302)
@@ -136,10 +136,10 @@ async def delete_tag(
             await db.commit()
 
             await log_admin_action(
-                admin_id=admin.id,
+                db=db,
+                admin=admin,
                 action="delete_tag",
                 details=f"Удален тег #{tag_id} «{tag_name}»",
-                db=db,
             )
             return RedirectResponse("/admin/tags?success=Тег+удален", status_code=302)
         return RedirectResponse("/admin/tags?error=Тег+не+найден", status_code=302)

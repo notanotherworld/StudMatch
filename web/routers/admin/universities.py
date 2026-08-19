@@ -70,10 +70,10 @@ async def create_university(
         await db.refresh(uni)
 
         await log_admin_action(
-            admin_id=admin.id,
+            db=db,
+            admin=admin,
             action="create_university",
             details=f"Создан вуз #{uni.id} «{clean_name}» ({clean_short_name})",
-            db=db,
         )
         return RedirectResponse("/admin/universities?success=Университет+успешно+добавлен", status_code=302)
     except Exception as e:
@@ -97,10 +97,10 @@ async def toggle_university(
 
             status_str = "активирован" if uni.is_active else "деактивирован"
             await log_admin_action(
-                admin_id=admin.id,
+                db=db,
+                admin=admin,
                 action="toggle_university",
                 details=f"Вуз #{uni_id} ({uni.short_name}) {status_str}",
-                db=db,
             )
             return RedirectResponse("/admin/universities?success=Статус+вуза+изменен", status_code=302)
         return RedirectResponse("/admin/universities?error=Вуз+не+найден", status_code=302)
