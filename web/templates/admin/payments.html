@@ -22,12 +22,7 @@
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
         <div class="card-title">
-          {% if ps.product == 'premium_1m' %}💎 Премиум 1 мес (199 ₽)
-          {% elif ps.product == 'boost_24h' %}⚡️ Буст 24ч (99 ₽)
-          {% elif ps.product == 'superlike_3' %}⭐️ 3 суперлайка
-          {% elif ps.product == 'superlike_5' %}⭐️ 5 суперлайков
-          {% elif ps.product == 'superlike_10' %}⭐️ 10 суперлайков
-          {% else %}{{ ps.product }}{% endif %}
+          {{ ps.emoji }} {{ ps.name }} {% if ps.price %}({{ ps.price }} ₽){% endif %}
         </div>
         <div class="card-value mono" style="font-size:24px;color:{% if ps.product == 'premium_1m' %}var(--accent2){% else %}var(--success){% endif %};">
           {{ "%.0f"|format(ps.revenue) }} ₽
@@ -35,9 +30,7 @@
         <div style="font-size:12px;color:var(--muted);margin-top:4px;">{{ ps.count }} покупок</div>
       </div>
       <div style="font-size:24px;background:var(--surface2);padding:10px;border-radius:12px;">
-        {% if ps.product == 'premium_1m' %}💎
-        {% elif ps.product == 'boost_24h' %}⚡️
-        {% else %}⭐️{% endif %}
+        {{ ps.emoji }}
       </div>
     </div>
   </div>
@@ -61,13 +54,13 @@
 <!-- Фильтры транзакций -->
 <form method="GET" action="/admin/payments"
       style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
-  <select name="product" style="width:220px;">
-    <option value="">Все продукты</option>
-    <option value="premium_1m" {% if current_product=='premium_1m' %}selected{% endif %}>💎 Премиум-подписка 1 мес (199 ₽)</option>
-    <option value="boost_24h" {% if current_product=='boost_24h' %}selected{% endif %}>⚡️ Буст 24ч (99 ₽)</option>
-    <option value="superlike_3" {% if current_product=='superlike_3' %}selected{% endif %}>⭐️ 3 суперлайка (49 ₽)</option>
-    <option value="superlike_5" {% if current_product=='superlike_5' %}selected{% endif %}>⭐️ 5 суперлайков (99 ₽)</option>
-    <option value="superlike_10" {% if current_product=='superlike_10' %}selected{% endif %}>⭐️ 10 суперлайков (199 ₽)</option>
+  <select name="product" style="width:260px;">
+    <option value="">Все продукты и тарифы</option>
+    {% for prod in products_catalog %}
+    <option value="{{ prod.id }}" {% if current_product == prod.id %}selected{% endif %}>
+      {{ prod.emoji }} {{ prod.name }} ({{ prod.price }} ₽)
+    </option>
+    {% endfor %}
   </select>
   <select name="status" style="width:160px;">
     <option value="succeeded" {% if current_status=='succeeded' %}selected{% endif %}>✅ Оплачено</option>
@@ -87,7 +80,7 @@
         <tr>
           <th>ID ЮКасса</th>
           <th>Пользователь</th>
-          <th>Продукт</th>
+          <th>Продукт / Услуга</th>
           <th>Сумма</th>
           <th>Статус</th>
           <th>Дата</th>
@@ -95,6 +88,8 @@
       </thead>
       <tbody>
         {% for p in payments %}
+        {% set prod_id = p.product.value if hasattr(p.product, 'value') else p.product|string %}
+        {% set prod_meta = catalog_map.get(prod_id, None) %}
         <tr>
           <td style="font-size:11px;color:var(--muted);" class="mono">
             {{ (p.yookassa_payment_id or '—')[:20] }}
@@ -106,18 +101,10 @@
             </a>
           </td>
           <td>
-            {% if p.product.value == 'premium_1m' %}
-              <span class="badge badge-purple">💎 Премиум-подписка</span>
-            {% elif p.product.value == 'boost_24h' %}
-              <span class="badge badge-warning">⚡️ Буст 24ч</span>
-            {% elif p.product.value == 'superlike_3' %}
-              <span class="badge badge-purple">⭐️ 3 СЛ</span>
-            {% elif p.product.value == 'superlike_5' %}
-              <span class="badge badge-purple">⭐️ 5 СЛ</span>
-            {% elif p.product.value == 'superlike_10' %}
-              <span class="badge badge-purple">⭐️ 10 СЛ</span>
+            {% if prod_meta %}
+              <span class="badge badge-purple">{{ prod_meta.emoji }} {{ prod_meta.name }}</span>
             {% else %}
-              <span class="badge badge-purple">{{ p.product.value }}</span>
+              <span class="badge badge-purple">💎 {{ prod_id }}</span>
             {% endif %}
           </td>
           <td style="font-weight:700;color:var(--success);" class="mono">{{ p.amount_rub }} ₽</td>

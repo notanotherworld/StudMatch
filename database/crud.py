@@ -515,26 +515,43 @@ async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optiona
     payment.status = PaymentStatus.succeeded
     payment.updated_at = datetime.now(timezone.utc)
 
-    # Начисляем товар
-    if payment.product == PaymentProduct.superlike_1:
-        await add_superlikes(db, payment.user_id, 1)
-    elif payment.product == PaymentProduct.superlike_3:
-        await add_superlikes(db, payment.user_id, 3)
-    elif payment.product == PaymentProduct.superlike_5:
-        await add_superlikes(db, payment.user_id, 5)
-    elif payment.product == PaymentProduct.superlike_10:
-        await add_superlikes(db, payment.user_id, 10)
-    elif payment.product == PaymentProduct.boost_24h:
-        boost_until = datetime.now(timezone.utc) + timedelta(hours=24)
-        await db.execute(
-            update(User).where(User.id == payment.user_id).values(boost_until=boost_until)
-        )
-    elif payment.product == PaymentProduct.premium_1m:
-        boost_until = datetime.now(timezone.utc) + timedelta(days=30)
-        await add_superlikes(db, payment.user_id, 10)
-        await db.execute(
-            update(User).where(User.id == payment.user_id).values(boost_until=boost_until)
-        )
+    # Начисляем товар динамически на основе каталога
+    try:
+        from bot.utils.dynamic_settings import get_payment_products_catalog
+        catalog = await get_payment_products_catalog()
+        catalog_map = {p["id"]: p for p in catalog}
+        prod_val = payment.product.value if hasattr(payment.product, 'value') else str(payment.product)
+        prod_meta = catalog_map.get(prod_val)
+        if prod_meta:
+            btype = prod_meta.get("bonus_type")
+            bval = int(prod_meta.get("bonus_value", 1))
+            if btype == "superlikes":
+                await add_superlikes(db, payment.user_id, bval)
+            elif btype == "boost":
+                boost_until = datetime.now(timezone.utc) + timedelta(hours=bval)
+                await db.execute(update(User).where(User.id == payment.user_id).values(boost_until=boost_until))
+            elif btype == "premium":
+                boost_until = datetime.now(timezone.utc) + timedelta(days=bval)
+                await add_superlikes(db, payment.user_id, max(3, bval // 3))
+                await db.execute(update(User).where(User.id == payment.user_id).values(boost_until=boost_until))
+        else:
+            if payment.product == PaymentProduct.superlike_1:
+                await add_superlikes(db, payment.user_id, 1)
+            elif payment.product == PaymentProduct.superlike_3:
+                await add_superlikes(db, payment.user_id, 3)
+            elif payment.product == PaymentProduct.superlike_5:
+                await add_superlikes(db, payment.user_id, 5)
+            elif payment.product == PaymentProduct.superlike_10:
+                await add_superlikes(db, payment.user_id, 10)
+            elif payment.product == PaymentProduct.boost_24h:
+                boost_until = datetime.now(timezone.utc) + timedelta(hours=24)
+                await db.execute(update(User).where(User.id == payment.user_id).values(boost_until=boost_until))
+            elif payment.product == PaymentProduct.premium_1m:
+                boost_until = datetime.now(timezone.utc) + timedelta(days=30)
+                await add_superlikes(db, payment.user_id, 10)
+                await db.execute(update(User).where(User.id == payment.user_id).values(boost_until=boost_until))
+    except Exception:
+        pass
 
     await db.commit()
     return payment

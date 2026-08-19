@@ -7,9 +7,14 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from web.dependencies import get_db, get_current_admin, check_csrf
+from web.dependencies import get_db, get_current_admin, check_csrf, generate_csrf_token
 from database.models import SystemSetting
-from bot.utils.dynamic_settings import get_system_setting, set_system_setting
+from bot.utils.dynamic_settings import (
+    get_system_setting,
+    set_system_setting,
+    get_payment_products_catalog,
+    save_payment_products_catalog,
+)
 from web.utils.audit import log_admin_action
 
 router = APIRouter()
@@ -28,6 +33,8 @@ async def settings_page(
     all_settings_list = result.scalars().all()
     settings_map = {s.key: s.value for s in all_settings_list}
 
+    products_catalog = await get_payment_products_catalog()
+
     smtp_info = {
         "host": settings.SMTP_HOST,
         "port": settings.SMTP_PORT,
@@ -36,16 +43,135 @@ async def settings_page(
         "is_configured": bool(settings.SMTP_USER and settings.SMTP_PASSWORD),
     }
 
+    token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
+
     return templates.TemplateResponse(
         "admin/settings.html",
         {
             "request": request,
             "admin": admin,
             "cfg": settings_map,
+            "products_catalog": products_catalog,
             "smtp": smtp_info,
             "saved": saved == "1",
+            "csrf_token": token_str,
         },
     )
+
+
+@router.post("/settings/products/add", dependencies=[Depends(check_csrf)])
+async def add_custom_product(
+    request: Request,
+    name: str = Form(...),
+    emoji: str = Form(default="🎁"),
+    price: int = Form(...),
+    bonus_type: str = Form(default="custom"),
+    bonus_value: int = Form(default=1),
+    description: str = Form(default=""),
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Добавить новый тариф / дополнительную услугу в каталог."""
+    import re
+    clean_name = name.strip()
+    clean_emoji = emoji.strip() or "🎁"
+    clean_desc = description.strip()
+    clean_price = max(1, int(price))
+
+    if not clean_name:
+        return RedirectResponse("/admin/settings?error=Укажите+название+услуги", status_code=302)
+
+    # Генерируем уникальный slug-идентификатор
+    import transliterate
+    try:
+        slug = transliterate.translit(clean_name, 'ru', reversed=True)
+    except Exception:
+        slug = clean_name
+    slug = re.sub(r'[^a-zA-Z0-9_]+', '_', slug.lower()).strip('_')
+    if not slug:
+        slug = f"service_{int(datetime.now().timestamp())}"
+    slug = f"custom_{slug[:25]}"
+
+    catalog = await get_payment_products_catalog()
+    # Проверяем нет ли уже с таким id
+    if any(p.get("id") == slug for p in catalog):
+        slug = f"{slug}_{int(datetime.now().timestamp()) % 10000}"
+
+    new_item = {
+        "id": slug,
+        "name": clean_name,
+        "emoji": clean_emoji,
+        "price": clean_price,
+        "bonus_type": bonus_type,
+        "bonus_value": max(1, int(bonus_value)),
+        "description": clean_desc,
+        "is_active": True,
+        "is_default": False,
+    }
+    catalog.append(new_item)
+    await save_payment_products_catalog(catalog)
+
+    await log_admin_action(
+        db=db,
+        admin=admin,
+        action="add_payment_product",
+        target_type="payment_product",
+        target_id=slug,
+        details=f"Создан новый тариф/услуга «{clean_emoji} {clean_name}» за {clean_price} ₽ (тип: {bonus_type}, бонус: {bonus_value})",
+    )
+
+    return RedirectResponse("/admin/settings?saved=1", status_code=302)
+
+
+@router.post("/settings/products/{product_id}/toggle", dependencies=[Depends(check_csrf)])
+async def toggle_product_active(
+    product_id: str,
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Включение / отключение услуги в каталоге."""
+    catalog = await get_payment_products_catalog()
+    target_name = product_id
+    for item in catalog:
+        if item.get("id") == product_id:
+            item["is_active"] = not item.get("is_active", True)
+            target_name = item.get("name", product_id)
+            break
+
+    await save_payment_products_catalog(catalog)
+    await log_admin_action(
+        db=db,
+        admin=admin,
+        action="toggle_payment_product",
+        target_type="payment_product",
+        target_id=product_id,
+        details=f"Переключен статус активности тарифа '{target_name}'",
+    )
+    return RedirectResponse("/admin/settings?saved=1", status_code=302)
+
+
+@router.post("/settings/products/{product_id}/delete", dependencies=[Depends(check_csrf)])
+async def delete_custom_product(
+    product_id: str,
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Удаление кастомной услуги из каталога."""
+    catalog = await get_payment_products_catalog()
+    catalog = [p for p in catalog if p.get("id") != product_id]
+    await save_payment_products_catalog(catalog)
+
+    await log_admin_action(
+        db=db,
+        admin=admin,
+        action="delete_payment_product",
+        target_type="payment_product",
+        target_id=product_id,
+        details=f"Удален тариф/услуга '{product_id}'",
+    )
+    return RedirectResponse("/admin/settings?saved=1", status_code=302)
 
 
 @router.post("/settings", dependencies=[Depends(check_csrf)])
@@ -53,10 +179,6 @@ async def save_settings(
     request: Request,
     maintenance_mode: str = Form(default="false"),
     maintenance_message: str = Form(default=""),
-    price_premium_1m: str = Form(default="199"),
-    price_boost_24h: str = Form(default="99"),
-    price_superlike_3: str = Form(default="49"),
-    price_superlike_10: str = Form(default="199"),
     referral_reward_superlikes: str = Form(default="3"),
     require_email_verification: str = Form(default="true"),
     reward_score_gpa: str = Form(default="20"),
@@ -73,6 +195,28 @@ async def save_settings(
     db: AsyncSession = Depends(get_db),
 ):
     from bot.services.update_broadcast import UPDATE_TEXT
+    from datetime import datetime
+
+    # Считываем все отправленные цены на товары
+    form_data = await request.form()
+    catalog = await get_payment_products_catalog()
+    for item in catalog:
+        pid = item.get("id")
+        # Проверяем поле вида product_price_{pid} или price_{pid}
+        field_name = f"product_price_{pid}"
+        if field_name in form_data:
+            try:
+                item["price"] = max(1, int(form_data[field_name]))
+            except Exception:
+                pass
+        elif f"price_{pid}" in form_data:
+            try:
+                item["price"] = max(1, int(form_data[f"price_{pid}"]))
+            except Exception:
+                pass
+
+    await save_payment_products_catalog(catalog)
+
     updates = {
         "maintenance_mode": "true" if maintenance_mode == "true" else "false",
         "maintenance_message": maintenance_message.strip(),
@@ -80,10 +224,6 @@ async def save_settings(
         "freeze_registrations": "true" if freeze_registrations == "true" else "false",
         "anti_flood_strict": "true" if anti_flood_strict == "true" else "false",
         "emergency_message": emergency_message.strip() or "🚨 <b>Сервер временно недоступен</b>\n\nВключён режим защиты от перегрузки. Доступ будет восстановлен в ближайшее время!",
-        "price_premium_1m": price_premium_1m.strip(),
-        "price_boost_24h": price_boost_24h.strip(),
-        "price_superlike_3": price_superlike_3.strip(),
-        "price_superlike_10": price_superlike_10.strip(),
         "referral_reward_superlikes": referral_reward_superlikes.strip(),
         "require_email_verification": "true" if require_email_verification == "true" else "false",
         "reward_score_gpa": reward_score_gpa.strip(),
@@ -99,8 +239,12 @@ async def save_settings(
 
     client_ip = request.client.host if request.client else None
     await log_admin_action(
-        db, admin, action="update_system_settings", target_type="system", target_id="settings",
-        details=f"Обновлены настройки безопасности (Emergency: {updates['emergency_mode']}, FreezeReg: {updates['freeze_registrations']}, StrictAntiDDoS: {updates['anti_flood_strict']})",
+        db=db,
+        admin=admin,
+        action="update_system_settings",
+        target_type="system",
+        target_id="settings",
+        details="Обновлены системные настройки и цены тарифов",
         ip_address=client_ip,
     )
 

@@ -99,16 +99,28 @@ async def payments_page(
     result = await db.execute(query)
     payments = result.scalars().all()
 
+    from bot.utils.dynamic_settings import get_payment_products_catalog
+    catalog = await get_payment_products_catalog()
+    catalog_map = {p["id"]: p for p in catalog}
+
     # Статистика по продуктам (только succeeded)
     stats_result = await db.execute(
         select(Payment.product, func.count(Payment.id), func.sum(Payment.amount_rub))
         .where(Payment.status == PaymentStatus.succeeded)
         .group_by(Payment.product)
     )
-    product_stats = [
-        {"product": row[0].value, "count": row[1], "revenue": float(row[2] or 0)}
-        for row in stats_result.all()
-    ]
+    product_stats = []
+    for row in stats_result.all():
+        prod_val = row[0].value if hasattr(row[0], 'value') else str(row[0])
+        prod_meta = catalog_map.get(prod_val, {})
+        product_stats.append({
+            "product": prod_val,
+            "name": prod_meta.get("name", prod_val),
+            "emoji": prod_meta.get("emoji", "💰"),
+            "price": prod_meta.get("price", 0),
+            "count": row[1],
+            "revenue": float(row[2] or 0),
+        })
 
     # Выручка за 30 дней (для мини-графика)
     month_ago = datetime.now(timezone.utc) - timedelta(days=30)
@@ -135,14 +147,24 @@ async def payments_page(
     )
     export_requests = export_result.scalars().all()
 
+    from web.dependencies import generate_csrf_token
+    token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
+
     return templates.TemplateResponse(
         "admin/payments.html",
         {
-            "request": request, "admin": admin,
-            "payments": payments, "product_stats": product_stats,
+            "request": request,
+            "admin": admin,
+            "payments": payments,
+            "product_stats": product_stats,
+            "products_catalog": catalog,
+            "catalog_map": catalog_map,
             "daily_revenue": daily_revenue,
-            "current_product": product, "current_status": status,
-            "page": page, "export_requests": export_requests,
+            "current_product": product,
+            "current_status": status,
+            "page": page,
+            "export_requests": export_requests,
+            "csrf_token": token_str,
         },
     )
 

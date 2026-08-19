@@ -74,33 +74,142 @@ async def set_system_setting(key: str, value: str, description: Optional[str] = 
         pass
 
 
+import json
+
+DEFAULT_PAYMENT_PRODUCTS = [
+    {
+        "id": "premium_1m",
+        "name": "Премиум-подписка 1 мес",
+        "emoji": "💎",
+        "price": 199,
+        "bonus_type": "premium",
+        "bonus_value": 30,
+        "description": "Безлимитные лайки, фильтры и режим инкогнито",
+        "is_active": True,
+        "is_default": True,
+    },
+    {
+        "id": "boost_24h",
+        "name": "Буст анкеты 24ч",
+        "emoji": "⚡️",
+        "price": 99,
+        "bonus_type": "boost",
+        "bonus_value": 24,
+        "description": "Показ анкеты первым в ленте на 24 часа",
+        "is_active": True,
+        "is_default": True,
+    },
+    {
+        "id": "superlike_3",
+        "name": "3 суперлайка",
+        "emoji": "⭐️",
+        "price": 49,
+        "bonus_type": "superlikes",
+        "bonus_value": 3,
+        "description": "Мгновенное уведомление с вашим сообщением",
+        "is_active": True,
+        "is_default": True,
+    },
+    {
+        "id": "superlike_5",
+        "name": "5 суперлайков",
+        "emoji": "⭐️",
+        "price": 99,
+        "bonus_type": "superlikes",
+        "bonus_value": 5,
+        "description": "Пакет из 5 суперлайков",
+        "is_active": True,
+        "is_default": True,
+    },
+    {
+        "id": "superlike_10",
+        "name": "10 суперлайков",
+        "emoji": "⭐️",
+        "price": 199,
+        "bonus_type": "superlikes",
+        "bonus_value": 10,
+        "description": "Выгодный пакет из 10 суперлайков",
+        "is_active": True,
+        "is_default": True,
+    },
+]
+
+
+async def get_payment_products_catalog() -> list[dict]:
+    """
+    Получить полный динамический каталог услуг и тарифов с ценами.
+    """
+    raw = await get_system_setting("payment_products_catalog", "")
+    catalog = []
+    if raw:
+        try:
+            catalog = json.loads(raw)
+        except Exception:
+            catalog = []
+
+    if not catalog:
+        catalog = [dict(p) for p in DEFAULT_PAYMENT_PRODUCTS]
+
+    # Подтягиваем индивидуальные оверрайды цен если они были заданы отдельно
+    for item in catalog:
+        pid = item.get("id")
+        if pid == "premium_1m":
+            try:
+                item["price"] = int(await get_system_setting("price_premium_1m", str(item.get("price", 199))))
+            except Exception:
+                pass
+        elif pid == "boost_24h":
+            try:
+                item["price"] = int(await get_system_setting("price_boost_24h", str(item.get("price", 99))))
+            except Exception:
+                pass
+        elif pid == "superlike_3":
+            try:
+                item["price"] = int(await get_system_setting("price_superlike_3", str(item.get("price", 49))))
+            except Exception:
+                pass
+        elif pid == "superlike_5":
+            try:
+                item["price"] = int(await get_system_setting("price_superlike_5", str(item.get("price", 99))))
+            except Exception:
+                pass
+        elif pid == "superlike_10":
+            try:
+                item["price"] = int(await get_system_setting("price_superlike_10", str(item.get("price", 199))))
+            except Exception:
+                pass
+
+    return catalog
+
+
+async def save_payment_products_catalog(catalog: list[dict]) -> None:
+    """
+    Сохраняет каталог услуг и синхронизирует отдельные ключи цен.
+    """
+    await set_system_setting("payment_products_catalog", json.dumps(catalog, ensure_ascii=False))
+
+    # Синхронизируем базовые ключи для обратной совместимости
+    for item in catalog:
+        pid = item.get("id")
+        price_val = str(item.get("price", 0))
+        if pid in ("premium_1m", "boost_24h", "superlike_3", "superlike_5", "superlike_10"):
+            await set_system_setting(f"price_{pid}", price_val)
+
+
 async def get_dynamic_pricing() -> dict:
     """
-    Возвращает актуальные цены тарифов и услуг (ЮКасса), синхронизированные с админкой.
+    Возвращает словарь актуальных цен тарифов и услуг (ЮКасса).
     """
-    try:
-        price_vip = int(await get_system_setting("price_premium_1m", "199"))
-    except (ValueError, TypeError):
-        price_vip = 199
+    catalog = await get_payment_products_catalog()
+    pricing = {}
+    for p in catalog:
+        pricing[f"price_{p['id']}"] = int(p.get("price", 0))
+        pricing[p["id"]] = int(p.get("price", 0))
 
-    try:
-        price_boost = int(await get_system_setting("price_boost_24h", "99"))
-    except (ValueError, TypeError):
-        price_boost = 99
-
-    try:
-        price_sl3 = int(await get_system_setting("price_superlike_3", "49"))
-    except (ValueError, TypeError):
-        price_sl3 = 49
-
-    try:
-        price_sl10 = int(await get_system_setting("price_superlike_10", "199"))
-    except (ValueError, TypeError):
-        price_sl10 = 199
-
-    return {
-        "price_premium_1m": price_vip,
-        "price_boost_24h": price_boost,
-        "price_superlike_3": price_sl3,
-        "price_superlike_10": price_sl10,
-    }
+    # Дефолтные ключи
+    pricing.setdefault("price_premium_1m", 199)
+    pricing.setdefault("price_boost_24h", 99)
+    pricing.setdefault("price_superlike_3", 49)
+    pricing.setdefault("price_superlike_5", 99)
+    pricing.setdefault("price_superlike_10", 199)
+    return pricing
