@@ -10,6 +10,7 @@ from web.dependencies import get_db, get_current_admin, require_superadmin, chec
 from bot.utils.minio_client import get_object_data
 from database.models import Achievement, VerifiedStatus
 from database.crud import approve_achievement, reject_achievement
+from web.utils.audit import log_admin_action
 
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
@@ -30,6 +31,8 @@ async def list_documents(
         .where(Achievement.verified == status_enum)
         .order_by(Achievement.created_at.desc())
     )
+    achievements = result.scalars().all()
+
     from web.dependencies import generate_csrf_token
     token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
 
@@ -82,6 +85,14 @@ async def approve_doc(
     result = await db.execute(select(Achievement).where(Achievement.id == achievement_id))
     ach = result.scalar_one_or_none()
     if ach:
+        await log_admin_action(
+            db=db,
+            admin=admin,
+            action="approve_document",
+            target_type="achievement",
+            target_id=str(achievement_id),
+            details=f"Одобрен документ '{ach.title}' (+{ach.score:.0f} баллов) для студента #{ach.user_id}",
+        )
         try:
             from aiogram import Bot
             from bot.config import settings
@@ -97,21 +108,30 @@ async def approve_doc(
         except Exception:
             pass
 
-    return RedirectResponse("/admin/documents", status_code=302)
+    return RedirectResponse("/admin/documents?success=Достижение+подтверждено", status_code=302)
 
 
-@router.post("/documents/{achievement_id}/reject", dependencies=[Depends(check_csrf)])  # CSRF (#2)
+@router.post("/documents/{achievement_id}/reject", dependencies=[Depends(check_csrf)])
 async def reject_doc(
     achievement_id: str,
     reason: str = Form(...),
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    await reject_achievement(db, achievement_id, admin.id, reason)
+    clean_reason = reason.strip() or "Документ не соответствует требованиям"
+    await reject_achievement(db, achievement_id, admin.id, clean_reason)
 
     result = await db.execute(select(Achievement).where(Achievement.id == achievement_id))
     ach = result.scalar_one_or_none()
     if ach:
+        await log_admin_action(
+            db=db,
+            admin=admin,
+            action="reject_document",
+            target_type="achievement",
+            target_id=str(achievement_id),
+            details=f"Отклонен документ '{ach.title}' студента #{ach.user_id}. Причина: {clean_reason}",
+        )
         try:
             from aiogram import Bot
             from bot.config import settings
@@ -120,7 +140,7 @@ async def reject_doc(
                 ach.user_id,
                 f"❌ <b>Достижение отклонено</b>\n\n"
                 f"🏷 {ach.title}\n"
-                f"📋 Причина: {reason}\n\n"
+                f"📋 Причина: {clean_reason}\n\n"
                 f"Ты можешь загрузить исправленный документ.",
                 parse_mode="HTML",
             )
@@ -128,7 +148,7 @@ async def reject_doc(
         except Exception:
             pass
 
-    return RedirectResponse("/admin/documents", status_code=302)
+    return RedirectResponse("/admin/documents?success=Документ+отклонен", status_code=302)
 
 
 # ─── #5: Пакетное одобрение ──────────────────────────────────────────────────

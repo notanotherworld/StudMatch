@@ -9,6 +9,17 @@
   </div>
 </div>
 
+{% if request.query_params.get('error') %}
+<div class="card" style="background:rgba(239,68,68,0.15);border:1px solid #ef4444;color:#fca5a5;padding:12px 16px;margin-bottom:20px;border-radius:10px;font-size:14px;">
+  ⚠️ {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+{% if request.query_params.get('success') %}
+<div class="card" style="background:rgba(34,197,94,0.15);border:1px solid #22c55e;color:#86efac;padding:12px 16px;margin-bottom:20px;border-radius:10px;font-size:14px;">
+  ✅ {{ request.query_params.get('success') }}
+</div>
+{% endif %}
+
 <!-- Фильтр статуса -->
 <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
   <a href="?status=pending" class="btn {% if current_status == 'pending' %}btn-primary{% else %}btn-ghost{% endif %}">
@@ -25,7 +36,7 @@
   {% if current_status == 'pending' and achievements %}
   <div style="margin-left:auto;display:flex;gap:6px;">
     <form method="POST" action="/admin/documents/approve-type">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token or '' }}">
       <div style="display:flex;gap:6px;align-items:center;">
         <select name="ach_type" style="width:170px;padding:8px 12px;font-size:13px;">
           <option value="gpa">📊 GPA (все)</option>
@@ -90,12 +101,12 @@
             {% if current_status == 'pending' %}
             <div style="display:flex;gap:6px;">
               <form method="POST" action="/admin/documents/{{ a.id }}/approve" style="display:inline;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token or '' }}">
                 <button type="submit" class="btn btn-success btn-sm" title="Одобрить">✅</button>
               </form>
               <form method="POST" action="/admin/documents/{{ a.id }}/reject" style="display:inline;"
                     onsubmit="event.preventDefault(); showRejectModal('{{ a.id }}')">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token or '' }}">
                 <button type="button" class="btn btn-danger btn-sm" onclick="showRejectModal('{{ a.id }}')" title="Отклонить">❌</button>
               </form>
             </div>
@@ -145,7 +156,7 @@
   <div class="card" style="width:420px;max-width:92vw;">
     <h3 style="margin-bottom:16px;font-size:16px;font-weight:700;">❌ Причина отклонения</h3>
     <form id="rejectForm" method="POST">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token or '' }}">
       <div class="form-group">
         <label>Укажите причину для студента:</label>
         <textarea name="reason" rows="3" placeholder="Нечеткое фото, неверный документ..." required></textarea>
@@ -163,7 +174,7 @@
   <div class="card" style="width:420px;max-width:92vw;">
     <h3 style="margin-bottom:16px;font-size:16px;font-weight:700;">❌ Массовое отклонение</h3>
     <form method="POST" action="/admin/documents/batch-reject">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token or '' }}">
       <input type="hidden" name="doc_ids" id="batchRejectDocIds" value="">
       <div class="form-group">
         <label>Причина отклонения для всех выбранных документов:</label>
@@ -228,6 +239,12 @@ function executeBatchApprove() {
   form.method = 'POST';
   form.action = '/admin/documents/batch-approve';
   
+  const csrfInput = document.createElement('input');
+  csrfInput.type = 'hidden';
+  csrfInput.name = 'csrf_token';
+  csrfInput.value = '{{ csrf_token or request.state.csrf_token or "" }}';
+  form.appendChild(csrfInput);
+
   const idInput = document.createElement('input');
   idInput.type = 'hidden';
   idInput.name = 'doc_ids';
