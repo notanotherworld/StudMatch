@@ -149,9 +149,11 @@ async def employer_detail(
         q_filters = [
             Profile.name.ilike(f"%{clean_q_term}%"),
             Profile.major.ilike(f"%{clean_q_term}%"),
-            Profile.bio.ilike(f"%{clean_q_term}%"),
-            Profile.career_bio.ilike(f"%{clean_q_term}%"),
-            Profile.career_skills.ilike(f"%{clean_q_term}%"),
+            Profile.goal.ilike(f"%{clean_q_term}%"),
+            Profile.custom_interests.ilike(f"%{clean_q_term}%"),
+            Profile.career_goal.ilike(f"%{clean_q_term}%"),
+            Profile.career_custom_skills.ilike(f"%{clean_q_term}%"),
+            Profile.career_work_format.ilike(f"%{clean_q_term}%"),
             User.tg_username.ilike(f"%{clean_q_term}%"),
             User.email.ilike(f"%{clean_q_term}%"),
         ]
