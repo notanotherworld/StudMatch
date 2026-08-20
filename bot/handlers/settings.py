@@ -119,9 +119,9 @@ async def edit_media_prompt(callback: CallbackQuery, state: FSMContext, user: Us
     await state.update_data(photos=[], video_file_id=None, editing_media_from_settings=True)
     await callback.message.answer(
         "📸 <b>Обновление фото и видео в анкете:</b>\n\n"
-        "• Отправь <b>до 3 фото</b> и <b>1 видео</b> (до 10 МБ 🎥).\n"
+        "• Можно отправить <b>сразу альбомом</b> или по одному: <b>до 3 фото</b> и <b>1 видео</b> (до 10 МБ 🎥).\n"
         "• Первое отправленное фото станет твоей главной аватаркой.\n\n"
-        "<i>Отправляй фото или видео по одному, затем нажми <b>✔️ Завершить загрузку</b></i>",
+        "<i>Выбери в галерее и отправь сразу 3 фото + видео, затем нажми <b>✔️ Завершить загрузку</b></i>",
         parse_mode="HTML",
         reply_markup=media_upload_keyboard(0, False),
     )

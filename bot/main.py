@@ -13,6 +13,7 @@ from bot.config import settings
 from bot.middlewares.auth import AuthMiddleware
 from bot.middlewares.throttling import ThrottlingMiddleware, CallbackThrottlingMiddleware
 from bot.middlewares.maintenance import MaintenanceMiddleware
+from bot.middlewares.media_group import MediaGroupMiddleware
 from bot.handlers import start, auth, profile, browse, settings as settings_handler, rating, payments, reports as reports_handler, promo as promo_handler
 
 logging.basicConfig(
@@ -40,6 +41,7 @@ async def main() -> None:
     # Middleware (порядок важен)
     dp.message.middleware(MaintenanceMiddleware())
     dp.callback_query.middleware(MaintenanceMiddleware())
+    dp.message.middleware(MediaGroupMiddleware())
     dp.message.middleware(ThrottlingMiddleware(rate_limit=1.0))
     dp.message.middleware(AuthMiddleware())
     dp.callback_query.middleware(CallbackThrottlingMiddleware(rate_limit=0.5))  # Защита кнопок от спама (#19)

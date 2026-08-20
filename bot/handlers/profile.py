@@ -417,9 +417,9 @@ async def process_target_gender(callback: CallbackQuery, state: FSMContext, user
     from bot.keyboards.swipe import media_upload_keyboard
     await callback.message.answer(
         "📸 <b>Загрузи медиа для анкеты!</b>\n\n"
-        "• Можно отправить <b>до 3 фото</b> и <b>1 видео</b> (до 10 МБ 🎥)\n"
+        "• Можно отправить <b>сразу альбомом</b> или по одному: <b>до 3 фото</b> и <b>1 видео</b> (до 10 МБ 🎥)\n"
         "• Первое фото станет твоей главной аватаркой.\n\n"
-        "<i>Отправляй фото или видео, затем нажми <b>✔️ Завершить загрузку</b></i>",
+        "<i>Выбери в галерее и отправь сразу 3 фото + видео, затем нажми <b>✔️ Завершить загрузку</b></i>",
         parse_mode="HTML",
         reply_markup=media_upload_keyboard(0, False),
     )
@@ -530,81 +530,76 @@ async def process_media_cancel_callback(callback: CallbackQuery, state: FSMConte
     await show_my_profile(callback.message, user, db)
 
 
-@router.message(ProfileState.waiting_photo, F.photo)
-async def process_photo(message: Message, state: FSMContext, user: User, db: AsyncSession):
-    photo = message.photo[-1]
+@router.message(ProfileState.waiting_photo, F.photo | F.video | F.video_note | F.document)
+async def process_media_upload(
+    message: Message,
+    state: FSMContext,
+    user: User,
+    db: AsyncSession,
+    album: Optional[List[Message]] = None,
+):
     data = await state.get_data()
     photos = list(data.get("photos", []))
     video_id = data.get("video_file_id")
+    max_video_bytes = 10 * 1024 * 1024  # 10 MB
 
-    if len(photos) >= 3:
-        from bot.keyboards.swipe import media_upload_keyboard
-        await message.answer(
-            "⚠️ Ты уже загрузил максимум <b>3 фото</b>!\n"
-            "Нажми <b>✔️ Завершить загрузку</b> или отправь 1 видео (до 10 МБ).",
-            parse_mode="HTML",
-            reply_markup=media_upload_keyboard(len(photos), bool(video_id)),
-        )
-        return
+    messages_to_process = album if album else [message]
+    new_photos = []
+    new_video = None
+    skipped_large_video = False
+    excess_photos_count = 0
 
-    photos.append(photo.file_id)
-    await state.update_data(photos=photos)
+    for msg in messages_to_process:
+        # Фотография
+        if msg.photo:
+            new_photos.append(msg.photo[-1].file_id)
+        # Документ-картинка
+        elif msg.document and msg.document.mime_type and msg.document.mime_type.startswith("image/"):
+            new_photos.append(msg.document.file_id)
+        # Видео или видеозаметка (кружочек)
+        elif msg.video or msg.video_note:
+            v_obj = msg.video or msg.video_note
+            if v_obj.file_size and v_obj.file_size > max_video_bytes:
+                skipped_large_video = True
+            else:
+                new_video = v_obj.file_id
+
+    # Добавляем новые фото с учетом лимита 3
+    if new_photos:
+        available_slots = 3 - len(photos)
+        if available_slots > 0:
+            to_add = new_photos[:available_slots]
+            photos.extend(to_add)
+            if len(new_photos) > available_slots:
+                excess_photos_count = len(new_photos) - available_slots
+        else:
+            excess_photos_count = len(new_photos)
+
+    if new_video:
+        video_id = new_video
+
+    await state.update_data(photos=photos, video_file_id=video_id)
 
     from bot.keyboards.swipe import media_upload_keyboard
-    v_status = "📹 1 видео добавлено" if video_id else "нет видео"
+
+    # Формируем статус
+    video_status = "📹 1 видео добавлено" if video_id else "нет видео"
+    notes = []
+    if excess_photos_count > 0:
+        notes.append(f"ℹ️ <i>Сохранены первые {len(photos)} фото (лимит — 3 фото).</i>")
+    if skipped_large_video:
+        notes.append("⚠️ <i>Видео превышает лимит 10 МБ и не было добавлено.</i>")
+
+    notes_text = ("\n" + "\n".join(notes)) if notes else ""
+
     await message.answer(
-        f"✅ Фото <b>{len(photos)}/3</b> сохранено! ({v_status})\n\n"
-        f"<i>Можешь отправить ещё {3 - len(photos)} фото или 1 видео (до 10 МБ), либо нажать кнопку ниже:</i>",
+        f"✅ <b>Медиа получено!</b>\n\n"
+        f"• Фото: <b>{len(photos)}/3</b>\n"
+        f"• Видео: <b>{video_status}</b>{notes_text}\n\n"
+        f"<i>Нажми <b>✔️ Завершить загрузку</b> или отправь ещё фото/видео:</i>",
         parse_mode="HTML",
         reply_markup=media_upload_keyboard(len(photos), bool(video_id)),
     )
-
-
-@router.message(ProfileState.waiting_photo, F.video | F.video_note)
-async def process_video(message: Message, state: FSMContext, user: User, db: AsyncSession):
-    v_obj = message.video or message.video_note
-    max_bytes = 10 * 1024 * 1024  # 10 MB
-
-    if v_obj.file_size and v_obj.file_size > max_bytes:
-        mb_size = v_obj.file_size / (1024 * 1024)
-        await message.answer(
-            f"⚠️ <b>Размер видео ({mb_size:.1f} МБ) превышает лимит 10 МБ.</b>\n"
-            f"Пожалуйста, отправь более короткое видео или видеовизитку (кружочек).",
-            parse_mode="HTML",
-        )
-        return
-
-    data = await state.get_data()
-    photos = list(data.get("photos", []))
-    await state.update_data(video_file_id=v_obj.file_id)
-
-    from bot.keyboards.swipe import media_upload_keyboard
-    await message.answer(
-        f"✅ <b>Видео успешно загружено!</b> 🎥\n"
-        f"Фото в анкете: <b>{len(photos)}/3</b>.\n\n"
-        f"<i>Нажми <b>✔️ Завершить загрузку</b> или отправь фото:</i>",
-        parse_mode="HTML",
-        reply_markup=media_upload_keyboard(len(photos), True),
-    )
-
-
-@router.message(ProfileState.waiting_photo, F.document)
-async def process_photo_document(message: Message, state: FSMContext, user: User, db: AsyncSession):
-    if message.document and message.document.mime_type and message.document.mime_type.startswith("image/"):
-        data = await state.get_data()
-        photos = list(data.get("photos", []))
-        if len(photos) < 3:
-            photos.append(message.document.file_id)
-            await state.update_data(photos=photos)
-            from bot.keyboards.swipe import media_upload_keyboard
-            await message.answer(
-                f"✅ Фото <b>{len(photos)}/3</b> сохранено!\n"
-                f"Нажми <b>✔️ Завершить загрузку</b> или отправь ещё фото/видео.",
-                parse_mode="HTML",
-                reply_markup=media_upload_keyboard(len(photos), bool(data.get("video_file_id"))),
-            )
-            return
-    await message.answer("Пожалуйста, отправь фото как изображение или видео до 10 МБ.")
 
 
 @router.message(ProfileState.waiting_photo)
