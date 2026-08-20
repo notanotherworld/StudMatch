@@ -4,7 +4,7 @@ CRUD-операции для основных сущностей.
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, and_, or_, func
+from sqlalchemy import select, update, and_, or_, func, case
 from sqlalchemy.orm import selectinload
 import random
 import string
@@ -295,6 +295,23 @@ async def get_next_profile(
         else Profile.is_complete == True
     )
 
+    incoming_action = (
+        select(Swipe.action)
+        .where(
+            Swipe.from_user_id == Profile.user_id,
+            Swipe.to_user_id == viewer_id,
+            Swipe.action.in_([SwipeAction.superlike, SwipeAction.like]),
+        )
+        .correlate(Profile)
+        .scalar_subquery()
+    )
+
+    priority_incoming = case(
+        (incoming_action == SwipeAction.superlike, 2),
+        (incoming_action == SwipeAction.like, 1),
+        else_=0,
+    )
+
     result = await db.execute(
         select(Profile)
         .options(selectinload(Profile.user))
@@ -309,6 +326,7 @@ async def get_next_profile(
             )
         )
         .order_by(
+            priority_incoming.desc(),
             (User.boost_until > now).desc(),
             User.email_verified.desc(),
             Profile.rating_score.desc(),

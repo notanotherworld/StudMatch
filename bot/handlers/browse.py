@@ -14,7 +14,8 @@ from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 
 from bot.keyboards.swipe import (
-    swipe_card_keyboard, career_swipe_card_keyboard, main_menu_keyboard, letter_received_keyboard, match_keyboard,
+    swipe_card_keyboard, career_swipe_card_keyboard, main_menu_keyboard,
+    letter_received_keyboard, match_keyboard, incoming_like_keyboard,
 )
 from bot.states.fsm import LetterState
 from database.crud import get_next_profile, create_swipe, get_user, deduct_superlike
@@ -131,7 +132,22 @@ async def send_next_card(
         for tag in result.scalars().all():
             tags_map[tag.id] = tag
 
-    caption = await _build_profile_caption(profile, tags_map, mode=user.mode)
+    # Проверяем, есть ли входящий лайк или суперлайк от этого студента к пользователю
+    incoming_swipe = await db.scalar(
+        select(Swipe.action).where(
+            Swipe.from_user_id == profile.user_id,
+            Swipe.to_user_id == user.id,
+            Swipe.action.in_([SwipeAction.superlike, SwipeAction.like]),
+        )
+    )
+    badge = ""
+    if incoming_swipe == SwipeAction.superlike:
+        badge = "⭐ <b>ТЕБЯ СУПЕРЛАЙКНУЛИ!</b> ⭐\n<i>Пользователь очень хочет познакомиться с тобой:</i>\n\n"
+    elif incoming_swipe == SwipeAction.like:
+        badge = "❤️ <b>ПОЛЬЗОВАТЕЛЬ ЛАЙКНУЛ ТЕБЯ!</b>\n\n"
+
+    base_caption = await _build_profile_caption(profile, tags_map, mode=user.mode)
+    caption = f"{badge}{base_caption}"
 
     if user.mode == ModeEnum.career:
         photo_id = profile.career_avatar_file_id or profile.avatar_file_id
@@ -389,13 +405,200 @@ async def show_how_to_top(callback: CallbackQuery):
     await callback.message.answer(HOW_TO_TOP_TEXT, parse_mode="HTML")
 
 
-# ─── Свайп-действия (лайк, дизлайк, суперлайк) ───────────────────────────
+async def send_like_notification(
+    bot,
+    target_user_id: int,
+    from_user: User,
+    action: SwipeAction,
+    letter_text: Optional[str] = None,
+    db: Optional[AsyncSession] = None,
+) -> None:
+    """
+    Отправляет пользователю target_user_id интерактивную карточку
+    пользователя from_user с кнопками «❤️ Ответить взаимностью» и «⏭ Пропустить».
+    """
+    if not from_user or not from_user.profile:
+        return
+
+    profile = from_user.profile
+    mode = from_user.mode or ModeEnum.dating
+
+    # Загружаем теги интересов
+    tags_map: dict[int, InterestTag] = {}
+    if profile.interest_ids and db:
+        try:
+            result = await db.execute(
+                select(InterestTag).where(InterestTag.id.in_(profile.interest_ids))
+            )
+            for tag in result.scalars().all():
+                tags_map[tag.id] = tag
+        except Exception:
+            pass
+
+    body_caption = await _build_profile_caption(profile, tags_map, user=from_user, mode=mode)
+
+    if action == SwipeAction.superlike:
+        header = (
+            "⭐ <b>ТЕБЯ СУПЕРЛАЙКНУЛИ!</b> ⭐\n"
+            "<i>Пользователь очень хочет познакомиться с тобой:</i>\n\n"
+        )
+    else:
+        header = (
+            "❤️ <b>КОМУ-ТО ПОНРАВИЛАСЬ ТВОЯ АНКЕТА!</b>\n"
+            "<i>Пользователь проявил к тебе интерес:</i>\n\n"
+        )
+
+    letter_block = ""
+    if letter_text:
+        letter_block = f"\n\n💌 <b>Личное письмо:</b>\n<i>«{html.escape(letter_text)}»</i>"
+
+    footer = "\n\n👇 <i>Нажми «❤️ Ответить взаимностью», чтобы получить контакты и начать общение!</i>"
+    full_caption = f"{header}{body_caption}{letter_block}{footer}"
+
+    portfolio_url = profile.career_portfolio_url if mode == ModeEnum.career else None
+    kb = incoming_like_keyboard(from_user_id=from_user.id, portfolio_url=portfolio_url)
+
+    from aiogram.types import InputMediaPhoto, InputMediaVideo
+
+    photos = list(profile.photos) if profile.photos else ([profile.avatar_file_id] if profile.avatar_file_id else [])
+    if mode == ModeEnum.career and profile.career_avatar_file_id:
+        if profile.career_avatar_file_id not in photos:
+            photos = [profile.career_avatar_file_id] + photos
+    photos = photos[:3]
+    video_id = profile.video_file_id
+
+    total_media_count = len(photos) + (1 if video_id else 0)
+
+    if total_media_count > 1:
+        media_group = []
+        is_first = True
+        for p_id in photos:
+            p_input = _get_photo_input(p_id)
+            if p_input:
+                if is_first:
+                    media_group.append(InputMediaPhoto(media=p_input, caption=full_caption, parse_mode="HTML"))
+                    is_first = False
+                else:
+                    media_group.append(InputMediaPhoto(media=p_input))
+        if video_id:
+            v_input = _get_photo_input(video_id)
+            if v_input:
+                if is_first:
+                    media_group.append(InputMediaVideo(media=v_input, caption=full_caption, parse_mode="HTML"))
+                    is_first = False
+                else:
+                    media_group.append(InputMediaVideo(media=v_input))
+
+        if media_group:
+            try:
+                await bot.send_media_group(chat_id=target_user_id, media=media_group)
+                await bot.send_message(
+                    chat_id=target_user_id,
+                    text="👇 <b>Твой ответ:</b>",
+                    parse_mode="HTML",
+                    reply_markup=kb,
+                )
+                return
+            except Exception as e:
+                logger.warning(f"send_like_notification media group failed: {e}")
+
+    if photos:
+        p_input = _get_photo_input(photos[0])
+        if p_input:
+            try:
+                await bot.send_photo(
+                    chat_id=target_user_id,
+                    photo=p_input,
+                    caption=full_caption,
+                    parse_mode="HTML",
+                    reply_markup=kb,
+                )
+                return
+            except Exception as e:
+                logger.warning(f"send_like_notification photo failed: {e}")
+
+    try:
+        await bot.send_message(
+            chat_id=target_user_id,
+            text=full_caption,
+            parse_mode="HTML",
+            reply_markup=kb,
+        )
+    except Exception as e:
+        logger.warning(f"send_like_notification text fallback failed: {e}")
+
+
+@router.callback_query(F.data.startswith("incoming:like:"))
+async def process_incoming_like(callback: CallbackQuery, user: User, db: AsyncSession):
+    """Обработка взаимного лайка по карточке входящего уведомления."""
+    target_id = int(callback.data.split(":")[2])
+    target = await get_user(db, target_id)
+
+    if not target or not target.profile:
+        await callback.answer("Анкета больше не найдена.", show_alert=True)
+        return
+
+    is_match = await create_swipe(db, from_id=user.id, to_id=target_id, action=SwipeAction.like)
+
+    target_name = target.profile.name if target and target.profile else "Студент"
+    target_username = f"@{target.tg_username}" if target and target.tg_username else "(нет username)"
+    my_name = user.profile.name if user.profile else "Студент"
+    my_username = f"@{user.tg_username}" if user.tg_username else "(нет username)"
+
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+    # Уведомляем текущего пользователя
+    await callback.message.answer(
+        f"🎉 <b>МЭТЧ!</b>\n\n"
+        f"Вы с <b>{html.escape(target_name)}</b> понравились друг другу!\n"
+        f"Telegram: <b>{target_username}</b>",
+        parse_mode="HTML",
+        reply_markup=match_keyboard(target_username),
+    )
+
+    # Уведомляем инициатора первого лайка
+    try:
+        await callback.bot.send_message(
+            target_id,
+            f"🎉 <b>МЭТЧ!</b>\n\n"
+            f"<b>{html.escape(my_name)}</b> ответил(а) взаимностью на твой лайк!\n"
+            f"Telegram: <b>{my_username}</b>",
+            parse_mode="HTML",
+            reply_markup=match_keyboard(my_username),
+        )
+    except Exception:
+        pass
+
+    await callback.answer("🎉 Мэтч!")
+
+
+@router.callback_query(F.data.startswith("incoming:skip:"))
+async def process_incoming_skip(callback: CallbackQuery, user: User, db: AsyncSession):
+    """Пропуск входящего лайка."""
+    target_id = int(callback.data.split(":")[2])
+    await create_swipe(db, from_id=user.id, to_id=target_id, action=SwipeAction.skip)
+
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+    await callback.answer("Пропущено")
+    await callback.message.answer(
+        "⏭ <i>Анкета пропущена. Ты всегда можешь продолжить поиск в меню «🔍 Смотреть анкеты».</i>",
+        parse_mode="HTML",
+    )
+
+
+# ─── Обработка свайпов (Callback) ─────────────────────────────
 @router.callback_query(F.data.startswith("swipe:"))
-async def handle_swipe(callback: CallbackQuery, user: User, db: AsyncSession, state: FSMContext):
+async def swipe_callback(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
     parts = callback.data.split(":")
     action_str = parts[1]
 
-    # Если кликнули на отправку письма, переходим в состояние FSM
     if action_str == "message":
         await prompt_letter(callback, state, user, db)
         return
@@ -420,19 +623,6 @@ async def handle_swipe(callback: CallbackQuery, user: User, db: AsyncSession, st
         action = SwipeAction.skip
 
     is_match = await create_swipe(db, from_id=user.id, to_id=target_id, action=action)
-
-    if action == SwipeAction.superlike:
-        target = await get_user(db, target_id)
-        if target:
-            try:
-                await callback.bot.send_message(
-                    target_id,
-                    "⭐ <b>Суперлайк!</b>\n\n"
-                    "Кто-то очень заинтересован тобой в СтудМэч!",
-                    parse_mode="HTML",
-                )
-            except Exception:
-                pass
 
     if is_match:
         target = await get_user(db, target_id)
@@ -466,6 +656,19 @@ async def handle_swipe(callback: CallbackQuery, user: User, db: AsyncSession, st
 
         await callback.answer("🎉 Мэтч!")
     else:
+        # Если лайк или суперлайк (не скип) — отправляем красивое уведомление с анкетой
+        if action in (SwipeAction.like, SwipeAction.superlike):
+            try:
+                await send_like_notification(
+                    bot=callback.bot,
+                    target_user_id=target_id,
+                    from_user=user,
+                    action=action,
+                    db=db,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send like notification: {e}")
+
         icons = {"like": "❤️ Лайк", "superlike": "⭐ Суперлайк", "skip": "⏭ Скип"}
         await callback.answer(icons.get(action_str, "✅"))
 
@@ -537,12 +740,10 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
         await message.answer("Пользователь не найден.")
         return
 
-    my_name = user.profile.name if user.profile else "Студент"
-    my_year = user.profile.year if user.profile else 1
-    my_major = user.profile.major if user.profile else "Вуз"
-    my_username = f"@{user.tg_username}" if user.tg_username else "(нет username)"
     target_name = target.profile.name if target.profile else "Студент"
     target_username = f"@{target.tg_username}" if target.tg_username else "(нет username)"
+    my_name = user.profile.name if user.profile else "Студент"
+    my_username = f"@{user.tg_username}" if user.tg_username else "(нет username)"
 
     # Проверяем, есть ли уже свайп
     existing_swipe = await db.execute(
@@ -564,6 +765,7 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
             f"<b>{html.escape(target_name)}</b> тоже заинтересован(а) в тебе!\n"
             f"Его/её Telegram: <b>{target_username}</b>",
             parse_mode="HTML",
+            reply_markup=match_keyboard(target_username),
         )
         try:
             await message.bot.send_message(
@@ -572,21 +774,23 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
                 f"<b>{html.escape(my_name)}</b> тоже заинтересован(а) в тебе!\n"
                 f"Его/её Telegram: <b>{my_username}</b>",
                 parse_mode="HTML",
+                reply_markup=match_keyboard(my_username),
             )
         except Exception:
             pass
     else:
+        # Отправляем карточку с прикреплённым письмом и кнопками
         try:
-            await message.bot.send_message(
-                target_id,
-                f"💌 <b>Тебе пришло письмо в СтудМэч!</b>\n\n"
-                f"От: <b>{html.escape(my_name)}</b>, {my_year} курс ({html.escape(my_major)})\n\n"
-                f"Сообщение: <i>«{html.escape(text)}»</i>",
-                parse_mode="HTML",
-                reply_markup=letter_received_keyboard(user.id),
+            await send_like_notification(
+                bot=message.bot,
+                target_user_id=target_id,
+                from_user=user,
+                action=SwipeAction.like,
+                letter_text=text,
+                db=db,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to send letter notification: {e}")
 
         await message.answer(
             f"✅ <b>Письмо отправлено для {html.escape(target_name)}!</b>",

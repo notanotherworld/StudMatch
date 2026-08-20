@@ -112,6 +112,21 @@ def swipe_card_keyboard(profile_user_id: int, superlikes_count: int = 0) -> Inli
     return builder.as_markup()
 
 
+def incoming_like_keyboard(from_user_id: int, portfolio_url: Optional[str] = None) -> InlineKeyboardMarkup:
+    """Кнопки действий под карточкой входящего лайка или суперлайка."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="❤️ Ответить взаимностью", callback_data=f"incoming:like:{from_user_id}")
+    builder.button(text="⏭ Пропустить", callback_data=f"incoming:skip:{from_user_id}")
+    if portfolio_url:
+        builder.button(text="🔗 Портфолио", url=portfolio_url)
+    builder.button(text="🚨 Пожаловаться", callback_data=f"report:{from_user_id}")
+    if portfolio_url:
+        builder.adjust(2, 1, 1)
+    else:
+        builder.adjust(2, 1)
+    return builder.as_markup()
+
+
 def match_keyboard(tg_username: str = "") -> InlineKeyboardMarkup:
     """Кнопка прямого перехода в диалог при мэтче."""
     builder = InlineKeyboardBuilder()
@@ -126,11 +141,10 @@ def match_keyboard(tg_username: str = "") -> InlineKeyboardMarkup:
 def letter_received_keyboard(from_user_id: int) -> InlineKeyboardMarkup:
     """Кнопки действий для получателя письма."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="❤️ Лайкнуть в ответ", callback_data=f"swipe:like:{from_user_id}")
-    builder.button(text="👀 Профиль", callback_data=f"profile:open:{from_user_id}")
-    builder.button(text="⏭ Пропустить", callback_data=f"swipe:skip:{from_user_id}")
+    builder.button(text="❤️ Ответить взаимностью", callback_data=f"incoming:like:{from_user_id}")
+    builder.button(text="⏭ Пропустить", callback_data=f"incoming:skip:{from_user_id}")
     builder.button(text="🚨 Пожаловаться", callback_data=f"report:{from_user_id}")
-    builder.adjust(1, 2, 1)
+    builder.adjust(2, 1)
     return builder.as_markup()
 
 
