@@ -275,7 +275,15 @@ def career_swipe_card_keyboard(
 
 
 def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyboardMarkup:
-    """Клавиатура управления профилем с отображением статуса обеих анкет."""
+    """
+    Клавиатура управления профилем:
+    - Знакомства / Карьера (переключение вкладок)
+    - Подтвердить статус студента (если не верифицирован)
+    - Режим: [Знакомства / Карьера]
+    - Мои достижения
+    - Премиум и суперлайки
+    - Пригласить друзей
+    """
     p = user.profile
     dating_ok = "✅" if (p and p.is_complete) else "⚠️"
     career_ok = "✅" if (p and p.career_is_complete) else "⚠️"
@@ -283,49 +291,61 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
     mode_label = "🎯 Карьера" if user.mode == ModeEnum.career else "❤️ Знакомства"
     builder = InlineKeyboardBuilder()
 
-    # Переключатели просмотра анкет
+    # 1. Знакомства / Карьера (в 2 колонки)
     builder.button(text=f"❤️ Знакомства {dating_ok}", callback_data="profile:view_dating")
     builder.button(text=f"🎯 Карьера {career_ok}", callback_data="profile:view_career")
 
-    # Редактирование
-    if current_view == "career" or (current_view == "current" and user.mode == ModeEnum.career):
-        builder.button(text="✏️ Редактировать Карьеру", callback_data="settings:edit_career_profile")
-    else:
-        builder.button(text="✏️ Редактировать Знакомства", callback_data="settings:edit_profile")
-        builder.button(text="📸 Изменить фото/видео", callback_data="settings:edit_media")
-
+    # 2. Подтвердить статус студента (если еще не подтвержден)
     if not user.email_verified:
         builder.button(text="🎓 Подтвердить статус (+100⭐)", callback_data="auth:start_verification")
 
-    builder.button(text=f"Режим: {mode_label}", callback_data="settings:change_mode")
+    # 3. Режим
+    builder.button(text=f"Режим: {mode_label} 🔄", callback_data="settings:change_mode")
+    # 4. Мои достижения
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
-    builder.button(text="💎 Премиум и Суперлайки", callback_data="settings:buy")
-    builder.button(text="🎁 Ввести промокод", callback_data="settings:enter_promo")
-    builder.button(text="🪢 Пригласить друга (+3 ⭐️)", callback_data="settings:ref_link")
+    # 5. Премиум и суперлайки
+    builder.button(text="💎 Премиум и суперлайки", callback_data="settings:buy")
+    # 6. Пригласить друзей
+    builder.button(text="🪢 Пригласить друзей (+3 ⭐️)", callback_data="settings:ref_link")
+
     if not user.email_verified:
-        builder.adjust(2, 2 if current_view != "career" else 1, 1, 1, 2, 1)
+        builder.adjust(2, 1, 1, 1, 1, 1)
     else:
-        builder.adjust(2, 2 if current_view != "career" else 1, 1, 2, 1)
+        builder.adjust(2, 1, 1, 1, 1)
     return builder.as_markup()
 
 
 def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified: bool = True) -> InlineKeyboardMarkup:
+    """
+    Клавиатура Настроек:
+    - Подтвердить статус студента (если не верифицирован)
+    - Скрыть из поиска / Показать в поиске
+    - Сбросить историю свайпов
+    - Изменить интересы
+    - Изменить фото и видео
+    - Пол и предпочтения
+    - Промокод
+    - Редактировать Знакомства / Редактировать Карьеру
+    """
     builder = InlineKeyboardBuilder()
+
     if not email_verified:
         builder.button(text="🎓 Подтвердить статус студента (+100⭐)", callback_data="auth:start_verification")
-    builder.button(text="❤️ Редактировать Знакомства", callback_data="settings:edit_profile")
-    builder.button(text="🎯 Редактировать Карьеру", callback_data="settings:edit_career_profile")
-    builder.button(text="📸 Изменить фото/видео", callback_data="settings:edit_media")
-    builder.button(text="🏷 Изменить интересы (Знакомства)", callback_data="settings:edit_interests")
-    builder.button(text="👫 Пол и предпочтения", callback_data="settings:edit_gender")
-    vis_label = "🔒 Скрыть из поиска" if is_visible else "👁 Показывать в поиске"
+
+    vis_label = "🔒 Скрыть из поиска" if is_visible else "👁 Показать в поиске"
     builder.button(text=vis_label, callback_data="settings:toggle_visibility")
     builder.button(text="🔄 Сбросить историю свайпов", callback_data="settings:reset_swipes")
-    builder.button(text="🎁 Ввести промокод", callback_data="settings:enter_promo")
+    builder.button(text="🏷 Изменить интересы", callback_data="settings:edit_interests")
+    builder.button(text="📸 Изменить фото и видео", callback_data="settings:edit_media")
+    builder.button(text="👫 Пол и предпочтения", callback_data="settings:edit_gender")
+    builder.button(text="🎁 Промокод", callback_data="settings:enter_promo")
+    builder.button(text="✏️ Редактировать Знакомства", callback_data="settings:edit_profile")
+    builder.button(text="🎯 Редактировать Карьеру", callback_data="settings:edit_career_profile")
+
     if not email_verified:
-        builder.adjust(1, 2, 1, 1, 1, 1, 1, 1)
+        builder.adjust(1, 1, 1, 1, 1, 1, 1, 2)
     else:
-        builder.adjust(2, 1, 1, 1, 1, 1, 1)
+        builder.adjust(1, 1, 1, 1, 1, 1, 2)
     return builder.as_markup()
 
 

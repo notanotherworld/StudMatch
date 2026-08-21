@@ -195,6 +195,13 @@ async def toggle_visibility(callback: CallbackQuery, user: User, db: AsyncSessio
 
     label = "включена в поиске" if new_state else "скрыта из поиска"
     await callback.answer(f"Твоя анкета {label}!")
+    try:
+        await callback.message.edit_reply_markup(
+            reply_markup=settings_keyboard(user.mode.value, is_visible=new_state, email_verified=user.email_verified)
+        )
+    except Exception:
+        pass
+
     msg = (
         "👀 <b>Твоя анкета снова отображается в поиске!</b>\nДругие студенты смогут находить тебя при свайпах."
         if new_state
