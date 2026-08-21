@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.keyboards.swipe import (
     settings_keyboard, my_profile_keyboard, mode_keyboard,
     buy_superlike_keyboard, main_menu_keyboard, interests_keyboard, gender_keyboard,
+    edit_profile_choice_keyboard,
 )
 from bot.states.fsm import ProfileState
 from database.crud import set_user_mode
@@ -90,6 +91,39 @@ async def edit_interests_prompt(callback: CallbackQuery, user: User, state: FSMC
         parse_mode="HTML",
         reply_markup=interests_keyboard(tags, selected),
     )
+
+
+@router.callback_query(F.data == "settings:choose_edit_profile")
+async def choose_edit_profile_callback(callback: CallbackQuery):
+    await callback.answer()
+    text = (
+        "✏️ <b>Какую анкету вы хотите отредактировать?</b>\n\n"
+        "• <b>Знакомства</b> — анкета для общения, хобби, поиска друзей и отношений\n"
+        "• <b>Карьера</b> — профессиональная анкета с навыками, стеком технологий и резюме"
+    )
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=edit_profile_choice_keyboard())
+    except Exception:
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=edit_profile_choice_keyboard())
+
+
+@router.callback_query(F.data == "settings:back_to_settings")
+async def back_to_settings_callback(callback: CallbackQuery, user: User):
+    await callback.answer()
+    is_vis = user.profile.is_visible if user.profile else True
+    text = "⚙️ <b>Настройки</b>"
+    try:
+        await callback.message.edit_text(
+            text,
+            parse_mode="HTML",
+            reply_markup=settings_keyboard(user.mode.value, is_visible=is_vis, email_verified=user.email_verified),
+        )
+    except Exception:
+        await callback.message.answer(
+            text,
+            parse_mode="HTML",
+            reply_markup=settings_keyboard(user.mode.value, is_visible=is_vis, email_verified=user.email_verified),
+        )
 
 
 @router.callback_query(F.data == "settings:edit_profile")

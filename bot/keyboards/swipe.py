@@ -325,7 +325,7 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
     - Изменить фото и видео
     - Пол и предпочтения
     - Промокод
-    - Редактировать Знакомства / Редактировать Карьеру
+    - Редактировать анкету
     """
     builder = InlineKeyboardBuilder()
 
@@ -339,13 +339,22 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
     builder.button(text="📸 Изменить фото и видео", callback_data="settings:edit_media")
     builder.button(text="👫 Пол и предпочтения", callback_data="settings:edit_gender")
     builder.button(text="🎁 Промокод", callback_data="settings:enter_promo")
-    builder.button(text="✏️ Редактировать Знакомства", callback_data="settings:edit_profile")
-    builder.button(text="🎯 Редактировать Карьеру", callback_data="settings:edit_career_profile")
+    builder.button(text="✏️ Редактировать анкету", callback_data="settings:choose_edit_profile")
 
     if not email_verified:
-        builder.adjust(1, 1, 1, 1, 1, 1, 1, 2)
+        builder.adjust(1, 1, 1, 1, 1, 1, 1, 1)
     else:
-        builder.adjust(1, 1, 1, 1, 1, 1, 2)
+        builder.adjust(1, 1, 1, 1, 1, 1, 1)
+    return builder.as_markup()
+
+
+def edit_profile_choice_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура выбора анкеты для редактирования (Знакомства / Карьера)."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="❤️ Знакомства", callback_data="settings:edit_profile")
+    builder.button(text="🎯 Карьера", callback_data="settings:edit_career_profile")
+    builder.button(text="🔙 Назад в настройки", callback_data="settings:back_to_settings")
+    builder.adjust(2, 1)
     return builder.as_markup()
 
 
