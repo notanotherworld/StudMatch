@@ -53,12 +53,24 @@ async def list_users(
 
         query = select(User).options(selectinload(User.profile), selectinload(User.university))
 
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+
         if filter_type == "spammers":
             spammer_conditions = [User.flood_ban_count > 0, User.is_flagged_spammer == True]
             if active_banned_ids:
                 spammer_conditions.append(User.id.in_(list(active_banned_ids)))
             query = query.where(or_(*spammer_conditions))
             query = query.order_by(User.flood_ban_count.desc(), User.last_banned_at.desc().nullslast())
+        elif filter_type == "premium":
+            query = query.where(User.premium_until > now)
+            query = query.order_by(User.premium_until.desc().nullslast())
+        elif filter_type == "verified":
+            query = query.where(User.email_verified == True)
+            query = query.order_by(User.created_at.desc().nullslast())
+        elif filter_type == "unverified":
+            query = query.where(or_(User.email_verified == False, User.email_verified.is_(None)))
+            query = query.order_by(User.created_at.desc().nullslast())
         else:
             if is_fake == "true":
                 query = query.where(User.is_fake == True)
@@ -86,6 +98,13 @@ async def list_users(
             select(func.count(User.id)).where(or_(*count_conditions))
         ) or len(active_banned_ids)
 
+        premium_count = await db.scalar(
+            select(func.count(User.id)).where(User.premium_until > now)
+        ) or 0
+        verified_count = await db.scalar(
+            select(func.count(User.id)).where(User.email_verified == True)
+        ) or 0
+
         from web.dependencies import generate_csrf_token
         token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
 
@@ -100,6 +119,8 @@ async def list_users(
                 "is_fake": is_fake,
                 "filter_type": filter_type,
                 "spammers_count": spammers_count,
+                "premium_count": premium_count,
+                "verified_count": verified_count,
                 "active_banned_ids": active_banned_ids,
                 "csrf_token": token_str,
             },
@@ -213,10 +234,19 @@ async def user_detail(
     except Exception:
         ban_level = 1
 
+    is_banned_val = bool(ban_ttl and ban_ttl > 0)
+    if user and user.is_flagged_spammer and not is_banned_val:
+        try:
+            await db.execute(update(User).where(User.id == user_id).values(is_flagged_spammer=False))
+            await db.commit()
+            user.is_flagged_spammer = False
+        except Exception:
+            pass
+
     temp_ban_info = {
-        "is_banned": ban_ttl > 0,
-        "ttl": max(0, ban_ttl),
-        "time_left_str": format_ban_ttl(ban_ttl) if ban_ttl > 0 else None,
+        "is_banned": is_banned_val,
+        "ttl": max(0, ban_ttl if is_banned_val else 0),
+        "time_left_str": format_ban_ttl(ban_ttl) if is_banned_val else None,
         "ban_level": ban_level,
     }
 
@@ -246,9 +276,20 @@ async def unban_user_flood(
     from bot.middlewares.throttling import get_redis
     try:
         r = get_redis()
-        await r.delete(f"temp_ban:{user_id}", f"flood_viols:{user_id}", f"cb_viols:{user_id}", f"warn_throttle:{user_id}")
+        await r.delete(
+            f"temp_ban:{user_id}",
+            f"flood_viols:{user_id}",
+            f"cb_viols:{user_id}",
+            f"warn_throttle:{user_id}",
+            f"flood_ban_level:{user_id}",
+        )
     except Exception:
         pass
+
+    await db.execute(
+        update(User).where(User.id == user_id).values(is_active=True, is_flagged_spammer=False)
+    )
+    await db.commit()
 
     client_ip = request.client.host if request.client else None
     await log_admin_action(
@@ -314,7 +355,20 @@ async def unban_user(
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    await db.execute(update(User).where(User.id == user_id).values(is_active=True))
+    from bot.middlewares.throttling import get_redis
+    try:
+        r = get_redis()
+        await r.delete(
+            f"temp_ban:{user_id}",
+            f"flood_viols:{user_id}",
+            f"cb_viols:{user_id}",
+            f"warn_throttle:{user_id}",
+            f"flood_ban_level:{user_id}",
+        )
+    except Exception:
+        pass
+
+    await db.execute(update(User).where(User.id == user_id).values(is_active=True, is_flagged_spammer=False))
     await db.commit()
 
     client_ip = request.client.host if request.client else None
@@ -356,13 +410,98 @@ async def verify_user_manually(
             bot = Bot(token=settings.BOT_TOKEN)
             await bot.send_message(
                 user_id,
-                "✅ <b>Ваш аккаунт подтверждён модератором!</b>\n\n"
-                "Вы успешно верифицированы. Теперь вам доступен выбор режима в боте (/start).",
+                "✅ <b>Ваш студенческий статус подтверждён модератором!</b>\n\n"
+                "Вам присвоен бейдж <b>🎓 [Верифицирован]</b> и начислено +100 баллов рейтинга!",
                 parse_mode="HTML",
             )
             await bot.session.close()
         except Exception:
             pass
+
+    return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
+
+
+@router.post("/users/{user_id}/unverify", dependencies=[Depends(check_csrf)])
+async def unverify_user_manually(
+    user_id: int,
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Снятие статуса верификации пользователя администратором."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user:
+        await db.execute(update(User).where(User.id == user_id).values(email_verified=False))
+        await db.commit()
+
+        client_ip = request.client.host if request.client else None
+        await log_admin_action(
+            db, admin, action="user_unverified", target_type="user", target_id=str(user_id),
+            details="Статус верификации студента снят администратором",
+            ip_address=client_ip,
+        )
+
+    return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
+
+
+@router.post("/users/{user_id}/set-premium", dependencies=[Depends(check_csrf)])
+async def set_user_premium_admin(
+    user_id: int,
+    request: Request,
+    days: int = Form(default=30),
+    action: str = Form(default="set"),
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Выдать или отозвать Premium-статус пользователя администратором."""
+    from database.crud import set_user_premium, revoke_user_premium
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user:
+        client_ip = request.client.host if request.client else None
+        if action == "revoke":
+            await revoke_user_premium(db, user_id)
+            await log_admin_action(
+                db, admin, action="premium_revoked", target_type="user", target_id=str(user_id),
+                details="Премиум-статус отозван администратором",
+                ip_address=client_ip,
+            )
+            try:
+                from aiogram import Bot
+                from bot.config import settings
+                bot = Bot(token=settings.BOT_TOKEN)
+                await bot.send_message(
+                    user_id,
+                    "ℹ️ <b>Ваш Премиум-статус был отключён администрацией.</b>",
+                    parse_mode="HTML",
+                )
+                await bot.session.close()
+            except Exception:
+                pass
+        else:
+            new_until = await set_user_premium(db, user_id, days=days)
+            date_str = new_until.strftime("%d.%m.%Y %H:%M")
+            await log_admin_action(
+                db, admin, action="premium_granted", target_type="user", target_id=str(user_id),
+                details=f"Премиум-статус установлен на {days} дн. (до {date_str})",
+                ip_address=client_ip,
+            )
+            try:
+                from aiogram import Bot
+                from bot.config import settings
+                bot = Bot(token=settings.BOT_TOKEN)
+                await bot.send_message(
+                    user_id,
+                    f"💎 <b>Вам подключён Премиум-профиль!</b>\n\n"
+                    f"Срок действия: до <b>{date_str}</b> (+{days} дн.)\n"
+                    f"Теперь ваша анкета показывается с наивысшим приоритетом в ленте, "
+                    f"вам доступен бейдж <b>[Премиум]</b> и раздел «💌 Кто меня лайкнул»!",
+                    parse_mode="HTML",
+                )
+                await bot.session.close()
+            except Exception:
+                pass
 
     return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
 
