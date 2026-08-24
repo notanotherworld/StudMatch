@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from bot.states.fsm import ProfileState, CareerProfileState
 from bot.keyboards.swipe import (
-    year_keyboard, interests_keyboard, main_menu_keyboard, mode_keyboard,
+    age_keyboard, year_keyboard, interests_keyboard, main_menu_keyboard, mode_keyboard,
     rudn_institutes_keyboard, RUDN_INSTITUTES, cancel_reply_keyboard,
     gender_keyboard, target_gender_keyboard,
     career_skills_keyboard, career_work_format_keyboard, CAREER_SKILLS_LIST,
@@ -29,7 +29,7 @@ async def start_profile_creation(message: Message, state: FSMContext) -> None:
     await state.set_state(ProfileState.waiting_name)
     await message.answer(
         "📋 <b>Создание анкеты «❤️ Знакомства»</b>\n\n"
-        "<b>Вопрос 1/5</b>\n"
+        "<b>Вопрос 1/6: Имя</b>\n"
         "Как тебя зовут?",
         parse_mode="HTML",
         reply_markup=cancel_reply_keyboard(),
@@ -177,17 +177,61 @@ async def process_name(message: Message, state: FSMContext, user: User, db: Asyn
 
     name = html.escape(raw_name)  # Защищаем от HTML-инъекций (#18)
     await state.update_data(name=name)
-    await state.set_state(ProfileState.waiting_year)
+    await state.set_state(ProfileState.waiting_age)
     await message.answer(
         f"👋 Отлично, <b>{name}</b>!\n\n"
-        "<b>Вопрос 2/5</b>\n"
+        "<b>Вопрос 2/6: Возраст</b>\n"
+        "Сколько тебе лет? Напиши число (16–35) или выбери кнопку ниже:",
+        parse_mode="HTML",
+        reply_markup=age_keyboard(),
+    )
+
+
+# ─── Вопрос 2: Возраст ─────────────────────────────────────────
+@router.callback_query(F.data.startswith("age:"), ProfileState.waiting_age)
+async def process_age_callback(callback: CallbackQuery, state: FSMContext):
+    val = callback.data.split(":")[1]
+    if val == "custom":
+        await callback.answer()
+        await callback.message.answer("Напиши свой возраст числом (например: <code>19</code>):", parse_mode="HTML")
+        return
+    try:
+        age = int(val)
+    except ValueError:
+        age = 18
+
+    await state.update_data(age=age)
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer()
+    await state.set_state(ProfileState.waiting_year)
+    await callback.message.answer(
+        f"✅ Возраст: <b>{age} лет</b> записан!\n\n"
+        "<b>Вопрос 3/6: Курс</b>\n"
         "На каком ты курсе?",
         parse_mode="HTML",
         reply_markup=year_keyboard(),
     )
 
 
-# ─── Вопрос 2: Курс ───────────────────────────────────────────
+@router.message(ProfileState.waiting_age)
+async def process_age_message(message: Message, state: FSMContext):
+    text_val = message.text.strip()
+    if not text_val.isdigit() or not (15 <= int(text_val) <= 60):
+        await message.answer("Пожалуйста, введи корректный возраст числом от 16 до 35 (или выбери кнопку выше).")
+        return
+    age = int(text_val)
+    await state.update_data(age=age)
+    await state.set_state(ProfileState.waiting_year)
+    await message.answer(
+        f"✅ Возраст: <b>{age} лет</b> записан!\n\n"
+        "<b>Вопрос 3/6: Курс</b>\n"
+        "На каком ты курсе?",
+        parse_mode="HTML",
+        reply_markup=year_keyboard(),
+    )
+
+
+# ─── Вопрос 3: Курс ───────────────────────────────────────────
 @router.callback_query(F.data.startswith("year:"), ProfileState.waiting_year)
 async def process_year(callback: CallbackQuery, state: FSMContext):
     year = int(callback.data.split(":")[1])
@@ -197,14 +241,14 @@ async def process_year(callback: CallbackQuery, state: FSMContext):
     await state.set_state(ProfileState.waiting_major)
     await callback.message.answer(
         f"✅ <b>{year} курс</b> записан!\n\n"
-        "<b>Вопрос 3/5</b>\n"
+        "<b>Вопрос 4/6: Факультет</b>\n"
         "Выбери свой институт / факультет РУДН ниже или введи вручную:",
         parse_mode="HTML",
         reply_markup=rudn_institutes_keyboard(),
     )
 
 
-# ─── Вопрос 3: Направление (кнопка или текст) ──────────────────
+# ─── Вопрос 4: Направление (кнопка или текст) ──────────────────
 @router.callback_query(F.data.startswith("major_idx:"), ProfileState.waiting_major)
 async def process_major_callback(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     idx = int(callback.data.split(":")[1])
@@ -219,7 +263,7 @@ async def process_major_callback(callback: CallbackQuery, state: FSMContext, db:
     await state.set_state(ProfileState.waiting_interests)
     await callback.message.answer(
         f"✅ Институт: <b>{html.escape(major)}</b>\n\n"
-        "<b>Вопрос 4/5</b>\n"
+        "<b>Вопрос 5/6: Интересы</b>\n"
         "Выбери свои интересы (можно несколько).\n"
         "Нажми <b>«✔️ Готово»</b> когда выберешь всё.",
         parse_mode="HTML",
@@ -463,6 +507,7 @@ async def _save_media_and_complete(
         return
 
     name = data.get("name") or (prof.name if prof else "Студент")
+    age = data.get("age") or (prof.age if prof else None)
     year = data.get("year") or (prof.year if prof else 1)
     major = data.get("major") or (prof.major if prof else "РУДН")
     goal = data.get("goal") or (getattr(prof, "goal", "") if prof else "")
@@ -479,6 +524,7 @@ async def _save_media_and_complete(
         db,
         user.id,
         name=name,
+        age=age,
         year=year,
         major=major,
         interest_ids=interest_ids or [],

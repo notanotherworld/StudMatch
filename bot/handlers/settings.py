@@ -14,11 +14,26 @@ from bot.keyboards.swipe import (
     settings_keyboard, my_profile_keyboard, mode_keyboard,
     buy_superlike_keyboard, main_menu_keyboard, interests_keyboard, gender_keyboard,
     edit_profile_choice_keyboard,
+    search_filters_keyboard, filter_age_keyboard, filter_year_keyboard, filter_major_keyboard,
+    RUDN_INSTITUTES,
 )
-from bot.states.fsm import ProfileState
+from bot.states.fsm import ProfileState, FilterState
 from database.crud import set_user_mode
 from database.models import User, ModeEnum, Profile, InterestTag, Swipe
 from bot.utils.dynamic_settings import get_dynamic_pricing
+
+def format_age(age: Optional[int]) -> str:
+    if not age:
+        return ""
+    if 11 <= (age % 100) <= 19:
+        suffix = "лет"
+    elif age % 10 == 1:
+        suffix = "год"
+    elif age % 10 in (2, 3, 4):
+        suffix = "года"
+    else:
+        suffix = "лет"
+    return f", {age} {suffix}"
 
 router = Router()
 
@@ -264,6 +279,193 @@ async def reset_user_swipes(event, user: User, db: AsyncSession):
         await event.answer(msg_text, parse_mode="HTML")
 
 
+# ─── Фильтры поиска анкет ─────────────────────────────────────
+@router.callback_query(F.data == "settings:filters")
+async def show_search_filters(callback: CallbackQuery, user: User):
+    await callback.answer()
+    prof = user.profile
+    min_a = prof.filter_min_age if prof and prof.filter_min_age else 17
+    max_a = prof.filter_max_age if prof and prof.filter_max_age else 30
+    min_y = prof.filter_min_year if prof and prof.filter_min_year else 1
+    max_y = prof.filter_max_year if prof and prof.filter_max_year else 6
+    major = prof.filter_major if prof and prof.filter_major and prof.filter_major != "all" else "✨ Любой"
+
+    text = (
+        "🎯 <b>Настройки фильтров поиска анкет</b>\n\n"
+        "Укажи параметры студентов, которых ты хочешь встречать при свайпах:\n\n"
+        f"🎂 <b>Возраст:</b> {min_a}–{max_a} лет\n"
+        f"🎓 <b>Курс:</b> {min_y}–{max_y} курс\n"
+        f"🏛 <b>Факультет / Институт:</b> {major}\n\n"
+        "<i>Нажми на кнопку ниже, чтобы изменить фильтр:</i>"
+    )
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=search_filters_keyboard(prof))
+    except Exception:
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=search_filters_keyboard(prof))
+
+
+@router.callback_query(F.data == "filter:edit_age")
+async def filter_edit_age_prompt(callback: CallbackQuery):
+    await callback.answer()
+    text = (
+        "🎂 <b>Фильтр по возрасту</b>\n\n"
+        "Выбери желаемый возрастной диапазон студентов или введи свой:"
+    )
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=filter_age_keyboard())
+    except Exception:
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=filter_age_keyboard())
+
+
+@router.callback_query(F.data.startswith("filter_set_age:"))
+async def filter_set_age_callback(callback: CallbackQuery, user: User, state: FSMContext, db: AsyncSession):
+    val = callback.data.split("filter_set_age:")[1]
+    if val == "custom":
+        await callback.answer()
+        await state.set_state(FilterState.waiting_custom_age_range)
+        await callback.message.answer(
+            "✍️ Напиши желаемый диапазон возраста через дефис (например: <code>18-23</code> или <code>19-27</code>):",
+            parse_mode="HTML",
+        )
+        return
+
+    parts = val.split(":")
+    min_a, max_a = int(parts[0]), int(parts[1])
+    await db.execute(
+        update(Profile)
+        .where(Profile.user_id == user.id)
+        .values(filter_min_age=min_a, filter_max_age=max_a)
+    )
+    await db.commit()
+    await callback.answer(f"Возраст: {min_a}–{max_a} лет", show_alert=True)
+    prof_res = await db.execute(select(Profile).where(Profile.user_id == user.id))
+    user.profile = prof_res.scalar_one_or_none()
+    await show_search_filters(callback, user)
+
+
+@router.message(FilterState.waiting_custom_age_range)
+async def process_custom_age_range(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    text_val = message.text.strip().replace(" ", "")
+    import re
+    match = re.match(r"^(\d{2})[-–—](\d{2})$", text_val)
+    if not match:
+        await message.answer("⚠️ Пожалуйста, укажи диапазон в формате <code>18-24</code>:")
+        return
+
+    min_a, max_a = int(match.group(1)), int(match.group(2))
+    if min_a > max_a:
+        min_a, max_a = max_a, min_a
+
+    if min_a < 16 or max_a > 60:
+        await message.answer("⚠️ Возраст должен быть в пределах от 16 до 60 лет. Попробуй ещё раз:")
+        return
+
+    await state.clear()
+    await db.execute(
+        update(Profile)
+        .where(Profile.user_id == user.id)
+        .values(filter_min_age=min_a, filter_max_age=max_a)
+    )
+    await db.commit()
+
+    prof_res = await db.execute(select(Profile).where(Profile.user_id == user.id))
+    user.profile = prof_res.scalar_one_or_none()
+
+    await message.answer(f"✅ Фильтр возраста установлен: <b>{min_a}–{max_a} лет</b>!", parse_mode="HTML")
+    min_y = user.profile.filter_min_year if user.profile.filter_min_year else 1
+    max_y = user.profile.filter_max_year if user.profile.filter_max_year else 6
+    major = user.profile.filter_major if user.profile.filter_major and user.profile.filter_major != "all" else "✨ Любой"
+    text = (
+        "🎯 <b>Настройки фильтров поиска анкет</b>\n\n"
+        "Укажи параметры студентов, которых ты хочешь встречать при свайпах:\n\n"
+        f"🎂 <b>Возраст:</b> {min_a}–{max_a} лет\n"
+        f"🎓 <b>Курс:</b> {min_y}–{max_y} курс\n"
+        f"🏛 <b>Факультет / Институт:</b> {major}\n\n"
+        "<i>Нажми на кнопку ниже, чтобы изменить фильтр:</i>"
+    )
+    await message.answer(text, parse_mode="HTML", reply_markup=search_filters_keyboard(user.profile))
+
+
+@router.callback_query(F.data == "filter:edit_year")
+async def filter_edit_year_prompt(callback: CallbackQuery):
+    await callback.answer()
+    text = (
+        "🎓 <b>Фильтр по курсу</b>\n\n"
+        "Выбери, студентов каких курсов показывать в ленте:"
+    )
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=filter_year_keyboard())
+    except Exception:
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=filter_year_keyboard())
+
+
+@router.callback_query(F.data.startswith("filter_set_year:"))
+async def filter_set_year_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    val = callback.data.split("filter_set_year:")[1]
+    parts = val.split(":")
+    min_y, max_y = int(parts[0]), int(parts[1])
+    await db.execute(
+        update(Profile)
+        .where(Profile.user_id == user.id)
+        .values(filter_min_year=min_y, filter_max_year=max_y)
+    )
+    await db.commit()
+    await callback.answer(f"Курс: {min_y}–{max_y}", show_alert=True)
+    prof_res = await db.execute(select(Profile).where(Profile.user_id == user.id))
+    user.profile = prof_res.scalar_one_or_none()
+    await show_search_filters(callback, user)
+
+
+@router.callback_query(F.data == "filter:edit_major")
+async def filter_edit_major_prompt(callback: CallbackQuery):
+    await callback.answer()
+    text = (
+        "🏛 <b>Фильтр по факультету / институту</b>\n\n"
+        "Выбери институт РУДН для поиска студентов или «Любой»:"
+    )
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=filter_major_keyboard())
+    except Exception:
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=filter_major_keyboard())
+
+
+@router.callback_query(F.data.startswith("filter_set_major:"))
+async def filter_set_major_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    val = callback.data.split("filter_set_major:")[1]
+    if val == "all":
+        major_val = None
+        alert_text = "Факультет: Любой"
+    else:
+        idx = int(val)
+        major_val = RUDN_INSTITUTES[idx] if 0 <= idx < len(RUDN_INSTITUTES) else None
+        alert_text = f"Факультет: {major_val}"
+
+    await db.execute(
+        update(Profile)
+        .where(Profile.user_id == user.id)
+        .values(filter_major=major_val)
+    )
+    await db.commit()
+    await callback.answer(alert_text, show_alert=True)
+    prof_res = await db.execute(select(Profile).where(Profile.user_id == user.id))
+    user.profile = prof_res.scalar_one_or_none()
+    await show_search_filters(callback, user)
+
+
+@router.callback_query(F.data == "filter:reset")
+async def filter_reset_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    await db.execute(
+        update(Profile)
+        .where(Profile.user_id == user.id)
+        .values(filter_min_age=17, filter_max_age=30, filter_min_year=1, filter_max_year=6, filter_major=None)
+    )
+    await db.commit()
+    await callback.answer("Все фильтры поиска сброшены к стандартным!", show_alert=True)
+    prof_res = await db.execute(select(Profile).where(Profile.user_id == user.id))
+    user.profile = prof_res.scalar_one_or_none()
+    await show_search_filters(callback, user)
+
+
 @router.callback_query(F.data == "settings:buy")
 async def show_buy(callback: CallbackQuery, user: User):
     await callback.answer()
@@ -378,7 +580,7 @@ async def show_my_profile(
         status_str = "✅ Заполнена" if profile.career_is_complete else "⚠️ Не заполнена (нажми кнопку ниже)"
 
         text = (
-            f"{title_name}{verified_badge}{premium_label}, {year_str} 🎯 <b>[Карьера]</b>\n"
+            f"{title_name}{format_age(profile.age)}{verified_badge}{premium_label}, {year_str} 🎯 <b>[Карьера]</b>\n"
             f"<i>Статус: {status_str}</i>\n\n"
             f"📚 {major}\n"
             f"💼 Формат: {work_fmt}\n"
@@ -411,7 +613,7 @@ async def show_my_profile(
         status_str = "✅ Заполнена" if profile.is_complete else "⚠️ Не заполнена"
 
         text = (
-            f"{title_name}{verified_badge}{premium_label}, {year_str} ❤️ <b>[Знакомства]</b>\n"
+            f"{title_name}{format_age(profile.age)}{verified_badge}{premium_label}, {year_str} ❤️ <b>[Знакомства]</b>\n"
             f"<i>Статус: {status_str}</i>\n\n"
             f"📚 {major}\n"
             f"⭐ Рейтинг: <b>{score_val:.0f} б.</b>"

@@ -12,12 +12,13 @@ class AuthState(StatesGroup):
 
 
 class ProfileState(StatesGroup):
-    waiting_name = State()        # Вопрос 1
-    waiting_year = State()        # Вопрос 2
-    waiting_major = State()       # Вопрос 3
-    waiting_interests = State()   # Вопрос 4
+    waiting_name = State()        # Вопрос 1: Имя
+    waiting_age = State()         # Вопрос 2: Возраст
+    waiting_year = State()        # Вопрос 3: Курс
+    waiting_major = State()       # Вопрос 4: Факультет
+    waiting_interests = State()   # Вопрос 5: Интересы
     waiting_custom_interest = State() # Кастомный интерес
-    waiting_goal = State()        # Вопрос 5
+    waiting_goal = State()        # Вопрос 6: О себе / цель
     waiting_gender = State()         # Пол
     waiting_target_gender = State()  # Предпочтение по полу
     waiting_photo = State()          # Фото
@@ -56,6 +57,12 @@ class ReportState(StatesGroup):
 class LetterState(StatesGroup):
     """Отправка сообщения/письма вместе со свайпом (как в Дайвинчике)."""
     waiting_text = State()
+
+
+class FilterState(StatesGroup):
+    """Настройка фильтров поиска."""
+    waiting_custom_age_range = State()
+    waiting_custom_major = State()
 
 
 class PromoState(StatesGroup):

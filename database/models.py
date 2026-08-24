@@ -138,11 +138,29 @@ class User(Base):
     mode: Mapped[ModeEnum] = mapped_column(Enum(ModeEnum), default=ModeEnum.dating)
     superlike_balance: Mapped[int] = mapped_column(Integer, default=0)
     boost_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    premium_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     flood_ban_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     is_flagged_spammer: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     last_banned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    @property
+    def is_premium(self) -> bool:
+        """Проверяет, активен ли у пользователя Премиум-статус."""
+        if not self.premium_until:
+            return False
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        target = self.premium_until
+        if target.tzinfo is None:
+            target = target.replace(tzinfo=timezone.utc)
+        return target > now
+
+    @property
+    def is_verified(self) -> bool:
+        """Проверяет, верифицирован ли пользователь."""
+        return bool(self.email_verified)
 
     # Связи
     university: Mapped[Optional["University"]] = relationship(back_populates="users")
@@ -169,14 +187,22 @@ class Profile(Base):
 
     # Анкета (5 вопросов)
     name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)        # 1
-    year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)             # 2 (1–6)
-    major: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)        # 3
+    age: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)              # Возраст студента (16–35)
+    year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)             # 2 (1–6 курс)
+    major: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)        # 3 (Институт/факультет)
     interest_ids: Mapped[Optional[List[int]]] = mapped_column(ARRAY(Integer), nullable=True)  # 4
     custom_interests: Mapped[Optional[str]] = mapped_column(Text, nullable=True)               # Кастомные интересы
     goal: Mapped[Optional[str]] = mapped_column(Text, nullable=True)                           # 5 (О себе / цель)
     # Пол и предпочтения (для Знакомств)
     gender: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)         # "male" / "female"
     target_gender: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # "female" / "male" / "all"
+
+    # Фильтры поиска для ленты свайпов
+    filter_min_age: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=17)
+    filter_max_age: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=30)
+    filter_min_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=1)
+    filter_max_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=6)
+    filter_major: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
     # Медиа — храним Telegram file_id (до 3 фото и 1 видео)
     avatar_file_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)  # Главное фото

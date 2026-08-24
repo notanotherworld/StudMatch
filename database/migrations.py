@@ -77,6 +77,13 @@ MIGRATION_STATEMENTS = [
         CONSTRAINT uq_user_promo UNIQUE (user_id, promo_id)
     );
     """,
+    # 021_profile_age_and_feed_filters
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS age INT;",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS filter_min_age INT DEFAULT 17;",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS filter_max_age INT DEFAULT 30;",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS filter_min_year INT DEFAULT 1;",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS filter_max_year INT DEFAULT 6;",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS filter_major VARCHAR(200);",
     # Установка версии alembic
     """
     DO $$

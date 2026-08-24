@@ -24,6 +24,17 @@ def mode_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def age_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура быстрого выбора возраста студента."""
+    builder = InlineKeyboardBuilder()
+    for a in [17, 18, 19, 20, 21, 22, 23, 24, 25]:
+        builder.button(text=str(a), callback_data=f"age:{a}")
+    builder.button(text="✍️ Другой возраст", callback_data="age:custom")
+    builder.button(text="❌ Отмена", callback_data="profile:cancel")
+    builder.adjust(3, 3, 3, 1, 1)
+    return builder.as_markup()
+
+
 def year_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for y in range(1, 7):
@@ -337,6 +348,7 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
     Клавиатура Настроек:
     - Подтвердить статус студента (если не верифицирован)
     - Скрыть из поиска / Показать в поиске
+    - Фильтры поиска (Возраст, Курс, Факультет)
     - Сбросить историю свайпов
     - Изменить интересы
     - Изменить фото и видео
@@ -351,6 +363,7 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
 
     vis_label = "🔒 Скрыть из поиска" if is_visible else "👁 Показать в поиске"
     builder.button(text=vis_label, callback_data="settings:toggle_visibility")
+    builder.button(text="🎯 Фильтры поиска", callback_data="settings:filters")
     builder.button(text="🔄 Сбросить историю свайпов", callback_data="settings:reset_swipes")
     builder.button(text="🏷 Изменить интересы", callback_data="settings:edit_interests")
     builder.button(text="📸 Изменить фото и видео", callback_data="settings:edit_media")
@@ -359,9 +372,64 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
     builder.button(text="✏️ Редактировать анкету", callback_data="settings:choose_edit_profile")
 
     if not email_verified:
-        builder.adjust(1, 1, 1, 1, 1, 1, 1, 1)
+        builder.adjust(1, 1, 1, 1, 1, 1, 1, 1, 1)
     else:
-        builder.adjust(1, 1, 1, 1, 1, 1, 1)
+        builder.adjust(1, 1, 1, 1, 1, 1, 1, 1)
+    return builder.as_markup()
+
+
+def search_filters_keyboard(profile: Any = None) -> InlineKeyboardMarkup:
+    """Клавиатура настройки фильтров выдачи анкет."""
+    min_a = getattr(profile, "filter_min_age", None) or 17
+    max_a = getattr(profile, "filter_max_age", None) or 30
+    min_y = getattr(profile, "filter_min_year", None) or 1
+    max_y = getattr(profile, "filter_max_year", None) or 6
+    major = getattr(profile, "filter_major", None)
+    major_label = major if major and major != "all" else "✨ Любой"
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text=f"🎂 Возраст: {min_a}–{max_a} лет ✏️", callback_data="filter:edit_age")
+    builder.button(text=f"🎓 Курс: {min_y}–{max_y} курс ✏️", callback_data="filter:edit_year")
+    builder.button(text=f"🏛 Факультет: {major_label} ✏️", callback_data="filter:edit_major")
+    builder.button(text="🔄 Сбросить все фильтры", callback_data="filter:reset")
+    builder.button(text="🔙 Назад в настройки", callback_data="settings:back_to_settings")
+    builder.adjust(1, 1, 1, 1, 1)
+    return builder.as_markup()
+
+
+def filter_age_keyboard() -> InlineKeyboardMarkup:
+    """Выбор диапазона возраста для фильтра поиска."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="👶 17–20 лет (Младшие курсы)", callback_data="filter_set_age:17:20")
+    builder.button(text="🧑‍🎓 18–24 лет (Бакалавриат)", callback_data="filter_set_age:18:24")
+    builder.button(text="🎓 20–28 лет (Старшие и Магистры)", callback_data="filter_set_age:20:28")
+    builder.button(text="✨ Любой возраст (16–35)", callback_data="filter_set_age:16:35")
+    builder.button(text="✍️ Ввести свой диапазон", callback_data="filter_set_age:custom")
+    builder.button(text="🔙 Назад к фильтрам", callback_data="settings:filters")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def filter_year_keyboard() -> InlineKeyboardMarkup:
+    """Выбор курса для фильтра поиска."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🌱 1–2 курс (Младшие)", callback_data="filter_set_year:1:2")
+    builder.button(text="🌿 3–4 курс (Старшие)", callback_data="filter_set_year:3:4")
+    builder.button(text="🌳 5–6 курс / Магистратура", callback_data="filter_set_year:5:6")
+    builder.button(text="✨ Любой курс (1–6)", callback_data="filter_set_year:1:6")
+    builder.button(text="🔙 Назад к фильтрам", callback_data="settings:filters")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def filter_major_keyboard() -> InlineKeyboardMarkup:
+    """Выбор института/факультета для фильтра поиска."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✨ Любой факультет / институт", callback_data="filter_set_major:all")
+    for idx, inst in enumerate(RUDN_INSTITUTES):
+        builder.button(text=f"🏛 {inst}", callback_data=f"filter_set_major:{idx}")
+    builder.button(text="🔙 Назад к фильтрам", callback_data="settings:filters")
+    builder.adjust(1)
     return builder.as_markup()
 
 

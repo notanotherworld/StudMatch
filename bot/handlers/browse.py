@@ -72,6 +72,19 @@ async def _build_profile_caption(
     badges_header = ("\n".join(header_badges) + "\n\n") if header_badges else ""
     title_name = f"💎 <b>{name}</b>" if is_prem else f"<b>{name}</b>"
 
+    age_str = ""
+    if getattr(profile, "age", None):
+        a_val = profile.age
+        if 11 <= (a_val % 100) <= 19:
+            suf = "лет"
+        elif a_val % 10 == 1:
+            suf = "год"
+        elif a_val % 10 in (2, 3, 4):
+            suf = "года"
+        else:
+            suf = "лет"
+        age_str = f", {a_val} {suf}"
+
     if card_mode == ModeEnum.career:
         skills_text = html.escape(profile.career_custom_skills or "Не указаны")
         goal_text = html.escape(profile.career_goal or "Ищет интересные проекты и стажировки")
@@ -79,7 +92,7 @@ async def _build_profile_caption(
 
         return (
             f"{badges_header}"
-            f"{title_name}, {year_str} 🎯 <b>[Карьера]</b>{boost_badge}\n\n"
+            f"{title_name}{age_str}, {year_str} 🎯 <b>[Карьера]</b>{boost_badge}\n\n"
             f"📚 {major}\n"
             f"💼 Формат: <b>{work_fmt}</b>\n"
             f"⭐ Рейтинг: <b>{rating}</b>\n\n"
@@ -100,7 +113,7 @@ async def _build_profile_caption(
 
         return (
             f"{badges_header}"
-            f"{title_name}, {year_str} ❤️ <b>[Знакомства]</b>{boost_badge}\n\n"
+            f"{title_name}{age_str}, {year_str} ❤️ <b>[Знакомства]</b>{boost_badge}\n\n"
             f"📚 {major}\n\n"
             f"❤️ Знакомства  {rating}\n\n"
             f"💬 <i>{goal}</i>\n\n"

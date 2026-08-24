@@ -291,6 +291,41 @@ async def get_next_profile(
                     )
                 )
 
+    # Фильтры поиска (возраст, курс, факультет)
+    search_filters = []
+    if viewer_profile:
+        # 1. Фильтр по возрасту (если возраст указан)
+        min_a = viewer_profile.filter_min_age
+        max_a = viewer_profile.filter_max_age
+        if min_a and max_a:
+            search_filters.append(
+                or_(
+                    Profile.age.is_(None),
+                    and_(Profile.age >= min_a, Profile.age <= max_a)
+                )
+            )
+
+        # 2. Фильтр по курсу
+        min_y = viewer_profile.filter_min_year
+        max_y = viewer_profile.filter_max_year
+        if min_y and max_y:
+            search_filters.append(
+                or_(
+                    Profile.year.is_(None),
+                    and_(Profile.year >= min_y, Profile.year <= max_y)
+                )
+            )
+
+        # 3. Фильтр по специальности / факультету
+        f_major = viewer_profile.filter_major
+        if f_major and f_major != "all":
+            search_filters.append(
+                or_(
+                    Profile.major.is_(None),
+                    Profile.major.ilike(f"%{f_major}%")
+                )
+            )
+
     is_complete_cond = (
         Profile.career_is_complete == True
         if mode == ModeEnum.career
@@ -325,6 +360,7 @@ async def get_next_profile(
                 User.is_active == True,
                 ~Profile.user_id.in_(swiped_ids),
                 *gender_filters,
+                *search_filters,
             )
         )
         .order_by(
