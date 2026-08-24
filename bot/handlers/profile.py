@@ -393,8 +393,8 @@ async def process_target_gender(callback: CallbackQuery, state: FSMContext, user
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)
 
-    # Если пол редактируется из настроек или профиль уже был полностью заполнен
-    if data.get("editing_gender_from_settings") or (user.profile and user.profile.is_complete):
+    # Если пол и предпочтения редактируются отдельно из настроек (кнопка «👫 Пол и предпочтения»)
+    if data.get("editing_gender_from_settings"):
         gender_val = data.get("gender")
         await update_profile(db, user.id, gender=gender_val, target_gender=tg_val)
         await state.clear()
@@ -409,19 +409,25 @@ async def process_target_gender(callback: CallbackQuery, state: FSMContext, user
             parse_mode="HTML",
             reply_markup=main_menu_keyboard(),
         )
+        from bot.handlers.settings import show_my_profile
+        await show_my_profile(callback.message, user, db, view_mode="dating")
         return
 
-    # Первичное создание профиля (онбординг) — переходим к шагу фото
+    # Переходим к шагу медиа (загрузка фото/видео или сохранение текущих)
     await state.set_state(ProfileState.waiting_photo)
     await state.update_data(photos=[], video_file_id=None)
     from bot.keyboards.swipe import media_upload_keyboard
+
+    can_keep = bool(user.profile and user.profile.avatar_file_id)
+    keep_hint = "\n<i>Или нажми <b>«📸 Оставить текущие фото/видео»</b>, если не хочешь их менять.</i>" if can_keep else ""
+
     await callback.message.answer(
-        "📸 <b>Загрузи медиа для анкеты!</b>\n\n"
+        "📸 <b>Медиа для анкеты Знакомств:</b>\n\n"
         "• Можно отправить <b>сразу альбомом</b> или по одному: <b>до 3 фото</b> и <b>1 видео</b> (до 10 МБ 🎥)\n"
         "• Первое фото станет твоей главной аватаркой.\n\n"
-        "<i>Выбери в галерее и отправь сразу 3 фото + видео, затем нажми <b>✔️ Завершить загрузку</b></i>",
+        f"<i>Выбери в галерее и отправь сразу 3 фото + видео, затем нажми <b>✔️ Завершить загрузку</b></i>{keep_hint}",
         parse_mode="HTML",
-        reply_markup=media_upload_keyboard(0, False),
+        reply_markup=media_upload_keyboard(0, False, can_keep_existing=can_keep),
     )
 
 
@@ -466,6 +472,8 @@ async def _save_media_and_complete(
     target_gender = data.get("target_gender") or (prof.target_gender if prof else None)
     main_avatar = photos[0] if photos else (prof.avatar_file_id if prof else None)
 
+    was_complete = bool(prof and prof.is_complete)
+
     await get_or_create_profile(db, user.id)
     await update_profile(
         db,
@@ -487,6 +495,16 @@ async def _save_media_and_complete(
 
     await state.clear()
 
+    if was_complete:
+        await message.answer(
+            "🎉 <b>Твоя анкета «❤️ Знакомства» успешно обновлена!</b>",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard(),
+        )
+        from bot.handlers.settings import show_my_profile
+        await show_my_profile(message, user, db, view_mode="dating")
+        return
+
     verify_tip = ""
     if not user.email_verified:
         verify_tip = (
@@ -500,6 +518,17 @@ async def _save_media_and_complete(
         parse_mode="HTML",
         reply_markup=mode_keyboard(),
     )
+
+
+@router.callback_query(F.data == "media:keep_existing", ProfileState.waiting_photo)
+async def process_media_keep_existing_callback(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
+    """Использовать уже сохраненные медиа (фото/видео) без повторной загрузки."""
+    await callback.answer()
+    await callback.message.edit_reply_markup(reply_markup=None)
+    prof = user.profile
+    existing_photos = (prof.photos if prof and prof.photos else ([prof.avatar_file_id] if prof and prof.avatar_file_id else []))
+    existing_video = prof.video_file_id if prof else None
+    await _save_media_and_complete(existing_photos, existing_video, callback.message, state, user, db)
 
 
 @router.callback_query(F.data == "media:done", ProfileState.waiting_photo)

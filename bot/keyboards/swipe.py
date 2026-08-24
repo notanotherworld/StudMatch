@@ -295,23 +295,28 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
     builder.button(text=f"❤️ Знакомства {dating_ok}", callback_data="profile:view_dating")
     builder.button(text=f"🎯 Карьера {career_ok}", callback_data="profile:view_career")
 
-    # 2. Подтвердить статус студента (если еще не подтвержден)
+    # 2. Кто меня лайкнул
+    builder.button(text="💌 Кто меня лайкнул", callback_data="profile:incoming_likes")
+
+    # 3. Подтвердить статус студента (если еще не подтвержден)
     if not user.email_verified:
         builder.button(text="🎓 Подтвердить статус (+100⭐)", callback_data="auth:start_verification")
 
-    # 3. Режим
+    # 4. Режим
     builder.button(text=f"Режим: {mode_label} 🔄", callback_data="settings:change_mode")
-    # 4. Мои достижения
+    # 5. Мои достижения
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
-    # 5. Премиум и суперлайки
-    builder.button(text="💎 Премиум и суперлайки", callback_data="settings:buy")
-    # 6. Пригласить друзей
+    # 6. Премиум и суперлайки
+    is_prem = getattr(user, "is_premium", False)
+    prem_label = "💎 Премиум активен (Продлить)" if is_prem else "💎 Получить Премиум"
+    builder.button(text=prem_label, callback_data="settings:buy")
+    # 7. Пригласить друзей
     builder.button(text="🪢 Пригласить друзей (+3 ⭐️)", callback_data="settings:ref_link")
 
     if not user.email_verified:
-        builder.adjust(2, 1, 1, 1, 1, 1)
+        builder.adjust(2, 1, 1, 1, 1, 1, 1)
     else:
-        builder.adjust(2, 1, 1, 1, 1)
+        builder.adjust(2, 1, 1, 1, 1, 1)
     return builder.as_markup()
 
 
@@ -358,12 +363,14 @@ def edit_profile_choice_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def media_upload_keyboard(uploaded_photos_count: int = 0, has_video: bool = False) -> InlineKeyboardMarkup:
+def media_upload_keyboard(uploaded_photos_count: int = 0, has_video: bool = False, can_keep_existing: bool = False) -> InlineKeyboardMarkup:
     """Клавиатура управления загрузкой медиа (до 3 фото и 1 видео)."""
     builder = InlineKeyboardBuilder()
     if uploaded_photos_count > 0:
         builder.button(text="✔️ Завершить загрузку", callback_data="media:done")
-    builder.button(text="❌ Отмена", callback_data="media:cancel")
+    elif can_keep_existing:
+        builder.button(text="📸 Оставить текущие фото/видео", callback_data="media:keep_existing")
+    builder.button(text="❌ Отмена", callback_data="profile:cancel")
     builder.adjust(1)
     return builder.as_markup()
 
