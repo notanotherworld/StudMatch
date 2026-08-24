@@ -23,6 +23,8 @@ async def promos_page(
     request: Request,
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
+    error: Optional[str] = Query(default=None),
+    success: Optional[str] = Query(default=None),
 ):
     promos = []
     top_ambassadors = []
@@ -34,7 +36,13 @@ async def promos_page(
         # Список промокодов
         result = await db.execute(select(PromoCode).order_by(PromoCode.created_at.desc()))
         promos = list(result.scalars().all())
+        total_promos = len(promos)
+        total_activations = sum(p.activations_count for p in promos)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error loading promo codes: {e}", exc_info=True)
 
+    try:
         # Топ амбассадоров (реферальная программа)
         ref_res = await db.execute(
             select(
@@ -64,16 +72,16 @@ async def promos_page(
                 "count": count,
             })
 
-        # Общая статистика
-        total_promos = len(promos)
-        total_activations = sum(p.activations_count for p in promos)
         total_referrals_res = await db.execute(
             select(func.count(User.id)).where(User.referrer_id.isnot(None))
         )
         total_referrals = total_referrals_res.scalar_one() or 0
     except Exception as e:
         import logging
-        logging.getLogger(__name__).error(f"Error loading promos page: {e}", exc_info=True)
+        logging.getLogger(__name__).error(f"Error loading ambassadors: {e}", exc_info=True)
+
+    from web.dependencies import generate_csrf_token
+    token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
 
     return templates.TemplateResponse(
         "admin/promos.html",
@@ -85,6 +93,9 @@ async def promos_page(
             "total_promos": total_promos,
             "total_activations": total_activations,
             "total_referrals": total_referrals,
+            "csrf_token": token_str,
+            "error_msg": error,
+            "success_msg": success,
         },
     )
 
@@ -101,6 +112,9 @@ async def create_promo(
     db: AsyncSession = Depends(get_db),
 ):
     norm_code = code.strip().upper()
+    if not norm_code:
+        return RedirectResponse("/admin/promos?error=Код+промокода+не+может+быть+пустым", status_code=302)
+
     expires_dt = None
     if expires_at_str.strip():
         try:
@@ -111,27 +125,31 @@ async def create_promo(
     # Проверяем на дубликат
     existing = await db.execute(select(PromoCode).where(PromoCode.code == norm_code))
     if existing.scalar_one_or_none():
-        return RedirectResponse("/admin/promos", status_code=302)
+        return RedirectResponse("/admin/promos?error=Промокод+с+таким+именем+уже+существует", status_code=302)
 
-    promo = PromoCode(
-        code=norm_code,
-        reward_type=reward_type,
-        reward_value=max(1, reward_value),
-        max_activations=max(0, max_activations),
-        expires_at=expires_dt,
-        is_active=True,
-    )
-    db.add(promo)
-    await db.commit()
+    try:
+        promo = PromoCode(
+            code=norm_code,
+            reward_type=reward_type,
+            reward_value=max(1, reward_value),
+            max_activations=max(0, max_activations),
+            expires_at=expires_dt,
+            is_active=True,
+        )
+        db.add(promo)
+        await db.commit()
 
-    client_ip = request.client.host if request.client else None
-    await log_admin_action(
-        db, admin, action="create_promo", target_type="promo", target_id=norm_code,
-        details=f"Создан промокод {norm_code}: {reward_type} (+{reward_value}), лимит: {max_activations}",
-        ip_address=client_ip,
-    )
+        client_ip = request.client.host if request.client else None
+        await log_admin_action(
+            db, admin, action="create_promo", target_type="promo", target_id=norm_code,
+            details=f"Создан промокод {norm_code}: {reward_type} (+{reward_value}), лимит: {max_activations}",
+            ip_address=client_ip,
+        )
 
-    return RedirectResponse("/admin/promos", status_code=302)
+        return RedirectResponse("/admin/promos?success=Промокод+успешно+создан", status_code=302)
+    except Exception as e:
+        await db.rollback()
+        return RedirectResponse(f"/admin/promos?error=Ошибка+создания:+{str(e)[:50]}", status_code=302)
 
 
 @router.post("/promos/{promo_id}/toggle", dependencies=[Depends(check_csrf)])
@@ -141,22 +159,26 @@ async def toggle_promo(
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    p_uuid = uuid.UUID(promo_id)
-    res = await db.execute(select(PromoCode).where(PromoCode.id == p_uuid))
-    promo = res.scalar_one_or_none()
-    if promo:
-        new_status = not promo.is_active
-        await db.execute(update(PromoCode).where(PromoCode.id == p_uuid).values(is_active=new_status))
-        await db.commit()
+    try:
+        p_uuid = uuid.UUID(promo_id)
+        res = await db.execute(select(PromoCode).where(PromoCode.id == p_uuid))
+        promo = res.scalar_one_or_none()
+        if promo:
+            new_status = not promo.is_active
+            await db.execute(update(PromoCode).where(PromoCode.id == p_uuid).values(is_active=new_status))
+            await db.commit()
 
-        client_ip = request.client.host if request.client else None
-        await log_admin_action(
-            db, admin, action="toggle_promo", target_type="promo", target_id=promo.code,
-            details=f"Статус промокода {promo.code} изменён на: {'Активен' if new_status else 'Отключён'}",
-            ip_address=client_ip,
-        )
-
-    return RedirectResponse("/admin/promos", status_code=302)
+            client_ip = request.client.host if request.client else None
+            await log_admin_action(
+                db, admin, action="toggle_promo", target_type="promo", target_id=promo.code,
+                details=f"Статус промокода {promo.code} изменён на: {'Активен' if new_status else 'Отключён'}",
+                ip_address=client_ip,
+            )
+            return RedirectResponse("/admin/promos?success=Статус+промокода+обновлен", status_code=302)
+        return RedirectResponse("/admin/promos?error=Промокод+не+найден", status_code=302)
+    except Exception as e:
+        await db.rollback()
+        return RedirectResponse(f"/admin/promos?error=Ошибка:+{str(e)[:50]}", status_code=302)
 
 
 @router.post("/promos/{promo_id}/delete", dependencies=[Depends(check_csrf)])
@@ -166,19 +188,23 @@ async def delete_promo(
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    p_uuid = uuid.UUID(promo_id)
-    res = await db.execute(select(PromoCode).where(PromoCode.id == p_uuid))
-    promo = res.scalar_one_or_none()
-    if promo:
-        code_name = promo.code
-        await db.delete(promo)
-        await db.commit()
+    try:
+        p_uuid = uuid.UUID(promo_id)
+        res = await db.execute(select(PromoCode).where(PromoCode.id == p_uuid))
+        promo = res.scalar_one_or_none()
+        if promo:
+            code_name = promo.code
+            await db.delete(promo)
+            await db.commit()
 
-        client_ip = request.client.host if request.client else None
-        await log_admin_action(
-            db, admin, action="delete_promo", target_type="promo", target_id=code_name,
-            details=f"Удалён промокод {code_name}",
-            ip_address=client_ip,
-        )
-
-    return RedirectResponse("/admin/promos", status_code=302)
+            client_ip = request.client.host if request.client else None
+            await log_admin_action(
+                db, admin, action="delete_promo", target_type="promo", target_id=code_name,
+                details=f"Удалён промокод {code_name}",
+                ip_address=client_ip,
+            )
+            return RedirectResponse("/admin/promos?success=Промокод+удален", status_code=302)
+        return RedirectResponse("/admin/promos?error=Промокод+не+найден", status_code=302)
+    except Exception as e:
+        await db.rollback()
+        return RedirectResponse(f"/admin/promos?error=Ошибка+удаления:+{str(e)[:50]}", status_code=302)

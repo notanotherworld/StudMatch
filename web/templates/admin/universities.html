@@ -60,13 +60,23 @@
           {% endif %}
         </td>
         <td>
-          <form method="POST" action="/admin/universities/{{ uni.id }}/toggle" style="display:inline;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token or '' }}">
-            <button type="submit"
-                    class="btn {% if uni.is_active %}btn-ghost{% else %}btn-success{% endif %} btn-sm">
-              {% if uni.is_active %}Отключить{% else %}Включить{% endif %}
-            </button>
-          </form>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <form method="POST" action="/admin/universities/{{ uni.id }}/toggle" style="display:inline;margin:0;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token or '' }}">
+              <button type="submit"
+                      class="btn {% if uni.is_active %}btn-ghost{% else %}btn-success{% endif %} btn-sm"
+                      title="{% if uni.is_active %}Отключить вуз{% else %}Включить вуз{% endif %}">
+                {% if uni.is_active %}Отключить{% else %}Включить{% endif %}
+              </button>
+            </form>
+            <form method="POST" action="/admin/universities/{{ uni.id }}/delete" style="display:inline;margin:0;"
+                  onsubmit="return confirm('Удалить университет «{{ uni.name }}» ({{ uni.short_name }})? Студенты этого вуза не будут удалены, но статус их вуза будет сброшен.')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token or '' }}">
+              <button type="submit" class="btn btn-danger btn-sm" title="Удалить университет">
+                🗑
+              </button>
+            </form>
+          </div>
         </td>
       </tr>
       {% endfor %}

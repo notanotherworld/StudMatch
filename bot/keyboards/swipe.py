@@ -188,18 +188,30 @@ def achievement_type_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def buy_superlike_keyboard(pricing: Optional[dict] = None) -> InlineKeyboardMarkup:
-    pricing = pricing or {}
-    p_vip = pricing.get("price_premium_1m", 199)
-    p_boost = pricing.get("price_boost_24h", 99)
-    p_sl3 = pricing.get("price_superlike_3", 49)
-    p_sl10 = pricing.get("price_superlike_10", 199)
-
+def buy_superlike_keyboard(catalog: Optional[List[dict]] = None, pricing: Optional[dict] = None) -> InlineKeyboardMarkup:
+    """Клавиатура покупки тарифов и услуг (динамически из каталога админки)."""
     builder = InlineKeyboardBuilder()
-    builder.button(text=f"💎 Премиум-подписка — {p_vip} ₽/мес", callback_data="buy:premium_1m")
-    builder.button(text=f"🛸 Буст — {p_boost} ₽/сутки", callback_data="buy:boost_24h")
-    builder.button(text=f"⭐️ 3 суперлайка — {p_sl3} ₽", callback_data="buy:superlike_3")
-    builder.button(text=f"⭐️ 10 суперлайков — {p_sl10} ₽", callback_data="buy:superlike_10")
+
+    if catalog:
+        for item in catalog:
+            if not item.get("is_active", True):
+                continue
+            emoji = item.get("emoji", "💎")
+            name = item.get("name", "Услуга")
+            price = item.get("price", 0)
+            pid = item.get("id")
+            builder.button(text=f"{emoji} {name} — {price} ₽", callback_data=f"buy:{pid}")
+    else:
+        pricing = pricing or {}
+        p_vip = pricing.get("price_premium_1m", 199)
+        p_boost = pricing.get("price_boost_24h", 99)
+        p_sl3 = pricing.get("price_superlike_3", 49)
+        p_sl10 = pricing.get("price_superlike_10", 199)
+        builder.button(text=f"💎 Премиум-подписка — {p_vip} ₽/мес", callback_data="buy:premium_1m")
+        builder.button(text=f"🛸 Буст — {p_boost} ₽/сутки", callback_data="buy:boost_24h")
+        builder.button(text=f"⭐️ 3 суперлайка — {p_sl3} ₽", callback_data="buy:superlike_3")
+        builder.button(text=f"⭐️ 10 суперлайков — {p_sl10} ₽", callback_data="buy:superlike_10")
+
     builder.button(text="🎁 Ввести промокод", callback_data="settings:enter_promo")
     builder.adjust(1)
     return builder.as_markup()

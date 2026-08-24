@@ -118,3 +118,39 @@ async def toggle_university(
     except Exception as e:
         await db.rollback()
         return RedirectResponse(f"/admin/universities?error=Ошибка+изменения+статуса:+{str(e)[:50]}", status_code=302)
+
+
+@router.post("/universities/{uni_id}/delete", dependencies=[Depends(check_csrf)])
+async def delete_university(
+    uni_id: int,
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Удаление университета с отвязкой пользователей."""
+    try:
+        from database.models import User
+        result = await db.execute(select(University).where(University.id == uni_id))
+        uni = result.scalar_one_or_none()
+        if uni:
+            name_saved = uni.name
+            short_name_saved = uni.short_name
+
+            # Сбрасываем university_id у привязанных пользователей
+            await db.execute(
+                update(User).where(User.university_id == uni_id).values(university_id=None)
+            )
+            await db.delete(uni)
+            await db.commit()
+
+            await log_admin_action(
+                db=db,
+                admin=admin,
+                action="delete_university",
+                details=f"Удалён вуз #{uni_id} «{name_saved}» ({short_name_saved})",
+            )
+            return RedirectResponse("/admin/universities?success=Университет+успешно+удалён", status_code=302)
+        return RedirectResponse("/admin/universities?error=Вуз+не+найден", status_code=302)
+    except Exception as e:
+        await db.rollback()
+        return RedirectResponse(f"/admin/universities?error=Ошибка+удаления:+{str(e)[:50]}", status_code=302)

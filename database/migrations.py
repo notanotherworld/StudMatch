@@ -52,15 +52,40 @@ MIGRATION_STATEMENTS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS flood_ban_count INT DEFAULT 0;",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_flagged_spammer BOOLEAN DEFAULT FALSE;",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_banned_at TIMESTAMP WITH TIME ZONE;",
+    # 019_add_premium_until (премиум-подписка студентов)
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_until TIMESTAMP WITH TIME ZONE;",
+    # 020_promo_codes_guaranteed
+    """
+    CREATE TABLE IF NOT EXISTS promo_codes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        code VARCHAR(50) UNIQUE NOT NULL,
+        reward_type VARCHAR(30) NOT NULL,
+        reward_value INT NOT NULL DEFAULT 1,
+        max_activations INT NOT NULL DEFAULT 0,
+        activations_count INT NOT NULL DEFAULT 0,
+        expires_at TIMESTAMP WITH TIME ZONE,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS promo_activations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        promo_id UUID NOT NULL REFERENCES promo_codes(id) ON DELETE CASCADE,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        activated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        CONSTRAINT uq_user_promo UNIQUE (user_id, promo_id)
+    );
+    """,
     # Установка версии alembic
     """
     DO $$
     BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version') THEN
-            UPDATE alembic_version SET version_num = '017_flood_ban_tracking';
+            UPDATE alembic_version SET version_num = '019_add_premium_until';
         ELSE
             CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));
-            INSERT INTO alembic_version (version_num) VALUES ('017_flood_ban_tracking');
+            INSERT INTO alembic_version (version_num) VALUES ('019_add_premium_until');
         END IF;
     END $$;
     """

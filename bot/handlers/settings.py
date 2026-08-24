@@ -268,28 +268,28 @@ async def reset_user_swipes(event, user: User, db: AsyncSession):
 async def show_buy(callback: CallbackQuery, user: User):
     await callback.answer()
     balance = user.superlike_balance
-    pricing = await get_dynamic_pricing()
-    p_vip = pricing["price_premium_1m"]
-    p_boost = pricing["price_boost_24h"]
-    p_sl3 = pricing["price_superlike_3"]
-    p_sl10 = pricing["price_superlike_10"]
+    from bot.utils.dynamic_settings import get_payment_products_catalog
+    catalog = await get_payment_products_catalog()
+    active_products = [p for p in catalog if p.get("is_active", True)]
+
+    lines = ["💎 <b>Тарифы, суперлайки и услуги СтудМэч</b>\n"]
+    for p in active_products:
+        emoji = p.get("emoji", "💎")
+        name = p.get("name", "Услуга")
+        price = p.get("price", 0)
+        desc = p.get("description", "")
+        desc_str = f"\n<i>{desc}</i>" if desc else ""
+        lines.append(f"{emoji} <b>{name}</b> — <b>{price} ₽</b>{desc_str}")
+
+    lines.append(f"\nБаланс суперлайков: <b>{balance}</b> ⭐️")
+    lines.append("👉 <i>Выбери тариф для оплаты ниже:</i>")
+
+    text = "\n\n".join(lines)
 
     await callback.message.answer(
-        f"💎 <b>Премиум-подписка — {p_vip} ₽/мес</b>\n\n"
-        "❤️ Безлимитное количество лайков\n"
-        "👀 Повышенная видимость профиля\n"
-        "✨ Выделись! Профиль обретает специальный значок\n\n"
-        f"⭐️ <b>Суперлайки — {p_sl3} ₽ (3 шт) / {p_sl10} ₽ (10 шт)</b>\n\n"
-        "⭐️ Стань звёздочкой! Твой профиль в разделе «мэтч» будет первым\n"
-        "🤍 Суперлайк покажет серьезную заинтересованность в человеке\n"
-        "📈 Шанс на мэтч выше в 2-3 раза!\n\n"
-        f"🛸 <b>Буст анкеты — {p_boost} ₽/сутки</b>\n\n"
-        "📌 Твой профиль в топе 24ч 🗿 Тебя видят чаще\n"
-        "Значок 🌪 у аватарки\n\n"
-        f"Баланс суперлайков: <b>{balance}</b> ⭐️\n\n"
-        "👉 <i>Купить можно ниже (или кнопка ⭐️ под карточкой):</i>",
+        text,
         parse_mode="HTML",
-        reply_markup=buy_superlike_keyboard(pricing),
+        reply_markup=buy_superlike_keyboard(catalog=active_products),
     )
 
 
@@ -348,6 +348,26 @@ async def show_my_profile(
     # Определяем какой режим показывать
     is_career_view = (view_mode == "career") or (view_mode == "current" and user.mode == ModeEnum.career)
 
+    # Статусы аккаунта (Премиум & Верификация)
+    is_prem = user.is_premium
+    if is_prem and user.premium_until:
+        prem_date = user.premium_until.strftime("%d.%m.%Y")
+        premium_str = f"💎 <b>Премиум:</b> Активен до {prem_date} ✅"
+        title_name = f"💎 <b>{name}</b> 💎"
+        premium_label = " 💎 [Премиум]"
+    else:
+        premium_str = "💎 <b>Премиум:</b> Не активен"
+        title_name = f"<b>{name}</b>"
+        premium_label = ""
+
+    if user.email_verified:
+        u_name = user.university.short_name if user.university else "РУДН"
+        verified_str = f"🎓 <b>Верификация:</b> ✅ Подтверждена ({u_name})"
+        verified_badge = f" 🎓 [{u_name}]"
+    else:
+        verified_str = "🎓 <b>Верификация:</b> ⏳ Не подтверждена (+100⭐)"
+        verified_badge = ""
+
     if is_career_view:
         # Карьерная анкета
         photo_file_id = profile.career_avatar_file_id or profile.avatar_file_id
@@ -358,7 +378,7 @@ async def show_my_profile(
         status_str = "✅ Заполнена" if profile.career_is_complete else "⚠️ Не заполнена (нажми кнопку ниже)"
 
         text = (
-            f"<b>{name}</b>, {year_str} 🎯 <b>[Карьера]</b>\n"
+            f"{title_name}{verified_badge}{premium_label}, {year_str} 🎯 <b>[Карьера]</b>\n"
             f"<i>Статус: {status_str}</i>\n\n"
             f"📚 {major}\n"
             f"💼 Формат: {work_fmt}\n"
@@ -366,6 +386,8 @@ async def show_my_profile(
             f"🛠 <b>Навыки и стек:</b>\n{skills_text}\n\n"
             f"🎯 <b>Цель / Опыт:</b>\n<i>{goal_text}</i>"
             f"{portfolio_str}\n\n"
+            f"{premium_str}\n"
+            f"{verified_str}\n"
             f"⭐️ Суперлайков: <b>{user.superlike_balance}</b>\n"
             f"📧 {email_str}"
         )
@@ -389,13 +411,15 @@ async def show_my_profile(
         status_str = "✅ Заполнена" if profile.is_complete else "⚠️ Не заполнена"
 
         text = (
-            f"<b>{name}</b>, {year_str} ❤️ <b>[Знакомства]</b>\n"
+            f"{title_name}{verified_badge}{premium_label}, {year_str} ❤️ <b>[Знакомства]</b>\n"
             f"<i>Статус: {status_str}</i>\n\n"
             f"📚 {major}\n"
             f"⭐ Рейтинг: <b>{score_val:.0f} б.</b>"
             f"{gender_info}\n\n"
             f"💬 <b>О себе:</b>\n<i>{goal_text}</i>\n\n"
             f"{tags_text}\n\n"
+            f"{premium_str}\n"
+            f"{verified_str}\n"
             f"⭐️ Суперлайков: <b>{user.superlike_balance}</b>\n"
             f"📧 {email_str}"
         )
