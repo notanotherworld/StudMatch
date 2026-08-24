@@ -227,7 +227,9 @@ async def get_top_profiles(
             )
         )
         .order_by(
+            (User.premium_until > now).desc(),
             (User.boost_until > now).desc(),
+            User.email_verified.desc(),
             Profile.rating_score.desc(),
         )
         .limit(limit)
@@ -314,7 +316,7 @@ async def get_next_profile(
 
     result = await db.execute(
         select(Profile)
-        .options(selectinload(Profile.user))
+        .options(selectinload(Profile.user).selectinload(User.university))
         .join(User, Profile.user_id == User.id)
         .where(
             and_(
@@ -327,6 +329,7 @@ async def get_next_profile(
         )
         .order_by(
             priority_incoming.desc(),
+            (User.premium_until > now).desc(),
             (User.boost_until > now).desc(),
             User.email_verified.desc(),
             Profile.rating_score.desc(),
@@ -561,9 +564,8 @@ async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optiona
                 boost_until = datetime.now(timezone.utc) + timedelta(hours=bval)
                 await db.execute(update(User).where(User.id == payment.user_id).values(boost_until=boost_until))
             elif btype == "premium":
-                boost_until = datetime.now(timezone.utc) + timedelta(days=bval)
-                await add_superlikes(db, payment.user_id, max(3, bval // 3))
-                await db.execute(update(User).where(User.id == payment.user_id).values(boost_until=boost_until))
+                await set_user_premium(db, payment.user_id, days=bval)
+                await add_superlikes(db, payment.user_id, max(10, bval // 3))
         else:
             if payment.product == PaymentProduct.superlike_1:
                 await add_superlikes(db, payment.user_id, 1)
@@ -577,14 +579,109 @@ async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optiona
                 boost_until = datetime.now(timezone.utc) + timedelta(hours=24)
                 await db.execute(update(User).where(User.id == payment.user_id).values(boost_until=boost_until))
             elif payment.product == PaymentProduct.premium_1m:
-                boost_until = datetime.now(timezone.utc) + timedelta(days=30)
+                await set_user_premium(db, payment.user_id, days=30)
                 await add_superlikes(db, payment.user_id, 10)
-                await db.execute(update(User).where(User.id == payment.user_id).values(boost_until=boost_until))
     except Exception:
         pass
 
     await db.commit()
     return payment
+
+
+# ─────────────────────────────────────────────────────────────
+# Премиум и Входящие лайки
+# ─────────────────────────────────────────────────────────────
+async def set_user_premium(
+    db: AsyncSession,
+    user_id: int,
+    days: Optional[int] = 30,
+    until: Optional[datetime] = None,
+) -> datetime:
+    """Устанавливает или продлевает Premium-статус пользователя."""
+    user = await get_user(db, user_id)
+    now = datetime.now(timezone.utc)
+    if until:
+        new_premium_until = until
+    else:
+        current_until = user.premium_until if user else None
+        if current_until and current_until.tzinfo is None:
+            current_until = current_until.replace(tzinfo=timezone.utc)
+
+        base_time = current_until if (current_until and current_until > now) else now
+        new_premium_until = base_time + timedelta(days=days or 30)
+
+    current_boost = user.boost_until if user else None
+    if current_boost and current_boost.tzinfo is None:
+        current_boost = current_boost.replace(tzinfo=timezone.utc)
+    new_boost = max(current_boost or now, new_premium_until)
+
+    await db.execute(
+        update(User)
+        .where(User.id == user_id)
+        .values(premium_until=new_premium_until, boost_until=new_boost)
+    )
+    await db.commit()
+    return new_premium_until
+
+
+async def revoke_user_premium(db: AsyncSession, user_id: int) -> bool:
+    """Снимает Premium-статус пользователя."""
+    await db.execute(
+        update(User)
+        .where(User.id == user_id)
+        .values(premium_until=None)
+    )
+    await db.commit()
+    return True
+
+
+async def get_incoming_likes(
+    db: AsyncSession, user_id: int, limit: int = 30
+) -> List[Swipe]:
+    """
+    Возвращает список входящих лайков/суперлайков для user_id от пользователей,
+    которым user_id ещё не поставил ответный свайп.
+    """
+    swiped_subq = select(Swipe.to_user_id).where(Swipe.from_user_id == user_id)
+
+    result = await db.execute(
+        select(Swipe)
+        .options(
+            selectinload(Swipe.from_user).selectinload(User.profile),
+            selectinload(Swipe.from_user).selectinload(User.university),
+        )
+        .join(User, Swipe.from_user_id == User.id)
+        .join(Profile, Profile.user_id == User.id)
+        .where(
+            Swipe.to_user_id == user_id,
+            Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+            User.is_active == True,
+            Profile.is_visible == True,
+            ~Swipe.from_user_id.in_(swiped_subq),
+        )
+        .order_by(
+            case((Swipe.action == SwipeAction.superlike, 1), else_=0).desc(),
+            Swipe.created_at.desc(),
+        )
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def get_incoming_likes_count(db: AsyncSession, user_id: int) -> int:
+    """Количество непросмотренных входящих лайков."""
+    swiped_subq = select(Swipe.to_user_id).where(Swipe.from_user_id == user_id)
+    result = await db.scalar(
+        select(func.count(Swipe.id))
+        .join(User, Swipe.from_user_id == User.id)
+        .where(
+            Swipe.to_user_id == user_id,
+            Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+            User.is_active == True,
+            ~Swipe.from_user_id.in_(swiped_subq),
+        )
+    )
+    return result or 0
 
 
 # ─────────────────────────────────────────────────────────────

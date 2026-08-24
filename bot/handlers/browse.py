@@ -41,14 +41,36 @@ async def _build_profile_caption(
     rating = f"⭐ {raw_rating:.0f} б." if raw_rating > 0 else ""
 
     from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    is_prem = False
+    if user_obj and getattr(user_obj, "premium_until", None):
+        p_until = user_obj.premium_until
+        if p_until.tzinfo is None:
+            p_until = p_until.replace(tzinfo=timezone.utc)
+        if p_until > now:
+            is_prem = True
+
     boost_badge = ""
     if user_obj and getattr(user_obj, "boost_until", None):
-        if user_obj.boost_until > datetime.now(timezone.utc):
-            boost_badge = " 🌪"
+        b_until = user_obj.boost_until
+        if b_until.tzinfo is None:
+            b_until = b_until.replace(tzinfo=timezone.utc)
+        if b_until > now:
+            boost_badge = " 🌪 [В топе]"
 
-    verified_badge = ""
+    header_badges = []
+    if is_prem:
+        header_badges.append("💎✨ <b>PREMIUM ПРОФИЛЬ</b> ✨💎")
+
     if user_obj and getattr(user_obj, "email_verified", False):
-        verified_badge = " 🎓"
+        univ_str = ""
+        if hasattr(user_obj, "university") and user_obj.university and getattr(user_obj.university, "short_name", None):
+            univ_str = f": {user_obj.university.short_name}"
+        header_badges.append(f"🎓 <b>ВЕРИФИЦИРОВАН{univ_str}</b>")
+
+    badges_header = ("\n".join(header_badges) + "\n\n") if header_badges else ""
+    title_name = f"💎 <b>{name}</b>" if is_prem else f"<b>{name}</b>"
 
     if card_mode == ModeEnum.career:
         skills_text = html.escape(profile.career_custom_skills or "Не указаны")
@@ -56,7 +78,8 @@ async def _build_profile_caption(
         work_fmt = html.escape(profile.career_work_format or "Любой формат")
 
         return (
-            f"<b>{name}</b>{verified_badge}{boost_badge}, {year_str} 🎯 <b>[Карьера]</b>\n\n"
+            f"{badges_header}"
+            f"{title_name}, {year_str} 🎯 <b>[Карьера]</b>{boost_badge}\n\n"
             f"📚 {major}\n"
             f"💼 Формат: <b>{work_fmt}</b>\n"
             f"⭐ Рейтинг: <b>{rating}</b>\n\n"
@@ -76,7 +99,8 @@ async def _build_profile_caption(
         goal = html.escape(getattr(profile, "goal", "") or "")
 
         return (
-            f"<b>{name}</b>{verified_badge}{boost_badge}, {year_str}\n\n"
+            f"{badges_header}"
+            f"{title_name}, {year_str} ❤️ <b>[Знакомства]</b>{boost_badge}\n\n"
             f"📚 {major}\n\n"
             f"❤️ Знакомства  {rating}\n\n"
             f"💬 <i>{goal}</i>\n\n"
@@ -367,7 +391,10 @@ async def show_my_matches(message: Message, user: User, db: AsyncSession, state:
         p_year = f"{partner.profile.year} курс" if (partner.profile and partner.profile.year) else ""
         date_str = m.created_at.strftime("%d.%m") if m.created_at else ""
 
-        lines.append(f"{idx}. <b>{p_name}</b> ({p_year}) — <b>{p_username}</b> <i>({date_str})</i>")
+        ver_badge = " 🎓" if getattr(partner, "email_verified", False) else ""
+        prem_badge = " 💎" if getattr(partner, "is_premium", False) else ""
+
+        lines.append(f"{idx}. <b>{p_name}</b>{ver_badge}{prem_badge} ({p_year}) — <b>{p_username}</b> <i>({date_str})</i>")
 
         if partner.tg_username:
             clean_username = partner.tg_username.lstrip("@")
@@ -383,6 +410,106 @@ async def show_my_matches(message: Message, user: User, db: AsyncSession, state:
     )
 
     await message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
+
+
+@router.callback_query(F.data == "profile:incoming_likes")
+@router.message(StateFilter("*"), F.text.in_({"💌 Кто меня лайкнул", "Кто меня лайкнул", "/likes"}))
+async def show_incoming_likes_entry(event: Message | CallbackQuery, user: User, db: AsyncSession, state: FSMContext = None):
+    """Просмотр входящих симпатий для Премиум-пользователей / Пейволл для обычных."""
+    if state:
+        await state.clear()
+
+    from database.crud import get_incoming_likes, get_incoming_likes_count
+
+    pending_count = await get_incoming_likes_count(db, user.id)
+    is_prem = user.is_premium
+
+    if not is_prem:
+        # Paywall для пользователей без подписки
+        text = (
+            f"💌 <b>Кто меня лайкнул?</b>\n\n"
+            f"У тебя <b>{pending_count}</b> непросмотренных симпатий! 🔥\n\n"
+            f"👑 <b>Преимущества Премиум-профиля:</b>\n"
+            f"• 💌 <b>Просмотр всех, кто тебя лайкнул</b> — сразу отвечай взаимностью без ожидания!\n"
+            f"• 🚀 <b>Приоритет №1 в ленте свайпов</b> — твоя анкета показывается первой\n"
+            f"• 💎 <b>Статусный бейдж [Премиум]</b> в профиле и Зале славы\n"
+            f"• ⭐️ <b>+10 Суперлайков</b> на баланс\n"
+            f"• 🌪 <b>Постоянный буст анкеты</b>\n\n"
+            f"Оформи Премиум прямо сейчас:"
+        )
+        builder = InlineKeyboardBuilder()
+        builder.button(text="💎 Оформить Премиум", callback_data="buy:premium_1m")
+        builder.button(text="🔙 Назад к анкетам", callback_data="top:swipe_next")
+        builder.adjust(1)
+
+        if isinstance(event, CallbackQuery):
+            await event.answer()
+            await event.message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
+        else:
+            await event.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
+        return
+
+    likes = await get_incoming_likes(db, user.id, limit=1)
+    if not likes:
+        empty_text = (
+            "💌 <b>Входящие симпатии</b>\n\n"
+            "У тебя пока нет новых непросмотренных лайков.\n"
+            "Твоя анкета показывается в топе с приоритетом 💎 — скоро здесь появятся новые взаимные симпатии!"
+        )
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🔍 Смотреть анкеты", callback_data="top:swipe_next")
+        if isinstance(event, CallbackQuery):
+            await event.answer()
+            await event.message.answer(empty_text, parse_mode="HTML", reply_markup=builder.as_markup())
+        else:
+            await event.answer(empty_text, parse_mode="HTML", reply_markup=builder.as_markup())
+        return
+
+    like = likes[0]
+    candidate = like.from_user
+    cand_profile = candidate.profile
+    if not cand_profile:
+        if isinstance(event, CallbackQuery):
+            await event.answer("Анкета больше не найдена.", show_alert=True)
+        return
+
+    tags_map = {}
+    if cand_profile.interest_ids:
+        try:
+            res = await db.execute(select(InterestTag).where(InterestTag.id.in_(cand_profile.interest_ids)))
+            for t in res.scalars().all():
+                tags_map[t.id] = t
+        except Exception:
+            pass
+
+    card_text = await _build_profile_caption(cand_profile, tags_map, user=candidate, mode=candidate.mode)
+    action_label = "⭐ <b>СУПЕРЛАЙКНУЛ(А) ТЕБЯ!</b>" if like.action == SwipeAction.superlike else "❤️ <b>ПОСТАВИЛ(А) ТЕБЕ ЛАЙК!</b>"
+    comment_block = f"\n\n💌 <i>«{html.escape(like.comment)}»</i>" if like.comment else ""
+
+    header = f"💌 <b>Входящая симпатия (всего {pending_count}):</b>\n{action_label}{comment_block}\n\n"
+    full_text = header + card_text
+
+    portfolio_url = cand_profile.career_portfolio_url if candidate.mode == ModeEnum.career else None
+    kb = incoming_like_keyboard(from_user_id=candidate.id, portfolio_url=portfolio_url)
+
+    target_chat_id = event.message.chat.id if isinstance(event, CallbackQuery) else event.chat.id
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+
+    photos = list(cand_profile.photos) if cand_profile.photos else ([cand_profile.avatar_file_id] if cand_profile.avatar_file_id else [])
+    if candidate.mode == ModeEnum.career and cand_profile.career_avatar_file_id and cand_profile.career_avatar_file_id not in photos:
+        photos = [cand_profile.career_avatar_file_id] + photos
+    photos = photos[:3]
+
+    photo_input = _get_photo_input(photos[0]) if photos else None
+    if photo_input:
+        try:
+            await event.bot.send_photo(chat_id=target_chat_id, photo=photo_input, caption=full_text, parse_mode="HTML", reply_markup=kb)
+            return
+        except Exception as e:
+            logger.warning(f"Failed to send incoming like photo: {e}")
+
+    await event.bot.send_message(chat_id=target_chat_id, text=full_text, parse_mode="HTML", reply_markup=kb)
 
 
 HOW_TO_TOP_TEXT = """<b>КАК ПОПАСТЬ В ТОП 🏆</b>

@@ -8,12 +8,12 @@
       <h1>💳 Тарифы, услуги и цены (ЮКасса)</h1>
       <p>Управление стоимостью подписок, бустов, суперлайков и создание дополнительных услуг</p>
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <span style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;">
+        <span style="color:var(--success);">●</span> Цены сохраняются моментально при вводе
+      </span>
       <button type="button" class="btn btn-primary" onclick="document.getElementById('addTariffModal').style.display='flex'">
         ➕ Создать тариф / услугу
-      </button>
-      <button type="button" class="btn btn-ghost" onclick="document.getElementById('tariffPricesForm').submit()" style="border:1px solid var(--border);">
-        💾 Сохранить все цены
       </button>
     </div>
   </div>
