@@ -1,7 +1,8 @@
 """
 Управление промокодами и реферальной программой в админ-панели.
 """
-from fastapi import APIRouter, Request, Depends, Form
+from typing import Optional
+from fastapi import APIRouter, Request, Depends, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
