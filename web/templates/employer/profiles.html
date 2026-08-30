@@ -2,22 +2,62 @@
 {% block title %}Анкеты студентов — СтудМэч HR{% endblock %}
 
 {% block content %}
-<div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+<div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
   <div>
     <h1 style="font-size:22px;font-weight:700;">📋 База кандидатов</h1>
     <p style="color:var(--muted);margin-top:4px;">Выданные модератором анкеты студентов для найма и стажировок</p>
   </div>
+
+  <div style="display:flex;gap:8px;">
+    <a href="/employer/profiles/export/csv?tab={{ current_tab }}" class="btn btn-outline btn-sm">
+      📥 Экспорт текущего списка (CSV)
+    </a>
+  </div>
+</div>
+
+<!-- Панель поиска и фильтров -->
+<div class="card" style="padding:16px 20px;margin-bottom:20px;">
+  <form method="GET" action="/employer/profiles" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0;">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+
+    <div style="flex:1;min-width:200px;">
+      <input type="text" name="q" value="{{ q }}" placeholder="🔍 Поиск по имени, стеку, навыкам, направлению..."
+             style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;">
+    </div>
+
+    <div style="width:140px;">
+      <select name="year" style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;">
+        <option value="">Все курсы</option>
+        <option value="1" {% if year == 1 %}selected{% endif %}>1 курс</option>
+        <option value="2" {% if year == 2 %}selected{% endif %}>2 курс</option>
+        <option value="3" {% if year == 3 %}selected{% endif %}>3 курс</option>
+        <option value="4" {% if year == 4 %}selected{% endif %}>4 курс</option>
+        <option value="5" {% if year == 5 %}selected{% endif %}>5 курс</option>
+        <option value="6" {% if year == 6 %}selected{% endif %}>6 курс / Маг.</option>
+      </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-sm">
+      🔍 Найти
+    </button>
+
+    {% if q or year %}
+    <a href="/employer/profiles?tab={{ current_tab }}" class="btn btn-ghost btn-sm">
+      ✕ Сбросить
+    </a>
+    {% endif %}
+  </form>
 </div>
 
 <!-- Вкладки (Tabs) -->
 <div class="tab-nav">
-  <a href="/employer/profiles?tab=all" class="tab-btn {% if current_tab == 'all' or not current_tab %}active{% endif %}">
+  <a href="/employer/profiles?tab=all{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" class="tab-btn {% if current_tab == 'all' or not current_tab %}active{% endif %}">
     📋 Все кандидаты <span class="tab-badge">{{ counts.all }}</span>
   </a>
-  <a href="/employer/profiles?tab=suitable" class="tab-btn {% if current_tab == 'suitable' %}active{% endif %}">
+  <a href="/employer/profiles?tab=suitable{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" class="tab-btn {% if current_tab == 'suitable' %}active{% endif %}">
     ⭐️ Подходящие <span class="tab-badge" style="background:rgba(234,179,8,0.25);color:#facc15;">{{ counts.suitable }}</span>
   </a>
-  <a href="/employer/profiles?tab=archived" class="tab-btn {% if current_tab == 'archived' %}active{% endif %}">
+  <a href="/employer/profiles?tab=archived{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" class="tab-btn {% if current_tab == 'archived' %}active{% endif %}">
     📁 Архив <span class="tab-badge">{{ counts.archived }}</span>
   </a>
 </div>

@@ -340,6 +340,7 @@ class Employer(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     profile_accesses: Mapped[List["EmployerProfileAccess"]] = relationship(back_populates="employer")
+    requests: Mapped[List["EmployerRequest"]] = relationship(back_populates="employer", cascade="all, delete-orphan")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -360,6 +361,27 @@ class EmployerProfileAccess(Base):
 
     employer: Mapped["Employer"] = relationship(back_populates="profile_accesses")
     profile: Mapped["Profile"] = relationship()
+
+
+# ─────────────────────────────────────────────────────────────
+# Заявки работодателей на подбор студентов
+# ─────────────────────────────────────────────────────────────
+class EmployerRequest(Base):
+    __tablename__ = "employer_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    employer_id: Mapped[int] = mapped_column(Integer, ForeignKey("employers.id", ondelete="CASCADE"))
+    title: Mapped[str] = mapped_column(String(255), nullable=False)  # "Стажер Python / Аналитик данных"
+    direction: Mapped[str] = mapped_column(String(100), default="IT / Разработка")  # Направление
+    skills_required: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # "Python, SQL, Django/FastAPI"
+    work_format: Mapped[str] = mapped_column(String(50), default="Любой")  # "Удаленно", "Офис", "Гибрид"
+    candidates_count: Mapped[int] = mapped_column(Integer, default=5)
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="pending")  # "pending", "in_progress", "completed", "rejected"
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+
+    employer: Mapped["Employer"] = relationship(back_populates="requests")
 
 
 # ─────────────────────────────────────────────────────────────

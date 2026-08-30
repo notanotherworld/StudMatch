@@ -9,7 +9,7 @@ from typing import Optional
 import uuid
 
 from web.dependencies import get_db, get_current_admin, require_superadmin, hash_password, check_csrf, generate_csrf_token
-from database.models import Employer, EmployerProfileAccess, Profile, User, University
+from database.models import Employer, EmployerProfileAccess, Profile, User, University, EmployerRequest
 from web.utils.audit import log_admin_action
 
 router = APIRouter()
@@ -28,6 +28,13 @@ async def list_employers(
         select(Employer).options(selectinload(Employer.profile_accesses)).order_by(Employer.created_at.desc())
     )
     employers = result.scalars().all()
+
+    # Заявки работодателей на подбор
+    req_res = await db.execute(
+        select(EmployerRequest).options(selectinload(EmployerRequest.employer)).order_by(EmployerRequest.created_at.desc())
+    )
+    requests_list = req_res.scalars().all()
+
     token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
 
     return templates.TemplateResponse(
@@ -36,6 +43,7 @@ async def list_employers(
             "request": request,
             "admin": admin,
             "employers": employers,
+            "requests_list": requests_list,
             "csrf_token": token_str,
             "error_msg": error,
             "success_msg": success,
@@ -353,3 +361,32 @@ async def toggle_employer(
             details=f"Изменён статус активности работодателя #{employer_id} «{employer.company_name}» -> {'Активен' if new_status else 'Отключён'}",
         )
     return RedirectResponse("/admin/employers", status_code=302)
+
+
+@router.post("/employers/requests/{request_id}/status", dependencies=[Depends(check_csrf)])
+async def update_employer_request_status(
+    request_id: str,
+    status: str = Form(...),
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        req_uuid = uuid.UUID(request_id)
+    except Exception:
+        return RedirectResponse("/admin/employers", status_code=302)
+
+    req_obj = await db.scalar(select(EmployerRequest).where(EmployerRequest.id == req_uuid))
+    if req_obj and status in ("pending", "in_progress", "completed", "rejected"):
+        req_obj.status = status
+        await db.commit()
+
+        await log_admin_action(
+            db=db,
+            admin=admin,
+            action="update_employer_request_status",
+            target_type="employer_request",
+            target_id=str(request_id),
+            details=f"Изменён статус заявки «{req_obj.title}» -> {status}",
+        )
+
+    return RedirectResponse("/admin/employers?success=Статус+заявки+обновлен", status_code=302)

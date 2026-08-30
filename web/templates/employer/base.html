@@ -81,9 +81,17 @@
     background:rgba(255,255,255,0.15); color:inherit;
   }
 
+  .nav-link {
+    color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500;
+    padding: 6px 12px; border-radius: 6px; transition: all .2s;
+  }
+  .nav-link:hover { color: var(--text); background: var(--surface2); }
+  .nav-link.active { color: #fff; background: var(--accent); }
+
   /* Mobile Responsive */
   @media(max-width:768px) {
-    .header { padding:14px 16px; flex-direction:column; gap:8px; align-items:flex-start; }
+    .header { padding:14px 16px; flex-direction:column; gap:12px; align-items:flex-start; }
+    .header-nav { width: 100%; overflow-x: auto; padding-bottom: 4px; }
     .container { padding:16px; }
     .card { padding:16px; }
     .tab-nav { gap:6px; }
@@ -98,11 +106,38 @@
 <body>
 
 <header class="header">
-  <div class="header-logo">🎓 СтудМэч HR</div>
-  <div class="header-info">
+  <div style="display:flex;align-items:center;gap:24px;">
+    <a href="/employer/dashboard" style="text-decoration:none;" class="header-logo">🎓 СтудМэч HR</a>
+    
     {% if employer %}
-    👔 <strong>{{ employer.company_name }}</strong> · {{ employer.contact_name }}
-    · <a href="/employer/logout" style="color:var(--muted);text-decoration:none;">Выйти</a>
+    <nav class="header-nav" style="display:flex;align-items:center;gap:4px;">
+      <a href="/employer/dashboard" class="nav-link {% if request.url.path == '/employer/dashboard' or request.url.path == '/employer/' %}active{% endif %}">
+        📊 Дашборд
+      </a>
+      <a href="/employer/profiles" class="nav-link {% if '/employer/profiles' in request.url.path %}active{% endif %}">
+        📋 База кандидатов
+      </a>
+      <a href="/employer/requests" class="nav-link {% if '/employer/requests' in request.url.path %}active{% endif %}">
+        📩 Заявка на подбор
+      </a>
+      <a href="/employer/settings" class="nav-link {% if '/employer/settings' in request.url.path %}active{% endif %}">
+        ⚙️ Настройки
+      </a>
+    </nav>
+    {% endif %}
+  </div>
+
+  <div class="header-info" style="display:flex;align-items:center;gap:12px;">
+    {% if employer %}
+    <div style="text-align:right;">
+      <div>👔 <strong>{{ employer.company_name }}</strong></div>
+      <div style="font-size:12px;color:var(--muted);">{{ employer.contact_name }}</div>
+    </div>
+    <form method="POST" action="/employer/logout" style="margin:0;">
+      <button type="submit" class="btn btn-ghost btn-sm" title="Выйти из кабинета">
+        🚪 Выйти
+      </button>
+    </form>
     {% endif %}
   </div>
 </header>

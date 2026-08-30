@@ -85,7 +85,7 @@ async def login(
     await _clear_failures(login)
 
     token = create_token({"employer_id": employer.id})
-    response = RedirectResponse(url="/employer/profiles", status_code=302)
+    response = RedirectResponse(url="/employer/dashboard", status_code=302)
     is_secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     response.set_cookie(
         "employer_token", token,

@@ -1,0 +1,240 @@
+{% extends "employer/base.html" %}
+{% block title %}Дашборд — СтудМэч HR{% endblock %}
+
+{% block content %}
+<!-- Приветственный блок -->
+<div class="card" style="background:linear-gradient(135deg, #1e2238 0%, #171929 100%);border-color:var(--border);padding:28px;margin-bottom:24px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+    <div>
+      <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(99,102,241,0.2);border-radius:20px;font-size:12px;font-weight:600;color:var(--accent2);margin-bottom:8px;">
+        💼 HR Платформа СтудМэч
+      </div>
+      <h1 style="font-size:24px;font-weight:700;margin-bottom:4px;">Добро пожаловать, {{ employer.contact_name }}! 👋</h1>
+      <p style="color:var(--muted);font-size:14px;">
+        Личный кабинет компании <strong>{{ employer.company_name }}</strong> для быстрого поиска и найма талантливых студентов.
+      </p>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <a href="/employer/profiles" class="btn btn-primary">
+        📋 База кандидатов ({{ counts.all }})
+      </a>
+      <a href="/employer/requests" class="btn btn-ghost">
+        📩 Подать заявку на поиск
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Метрики KPI -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px;">
+  
+  <div class="card" style="padding:20px;margin-bottom:0;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+      <div style="color:var(--muted);font-size:13px;font-weight:500;">👥 Выдано кандидатов</div>
+      <div style="font-size:20px;">🎓</div>
+    </div>
+    <div style="font-size:28px;font-weight:700;color:var(--text);margin-bottom:4px;">{{ counts.all }}</div>
+    <div style="font-size:12px;color:var(--muted);">Проверены модераторами СтудМэч</div>
+  </div>
+
+  <div class="card" style="padding:20px;margin-bottom:0;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+      <div style="color:var(--muted);font-size:13px;font-weight:500;">👁 Просмотрено</div>
+      <div style="font-size:20px;">👀</div>
+    </div>
+    <div style="font-size:28px;font-weight:700;color:var(--success);margin-bottom:4px;">{{ viewed_count }} <span style="font-size:16px;color:var(--muted);font-weight:400;">({{ viewed_pct }}%)</span></div>
+    <div style="font-size:12px;color:var(--muted);">Ознакомились с анкетой</div>
+  </div>
+
+  <div class="card" style="padding:20px;margin-bottom:0;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+      <div style="color:var(--muted);font-size:13px;font-weight:500;">⭐️ В шортлисте</div>
+      <div style="font-size:20px;">🌟</div>
+    </div>
+    <div style="font-size:28px;font-weight:700;color:#facc15;margin-bottom:4px;">{{ counts.suitable }} <span style="font-size:16px;color:var(--muted);font-weight:400;">({{ suitable_pct }}%)</span></div>
+    <div style="font-size:12px;color:var(--muted);">Отобраны в подходящие</div>
+  </div>
+
+  <div class="card" style="padding:20px;margin-bottom:0;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+      <div style="color:var(--muted);font-size:13px;font-weight:500;">⭐ Средний балл</div>
+      <div style="font-size:20px;">🏆</div>
+    </div>
+    <div style="font-size:28px;font-weight:700;color:var(--accent2);margin-bottom:4px;">{{ avg_score }} б.</div>
+    <div style="font-size:12px;color:var(--muted);">Рейтинг портфолио и GPA</div>
+  </div>
+
+</div>
+
+<!-- Воронка найма (Funnel) -->
+<div class="card" style="margin-bottom:24px;padding:24px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+    <div>
+      <h2 style="font-size:16px;font-weight:700;">📊 Воронка отбора студентов</h2>
+      <p style="color:var(--muted);font-size:13px;margin-top:2px;">Этапы работы рекрутера с выданными анкетами</p>
+    </div>
+    <a href="/employer/profiles/export/csv?tab=suitable" class="btn btn-outline btn-sm">
+      📥 Экспорт шортлиста (CSV)
+    </a>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;text-align:center;">
+    
+    <div style="background:var(--surface2);padding:16px;border-radius:10px;border-top:3px solid var(--accent);">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">1. ВЫДАНО В БАЗУ</div>
+      <div style="font-size:22px;font-weight:700;">{{ counts.all }}</div>
+      <div style="font-size:11px;color:var(--accent2);margin-top:4px;">100% кандидатов</div>
+    </div>
+
+    <div style="background:var(--surface2);padding:16px;border-radius:10px;border-top:3px solid var(--success);">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">2. ПРОСМОТРЕНО HR</div>
+      <div style="font-size:22px;font-weight:700;color:var(--success);">{{ viewed_count }}</div>
+      <div style="font-size:11px;color:var(--success);margin-top:4px;">{{ viewed_pct }}% от базы</div>
+    </div>
+
+    <div style="background:var(--surface2);padding:16px;border-radius:10px;border-top:3px solid #facc15;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">3. В ШОРТЛИСТЕ (ПОДХОДЯЩИЕ)</div>
+      <div style="font-size:22px;font-weight:700;color:#facc15;">{{ counts.suitable }}</div>
+      <div style="font-size:11px;color:#facc15;margin-top:4px;">{{ suitable_pct }}% конверсия</div>
+    </div>
+
+    <div style="background:var(--surface2);padding:16px;border-radius:10px;border-top:3px solid var(--muted);">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">4. В АРХИВЕ</div>
+      <div style="font-size:22px;font-weight:700;color:var(--muted);">{{ counts.archived }}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Отсеяны / На паузе</div>
+    </div>
+
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
+
+  <!-- Левая колонка: Последние кандидаты -->
+  <div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2 style="font-size:18px;font-weight:700;">🆕 Последние выданные анкеты</h2>
+      <a href="/employer/profiles" style="font-size:13px;color:var(--accent2);text-decoration:none;font-weight:500;">Смотреть всех ({{ counts.all }}) →</a>
+    </div>
+
+    {% if recent_accesses %}
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      {% for access in recent_accesses %}
+      {% set profile = access.profile %}
+      {% set user = profile.user if profile else None %}
+      <div class="card" style="margin-bottom:0;padding:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;transition:border-color .2s;"
+           onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        
+        <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1;">
+          <div style="width:44px;height:44px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">
+            {% if access.status == 'suitable' %}⭐️
+            {% elif access.status == 'archived' %}📁
+            {% else %}🎓{% endif %}
+          </div>
+          <div style="min-width:0;">
+            <a href="/employer/profiles/{{ access.id }}" style="font-weight:600;font-size:15px;color:inherit;text-decoration:none;">
+              {{ profile.name if profile else '—' }}
+            </a>
+            <div style="font-size:12px;color:var(--muted);">
+              {% if user and user.university %}{{ user.university.short_name }} · {% endif %}
+              {{ profile.year }} курс · {{ profile.major[:35] }}{% if profile.major|length > 35 %}...{% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="font-size:13px;font-weight:600;color:var(--accent2);">
+            ⭐ {{ profile.rating_score|int }} б.
+          </div>
+
+          {% if access.status == 'suitable' %}
+            <span class="badge badge-suitable">⭐️ В шортлисте</span>
+          {% elif access.status == 'archived' %}
+            <span class="badge badge-archived">📁 Архив</span>
+          {% elif access.viewed_at %}
+            <span class="badge badge-viewed">👁 Просмотрен</span>
+          {% else %}
+            <span class="badge badge-new">🆕 Новый</span>
+          {% endif %}
+
+          <a href="/employer/profiles/{{ access.id }}" class="btn btn-ghost btn-sm">
+            Анкета →
+          </a>
+        </div>
+
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center;padding:36px;">
+      <div style="font-size:36px;margin-bottom:8px;">📭</div>
+      <div style="font-weight:600;margin-bottom:4px;">Пока нет выданных анкет</div>
+      <div style="color:var(--muted);font-size:13px;">Отправьте заявку на поиск студентов, и кураторы СтудМэч подберут резюме</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Правая колонка: Заявки на подбор & Инфо о компании -->
+  <div>
+    
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h2 style="font-size:15px;font-weight:700;">📩 Заявки на подбор</h2>
+        <a href="/employer/requests" style="font-size:12px;color:var(--accent2);text-decoration:none;">Все заявки →</a>
+      </div>
+
+      {% if recent_requests %}
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        {% for req in recent_requests %}
+        <div style="padding:10px 12px;background:var(--surface2);border-radius:8px;">
+          <div style="font-weight:600;font-size:13px;margin-bottom:2px;">{{ req.title }}</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">{{ req.direction }} · {{ req.candidates_count }} чел.</div>
+          <div>
+            {% if req.status == 'pending' %}
+              <span class="badge" style="background:rgba(234,179,8,0.15);color:#facc15;font-size:10px;">🟡 На модерации</span>
+            {% elif req.status == 'in_progress' %}
+              <span class="badge" style="background:rgba(99,102,241,0.2);color:var(--accent2);font-size:10px;">🔵 Подбор резюме</span>
+            {% elif req.status == 'completed' %}
+              <span class="badge badge-viewed" style="font-size:10px;">🟢 Выполнено</span>
+            {% else %}
+              <span class="badge badge-archived" style="font-size:10px;">{{ req.status }}</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="color:var(--muted);font-size:13px;text-align:center;padding:16px 0;">
+        Активных заявок пока нет.
+      </div>
+      {% endif %}
+
+      <div style="margin-top:14px;">
+        <a href="/employer/requests" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">
+          + Создать заявку на подбор
+        </a>
+      </div>
+    </div>
+
+    <!-- Инфо о профиле компании -->
+    <div class="card" style="margin-bottom:0;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px;">🏢 Профиль работодателя</div>
+      <div style="font-size:13px;line-height:1.6;">
+        <div style="color:var(--muted);">Компания: <strong style="color:var(--text);">{{ employer.company_name }}</strong></div>
+        <div style="color:var(--muted);">Контактное лицо: <strong style="color:var(--text);">{{ employer.contact_name }}</strong></div>
+        {% if employer.tg_contact %}
+        <div style="color:var(--muted);">Telegram: <strong style="color:var(--accent2);">{{ employer.tg_contact }}</strong></div>
+        {% endif %}
+        <div style="color:var(--muted);margin-top:6px;">Куратор СтудМэч: <strong style="color:var(--success);">На связи ✅</strong></div>
+      </div>
+      <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;">
+        <a href="/employer/settings" style="font-size:12px;color:var(--accent2);text-decoration:none;">
+          ⚙️ Редактировать профиль и сменить пароль →
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}

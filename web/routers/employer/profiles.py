@@ -18,27 +18,107 @@ router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
 
 
+import csv
+import io
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+
 @router.get("/profiles", response_class=HTMLResponse)
 async def profiles_list(
     request: Request,
     tab: str = Query(default="all"),
+    q: Optional[str] = Query(default=None),
+    year: Optional[int] = Query(default=None),
     employer=Depends(get_current_employer),
     db: AsyncSession = Depends(get_db),
 ):
-    """Список выданных HR анкет с фильтрацией по вкладкам (Все / Подходящие / Архив)."""
+    """Список выданных HR анкет с фильтрацией по вкладкам, поиском по ключевым словам и курсу."""
     filter_status = tab if tab in ("suitable", "archived") else None
     accesses = await get_employer_profiles(db, employer.id, status=filter_status)
     counts = await get_employer_profile_counts(db, employer.id)
+
+    # Фильтрация по поисковому запросу и курсу
+    filtered_accesses = []
+    for acc in accesses:
+        prof = acc.profile
+        if not prof:
+            continue
+        if year and prof.year != year:
+            continue
+        if q:
+            query_lower = q.lower()
+            name_match = prof.name and query_lower in prof.name.lower()
+            major_match = prof.major and query_lower in prof.major.lower()
+            skills_match = prof.career_custom_skills and query_lower in prof.career_custom_skills.lower()
+            goal_match = prof.career_goal and query_lower in prof.career_goal.lower()
+            if not (name_match or major_match or skills_match or goal_match):
+                continue
+        filtered_accesses.append(acc)
 
     return templates.TemplateResponse(
         "employer/profiles.html",
         {
             "request": request,
             "employer": employer,
-            "accesses": accesses,
+            "accesses": filtered_accesses,
             "current_tab": tab,
             "counts": counts,
+            "q": q or "",
+            "year": year or "",
         },
+    )
+
+
+@router.get("/profiles/export/csv")
+async def export_profiles_csv(
+    tab: str = Query(default="all"),
+    employer=Depends(get_current_employer),
+    db: AsyncSession = Depends(get_db),
+):
+    """Экспорт списка кандидатов (Все / Подходящие) в CSV для HR."""
+    filter_status = tab if tab in ("suitable", "archived") else None
+    accesses = await get_employer_profiles(db, employer.id, status=filter_status)
+
+    output = io.StringIO()
+    # Write UTF-8 BOM so Excel opens Cyrillic properly
+    output.write('\ufeff')
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow([
+        "Имя", "ВУЗ", "Курс", "Специальность", "Рейтинг (баллы)", 
+        "Навыки и стек", "Формат работы", "Портфолио", "Telegram", "Статус в HR", "Заметка HR", "Дата выдачи"
+    ])
+
+    for acc in accesses:
+        prof = acc.profile
+        user = prof.user if prof else None
+        if not prof:
+            continue
+
+        status_label = "Подходящий" if acc.status == "suitable" else ("В архиве" if acc.status == "archived" else "Активный")
+        tg = f"@{user.tg_username}" if user and user.tg_username else "Скрыт"
+        univ = user.university.short_name if user and user.university else "РУДН"
+        granted_str = acc.granted_at.strftime("%d.%m.%Y") if acc.granted_at else ""
+
+        writer.writerow([
+            prof.name or "—",
+            univ,
+            f"{prof.year} курс" if prof.year else "—",
+            prof.major or "—",
+            int(prof.rating_score or 0),
+            prof.career_custom_skills or "—",
+            prof.career_work_format or "Любой",
+            prof.career_portfolio_url or "—",
+            tg,
+            status_label,
+            acc.hr_comment or acc.note or "",
+            granted_str,
+        ])
+
+    csv_data = output.getvalue().encode("utf-8-sig")
+    filename = f"candidates_{employer.company_name}_{tab}.csv"
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

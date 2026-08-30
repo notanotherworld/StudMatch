@@ -87,6 +87,22 @@ MIGRATION_STATEMENTS = [
     # 022_employer_candidate_status_and_notes
     "ALTER TABLE employer_profile_access ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';",
     "ALTER TABLE employer_profile_access ADD COLUMN IF NOT EXISTS hr_comment TEXT;",
+    # 023_employer_requests
+    """
+    CREATE TABLE IF NOT EXISTS employer_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        employer_id INT NOT NULL REFERENCES employers(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        direction VARCHAR(100) DEFAULT 'IT / Разработка',
+        skills_required TEXT,
+        work_format VARCHAR(50) DEFAULT 'Любой',
+        candidates_count INT DEFAULT 5,
+        comment TEXT,
+        status VARCHAR(30) DEFAULT 'pending',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE
+    );
+    """,
     # Установка версии alembic
     """
     DO $$
