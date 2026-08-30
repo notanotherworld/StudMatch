@@ -118,12 +118,18 @@ async def export_profiles_csv(
             granted_str,
         ])
 
-    csv_data = output.getvalue().encode("utf-8-sig")
-    filename = f"candidates_{employer.company_name}_{tab}.csv"
+    import urllib.parse
+    raw_filename = f"candidates_{employer.company_name}_{tab}.csv"
+    encoded_filename = urllib.parse.quote(raw_filename)
+    ascii_filename = f"candidates_{tab}.csv"
+
+    csv_data = output.getvalue().encode("utf-8")
     return Response(
         content=csv_data,
-        media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{ascii_filename}"; filename*=UTF-8\'\'{encoded_filename}'
+        },
     )
 
 
