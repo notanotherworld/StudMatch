@@ -725,9 +725,9 @@ async def get_incoming_likes_count(db: AsyncSession, user_id: int) -> int:
 # Employer Access
 # ─────────────────────────────────────────────────────────────
 async def get_employer_profiles(
-    db: AsyncSession, employer_id: int
+    db: AsyncSession, employer_id: int, status: Optional[str] = None
 ) -> List[EmployerProfileAccess]:
-    result = await db.execute(
+    query = (
         select(EmployerProfileAccess)
         .options(
             selectinload(EmployerProfileAccess.profile)
@@ -735,9 +735,34 @@ async def get_employer_profiles(
             .selectinload(User.university)
         )
         .where(EmployerProfileAccess.employer_id == employer_id)
-        .order_by(EmployerProfileAccess.granted_at.desc())
     )
+
+    if status == "suitable":
+        query = query.where(EmployerProfileAccess.status == "suitable")
+    elif status == "archived":
+        query = query.where(EmployerProfileAccess.status == "archived")
+    elif status == "active":
+        query = query.where(or_(EmployerProfileAccess.status == "active", EmployerProfileAccess.status.is_(None)))
+    # "all" or None returns all candidates
+
+    query = query.order_by(EmployerProfileAccess.granted_at.desc())
+    result = await db.execute(query)
     return list(result.scalars().all())
+
+
+async def get_employer_profile_counts(db: AsyncSession, employer_id: int) -> dict:
+    """Возвращает количество кандидатов по категориям."""
+    all_res = await db.execute(
+        select(EmployerProfileAccess.status, func.count(EmployerProfileAccess.id))
+        .where(EmployerProfileAccess.employer_id == employer_id)
+        .group_by(EmployerProfileAccess.status)
+    )
+    counts = {"all": 0, "suitable": 0, "archived": 0, "active": 0}
+    for st, cnt in all_res.all():
+        st_key = st if st in counts else "active"
+        counts[st_key] += cnt
+        counts["all"] += cnt
+    return counts
 
 
 async def mark_profile_viewed(db: AsyncSession, access_id) -> None:
@@ -747,3 +772,23 @@ async def mark_profile_viewed(db: AsyncSession, access_id) -> None:
         .values(viewed_at=datetime.now(timezone.utc))
     )
     await db.commit()
+
+
+async def update_employer_candidate_status(
+    db: AsyncSession, access_id, employer_id: int, new_status: Optional[str] = None, hr_comment: Optional[str] = None
+) -> Optional[EmployerProfileAccess]:
+    result = await db.execute(
+        select(EmployerProfileAccess).where(
+            EmployerProfileAccess.id == access_id,
+            EmployerProfileAccess.employer_id == employer_id,
+        )
+    )
+    access = result.scalar_one_or_none()
+    if access:
+        if new_status:
+            access.status = new_status
+        if hr_comment is not None:
+            access.hr_comment = hr_comment
+        await db.commit()
+        await db.refresh(access)
+    return access

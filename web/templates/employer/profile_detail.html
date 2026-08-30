@@ -2,19 +2,63 @@
 {% block title %}{{ profile.name if profile else 'Профиль' }} — СтудМэч HR{% endblock %}
 
 {% block content %}
-<div style="margin-bottom:24px;">
+<div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
   <a href="/employer/profiles" class="btn btn-ghost btn-sm">← Назад к списку</a>
+  
+  <!-- Верхняя плашка действий со статусом -->
+  <div style="display:flex;align-items:center;gap:8px;">
+    {% if access.status == 'suitable' %}
+      <span class="badge badge-suitable" style="font-size:13px;padding:6px 14px;">⭐️ В списке подходящих</span>
+    {% elif access.status == 'archived' %}
+      <span class="badge badge-archived" style="font-size:13px;padding:6px 14px;">📁 В архиве</span>
+    {% endif %}
+
+    {% if access.status != 'suitable' %}
+    <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
+      <input type="hidden" name="status" value="suitable">
+      <button type="submit" class="btn btn-warning btn-sm">⭐️ В подходящие</button>
+    </form>
+    {% endif %}
+
+    {% if access.status != 'archived' %}
+    <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
+      <input type="hidden" name="status" value="archived">
+      <button type="submit" class="btn btn-outline btn-sm">📁 В архив</button>
+    </form>
+    {% else %}
+    <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
+      <input type="hidden" name="status" value="active">
+      <button type="submit" class="btn btn-ghost btn-sm">↩️ Восстановить из архива</button>
+    </form>
+    {% endif %}
+
+    {% if access.status == 'suitable' %}
+    <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
+      <input type="hidden" name="status" value="active">
+      <button type="submit" class="btn btn-ghost btn-sm">↩️ Убрать из подходящих</button>
+    </form>
+    {% endif %}
+  </div>
 </div>
 
-{% if profile and user %}
-<div style="display:grid;grid-template-columns:280px 1fr;gap:24px;align-items:start;">
+{% if saved %}
+<div class="card" style="background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);color:#86efac;padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
+  <span>✅</span>
+  <div>Заметка успешно сохранена!</div>
+</div>
+{% endif %}
 
-  <!-- Левая колонка: фото + основное -->
+{% if profile and user %}
+<div style="display:grid;grid-template-columns:290px 1fr;gap:24px;align-items:start;">
+
+  <!-- Левая колонка: фото + основное + заметки HR -->
   <div>
     <div class="card" style="text-align:center;padding:32px 24px;">
       <div style="width:100px;height:100px;border-radius:50%;background:var(--surface2);
                   margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:48px;">
-        🎓
+        {% if access.status == 'suitable' %}⭐️
+        {% elif access.status == 'archived' %}📁
+        {% else %}🎓{% endif %}
       </div>
       <div style="font-size:20px;font-weight:700;margin-bottom:4px;">{{ profile.name }}</div>
       <div style="color:var(--muted);font-size:14px;">
@@ -31,12 +75,28 @@
          class="btn btn-primary" style="width:100%;justify-content:center;">
         💬 Написать в Telegram
       </a>
+      {% else %}
+      <div style="color:var(--muted);font-size:13px;padding:8px 0;">Юзернейм скрыт студентом</div>
       {% endif %}
     </div>
 
+    <!-- Личная заметка HR -->
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+        <span>📝</span> Личная заметка HR
+      </div>
+      <form method="POST" action="/employer/profiles/{{ access.id }}/comment">
+        <textarea name="hr_comment" rows="4" placeholder="Например: Позвали на тех. собес 15.09, хороший стек React..."
+                  style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;">{{ access.hr_comment or '' }}</textarea>
+        <button type="submit" class="btn btn-primary btn-sm" style="margin-top:10px;width:100%;justify-content:center;">
+          💾 Сохранить заметку
+        </button>
+      </form>
+    </div>
+
     {% if access.note %}
-    <div class="card" style="margin-top:0;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">📌 Пометка от модератора</div>
+    <div class="card">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">📌 Пометка от модератора СтудМэч</div>
       <div style="font-size:14px;">{{ access.note }}</div>
     </div>
     {% endif %}

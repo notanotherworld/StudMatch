@@ -2,68 +2,154 @@
 {% block title %}Анкеты студентов — СтудМэч HR{% endblock %}
 
 {% block content %}
-<div style="margin-bottom:32px;">
-  <h1 style="font-size:22px;font-weight:700;">📋 Выданные анкеты</h1>
-  <p style="color:var(--muted);margin-top:4px;">{{ accesses|length }} студент(ов) в вашем списке</p>
+<div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;">📋 База кандидатов</h1>
+    <p style="color:var(--muted);margin-top:4px;">Выданные модератором анкеты студентов для найма и стажировок</p>
+  </div>
+</div>
+
+<!-- Вкладки (Tabs) -->
+<div class="tab-nav">
+  <a href="/employer/profiles?tab=all" class="tab-btn {% if current_tab == 'all' or not current_tab %}active{% endif %}">
+    📋 Все кандидаты <span class="tab-badge">{{ counts.all }}</span>
+  </a>
+  <a href="/employer/profiles?tab=suitable" class="tab-btn {% if current_tab == 'suitable' %}active{% endif %}">
+    ⭐️ Подходящие <span class="tab-badge" style="background:rgba(234,179,8,0.25);color:#facc15;">{{ counts.suitable }}</span>
+  </a>
+  <a href="/employer/profiles?tab=archived" class="tab-btn {% if current_tab == 'archived' %}active{% endif %}">
+    📁 Архив <span class="tab-badge">{{ counts.archived }}</span>
+  </a>
 </div>
 
 {% if accesses %}
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;">
   {% for access in accesses %}
   {% set profile = access.profile %}
   {% set user = profile.user if profile else None %}
-  <a href="/employer/profiles/{{ access.id }}" style="text-decoration:none;color:inherit;">
-    <div class="card" style="cursor:pointer;transition:border-color .2s;" 
-         onmouseover="this.style.borderColor='var(--accent)'"
-         onmouseout="this.style.borderColor='var(--border)'">
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
-        <div style="width:56px;height:56px;border-radius:50%;background:var(--surface2);
+  <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;transition:border-color .2s;position:relative;">
+    
+    <!-- Верхняя кликабельная часть карточки -->
+    <a href="/employer/profiles/{{ access.id }}" style="text-decoration:none;color:inherit;">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--surface2);
                     display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">
-          {% if user and user.profile and user.profile.avatar_file_id %}
+          {% if access.status == 'suitable' %}
+          ⭐️
+          {% elif access.status == 'archived' %}
+          📁
+          {% elif user and user.profile and user.profile.avatar_file_id %}
           👤
           {% else %}
           🎓
           {% endif %}
         </div>
-        <div>
-          <div style="font-weight:600;font-size:16px;">{{ profile.name if profile else '—' }}</div>
+        <div style="min-width:0;flex:1;">
+          <div style="font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {{ profile.name if profile else '—' }}
+          </div>
           <div style="color:var(--muted);font-size:13px;">
             {% if user and user.university %}{{ user.university.short_name }}{% endif %}
             {% if profile %} · {{ profile.year }} курс{% endif %}
           </div>
         </div>
-        <div style="margin-left:auto;">
+        
+        <!-- Бейджи статуса -->
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+          {% if access.status == 'suitable' %}
+            <span class="badge badge-suitable">⭐️ В шортлисте</span>
+          {% elif access.status == 'archived' %}
+            <span class="badge badge-archived">📁 Архив</span>
+          {% endif %}
+
           {% if access.viewed_at %}
-          <span class="badge badge-viewed">👁 Просмотрено</span>
+            <span class="badge badge-viewed">👁 Просмотрен</span>
           {% else %}
-          <span class="badge badge-new">🆕 Новое</span>
+            <span class="badge badge-new">🆕 Новый</span>
           {% endif %}
         </div>
       </div>
 
       {% if profile %}
-      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">📚 {{ profile.major }}</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;line-height:1.4;">
+        📚 {{ profile.major }}
+      </div>
+
+      {% if profile.career_custom_skills %}
+      <div style="font-size:12px;color:var(--accent2);margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        🛠 {{ profile.career_custom_skills }}
+      </div>
+      {% endif %}
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding:8px 12px;background:var(--surface2);border-radius:8px;">
         <div style="font-size:13px;">
-          ⭐ <strong style="color:var(--accent2);">{{ profile.rating_score|int }}</strong> баллов
+          ⭐ Рейтинг: <strong style="color:var(--accent2);">{{ profile.rating_score|int }} б.</strong>
         </div>
         {% if access.note %}
-        <div style="font-size:12px;color:var(--muted);max-width:140px;text-align:right;">
-          📌 {{ access.note[:30] }}{% if access.note|length > 30 %}...{% endif %}
+        <div style="font-size:12px;color:var(--muted);max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          📌 {{ access.note }}
         </div>
         {% endif %}
       </div>
       {% endif %}
+    </a>
+
+    <!-- Быстрые действия HR в 1 клик -->
+    <div style="display:flex;gap:6px;border-top:1px solid var(--border);padding-top:12px;margin-top:auto;align-items:center;">
+      <a href="/employer/profiles/{{ access.id }}" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;">
+        👀 Анкета
+      </a>
+
+      {% if access.status != 'suitable' %}
+      <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
+        <input type="hidden" name="status" value="suitable">
+        <input type="hidden" name="next_url" value="/employer/profiles?tab={{ current_tab }}">
+        <button type="submit" class="btn btn-warning btn-sm" title="Добавить в подходящие">
+          ⭐️ В подходящие
+        </button>
+      </form>
+      {% endif %}
+
+      {% if access.status != 'archived' %}
+      <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
+        <input type="hidden" name="status" value="archived">
+        <input type="hidden" name="next_url" value="/employer/profiles?tab={{ current_tab }}">
+        <button type="submit" class="btn btn-outline btn-sm" title="Переместить в архив">
+          📁 В архив
+        </button>
+      </form>
+      {% else %}
+      <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
+        <input type="hidden" name="status" value="active">
+        <input type="hidden" name="next_url" value="/employer/profiles?tab={{ current_tab }}">
+        <button type="submit" class="btn btn-ghost btn-sm" title="Вернуть из архива">
+          ↩️ Восстановить
+        </button>
+      </form>
+      {% endif %}
     </div>
-  </a>
+
+  </div>
   {% endfor %}
 </div>
 
 {% else %}
 <div class="card" style="text-align:center;padding:64px;">
-  <div style="font-size:56px;margin-bottom:16px;">📭</div>
-  <div style="font-size:18px;font-weight:600;margin-bottom:8px;">Анкет пока нет</div>
-  <div style="color:var(--muted);">Модератор СтудМэч выдаст вам доступ к анкетам студентов</div>
+  <div style="font-size:56px;margin-bottom:16px;">
+    {% if current_tab == 'suitable' %}⭐️
+    {% elif current_tab == 'archived' %}📁
+    {% else %}📭{% endif %}
+  </div>
+  <div style="font-size:18px;font-weight:600;margin-bottom:8px;">
+    {% if current_tab == 'suitable' %}В списке подходящих пока пусто
+    {% elif current_tab == 'archived' %}В архиве пока нет кандидатов
+    {% else %}Анкет пока нет{% endif %}
+  </div>
+  <div style="color:var(--muted);font-size:14px;">
+    {% if current_tab == 'suitable' %}Нажмите кнопку «⭐️ В подходящие» на карточке любого кандидата
+    {% elif current_tab == 'archived' %}Неподходящих кандидатов можно перемещать сюда, нажав «📁 В архив»
+    {% else %}Модератор СтудМэч выдаст вам доступ к проверенным анкетам студентов{% endif %}
+  </div>
 </div>
 {% endif %}
 {% endblock %}
