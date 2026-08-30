@@ -23,7 +23,7 @@ templates = Jinja2Templates(directory="web/templates")
 @router.get("/requests", response_class=HTMLResponse)
 async def requests_page(
     request: Request,
-    success: Optional[int] = Query(default=0),
+    success: Optional[str] = Query(default=None),
     employer=Depends(get_current_employer),
     db: AsyncSession = Depends(get_db),
 ):

@@ -27,11 +27,16 @@ async def profiles_list(
     request: Request,
     tab: str = Query(default="all"),
     q: Optional[str] = Query(default=None),
-    year: Optional[int] = Query(default=None),
+    year: Optional[str] = Query(default=None),
     employer=Depends(get_current_employer),
     db: AsyncSession = Depends(get_db),
 ):
     """Список выданных HR анкет с фильтрацией по вкладкам, поиском по ключевым словам и курсу."""
+    # Безопасный парсинг года (курса)
+    year_int: Optional[int] = None
+    if year is not None and str(year).strip().isdigit():
+        year_int = int(str(year).strip())
+
     filter_status = tab if tab in ("suitable", "archived") else None
     accesses = await get_employer_profiles(db, employer.id, status=filter_status)
     counts = await get_employer_profile_counts(db, employer.id)
@@ -42,10 +47,10 @@ async def profiles_list(
         prof = acc.profile
         if not prof:
             continue
-        if year and prof.year != year:
+        if year_int is not None and prof.year != year_int:
             continue
-        if q:
-            query_lower = q.lower()
+        if q and q.strip():
+            query_lower = q.strip().lower()
             name_match = prof.name and query_lower in prof.name.lower()
             major_match = prof.major and query_lower in prof.major.lower()
             skills_match = prof.career_custom_skills and query_lower in prof.career_custom_skills.lower()
@@ -63,7 +68,7 @@ async def profiles_list(
             "current_tab": tab,
             "counts": counts,
             "q": q or "",
-            "year": year or "",
+            "year": year_int if year_int is not None else "",
         },
     )
 
@@ -126,7 +131,7 @@ async def export_profiles_csv(
 async def profile_detail(
     access_id: str,
     request: Request,
-    saved: Optional[int] = Query(default=0),
+    saved: Optional[str] = Query(default=None),
     employer=Depends(get_current_employer),
     db: AsyncSession = Depends(get_db),
 ):
