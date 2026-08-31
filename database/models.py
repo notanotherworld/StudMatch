@@ -357,6 +357,8 @@ class EmployerProfileAccess(Base):
     status: Mapped[str] = mapped_column(String(20), default="new", server_default="new")  # "new", "screening", "interview", "offer", "hired", "archived", "rejected", "suitable", "active"
     hr_comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Личная заметка HR
     hr_rating: Mapped[Optional[int]] = mapped_column(Integer, default=0, server_default="0", nullable=True)  # Оценка 1-5 звезд
+    hr_recommendation: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)  # "strong_yes", "yes", "neutral", "no"
+    hr_tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Плюсы/минусы через запятую
     granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     viewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 

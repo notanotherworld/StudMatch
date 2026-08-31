@@ -233,6 +233,90 @@ async def profile_detail(
     )
 
 
+@router.get("/profiles/{access_id}/json")
+async def profile_detail_json(
+    access_id: str,
+    employer=Depends(get_current_employer),
+    db: AsyncSession = Depends(get_db),
+):
+    """JSON данные кандидата для Quick View Drawer."""
+    try:
+        access_uuid = uuid.UUID(access_id)
+    except ValueError:
+        return {"error": "Invalid ID"}
+
+    result = await db.execute(
+        select(EmployerProfileAccess)
+        .options(
+            selectinload(EmployerProfileAccess.profile)
+            .selectinload(Profile.user)
+            .selectinload(User.university),
+        )
+        .where(
+            EmployerProfileAccess.id == access_uuid,
+            EmployerProfileAccess.employer_id == employer.id,
+        )
+    )
+    access = result.scalar_one_or_none()
+    if not access or not access.profile:
+        return {"error": "Not found"}
+
+    prof = access.profile
+    user = prof.user
+
+    # Отмечаем просмотр
+    if not access.viewed_at:
+        access.viewed_at = datetime.now(timezone.utc)
+        await db.commit()
+
+    # Достижения
+    achievements = []
+    if user:
+        res2 = await db.execute(
+            select(Achievement).where(
+                Achievement.user_id == user.id,
+                Achievement.verified == VerifiedStatus.approved,
+            )
+        )
+        for a in res2.scalars().all():
+            achievements.append({
+                "title": a.title,
+                "type": a.type.value,
+                "score": int(a.score or 0),
+            })
+
+    # Расчёт Match Score % на основе рейтинга (от 70% до 99%)
+    base_match = min(99, max(72, int(70 + (prof.rating_score or 0) / 15)))
+
+    return {
+        "success": True,
+        "id": str(access.id),
+        "name": prof.name or "Студент",
+        "university": user.university.short_name if user and user.university else "РУДН",
+        "university_full": user.university.name if user and user.university else "Российский университет дружбы народов",
+        "year": prof.year or 1,
+        "major": prof.major or "Специальность не указана",
+        "rating_score": int(prof.rating_score or 0),
+        "match_score": base_match,
+        "status": access.status or "new",
+        "hr_rating": access.hr_rating or 0,
+        "hr_recommendation": access.hr_recommendation or "neutral",
+        "hr_tags": access.hr_tags or "",
+        "hr_comment": access.hr_comment or "",
+        "skills": [s.strip() for s in (prof.career_custom_skills or "").split(",") if s.strip()],
+        "goal": prof.career_goal or prof.goal or "Цели не указаны",
+        "work_format": prof.career_work_format or "Любой формат",
+        "portfolio_url": prof.career_portfolio_url or "",
+        "tg_username": user.tg_username if user and user.tg_username else None,
+        "email": user.email if user else None,
+        "email_verified": user.email_verified if user else False,
+        "is_premium": user.is_premium if user else False,
+        "granted_at": access.granted_at.strftime("%d.%m.%Y") if access.granted_at else "",
+        "note": access.note or "",
+        "achievements": achievements,
+    }
+
+
 @router.post("/profiles/{access_id}/status")
 async def set_candidate_status(
     access_id: str,
@@ -240,24 +324,30 @@ async def set_candidate_status(
     employer=Depends(get_current_employer),
     db: AsyncSession = Depends(get_db),
 ):
-    """Смена статуса кандидата (поддержка Form и JSON)."""
+    """Смена статуса и скоринга кандидата (поддержка Form и JSON)."""
     try:
         access_uuid = uuid.UUID(access_id)
     except ValueError:
         return RedirectResponse("/employer/profiles")
 
-    status = None
-    next_url = None
-
-    # Проверяем content-type (JSON или Form)
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
         try:
             body = await request.json()
             status = body.get("status")
             hr_rating = body.get("hr_rating")
-            if status:
-                await update_employer_candidate_status(db, access_uuid, employer.id, new_status=status, hr_rating=hr_rating)
+            hr_recommendation = body.get("hr_recommendation")
+            hr_tags = body.get("hr_tags")
+            hr_comment = body.get("hr_comment")
+            
+            await update_employer_candidate_status(
+                db, access_uuid, employer.id,
+                new_status=status,
+                hr_rating=hr_rating,
+                hr_recommendation=hr_recommendation,
+                hr_tags=hr_tags,
+                hr_comment=hr_comment,
+            )
             return {"success": True, "status": status}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -265,14 +355,13 @@ async def set_candidate_status(
         form = await request.form()
         status = form.get("status")
         next_url = form.get("next_url")
+        valid_statuses = ("new", "screening", "interview", "offer", "hired", "archived", "rejected", "suitable", "active")
+        if status in valid_statuses:
+            await update_employer_candidate_status(db, access_uuid, employer.id, new_status=status)
 
-    valid_statuses = ("new", "screening", "interview", "offer", "hired", "archived", "rejected", "suitable", "active")
-    if status in valid_statuses:
-        await update_employer_candidate_status(db, access_uuid, employer.id, new_status=status)
-
-    if next_url and next_url.startswith("/employer"):
-        return RedirectResponse(next_url, status_code=302)
-    return RedirectResponse(f"/employer/profiles/{access_id}", status_code=302)
+        if next_url and next_url.startswith("/employer"):
+            return RedirectResponse(next_url, status_code=302)
+        return RedirectResponse(f"/employer/profiles/{access_id}", status_code=302)
 
 
 @router.post("/profiles/{access_id}/comment")
@@ -281,6 +370,8 @@ async def update_candidate_comment(
     request: Request,
     hr_comment: str = Form(default=""),
     hr_rating: Optional[int] = Form(default=None),
+    hr_recommendation: Optional[str] = Form(default=None),
+    hr_tags: Optional[str] = Form(default=None),
     employer=Depends(get_current_employer),
     db: AsyncSession = Depends(get_db),
 ):
@@ -291,7 +382,12 @@ async def update_candidate_comment(
         return RedirectResponse("/employer/profiles")
 
     await update_employer_candidate_status(
-        db, access_uuid, employer.id, hr_comment=hr_comment.strip(), hr_rating=hr_rating
+        db, access_uuid, employer.id,
+        hr_comment=hr_comment.strip(),
+        hr_rating=hr_rating,
+        hr_recommendation=hr_recommendation,
+        hr_tags=hr_tags,
     )
     return RedirectResponse(f"/employer/profiles/{access_id}?saved=1", status_code=302)
+
 

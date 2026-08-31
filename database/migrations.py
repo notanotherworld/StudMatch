@@ -88,6 +88,8 @@ MIGRATION_STATEMENTS = [
     "ALTER TABLE employer_profile_access ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'new';",
     "ALTER TABLE employer_profile_access ADD COLUMN IF NOT EXISTS hr_comment TEXT;",
     "ALTER TABLE employer_profile_access ADD COLUMN IF NOT EXISTS hr_rating INT DEFAULT 0;",
+    "ALTER TABLE employer_profile_access ADD COLUMN IF NOT EXISTS hr_recommendation VARCHAR(30);",
+    "ALTER TABLE employer_profile_access ADD COLUMN IF NOT EXISTS hr_tags TEXT;",
     # 023_employer_requests
     """
     CREATE TABLE IF NOT EXISTS employer_requests (

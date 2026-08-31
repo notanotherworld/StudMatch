@@ -1,14 +1,16 @@
 {% set profile = acc.profile %}
 {% set user = profile.user if profile else None %}
+{% set match_val = [99, [72, (70 + (profile.rating_score or 0) / 15)|int]|max]|min %}
 <div class="kanban-card" id="kanban-card-{{ acc.id }}" draggable="true"
      ondragstart="handleDragStart(event, '{{ acc.id }}')" ondragend="handleDragEnd(event)">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+  
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
     <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-      <div style="width:34px;height:34px;border-radius:10px;background:var(--accent-gradient);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">
+      <div style="width:36px;height:36px;border-radius:12px;background:var(--accent-gradient);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">
         {{ (profile.name or 'С')[0]|upper }}
       </div>
       <div style="min-width:0;">
-        <a href="/employer/profiles/{{ acc.id }}" style="font-weight:700;font-size:13px;color:var(--text);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        <a href="/employer/profiles/{{ acc.id }}" style="font-weight:800;font-size:13px;color:var(--text);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
           {{ profile.name if profile else '—' }}
         </a>
         <div style="font-size:11px;color:var(--text-muted);">
@@ -17,8 +19,11 @@
       </div>
     </div>
 
+    <!-- Match Badge -->
     <div style="text-align:right;flex-shrink:0;">
-      <span style="font-weight:800;font-size:12px;color:var(--primary);">⭐ {{ profile.rating_score|int if profile else 0 }}</span>
+      <span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:11px;font-weight:800;padding:2px 6px;">
+        {{ match_val }}%
+      </span>
     </div>
   </div>
 
@@ -26,15 +31,26 @@
     {{ profile.major if profile and profile.major else 'Специальность не указана' }}
   </div>
 
-  {% if profile and profile.career_custom_skills %}
+  <!-- Recommendation and tags -->
   <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">
-    {% for skill in (profile.career_custom_skills.split(',')[:2]) %}
-      <span style="font-size:10px;padding:2px 6px;border-radius:6px;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);">
-        {{ skill.strip() }}
+    {% if acc.hr_recommendation == 'strong_yes' %}
+      <span style="font-size:10px;padding:2px 6px;border-radius:6px;background:var(--success-light);color:var(--success);font-weight:700;">
+        🟢 Strong Yes
       </span>
-    {% endfor %}
+    {% elif acc.hr_recommendation == 'yes' %}
+      <span style="font-size:10px;padding:2px 6px;border-radius:6px;background:var(--primary-light);color:var(--primary);font-weight:700;">
+        🟡 Yes
+      </span>
+    {% endif %}
+
+    {% if profile and profile.career_custom_skills %}
+      {% for skill in (profile.career_custom_skills.split(',')[:2]) %}
+        <span style="font-size:10px;padding:2px 6px;border-radius:6px;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);">
+          {{ skill.strip() }}
+        </span>
+      {% endfor %}
+    {% endif %}
   </div>
-  {% endif %}
 
   <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px;margin-top:8px;">
     <div class="star-rating" style="font-size:11px;">
@@ -42,8 +58,13 @@
       {{ '★' * r }}{{ '☆' * (5 - r) }}
     </div>
 
-    <a href="/employer/profiles/{{ acc.id }}" class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:11px;">
-      Профиль →
-    </a>
+    <div style="display:flex;gap:4px;">
+      <button type="button" onclick="openQuickDrawer('{{ acc.id }}')" class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;" title="Быстрый предпросмотр">
+        👁
+      </button>
+      <a href="/employer/profiles/{{ acc.id }}" class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:11px;">
+        Профиль →
+      </a>
+    </div>
   </div>
 </div>

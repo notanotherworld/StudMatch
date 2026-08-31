@@ -799,6 +799,8 @@ async def update_employer_candidate_status(
     new_status: Optional[str] = None,
     hr_comment: Optional[str] = None,
     hr_rating: Optional[int] = None,
+    hr_recommendation: Optional[str] = None,
+    hr_tags: Optional[str] = None,
 ) -> Optional[EmployerProfileAccess]:
     result = await db.execute(
         select(EmployerProfileAccess).where(
@@ -814,6 +816,10 @@ async def update_employer_candidate_status(
             access.hr_comment = hr_comment
         if hr_rating is not None:
             access.hr_rating = hr_rating
+        if hr_recommendation is not None:
+            access.hr_recommendation = hr_recommendation
+        if hr_tags is not None:
+            access.hr_tags = hr_tags
         await db.commit()
         await db.refresh(access)
     return access

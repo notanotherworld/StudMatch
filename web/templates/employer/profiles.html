@@ -35,9 +35,7 @@
     transition: var(--transition);
   }
 
-  .view-btn:hover {
-    color: var(--text);
-  }
+  .view-btn:hover { color: var(--text); }
 
   .view-btn.active {
     background: var(--surface2);
@@ -199,6 +197,43 @@
     font-size: 13px;
     letter-spacing: 2px;
   }
+
+  /* ── Quick View Drawer ──────────────────────── */
+  .quick-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: var(--transition);
+  }
+
+  .quick-drawer-backdrop.open {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .quick-drawer {
+    position: fixed;
+    top: 0;
+    right: -480px;
+    width: 460px;
+    max-width: 90vw;
+    height: 100vh;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    z-index: 1001;
+    overflow-y: auto;
+    padding: 28px;
+    transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .quick-drawer.open {
+    right: 0;
+  }
 </style>
 
 <!-- Шапка страницы с переключателем режимов -->
@@ -264,10 +299,10 @@
 
 {% if current_view == 'kanban' %}
   <!-- ══════════════════════════════════════════════ -->
-  <!-- РЕЖИМ 1: ИНТЕРАКТИВНАЯ КАНБАН-ДОСКА (FIGMA ATS) -->
+  <!-- РЕЖИМ 1: ИНТЕРАКТИВНАЯ КАНБАН-ДОСКА            -->
   <!-- ══════════════════════════════════════════════ -->
   <div class="kanban-board">
-    <!-- Колонка 1: Новые -->
+    <!-- 1. Новые -->
     <div class="kanban-col" data-stage="new">
       <div class="kanban-col-header" style="border-top:3px solid var(--primary);">
         <div class="kanban-col-title">
@@ -282,7 +317,7 @@
       </div>
     </div>
 
-    <!-- Колонка 2: Скрининг -->
+    <!-- 2. Скрининг -->
     <div class="kanban-col" data-stage="screening">
       <div class="kanban-col-header" style="border-top:3px solid var(--info);">
         <div class="kanban-col-title">
@@ -297,7 +332,7 @@
       </div>
     </div>
 
-    <!-- Колонка 3: Собеседование -->
+    <!-- 3. Собеседование -->
     <div class="kanban-col" data-stage="interview">
       <div class="kanban-col-header" style="border-top:3px solid var(--warning);">
         <div class="kanban-col-title">
@@ -312,7 +347,7 @@
       </div>
     </div>
 
-    <!-- Колонка 4: Оффер -->
+    <!-- 4. Оффер -->
     <div class="kanban-col" data-stage="offer">
       <div class="kanban-col-header" style="border-top:3px solid #8b5cf6;">
         <div class="kanban-col-title">
@@ -327,7 +362,7 @@
       </div>
     </div>
 
-    <!-- Колонка 5: Наняты / Архив -->
+    <!-- 5. Наняты & Архив -->
     <div class="kanban-col" data-stage="hired">
       <div class="kanban-col-header" style="border-top:3px solid var(--success);">
         <div class="kanban-col-title">
@@ -348,7 +383,7 @@
 
 {% else %}
   <!-- ══════════════════════════════════════════════ -->
-  <!-- РЕЖИМ 2: ТАБЛИЦА КАНДИДАТОВ С ФИЛЬТРАМИ И ВСПЛЫВАЮЩИМИ СТАТУСАМИ -->
+  <!-- РЕЖИМ 2: ТАБЛИЦА КАНДИДАТОВ                    -->
   <!-- ══════════════════════════════════════════════ -->
 
   <!-- Вкладки по стадиям воронки -->
@@ -389,9 +424,9 @@
         <thead>
           <tr>
             <th>Кандидат</th>
+            <th>Match</th>
             <th>ВУЗ и Курс</th>
             <th>Специальность</th>
-            <th>Рейтинг</th>
             <th>Оценка HR</th>
             <th>Этап воронки</th>
             <th>Заметка HR</th>
@@ -402,14 +437,15 @@
           {% for access in accesses %}
           {% set profile = access.profile %}
           {% set user = profile.user if profile else None %}
+          {% set match_val = [99, [72, (70 + (profile.rating_score or 0) / 15)|int]|max]|min %}
           <tr id="row-{{ access.id }}">
             <td>
               <div style="display:flex;align-items:center;gap:12px;">
-                <div style="width:40px;height:40px;border-radius:10px;background:var(--accent-gradient);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:16px;">
+                <div style="width:40px;height:40px;border-radius:12px;background:var(--accent-gradient);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:16px;">
                   {{ (profile.name or 'С')[0]|upper }}
                 </div>
                 <div>
-                  <a href="/employer/profiles/{{ access.id }}" style="font-weight:700;color:var(--text);text-decoration:none;">
+                  <a href="/employer/profiles/{{ access.id }}" style="font-weight:800;color:var(--text);text-decoration:none;">
                     {{ profile.name if profile else '—' }}
                   </a>
                   {% if not access.viewed_at %}
@@ -420,7 +456,13 @@
             </td>
 
             <td>
-              <div style="font-weight:600;">{% if user and user.university %}{{ user.university.short_name }}{% else %}РУДН{% endif %}</div>
+              <span class="badge" style="background:var(--primary-light);color:var(--primary);font-weight:800;">
+                {{ match_val }}%
+              </span>
+            </td>
+
+            <td>
+              <div style="font-weight:700;">{% if user and user.university %}{{ user.university.short_name }}{% else %}РУДН{% endif %}</div>
               <div style="font-size:12px;color:var(--text-muted);">{{ profile.year if profile else 1 }} курс</div>
             </td>
 
@@ -429,11 +471,6 @@
                 {{ profile.major if profile and profile.major else '—' }}
               </div>
               <div style="font-size:11px;color:var(--primary);">{{ profile.career_custom_skills or '' }}</div>
-            </td>
-
-            <td>
-              <div style="font-weight:800;color:var(--primary);">⭐ {{ profile.rating_score|int if profile else 0 }}</div>
-              <div style="font-size:11px;color:var(--text-muted);">баллов</div>
             </td>
 
             <td>
@@ -455,15 +492,20 @@
             </td>
 
             <td>
-              <div style="font-size:12px;color:var(--text-secondary);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ access.hr_comment or access.note or '' }}">
+              <div style="font-size:12px;color:var(--text-secondary);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ access.hr_comment or access.note or '' }}">
                 {{ access.hr_comment or access.note or '—' }}
               </div>
             </td>
 
             <td style="text-align:right;">
-              <a href="/employer/profiles/{{ access.id }}" class="btn btn-primary btn-sm">
-                Открыть профиль →
-              </a>
+              <div style="display:flex;gap:6px;justify-content:flex-end;">
+                <button type="button" onclick="openQuickDrawer('{{ access.id }}')" class="btn btn-secondary btn-sm" title="Быстрый предпросмотр">
+                  👁
+                </button>
+                <a href="/employer/profiles/{{ access.id }}" class="btn btn-primary btn-sm">
+                  Профиль →
+                </a>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -478,6 +520,21 @@
     </div>
   {% endif %}
 {% endif %}
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- QUICK VIEW DRAWER MODAL                        -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="quick-drawer-backdrop" id="quickDrawerBackdrop" onclick="closeQuickDrawer()"></div>
+<div class="quick-drawer" id="quickDrawer">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:14px;">
+    <div style="font-size:16px;font-weight:800;color:var(--text);">⚡️ Быстрый предпросмотр</div>
+    <button type="button" onclick="closeQuickDrawer()" class="btn btn-ghost btn-sm" style="font-size:16px;">✕</button>
+  </div>
+
+  <div id="drawerContent">
+    <div style="text-align:center;padding:40px;color:var(--text-muted);">Загрузка профиля...</div>
+  </div>
+</div>
 
 <script>
   // ── Drag and Drop Logic for Kanban ──
@@ -531,6 +588,83 @@
     } catch (e) {
       showToast(`⚠️ Ошибка сети при обновлении этапа`);
     }
+  }
+
+  // ── Quick View Drawer ──
+  async function openQuickDrawer(accessId) {
+    const backdrop = document.getElementById('quickDrawerBackdrop');
+    const drawer = document.getElementById('quickDrawer');
+    const content = document.getElementById('drawerContent');
+
+    backdrop.classList.add('open');
+    drawer.classList.add('open');
+    content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Загрузка досье кандидата...</div>';
+
+    try {
+      const res = await fetch(`/employer/profiles/${accessId}/json`);
+      const data = await res.json();
+
+      if (!data.success) {
+        content.innerHTML = '<div style="color:var(--danger);text-align:center;">Не удалось загрузить анкету</div>';
+        return;
+      }
+
+      content.innerHTML = `
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="width:72px;height:72px;border-radius:20px;background:var(--accent-gradient);color:#fff;font-weight:800;font-size:28px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;box-shadow:var(--shadow-md);">
+            ${data.name[0].toUpperCase()}
+          </div>
+          <h2 style="font-size:20px;font-weight:800;color:var(--text);">${data.name}</h2>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:2px;">
+            ${data.university} • ${data.year} курс
+          </div>
+          <div style="font-size:12px;color:var(--primary);font-weight:700;margin-top:4px;">
+            ${data.major}
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-around;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;margin-bottom:18px;">
+          <div style="text-align:center;">
+            <div style="font-size:18px;font-weight:800;color:var(--primary);">${data.match_score}%</div>
+            <div style="font-size:10px;color:var(--text-muted);">Match Score</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:18px;font-weight:800;color:var(--success);">⭐ ${data.rating_score}</div>
+            <div style="font-size:10px;color:var(--text-muted);">Баллов портфолио</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:18px;font-weight:800;color:var(--text);">${data.achievements.length}</div>
+            <div style="font-size:10px;color:var(--text-muted);">Достижений</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;">Стек навыков:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${data.skills.map(s => `<span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:11px;">⚡️ ${s}</span>`).join('') || '<span style="color:var(--text-muted);font-size:12px;">Не заполнен</span>'}
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;">О себе / Цели:</div>
+          <div style="font-size:13px;line-height:1.5;color:var(--text);background:var(--surface2);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);">
+            ${data.goal}
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:24px;">
+          ${data.tg_username ? `<a href="https://t.me/${data.tg_username}" target="_blank" class="btn btn-primary" style="width:100%;">💬 Написать в Telegram (@${data.tg_username})</a>` : ''}
+          <a href="/employer/profiles/${accessId}" class="btn btn-outline" style="width:100%;">📄 Открыть полный профиль кандидата</a>
+        </div>
+      `;
+    } catch (e) {
+      content.innerHTML = '<div style="color:var(--danger);text-align:center;">Ошибка соединения</div>';
+    }
+  }
+
+  function closeQuickDrawer() {
+    document.getElementById('quickDrawerBackdrop').classList.remove('open');
+    document.getElementById('quickDrawer').classList.remove('open');
   }
 </script>
 {% endblock %}

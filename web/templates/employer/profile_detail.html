@@ -4,12 +4,100 @@
 
 {% block extra_head %}
 <style>
-  /* ── ATS Stepper ─────────────────────── */
-  .stepper-container {
+  /* ── Figma Node 5-790 Candidate Profile Styles ── */
+  .profile-cover-banner {
+    position: relative;
+    height: 180px;
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 70%, #6366f1 100%);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    overflow: hidden;
+  }
+
+  .profile-cover-pattern {
+    position: absolute;
+    inset: 0;
+    opacity: 0.15;
+    background-image: radial-gradient(#fff 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  .profile-header-card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
-    padding: 20px 24px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+  }
+
+  .profile-header-body {
+    padding: 0 28px 24px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 20px;
+    position: relative;
+  }
+
+  .profile-avatar-wrapper {
+    position: relative;
+    margin-top: -50px;
+    margin-bottom: 12px;
+  }
+
+  .profile-avatar-img {
+    width: 104px;
+    height: 104px;
+    border-radius: 28px;
+    background: var(--accent-gradient);
+    border: 4px solid var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    font-weight: 800;
+    color: #fff;
+    box-shadow: var(--shadow-md);
+  }
+
+  .profile-status-dot {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--success);
+    border: 3px solid var(--surface);
+  }
+
+  .profile-meta-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .profile-meta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  /* ── ATS Stepper ────────────────────────────── */
+  .ats-stepper-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 16px 24px;
     margin-bottom: 24px;
     display: flex;
     align-items: center;
@@ -19,18 +107,19 @@
     box-shadow: var(--shadow-sm);
   }
 
-  .stepper-steps {
+  .stepper-track {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     flex-wrap: wrap;
+    flex: 1;
   }
 
-  .stepper-step {
+  .stepper-btn {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 14px;
+    padding: 8px 16px;
     border-radius: var(--radius-md);
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -41,109 +130,168 @@
     transition: var(--transition);
   }
 
-  .stepper-step:hover {
+  .stepper-btn:hover {
     border-color: var(--primary);
     color: var(--text);
   }
 
-  .stepper-step.active {
+  .stepper-btn.active {
     background: var(--primary);
     border-color: var(--primary);
     color: #fff;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
   }
 
-  .stepper-step.completed {
+  .stepper-btn.completed {
     background: var(--success-light);
     border-color: rgba(16, 185, 129, 0.3);
     color: var(--success);
   }
 
-  .stepper-arrow {
-    color: var(--text-muted);
-    font-size: 12px;
-  }
-
-  /* ── 2-Column Detail Layout ──────────── */
-  .profile-layout {
+  /* ── 2-Column Main Workspace ───────────────── */
+  .workspace-grid {
     display: grid;
-    grid-template-columns: 340px 1fr;
+    grid-template-columns: 360px 1fr;
     gap: 24px;
     align-items: start;
   }
 
-  /* ── Left Sidebar Profile Card ───────── */
-  .candidate-card-main {
+  /* ── Match Score Gauge ─────────────────────── */
+  .match-gauge-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .match-percentage-badge {
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--primary);
+    line-height: 1;
+    letter-spacing: -1px;
+  }
+
+  .progress-mini-bar {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+
+  .progress-mini-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--accent-gradient);
+  }
+
+  /* ── Recruiter Scorecard ───────────────────── */
+  .scorecard-card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
-    padding: 28px 24px;
-    text-align: center;
+    padding: 24px;
+    margin-bottom: 20px;
     box-shadow: var(--shadow-sm);
   }
 
-  .candidate-avatar-large {
-    width: 96px;
-    height: 96px;
-    border-radius: 24px;
-    background: var(--accent-gradient);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 38px;
-    color: #fff;
-    font-weight: 800;
-    margin: 0 auto 16px;
-    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
-  }
-
-  .candidate-name-large {
-    font-size: 22px;
-    font-weight: 800;
-    color: var(--text);
-    margin-bottom: 4px;
-    letter-spacing: -0.3px;
-  }
-
-  .candidate-headline {
-    font-size: 13px;
-    color: var(--text-secondary);
+  .rec-btn-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
     margin-bottom: 16px;
   }
 
-  .score-badge-card {
+  .rec-btn {
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+    text-align: center;
+  }
+
+  .rec-btn:hover {
+    color: var(--text);
+    border-color: var(--primary);
+  }
+
+  .rec-btn.active-strong-yes {
+    background: var(--success-light);
+    border-color: var(--success);
+    color: var(--success);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .rec-btn.active-yes {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .rec-btn.active-neutral {
+    background: var(--surface2);
+    border-color: var(--text-muted);
+    color: var(--text);
+  }
+
+  .rec-btn.active-no {
+    background: var(--danger-light);
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  .quick-tag-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 600;
     background: var(--surface2);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 16px;
-    margin: 16px 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-  }
-
-  .star-selector {
-    display: flex;
-    justify-content: center;
-    gap: 6px;
-    font-size: 24px;
+    color: var(--text-secondary);
     cursor: pointer;
-    margin: 10px 0;
+    transition: var(--transition);
+    user-select: none;
   }
 
-  .star-selector span {
-    color: #e2e8f0;
+  .quick-tag-pill:hover {
+    border-color: var(--primary);
+    color: var(--text);
+  }
+
+  .quick-tag-pill.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+  }
+
+  .star-picker {
+    display: flex;
+    gap: 6px;
+    font-size: 22px;
+    cursor: pointer;
+  }
+
+  .star-picker span {
+    color: var(--border);
     transition: transform 0.15s ease, color 0.15s ease;
   }
 
-  html[data-theme="dark"] .star-selector span { color: #374151; }
-
-  .star-selector span.active, .star-selector span:hover, .star-selector span.hover {
+  .star-picker span.active, .star-picker span:hover {
     color: #facc15 !important;
   }
 
-  /* ── Right Content Tabs ──────────────── */
-  .detail-tabs-nav {
+  /* ── Right Content Tabs ────────────────────── */
+  .tabs-nav-bar {
     display: flex;
     gap: 8px;
     margin-bottom: 20px;
@@ -151,7 +299,7 @@
     padding-bottom: 12px;
   }
 
-  .detail-tab-btn {
+  .tab-nav-item {
     padding: 10px 18px;
     border-radius: var(--radius-md);
     font-size: 14px;
@@ -163,266 +311,339 @@
     transition: var(--transition);
   }
 
-  .detail-tab-btn:hover {
+  .tab-nav-item:hover {
     background: var(--surface2);
     color: var(--text);
   }
 
-  .detail-tab-btn.active {
+  .tab-nav-item.active {
     background: var(--primary-light);
     color: var(--primary);
   }
 
-  .skill-pill {
-    display: inline-flex;
-    align-items: center;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text);
-  }
-
-  .achievement-item {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 16px;
+  .skill-badge-card {
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    margin-bottom: 12px;
+    padding: 14px 16px;
   }
 
-  /* Print Styling for PDF Export */
+  .achievement-card-detailed {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 12px;
+    transition: var(--transition);
+  }
+
+  .achievement-card-detailed:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Print Styles */
   @media print {
-    .sidebar, .topbar, .stepper-container, .btn, .theme-toggle-btn, .mobile-menu-btn {
+    .sidebar, .topbar, .ats-stepper-card, .btn, .theme-toggle-btn, .mobile-menu-btn, .rec-btn-group, .quick-tag-pill {
       display: none !important;
     }
-    .main-wrapper {
-      margin: 0 !important;
-      width: 100% !important;
-    }
-    .profile-layout {
-      grid-template-columns: 240px 1fr !important;
-    }
-    body {
-      background: #fff !important;
-      color: #000 !important;
-    }
-    .card, .candidate-card-main {
-      border: 1px solid #ddd !important;
-      box-shadow: none !important;
-    }
+    .main-wrapper { margin: 0 !important; width: 100% !important; }
+    .workspace-grid { grid-template-columns: 280px 1fr !important; }
+    body { background: #fff !important; color: #000 !important; }
+    .card, .profile-header-card, .scorecard-card { border: 1px solid #ddd !important; box-shadow: none !important; }
   }
 
   @media (max-width: 1024px) {
-    .profile-layout { grid-template-columns: 1fr; }
+    .workspace-grid { grid-template-columns: 1fr; }
   }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Верхняя панель навигации и ATS-степпер -->
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
-  <a href="/employer/profiles" class="btn btn-secondary btn-sm">
-    ← Назад к списку кандидатов
-  </a>
+<!-- Верхняя навигация хлебных крошек -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <a href="/employer/profiles" class="btn btn-secondary btn-sm">
+      ← К базе кандидатов
+    </a>
+    <span style="color:var(--text-muted);font-size:13px;">/</span>
+    <span style="font-weight:700;font-size:13px;color:var(--text);">{{ profile.name }}</span>
+  </div>
 
   <div style="display:flex;align-items:center;gap:10px;">
     <button type="button" onclick="window.print()" class="btn btn-outline btn-sm" title="Распечатать или сохранить в PDF">
       🖨 Сохранить в PDF
     </button>
-
-    {% if access.status != 'archived' and access.status != 'rejected' %}
-    <button type="button" onclick="setStage('archived')" class="btn btn-secondary btn-sm">
-      📁 В архив
-    </button>
-    {% else %}
-    <button type="button" onclick="setStage('new')" class="btn btn-secondary btn-sm">
-      ↩️ Восстановить из архива
-    </button>
-    {% endif %}
   </div>
 </div>
 
-<!-- ATS Stepper этапов найма кандидата -->
-<div class="stepper-container">
+<!-- ══════════════════════════════════════════════ -->
+<!-- 1. COVER BANNER & CANDIDATE PROFILE HEADER     -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="profile-header-card">
+  <div class="profile-cover-banner">
+    <div class="profile-cover-pattern"></div>
+    <div style="position:absolute;top:16px;right:20px;display:flex;gap:8px;">
+      {% if user.email_verified %}
+        <span class="badge" style="background:rgba(16,185,129,0.9);color:#fff;font-weight:700;backdrop-filter:blur(4px);">
+          🎓 Верифицирован РУДН
+        </span>
+      {% endif %}
+      {% if user.is_premium %}
+        <span class="badge" style="background:linear-gradient(135deg,#a855f7,#ec4899);color:#fff;font-weight:700;">
+          💎 Премиум
+        </span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="profile-header-body">
+    <div>
+      <div class="profile-avatar-wrapper">
+        <div class="profile-avatar-img">
+          {{ (profile.name or 'С')[0]|upper }}
+        </div>
+        <div class="profile-status-dot" title="Кандидат активен"></div>
+      </div>
+
+      <h1 style="font-size:26px;font-weight:900;letter-spacing:-0.5px;color:var(--text);margin-bottom:4px;">
+        {{ profile.name }}
+      </h1>
+
+      <div style="font-size:15px;font-weight:700;color:var(--primary);margin-bottom:8px;">
+        {{ profile.major if profile.major else 'Специальность не указана' }}
+      </div>
+
+      <div class="profile-meta-pills">
+        <span class="profile-meta-pill">
+          🎓 {% if user.university %}{{ user.university.name }} ({{ user.university.short_name }}){% else %}РУДН{% endif %}
+        </span>
+        <span class="profile-meta-pill">
+          📚 {{ profile.year }} курс {% if profile.year >= 5 %}(Магистратура){% else %}(Бакалавриат){% endif %}
+        </span>
+        <span class="profile-meta-pill">
+          📍 Москва / Россия
+        </span>
+        <span class="profile-meta-pill">
+          💼 {{ profile.career_work_format or 'Удаленно / Офис' }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Быстрые действия с кандидатом -->
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        {% if user.tg_username %}
+        <a href="https://t.me/{{ user.tg_username }}" target="_blank" class="btn btn-primary btn-sm">
+          💬 Написать в Telegram (@{{ user.tg_username }})
+        </a>
+        {% endif %}
+
+        {% if user.email %}
+        <a href="mailto:{{ user.email }}" class="btn btn-outline btn-sm">
+          ✉️ {{ user.email }}
+        </a>
+        {% endif %}
+      </div>
+
+      <div style="font-size:11px;color:var(--text-muted);">
+        Выдан в HR: {{ access.granted_at.strftime('%d.%m.%Y') if access.granted_at else '—' }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- 2. INTERACTIVE ATS PIPELINE STEPPER            -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="ats-stepper-card">
   <div>
     <div style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;">
-      Воронка найма
+      ATS Воронка найма
     </div>
-    <div style="font-size:16px;font-weight:800;color:var(--text);margin-top:2px;">
+    <div style="font-size:15px;font-weight:800;color:var(--text);margin-top:2px;">
       Текущий этап: <span id="currentStageText" style="color:var(--primary);">
-        {% if access.status == 'screening' %}Скрининг резюме
-        {% elif access.status in ['interview', 'suitable'] %}Собеседование
-        {% elif access.status == 'offer' %}Выставлен оффер
-        {% elif access.status == 'hired' %}Принят на работу 🎉
-        {% elif access.status in ['archived', 'rejected'] %}В архиве / Отказ
-        {% else %}Новая анкета
+        {% if access.status == 'screening' %}🔍 Скрининг резюме
+        {% elif access.status in ['interview', 'suitable'] %}💬 Собеседование
+        {% elif access.status == 'offer' %}💌 Выставлен оффер
+        {% elif access.status == 'hired' %}🏆 Принят на работу 🎉
+        {% elif access.status in ['archived', 'rejected'] %}📁 В архиве
+        {% else %}🆕 Новая анкета
         {% endif %}
       </span>
     </div>
   </div>
 
-  <div class="stepper-steps">
-    <button type="button" onclick="setStage('new')" class="stepper-step {% if access.status in ['new', 'active', None] %}active{% endif %}">
+  <div class="stepper-track">
+    <button type="button" onclick="setCandidateStage('new')" class="stepper-btn {% if access.status in ['new', 'active', None] %}active{% endif %}">
       1. Новая
     </button>
-    <span class="stepper-arrow">→</span>
-    <button type="button" onclick="setStage('screening')" class="stepper-step {% if access.status == 'screening' %}active{% endif %}">
+    <span style="color:var(--text-muted);">→</span>
+    <button type="button" onclick="setCandidateStage('screening')" class="stepper-btn {% if access.status == 'screening' %}active{% endif %}">
       2. Скрининг
     </button>
-    <span class="stepper-arrow">→</span>
-    <button type="button" onclick="setStage('interview')" class="stepper-step {% if access.status in ['interview', 'suitable'] %}active{% endif %}">
+    <span style="color:var(--text-muted);">→</span>
+    <button type="button" onclick="setCandidateStage('interview')" class="stepper-btn {% if access.status in ['interview', 'suitable'] %}active{% endif %}">
       3. Интервью
     </button>
-    <span class="stepper-arrow">→</span>
-    <button type="button" onclick="setStage('offer')" class="stepper-step {% if access.status == 'offer' %}active{% endif %}">
+    <span style="color:var(--text-muted);">→</span>
+    <button type="button" onclick="setCandidateStage('offer')" class="stepper-btn {% if access.status == 'offer' %}active{% endif %}">
       4. Оффер
     </button>
-    <span class="stepper-arrow">→</span>
-    <button type="button" onclick="setStage('hired')" class="stepper-step {% if access.status == 'hired' %}active{% endif %}">
+    <span style="color:var(--text-muted);">→</span>
+    <button type="button" onclick="setCandidateStage('hired')" class="stepper-btn {% if access.status == 'hired' %}active{% endif %}">
       5. Нанят 🎉
     </button>
   </div>
 </div>
 
-{% if profile and user %}
-<div class="profile-layout">
+<!-- ══════════════════════════════════════════════ -->
+<!-- 3. WORKSPACE 2-COLUMN GRID                     -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="workspace-grid">
 
-  <!-- ══════════════════════════════════════════════ -->
-  <!-- ЛЕВАЯ КОЛОНКА: Аватар, Контакты, Оценка HR -->
-  <!-- ══════════════════════════════════════════════ -->
-  <div style="display:flex;flex-direction:column;gap:20px;">
+  <!-- ── ЛЕВАЯ КОЛОНКА: Match Score & Recruiter Scorecard ── -->
+  <div>
     
-    <!-- Карточка соискателя -->
-    <div class="candidate-card-main">
-      <div class="candidate-avatar-large">
-        {{ (profile.name or 'С')[0]|upper }}
-      </div>
-
-      <div class="candidate-name-large">{{ profile.name }}</div>
-      <div class="candidate-headline">
-        {% if user.university %}{{ user.university.name }}{% else %}РУДН{% endif %} • {{ profile.year }} курс
-      </div>
-
-      <!-- Бейджи статуса -->
-      <div style="display:flex;justify-content:center;gap:6px;margin-bottom:16px;flex-wrap:wrap;">
-        {% if user.email_verified %}
-          <span class="badge" style="background:var(--success-light);color:var(--success);border:1px solid rgba(16,185,129,0.3);">
-            🎓 Верифицирован
-          </span>
-        {% endif %}
-        {% if user.is_premium %}
-          <span class="badge" style="background:linear-gradient(135deg,rgba(168,85,247,0.2),rgba(236,72,153,0.2));color:#c084fc;border:1px solid rgba(168,85,247,0.4);">
-            💎 Премиум
-          </span>
-        {% endif %}
-      </div>
-
-      <!-- Рейтинг СтудМэч -->
-      <div class="score-badge-card">
+    <!-- Match Score Gauge -->
+    <div class="match-gauge-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <div>
-          <div style="font-size:26px;font-weight:800;color:var(--primary);">⭐ {{ profile.rating_score|int }}</div>
-          <div style="font-size:11px;color:var(--text-muted);font-weight:600;">Баллов портфолио</div>
+          <div style="font-size:12px;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.6px;">
+            Match Score
+          </div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:2px;">Индекс релевантности</div>
         </div>
-        <div style="height:32px;width:1px;background:var(--border);"></div>
-        <div>
-          <div style="font-size:26px;font-weight:800;color:var(--success);">{{ profile.year }}</div>
-          <div style="font-size:11px;color:var(--text-muted);font-weight:600;">Курс обучения</div>
+        {% set match_val = [99, [72, (70 + (profile.rating_score or 0) / 15)|int]|max]|min %}
+        <div class="match-percentage-badge">{{ match_val }}%</div>
+      </div>
+
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--text-secondary);">
+          <span>Баллы портфолио и GPA</span>
+          <span style="color:var(--primary);">⭐ {{ profile.rating_score|int }} баллов</span>
+        </div>
+        <div class="progress-mini-bar">
+          <div class="progress-mini-fill" style="width: {{ [100, (profile.rating_score or 10)]|min }}%;"></div>
         </div>
       </div>
 
-      <!-- Контакты для связи -->
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
-        {% if user.tg_username %}
-        <a href="https://t.me/{{ user.tg_username }}" target="_blank" class="btn btn-primary" style="width:100%;">
-          💬 Написать в Telegram (@{{ user.tg_username }})
-        </a>
-        {% else %}
-        <button class="btn btn-secondary" disabled style="width:100%;opacity:0.7;">
-          🔒 Telegram скрыт соискателем
-        </button>
-        {% endif %}
-
-        {% if user.email %}
-        <a href="mailto:{{ user.email }}" class="btn btn-outline" style="width:100%;">
-          ✉️ {{ user.email }}
-        </a>
-        {% endif %}
-
-        {% if profile.career_portfolio_url %}
-        <a href="{{ profile.career_portfolio_url }}" target="_blank" class="btn btn-secondary" style="width:100%;">
-          🔗 Открыть портфолио / резюме
-        </a>
-        {% endif %}
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--text-secondary);">
+          <span>Достижения и Олимпиады</span>
+          <span style="color:var(--success);">{{ achievements|length }} подтв.</span>
+        </div>
+        <div class="progress-mini-bar">
+          <div class="progress-mini-fill" style="width: {{ [100, (achievements|length * 25)]|min }}%;background:var(--success);"></div>
+        </div>
       </div>
     </div>
 
-    <!-- Блок оценки рекрутера (1-5 звезд) и личных заметок -->
-    <div class="card">
-      <div style="font-size:14px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
-        <span>⭐️ Оценка рекрутера</span>
-        <span id="ratingScoreText" style="font-size:12px;color:var(--primary);font-weight:700;">{{ access.hr_rating or 0 }} / 5</span>
+    <!-- Recruiter Evaluation Scorecard -->
+    <div class="scorecard-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div style="font-size:14px;font-weight:800;color:var(--text);">⭐️ Оценка рекрутера</div>
+        <div class="star-picker" id="starPicker">
+          {% for s in range(1, 6) %}
+            <span onclick="setStarRating({{ s }})" class="{% if (access.hr_rating or 0) >= s %}active{% endif %}" data-star="{{ s }}">★</span>
+          {% endfor %}
+        </div>
       </div>
 
-      <div class="star-selector" id="starSelector">
-        {% for s in range(1, 6) %}
-          <span onclick="setRating({{ s }})" class="{% if (access.hr_rating or 0) >= s %}active{% endif %}" data-star="{{ s }}">★</span>
+      <!-- Recommendation status buttons -->
+      <label style="font-size:12px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:4px;">
+        Рекомендация по найму:
+      </label>
+      <div class="rec-btn-group">
+        <button type="button" onclick="setRecommendation('strong_yes')" 
+                class="rec-btn {% if access.hr_recommendation == 'strong_yes' %}active-strong-yes{% endif %}" id="rec-strong_yes">
+          🟢 Strong Yes
+        </button>
+        <button type="button" onclick="setRecommendation('yes')" 
+                class="rec-btn {% if access.hr_recommendation == 'yes' %}active-yes{% endif %}" id="rec-yes">
+          🟡 Подходит (Yes)
+        </button>
+        <button type="button" onclick="setRecommendation('neutral')" 
+                class="rec-btn {% if access.hr_recommendation == 'neutral' or not access.hr_recommendation %}active-neutral{% endif %}" id="rec-neutral">
+          ⚪️ Нейтрально
+        </button>
+        <button type="button" onclick="setRecommendation('no')" 
+                class="rec-btn {% if access.hr_recommendation == 'no' %}active-no{% endif %}" id="rec-no">
+          🔴 Отказ (No)
+        </button>
+      </div>
+
+      <!-- Quick Strengths Tags -->
+      <label style="font-size:12px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">
+        Ключевые теги:
+      </label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;" id="quickTagsContainer">
+        {% set active_tags = (access.hr_tags or '').split(',') %}
+        {% for tag in ['+ Сильный стек', '+ Призёр хакатонов', '+ Высокий GPA', '+ Отличный софт-скилл', '- Нет опыта в проде', '- Мало времени'] %}
+          <span onclick="toggleTag('{{ tag }}')" class="quick-tag-pill {% if tag in active_tags %}active{% endif %}" data-tag="{{ tag }}">
+            {{ tag }}
+          </span>
         {% endfor %}
       </div>
 
-      <form method="POST" action="/employer/profiles/{{ access.id }}/comment" style="margin-top:16px;">
-        <input type="hidden" name="hr_rating" id="hiddenRatingInput" value="{{ access.hr_rating or 0 }}">
-        <label style="font-size:12px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">
-          📝 Приватная заметка HR:
-        </label>
-        <textarea name="hr_comment" rows="4" placeholder="Заметки по кандидату, дата собеседования, впечатления..."
-                  style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;font-size:13px;resize:vertical;">{{ access.hr_comment or '' }}</textarea>
-        <button type="submit" class="btn btn-primary btn-sm" style="margin-top:10px;width:100%;">
-          💾 Сохранить заметку
+      <!-- Private HR Notes -->
+      <label style="font-size:12px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">
+        📝 Приватная заметка HR (автосохранение):
+      </label>
+      <textarea id="hrCommentInput" rows="4" onblur="saveScorecardComment()" placeholder="Впечатления от кандидата, вопросы на интервью, зарплатные ожидания..."
+                style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;font-size:13px;resize:vertical;">{{ access.hr_comment or '' }}</textarea>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+        <span id="saveStatusIndicator" style="font-size:11px;color:var(--text-muted);">Изменения сохраняются автоматически</span>
+        <button type="button" onclick="saveScorecardComment()" class="btn btn-primary btn-sm">
+          💾 Сохранить
         </button>
-      </form>
+      </div>
     </div>
 
+    <!-- Moderator note if present -->
     {% if access.note %}
-    <div class="card" style="background:var(--surface2);">
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">
-        📌 Пометка от модератора СтудМэч
+    <div class="card" style="background:var(--surface2);border-radius:var(--radius-lg);">
+      <div style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">
+        📌 Пометка от куратора СтудМэч
       </div>
-      <div style="font-size:13px;color:var(--text);font-weight:500;">{{ access.note }}</div>
+      <div style="font-size:13px;color:var(--text);font-weight:600;">{{ access.note }}</div>
     </div>
     {% endif %}
 
   </div>
 
-  <!-- ══════════════════════════════════════════════ -->
-  <!-- ПРАВАЯ КОЛОНКА: Вкладки с детальной информацией -->
-  <!-- ══════════════════════════════════════════════ -->
+  <!-- ── ПРАВАЯ КОЛОНКА: Мульти-таб Досье Кандидата ── -->
   <div>
-    <!-- Вкладки деталей -->
-    <div class="detail-tabs-nav">
-      <button type="button" class="detail-tab-btn active" onclick="switchDetailTab('resume')">
-        📄 Резюме и Профиль
+    
+    <!-- Tab Navigation -->
+    <div class="tabs-nav-bar">
+      <button type="button" class="tab-nav-item active" onclick="switchDossierTab('overview')">
+        📑 Обзор и Резюме
       </button>
-      <button type="button" class="detail-tab-btn" onclick="switchDetailTab('achievements')">
+      <button type="button" class="tab-nav-item" onclick="switchDossierTab('skills')">
+        🛠 Стек навыков
+      </button>
+      <button type="button" class="tab-nav-item" onclick="switchDossierTab('achievements')">
         🏆 Достижения ({{ achievements|length }})
       </button>
     </div>
 
-    <!-- Вкладка 1: Резюме и профиль -->
-    <div id="tab-content-resume">
+    <!-- Вкладка 1: Обзор и Резюме -->
+    <div id="dossier-tab-overview">
+      
+      <!-- Профессиональные параметры -->
       <div class="card" style="margin-bottom:20px;">
         <h3 style="font-size:16px;font-weight:800;margin-bottom:18px;letter-spacing:-0.2px;">
           🎯 Профессиональные параметры
         </h3>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
           <div>
-            <div style="font-size:12px;color:var(--text-muted);font-weight:600;">ВУЗ</div>
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;">Университет</div>
             <div style="font-size:15px;font-weight:700;margin-top:2px;">
               {% if user.university %}{{ user.university.name }} ({{ user.university.short_name }}){% else %}РУДН{% endif %}
             </div>
@@ -450,53 +671,72 @@
           </div>
 
           <div>
-            <div style="font-size:12px;color:var(--text-muted);font-weight:600;">Дата выдачи анкеты в HR</div>
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;">Портфолио / Резюме</div>
             <div style="font-size:14px;font-weight:600;margin-top:2px;">
-              {{ access.granted_at.strftime('%d.%m.%Y') if access.granted_at else '—' }}
+              {% if profile.career_portfolio_url %}
+                <a href="{{ profile.career_portfolio_url }}" target="_blank" style="color:var(--primary);text-decoration:underline;">
+                  🔗 Открыть портфолио
+                </a>
+              {% else %}
+                <span style="color:var(--text-muted);">Не указано</span>
+              {% endif %}
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Навыки и стек -->
+      <!-- О себе и карьерная цель -->
       <div class="card" style="margin-bottom:20px;">
-        <h3 style="font-size:16px;font-weight:800;margin-bottom:14px;">
-          🛠 Навыки и технологии
-        </h3>
-        {% if profile.career_custom_skills %}
-          <div style="display:flex;flex-wrap:wrap;gap:8px;">
-            {% for sk in profile.career_custom_skills.split(',') %}
-              <span class="skill-pill">⚡️ {{ sk.strip() }}</span>
-            {% endfor %}
-          </div>
-        {% else %}
-          <div style="color:var(--text-muted);font-size:13px;">Стек навыков не заполнен</div>
-        {% endif %}
-      </div>
-
-      <!-- Карьерная цель и опыт -->
-      <div class="card">
-        <h3 style="font-size:16px;font-weight:800;margin-bottom:14px;">
+        <h3 style="font-size:16px;font-weight:800;margin-bottom:12px;">
           📝 О себе и карьерная цель
         </h3>
-        <div style="font-size:14px;line-height:1.6;color:var(--text);white-space:pre-line;">
-          {{ profile.career_goal or profile.goal or 'Соискатель не заполнил подробное описание.' }}
+        <div style="font-size:14px;line-height:1.7;color:var(--text);white-space:pre-line;">
+          {{ profile.career_goal or profile.goal or 'Соискатель не заполнил подробное текстовое описание.' }}
         </div>
+      </div>
+
+    </div>
+
+    <!-- Вкладка 2: Стек навыков -->
+    <div id="dossier-tab-skills" style="display:none;">
+      <div class="card" style="margin-bottom:20px;">
+        <h3 style="font-size:16px;font-weight:800;margin-bottom:16px;">
+          🛠 Категоризированный стек технологий
+        </h3>
+
+        {% if profile.career_custom_skills %}
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div class="skill-badge-card">
+              <div style="font-size:12px;font-weight:800;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px;">
+                Ключевые технологии и языки:
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                {% for sk in profile.career_custom_skills.split(',') %}
+                  <span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:13px;padding:6px 12px;border:1px solid rgba(99,102,241,0.3);">
+                    ⚡️ {{ sk.strip() }}
+                  </span>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div style="color:var(--text-muted);font-size:13px;">Стек навыков не заполнен студентом.</div>
+        {% endif %}
       </div>
     </div>
 
-    <!-- Вкладка 2: Достижения и документы -->
-    <div id="tab-content-achievements" style="display:none;">
+    <!-- Вкладка 3: Достижения и Документы -->
+    <div id="dossier-tab-achievements" style="display:none;">
       <div class="card">
         <h3 style="font-size:16px;font-weight:800;margin-bottom:18px;">
-          🏆 Подтверждённые достижения студента
+          🏆 Подтверждённые достижения и сертификаты
         </h3>
 
         {% if achievements %}
           <div>
             {% for a in achievements %}
-            <div class="achievement-item">
-              <div style="font-size:28px;">
+            <div class="achievement-card-detailed">
+              <div style="font-size:32px;">
                 {% if a.type.value == 'gpa' %}📊
                 {% elif a.type.value == 'olympiad' %}🏆
                 {% elif a.type.value == 'case' %}💼
@@ -506,13 +746,13 @@
                 {% else %}🎯{% endif %}
               </div>
               <div style="flex:1;">
-                <div style="font-size:15px;font-weight:700;color:var(--text);">{{ a.title }}</div>
+                <div style="font-size:15px;font-weight:800;color:var(--text);">{{ a.title }}</div>
                 <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
-                  Тип: {{ a.type.value|upper }} • Подтверждено модератором СтудМэч
+                  Категория: <strong>{{ a.type.value|upper }}</strong> • Подтверждено модератором СтудМэч
                 </div>
               </div>
               <div style="text-align:right;">
-                <div style="font-size:16px;font-weight:800;color:var(--success);">+{{ a.score|int }}</div>
+                <div style="font-size:18px;font-weight:900;color:var(--success);">+{{ a.score|int }}</div>
                 <div style="font-size:11px;color:var(--text-muted);">баллов</div>
               </div>
             </div>
@@ -520,9 +760,9 @@
           </div>
         {% else %}
           <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
-            <div style="font-size:36px;margin-bottom:10px;">🎓</div>
-            <div style="font-size:14px;font-weight:600;">Нет подтвержденных сертификатов</div>
-            <p style="font-size:12px;margin-top:4px;">Студент пока не прикреплял дипломы олимпиад или публикации.</p>
+            <div style="font-size:42px;margin-bottom:10px;">🎓</div>
+            <div style="font-size:15px;font-weight:700;">Нет подтвержденных сертификатов</div>
+            <p style="font-size:13px;margin-top:4px;">Студент пока не прикреплял дипломы олимпиад или публикации.</p>
           </div>
         {% endif %}
       </div>
@@ -531,28 +771,28 @@
   </div>
 
 </div>
-{% endif %}
 
 <script>
-  function switchDetailTab(tab) {
-    const resumeTab = document.getElementById('tab-content-resume');
-    const achTab = document.getElementById('tab-content-achievements');
-    const btns = document.querySelectorAll('.detail-tab-btn');
+  let currentScorecard = {
+    hr_rating: {{ access.hr_rating or 0 }},
+    hr_recommendation: '{{ access.hr_recommendation or "neutral" }}',
+    hr_tags: '{{ access.hr_tags or "" }}',
+  };
 
-    btns.forEach(b => b.classList.remove('active'));
+  function switchDossierTab(tab) {
+    const tabs = ['overview', 'skills', 'achievements'];
+    tabs.forEach(t => {
+      const el = document.getElementById(`dossier-tab-${t}`);
+      if (el) el.style.display = (t === tab) ? 'block' : 'none';
+    });
 
-    if (tab === 'resume') {
-      resumeTab.style.display = 'block';
-      achTab.style.display = 'none';
-      btns[0].classList.add('active');
-    } else {
-      resumeTab.style.display = 'none';
-      achTab.style.display = 'block';
-      btns[1].classList.add('active');
-    }
+    const btns = document.querySelectorAll('.tab-nav-item');
+    btns.forEach((b, idx) => {
+      b.classList.toggle('active', tabs[idx] === tab);
+    });
   }
 
-  async function setStage(stage) {
+  async function setCandidateStage(stage) {
     try {
       const res = await fetch('/employer/profiles/{{ access.id }}/status', {
         method: 'POST',
@@ -562,31 +802,88 @@
       const data = await res.json();
       if (data.success) {
         showToast(`✅ Этап обновлен: <strong>${stage}</strong>`);
-        setTimeout(() => location.reload(), 500);
-      } else {
-        showToast(`⚠️ Ошибка: ${data.error || 'Не удалось обновить'}`);
+        setTimeout(() => location.reload(), 400);
       }
     } catch (e) {
-      showToast(`⚠️ Ошибка сети при обновлении этапа`);
+      showToast('⚠️ Ошибка при обновлении этапа');
     }
   }
 
-  async function setRating(stars) {
-    document.getElementById('hiddenRatingInput').value = stars;
-    document.getElementById('ratingScoreText').textContent = `${stars} / 5`;
-    const starSpans = document.querySelectorAll('#starSelector span');
+  async function setStarRating(stars) {
+    currentScorecard.hr_rating = stars;
+    const starSpans = document.querySelectorAll('#starPicker span');
     starSpans.forEach((sp, idx) => {
-      if (idx < stars) sp.classList.add('active');
-      else sp.classList.remove('active');
+      sp.classList.toggle('active', idx < stars);
+    });
+    await saveScorecard();
+  }
+
+  async function setRecommendation(rec) {
+    currentScorecard.hr_recommendation = rec;
+    document.querySelectorAll('.rec-btn').forEach(btn => {
+      btn.className = 'rec-btn';
     });
 
+    const activeBtn = document.getElementById(`rec-${rec}`);
+    if (activeBtn) {
+      if (rec === 'strong_yes') activeBtn.classList.add('active-strong-yes');
+      else if (rec === 'yes') activeBtn.classList.add('active-yes');
+      else if (rec === 'neutral') activeBtn.classList.add('active-neutral');
+      else if (rec === 'no') activeBtn.classList.add('active-no');
+    }
+    await saveScorecard();
+  }
+
+  async function toggleTag(tag) {
+    let tags = currentScorecard.hr_tags ? currentScorecard.hr_tags.split(',').map(s => s.trim()).filter(Boolean) : [];
+    if (tags.includes(tag)) {
+      tags = tags.filter(t => t !== tag);
+    } else {
+      tags.push(tag);
+    }
+    currentScorecard.hr_tags = tags.join(',');
+
+    document.querySelectorAll('.quick-tag-pill').forEach(pill => {
+      pill.classList.toggle('active', tags.includes(pill.getAttribute('data-tag')));
+    });
+    await saveScorecard();
+  }
+
+  async function saveScorecardComment() {
+    const comment = document.getElementById('hrCommentInput').value;
+    document.getElementById('saveStatusIndicator').textContent = 'Сохранение...';
     try {
       await fetch('/employer/profiles/{{ access.id }}/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hr_rating: stars }),
+        body: JSON.stringify({
+          hr_comment: comment,
+          hr_rating: currentScorecard.hr_rating,
+          hr_recommendation: currentScorecard.hr_recommendation,
+          hr_tags: currentScorecard.hr_tags,
+        }),
       });
-      showToast(`⭐ Оценка сохранена: ${stars} из 5`);
+      document.getElementById('saveStatusIndicator').textContent = '✅ Все изменения сохранены';
+      showToast('💾 Заметка HR сохранена');
+    } catch (e) {
+      document.getElementById('saveStatusIndicator').textContent = '⚠️ Ошибка сохранения';
+    }
+  }
+
+  async function saveScorecard() {
+    document.getElementById('saveStatusIndicator').textContent = 'Сохранение...';
+    try {
+      await fetch('/employer/profiles/{{ access.id }}/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hr_rating: currentScorecard.hr_rating,
+          hr_recommendation: currentScorecard.hr_recommendation,
+          hr_tags: currentScorecard.hr_tags,
+        }),
+      });
+      document.getElementById('saveStatusIndicator').textContent = '✅ Оценка сохранена';
+      showToast('⭐️ Скоринг обновлен');
     } catch (e) {}
   }
 </script>
