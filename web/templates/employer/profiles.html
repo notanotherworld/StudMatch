@@ -78,12 +78,14 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    overflow: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     box-shadow: var(--shadow-sm);
   }
 
   .candidate-table {
     width: 100%;
+    min-width: 760px;
     border-collapse: collapse;
     text-align: left;
   }
@@ -113,9 +115,11 @@
   /* Kanban Board */
   .kanban-board {
     display: grid;
-    grid-template-columns: repeat(5, minmax(260px, 1fr));
+    grid-template-columns: repeat(5, minmax(280px, 1fr));
     gap: 16px;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
     padding-bottom: 24px;
     align-items: start;
   }
@@ -127,6 +131,7 @@
     display: flex;
     flex-direction: column;
     max-height: calc(100vh - 240px);
+    scroll-snap-align: start;
   }
 
   .kanban-col-header {
@@ -233,6 +238,30 @@
 
   .quick-drawer.open {
     right: 0;
+  }
+
+  @media (max-width: 640px) {
+    .quick-drawer {
+      width: 100vw;
+      max-width: 100vw;
+      right: -100vw;
+      padding: 20px 16px;
+    }
+    .filter-panel {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .filter-panel > div {
+      width: 100% !important;
+    }
+    .view-switcher {
+      width: 100%;
+      justify-content: space-between;
+    }
+    .view-btn {
+      flex: 1;
+      justify-content: center;
+    }
   }
 </style>
 

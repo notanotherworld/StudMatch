@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>СтудМэч — Платформа найма студентов и выпускников ведущих вузов</title>
 <meta name="description" content="Прямой найм проверенных студентов и выпускников РУДН и ведущих вузов России на основе реальных достижений, GPA и олимпиад без резюме-пустышек.">
 <link rel="icon" type="image/jpeg" href="/static/img/logo.jpg">
@@ -55,31 +55,33 @@
     box-sizing: border-box;
   }
 
+  html, body {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg);
     color: var(--text);
     line-height: 1.6;
-    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
   }
 
   /* ── Containers & Grid ──────────────────────── */
   .container {
+    width: 100%;
     max-width: 1280px;
     margin: 0 auto;
     padding: 0 24px;
   }
 
   .section {
-    padding: 96px 0;
+    padding: 80px 0;
     position: relative;
   }
 
-  .section-white {
-    background: #ffffff;
-  }
-
+  .section-white { background: #ffffff; }
   .section-slate {
     background: #f8fafc;
     border-top: 1px solid var(--border);
@@ -93,7 +95,7 @@
     left: 0;
     right: 0;
     z-index: 1000;
-    background: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.94);
     backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--border);
     height: 72px;
@@ -112,14 +114,15 @@
   .brand-logo {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     text-decoration: none;
     color: inherit;
+    flex-shrink: 0;
   }
 
   .brand-icon {
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     border-radius: var(--radius-md);
     background: var(--accent-gradient);
     display: flex;
@@ -131,26 +134,26 @@
   }
 
   .brand-text {
-    font-size: 19px;
+    font-size: 18px;
     font-weight: 900;
     letter-spacing: -0.5px;
     color: var(--text);
   }
 
   .brand-tag {
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 10px;
+    font-weight: 800;
     color: var(--primary);
     background: var(--primary-light);
     padding: 2px 8px;
     border-radius: var(--radius-pill);
-    margin-left: 4px;
+    margin-left: 2px;
   }
 
   .nav-links {
     display: flex;
     align-items: center;
-    gap: 32px;
+    gap: 28px;
     list-style: none;
   }
 
@@ -162,14 +165,64 @@
     transition: var(--transition);
   }
 
-  .nav-link:hover {
-    color: var(--primary);
-  }
+  .nav-link:hover { color: var(--primary); }
 
   .nav-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+  }
+
+  .mobile-hamburger {
+    display: none;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    width: 42px;
+    height: 42px;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    cursor: pointer;
+    color: var(--text);
+  }
+
+  /* ── Mobile Navigation Drawer ──────────────── */
+  .mobile-menu-drawer {
+    position: fixed;
+    top: 72px;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px 28px;
+    box-shadow: var(--shadow-lg);
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transform: translateY(-120%);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+
+  .mobile-menu-drawer.open {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobile-nav-link {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    text-decoration: none;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
 
   /* ── Buttons ────────────────────────────────── */
@@ -187,6 +240,7 @@
     transition: var(--transition);
     border: 1px solid transparent;
     font-family: inherit;
+    min-height: 44px;
   }
 
   .btn-primary {
@@ -226,12 +280,13 @@
     padding: 14px 28px;
     font-size: 15px;
     border-radius: var(--radius-md);
+    min-height: 48px;
   }
 
   /* ── Hero Section (Split Pattern) ───────────── */
   .hero-section {
-    padding-top: 140px;
-    padding-bottom: 96px;
+    padding-top: 130px;
+    padding-bottom: 72px;
     position: relative;
     background: radial-gradient(circle at 85% 15%, rgba(79, 70, 229, 0.08) 0%, transparent 60%),
                 radial-gradient(circle at 15% 50%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
@@ -242,7 +297,7 @@
   .hero-grid {
     display: grid;
     grid-template-columns: 1.15fr 0.95fr;
-    gap: 64px;
+    gap: 48px;
     align-items: center;
   }
 
@@ -255,18 +310,21 @@
     background: var(--primary-light);
     border: 1px solid rgba(79, 70, 229, 0.2);
     color: var(--primary);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 800;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
+    max-width: 100%;
+    white-space: normal;
   }
 
   .hero-title {
-    font-size: 48px;
+    font-size: clamp(28px, 5.2vw, 48px);
     font-weight: 900;
-    line-height: 1.15;
-    letter-spacing: -1.2px;
+    line-height: 1.18;
+    letter-spacing: -0.8px;
     color: var(--text);
-    margin-bottom: 20px;
+    margin-bottom: 18px;
+    word-break: break-word;
   }
 
   .hero-title span {
@@ -276,26 +334,26 @@
   }
 
   .hero-subtitle {
-    font-size: 18px;
+    font-size: clamp(15px, 2.4vw, 18px);
     color: var(--text-secondary);
     line-height: 1.6;
-    margin-bottom: 32px;
+    margin-bottom: 28px;
     max-width: 540px;
   }
 
   .hero-actions {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     flex-wrap: wrap;
-    margin-bottom: 40px;
+    margin-bottom: 36px;
   }
 
   .hero-stats-row {
-    display: flex;
-    align-items: center;
-    gap: 32px;
-    padding-top: 24px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    padding-top: 20px;
     border-top: 1px solid var(--border);
   }
 
@@ -305,62 +363,59 @@
   }
 
   .hero-stat-number {
-    font-size: 24px;
+    font-size: clamp(18px, 3.2vw, 24px);
     font-weight: 900;
     color: var(--text);
     letter-spacing: -0.5px;
   }
 
   .hero-stat-label {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-muted);
     font-weight: 600;
+    line-height: 1.3;
+    margin-top: 2px;
   }
 
-  /* ── Hero Mockup Card (Figma Node) ──────────── */
+  /* ── Hero Mockup Card ───────────────────────── */
   .hero-mockup-card {
     background: #ffffff;
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
-    padding: 32px;
+    padding: 28px;
     box-shadow: var(--shadow-lg);
     position: relative;
     transition: var(--transition);
   }
 
-  .hero-mockup-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 25px 45px -5px rgba(15, 23, 42, 0.12);
-  }
-
   .mockup-match-pill {
     position: absolute;
-    top: 24px;
-    right: 24px;
+    top: 20px;
+    right: 20px;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 12px;
+    padding: 5px 12px;
     border-radius: var(--radius-pill);
     background: var(--primary-light);
     border: 1px solid rgba(79, 70, 229, 0.25);
     color: var(--primary);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 800;
   }
 
   .mockup-avatar {
-    width: 64px;
-    height: 64px;
-    border-radius: 18px;
+    width: 58px;
+    height: 58px;
+    border-radius: 16px;
     background: var(--accent-gradient);
     color: #fff;
-    font-size: 26px;
+    font-size: 24px;
     font-weight: 800;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     box-shadow: var(--shadow-glow);
   }
 
@@ -374,28 +429,28 @@
     color: var(--success);
     font-size: 11px;
     font-weight: 700;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
 
   .mockup-name {
-    font-size: 20px;
+    font-size: 19px;
     font-weight: 800;
     color: var(--text);
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
 
   .mockup-role {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     color: var(--primary);
-    margin-bottom: 16px;
+    margin-bottom: 14px;
   }
 
   .mockup-skills-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
   }
 
   .mockup-skill-pill {
@@ -414,8 +469,9 @@
     align-items: center;
     background: var(--surface2);
     border-radius: var(--radius-md);
-    padding: 12px 16px;
-    margin-bottom: 20px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    gap: 8px;
   }
 
   .mockup-action-btn {
@@ -432,54 +488,54 @@
     box-shadow: var(--shadow-glow);
   }
 
-  /* ── Trust Universities Marquee ─────────────── */
+  /* ── Trust Universities ─────────────────────── */
   .trust-strip {
-    padding: 32px 0;
+    padding: 28px 0;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     text-align: center;
   }
 
   .trust-label {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.8px;
     color: var(--text-muted);
-    margin-bottom: 16px;
+    margin-bottom: 14px;
   }
 
   .trust-logos-row {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 40px;
+    gap: 12px;
     flex-wrap: wrap;
   }
 
   .trust-uni-pill {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 800;
     color: var(--text-secondary);
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
+    gap: 6px;
+    padding: 6px 14px;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: var(--radius-pill);
   }
 
-  /* ── How It Works (4 Steps) ─────────────────── */
+  /* ── Section Headers ────────────────────────── */
   .section-header {
     text-align: center;
     max-width: 680px;
-    margin: 0 auto 56px;
+    margin: 0 auto 48px;
   }
 
   .section-tag {
     display: inline-block;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.8px;
@@ -488,80 +544,82 @@
   }
 
   .section-title {
-    font-size: 36px;
+    font-size: clamp(24px, 4vw, 36px);
     font-weight: 900;
-    letter-spacing: -0.8px;
+    letter-spacing: -0.6px;
     color: var(--text);
     margin-bottom: 12px;
+    line-height: 1.25;
   }
 
   .section-desc {
-    font-size: 16px;
+    font-size: clamp(14px, 2vw, 16px);
     color: var(--text-secondary);
     line-height: 1.6;
   }
 
+  /* ── How It Works ───────────────────────────── */
   .steps-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 24px;
+    gap: 20px;
   }
 
   .step-card {
     background: #ffffff;
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
-    padding: 32px 24px;
+    padding: 28px 20px;
     position: relative;
     box-shadow: var(--shadow-sm);
     transition: var(--transition);
   }
 
   .step-card:hover {
-    transform: translateY(-4px);
+    transform: translateY(-3px);
     box-shadow: var(--shadow-md);
     border-color: var(--primary);
   }
 
   .step-num {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: var(--radius-md);
     background: var(--primary-light);
     color: var(--primary);
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 900;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
   }
 
   .step-title {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 800;
     color: var(--text);
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
 
   .step-text {
-    font-size: 14px;
+    font-size: 13px;
     color: var(--text-secondary);
     line-height: 1.5;
   }
 
-  /* ── Talent Showcase Bento ──────────────────── */
+  /* ── Talents Grid ───────────────────────────── */
   .talents-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
+    gap: 20px;
   }
 
   .talent-card {
     background: #ffffff;
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
-    padding: 28px;
+    padding: 24px;
     box-shadow: var(--shadow-sm);
     transition: var(--transition);
     display: flex;
@@ -579,16 +637,16 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
   }
 
   .talent-avatar {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     border-radius: var(--radius-md);
     background: var(--accent-gradient);
     color: #fff;
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 800;
     display: flex;
     align-items: center;
@@ -598,14 +656,14 @@
   .talent-score-badge {
     background: var(--primary-light);
     color: var(--primary);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
-    padding: 4px 10px;
+    padding: 3px 8px;
     border-radius: var(--radius-pill);
   }
 
   .talent-name {
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 800;
     color: var(--text);
     margin-bottom: 2px;
@@ -614,14 +672,14 @@
   .talent-uni {
     font-size: 12px;
     color: var(--text-muted);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
 
   .talent-skills-row {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
   }
 
   .talent-tag {
@@ -634,24 +692,27 @@
     border: 1px solid var(--border);
   }
 
-  /* ── Comparison Table ───────────────────────── */
-  .comparison-card {
-    background: #ffffff;
-    border: 1px solid var(--border);
+  /* ── Comparison Table (Scroll-Safe) ─────────── */
+  .table-scroll-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     border-radius: var(--radius-xl);
-    overflow: hidden;
+    border: 1px solid var(--border);
     box-shadow: var(--shadow-md);
+    background: #ffffff;
   }
 
   .comparison-table {
     width: 100%;
+    min-width: 620px;
     border-collapse: collapse;
   }
 
   .comparison-table th {
-    padding: 20px 24px;
+    padding: 16px 20px;
     text-align: left;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 800;
     background: var(--surface2);
     border-bottom: 1px solid var(--border);
@@ -663,14 +724,12 @@
   }
 
   .comparison-table td {
-    padding: 18px 24px;
+    padding: 16px 20px;
     border-bottom: 1px solid var(--border);
-    font-size: 14px;
+    font-size: 13px;
   }
 
-  .comparison-table tr:last-child td {
-    border-bottom: none;
-  }
+  .comparison-table tr:last-child td { border-bottom: none; }
 
   .comparison-table td.highlight {
     background: rgba(79, 70, 229, 0.03);
@@ -678,13 +737,13 @@
     color: var(--primary);
   }
 
-  /* ── FAQ Accordion ──────────────────────────── */
+  /* ── FAQ ────────────────────────────────────── */
   .faq-list {
     max-width: 800px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
   }
 
   .faq-item {
@@ -697,8 +756,8 @@
   }
 
   .faq-question {
-    padding: 20px 24px;
-    font-size: 16px;
+    padding: 18px 20px;
+    font-size: 15px;
     font-weight: 800;
     color: var(--text);
     cursor: pointer;
@@ -706,54 +765,48 @@
     justify-content: space-between;
     align-items: center;
     user-select: none;
+    min-height: 48px;
   }
 
   .faq-answer {
-    padding: 0 24px 20px 24px;
-    font-size: 14px;
+    padding: 0 20px 18px 20px;
+    font-size: 13px;
     color: var(--text-secondary);
     line-height: 1.6;
     display: none;
   }
 
-  .faq-item.open .faq-answer {
-    display: block;
-  }
-
+  .faq-item.open .faq-answer { display: block; }
   .faq-icon {
     font-size: 18px;
     color: var(--primary);
     transition: transform 0.2s ease;
   }
+  .faq-item.open .faq-icon { transform: rotate(45deg); }
 
-  .faq-item.open .faq-icon {
-    transform: rotate(45deg);
-  }
-
-  /* ── CTA Lead Banner ────────────────────────── */
+  /* ── CTA Banner ─────────────────────────────── */
   .cta-banner-card {
     background: var(--accent-gradient);
     border-radius: var(--radius-xl);
-    padding: 64px 48px;
+    padding: 48px 32px;
     text-align: center;
     color: #ffffff;
     box-shadow: var(--shadow-lg);
-    position: relative;
-    overflow: hidden;
   }
 
   .cta-banner-title {
-    font-size: 38px;
+    font-size: clamp(22px, 4vw, 36px);
     font-weight: 900;
-    letter-spacing: -0.8px;
-    margin-bottom: 16px;
+    letter-spacing: -0.6px;
+    margin-bottom: 12px;
+    line-height: 1.25;
   }
 
   .cta-banner-desc {
-    font-size: 17px;
+    font-size: clamp(14px, 2vw, 16px);
     opacity: 0.9;
     max-width: 600px;
-    margin: 0 auto 32px;
+    margin: 0 auto 28px;
     line-height: 1.6;
   }
 
@@ -761,23 +814,23 @@
   .footer {
     background: #ffffff;
     border-top: 1px solid var(--border);
-    padding: 64px 0 32px;
+    padding: 48px 0 24px;
   }
 
   .footer-grid {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1.5fr;
-    gap: 48px;
-    margin-bottom: 48px;
+    gap: 32px;
+    margin-bottom: 36px;
   }
 
   .footer-col-title {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.6px;
     color: var(--text);
-    margin-bottom: 16px;
+    margin-bottom: 14px;
   }
 
   .footer-links {
@@ -788,43 +841,52 @@
   }
 
   .footer-link {
-    font-size: 14px;
+    font-size: 13px;
     color: var(--text-secondary);
     text-decoration: none;
     transition: var(--transition);
   }
 
-  .footer-link:hover {
-    color: var(--primary);
-  }
+  .footer-link:hover { color: var(--primary); }
 
   .footer-bottom {
     display: flex;
     justify-content: space-between;
     align-items: center;
     border-top: 1px solid var(--border);
-    padding-top: 24px;
-    font-size: 13px;
+    padding-top: 20px;
+    font-size: 12px;
     color: var(--text-muted);
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
-  /* ── Responsive ─────────────────────────────── */
+  /* ── Responsive Queries ─────────────────────── */
   @media (max-width: 1024px) {
-    .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+    .hero-grid { grid-template-columns: 1fr; gap: 36px; }
     .steps-grid { grid-template-columns: repeat(2, 1fr); }
     .talents-grid { grid-template-columns: repeat(2, 1fr); }
-    .footer-grid { grid-template-columns: 1fr 1fr; }
+    .footer-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
   }
 
   @media (max-width: 768px) {
-    .nav-links { display: none; }
-    .hero-title { font-size: 34px; }
+    .nav-links, .nav-actions .btn-ghost { display: none; }
+    .mobile-hamburger { display: flex; }
+    .hero-section { padding-top: 100px; padding-bottom: 48px; }
+    .hero-actions { flex-direction: column; width: 100%; }
+    .hero-actions .btn { width: 100%; }
     .steps-grid { grid-template-columns: 1fr; }
     .talents-grid { grid-template-columns: 1fr; }
-    .cta-banner-card { padding: 40px 24px; }
-    .cta-banner-title { font-size: 26px; }
     .footer-grid { grid-template-columns: 1fr; }
-    .hero-stats-row { flex-direction: column; align-items: flex-start; gap: 16px; }
+    .cta-banner-card { padding: 32px 20px; }
+    .cta-banner-card .btn { width: 100%; }
+  }
+
+  @media (max-width: 480px) {
+    .container { padding: 0 16px; }
+    .hero-mockup-card { padding: 20px 16px; }
+    .hero-stats-row { gap: 8px; }
+    .mockup-match-pill { top: 16px; right: 16px; font-size: 11px; }
   }
 </style>
 </head>
@@ -837,7 +899,7 @@
   <div class="container navbar-inner">
     <a href="/" class="brand-logo">
       <div class="brand-icon">🎓</div>
-      <div class="brand-text">СтудМэч <span class="brand-tag">HR & Talent</span></div>
+      <div class="brand-text">СтудМэч <span class="brand-tag">HR</span></div>
     </a>
 
     <ul class="nav-links">
@@ -848,15 +910,24 @@
     </ul>
 
     <div class="nav-actions">
-      <a href="/employer/login" class="btn btn-ghost">
-        Вход для HR
-      </a>
-      <a href="/employer/login" class="btn btn-primary">
-        Найти сотрудников →
-      </a>
+      <a href="/employer/login" class="btn btn-ghost">Вход для HR</a>
+      <a href="/employer/login" class="btn btn-primary" style="padding:8px 16px;font-size:13px;">Найти сотрудников →</a>
+      <button type="button" class="mobile-hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Меню">
+        ☰
+      </button>
     </div>
   </div>
 </header>
+
+<!-- Выпадающее мобильное меню -->
+<div class="mobile-menu-drawer" id="mobileMenuDrawer">
+  <a href="#how-it-works" class="mobile-nav-link" onclick="closeMobileMenu()">⚡️ Как это работает <span>→</span></a>
+  <a href="#talents" class="mobile-nav-link" onclick="closeMobileMenu()">👥 База соискателей <span>→</span></a>
+  <a href="#comparison" class="mobile-nav-link" onclick="closeMobileMenu()">🏆 Преимущества <span>→</span></a>
+  <a href="#faq" class="mobile-nav-link" onclick="closeMobileMenu()">❓ Вопросы и ответы <span>→</span></a>
+  <a href="/employer/login" class="btn btn-primary btn-lg" style="width:100%;margin-top:8px;">💼 Кабинет работодателя HR</a>
+  <a href="https://t.me/{{ bot_username }}" target="_blank" class="btn btn-outline btn-lg" style="width:100%;">🎓 Я студент — Заполнить анкету</a>
+</div>
 
 <!-- ══════════════════════════════════════════════ -->
 <!-- 2. SPLIT HERO SECTION (FIGMA PATTERN)          -->
@@ -898,7 +969,7 @@
           <span class="hero-stat-label">Точность скоринга</span>
         </div>
         <div class="hero-stat-item">
-          <span class="hero-stat-number">< 24 часов</span>
+          <span class="hero-stat-number">< 24ч</span>
           <span class="hero-stat-label">До первого отклика</span>
         </div>
       </div>
@@ -932,16 +1003,16 @@
 
         <div class="mockup-stats-bar">
           <div>
-            <div style="font-size:11px;color:var(--text-muted);font-weight:700;">Рейтинг портфолио</div>
-            <div style="font-size:16px;font-weight:900;color:var(--rating-gold);">⭐ 480 баллов</div>
+            <div style="font-size:10px;color:var(--text-muted);font-weight:700;">Рейтинг</div>
+            <div style="font-size:15px;font-weight:900;color:var(--rating-gold);">⭐ 480 б.</div>
           </div>
           <div>
-            <div style="font-size:11px;color:var(--text-muted);font-weight:700;">Формат работы</div>
-            <div style="font-size:13px;font-weight:800;color:var(--text);">Удаленно / Гибрид</div>
+            <div style="font-size:10px;color:var(--text-muted);font-weight:700;">Формат</div>
+            <div style="font-size:12px;font-weight:800;color:var(--text);">Удаленно</div>
           </div>
           <div>
-            <div style="font-size:11px;color:var(--text-muted);font-weight:700;">Статус</div>
-            <div style="font-size:13px;font-weight:800;color:var(--success);">💬 Готов к найму</div>
+            <div style="font-size:10px;color:var(--text-muted);font-weight:700;">Статус</div>
+            <div style="font-size:12px;font-weight:800;color:var(--success);">💬 Готов</div>
           </div>
         </div>
 
@@ -962,9 +1033,9 @@
     <div class="trust-label">Студенты и выпускники ведущих университетов</div>
     <div class="trust-logos-row">
       <div class="trust-uni-pill">🏛 РУДН</div>
-      <div class="trust-uni-pill">🏛 МГУ им. Ломоносова</div>
+      <div class="trust-uni-pill">🏛 МГУ</div>
       <div class="trust-uni-pill">🏛 НИУ ВШЭ</div>
-      <div class="trust-uni-pill">🏛 МГТУ им. Баумана</div>
+      <div class="trust-uni-pill">🏛 МГТУ Баумана</div>
       <div class="trust-uni-pill">🏛 МФТИ</div>
       <div class="trust-uni-pill">🏛 РАНХиГС</div>
     </div>
@@ -986,7 +1057,6 @@
     </div>
 
     <div class="steps-grid">
-      <!-- Шаг 1 -->
       <div class="step-card">
         <div class="step-num">01</div>
         <h3 class="step-title">Верификация вузом</h3>
@@ -995,7 +1065,6 @@
         </p>
       </div>
 
-      <!-- Шаг 2 -->
       <div class="step-card">
         <div class="step-num">02</div>
         <h3 class="step-title">Объективный скоринг</h3>
@@ -1004,7 +1073,6 @@
         </p>
       </div>
 
-      <!-- Шаг 3 -->
       <div class="step-card">
         <div class="step-num">03</div>
         <h3 class="step-title">Кабинет рекрутера</h3>
@@ -1013,7 +1081,6 @@
         </p>
       </div>
 
-      <!-- Шаг 4 -->
       <div class="step-card">
         <div class="step-num">04</div>
         <h3 class="step-title">Прямой найм</h3>
@@ -1042,7 +1109,7 @@
 
     <div class="talents-grid">
       
-      <!-- Карточка 1: Backend -->
+      <!-- Карточка 1 -->
       <div class="talent-card">
         <div>
           <div class="talent-header">
@@ -1064,7 +1131,7 @@
         </div>
       </div>
 
-      <!-- Карточка 2: Data Science -->
+      <!-- Карточка 2 -->
       <div class="talent-card">
         <div>
           <div class="talent-header">
@@ -1077,7 +1144,7 @@
             <span class="talent-tag">PyTorch</span>
             <span class="talent-tag">Pandas</span>
             <span class="talent-tag">SQL</span>
-            <span class="talent-tag">Machine Learning</span>
+            <span class="talent-tag">ML</span>
           </div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:12px;">
@@ -1086,7 +1153,7 @@
         </div>
       </div>
 
-      <!-- Карточка 3: UI/UX Design -->
+      <!-- Карточка 3 -->
       <div class="talent-card">
         <div>
           <div class="talent-header">
@@ -1110,8 +1177,8 @@
 
     </div>
 
-    <div style="text-align:center;margin-top:40px;">
-      <a href="/employer/login" class="btn btn-primary btn-lg">
+    <div style="text-align:center;margin-top:36px;">
+      <a href="/employer/login" class="btn btn-primary btn-lg" style="width:100%;max-width:360px;">
         Посмотреть всех кандидатов в базе →
       </a>
     </div>
@@ -1120,7 +1187,7 @@
 </section>
 
 <!-- ══════════════════════════════════════════════ -->
-<!-- 6. COMPARISON TABLE                            -->
+<!-- 6. COMPARISON TABLE (SCROLL-SAFE)              -->
 <!-- ══════════════════════════════════════════════ -->
 <section class="section section-white" id="comparison">
   <div class="container">
@@ -1133,7 +1200,7 @@
       </p>
     </div>
 
-    <div class="comparison-card">
+    <div class="table-scroll-wrapper">
       <table class="comparison-table">
         <thead>
           <tr>
@@ -1216,7 +1283,7 @@
           <span class="faq-icon">+</span>
         </div>
         <div class="faq-answer">
-          Да! В личном кабинете работодателя есть раздел «Заявки на подбор». Вы описываете требуемый стек технологий, курс и формат работы — кураторы СтудМэч бесплатно сформируют целевую подборку лучших кандидатов.
+          Да! В личном кабинете работодателя есть раздел «Заявки на подбор». Вы описываете требуемый стек технологий, курс и формат работы — кураторы СтудМэч сформируют целевую подборку лучших кандидатов.
         </div>
       </div>
 
@@ -1244,11 +1311,11 @@
       <p class="cta-banner-desc">
         Получите мгновенный доступ к верифицированной базе кандидатов и начните собеседовать лучших соискателей уже сегодня.
       </p>
-      <div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;">
-        <a href="/employer/login" class="btn" style="background:#fff;color:var(--primary);font-size:16px;padding:14px 32px;font-weight:900;">
+      <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;">
+        <a href="/employer/login" class="btn btn-lg" style="background:#fff;color:var(--primary);font-weight:900;">
           💼 Начать поиск в HR Кабинете
         </a>
-        <a href="https://t.me/{{ bot_username }}" target="_blank" class="btn" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);font-size:16px;padding:14px 32px;">
+        <a href="https://t.me/{{ bot_username }}" target="_blank" class="btn btn-lg" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);">
           🎓 Войти как студент в Telegram
         </a>
       </div>
@@ -1312,6 +1379,25 @@
 <script>
   function toggleFaq(element) {
     element.classList.toggle('open');
+  }
+
+  function toggleMobileMenu() {
+    const drawer = document.getElementById('mobileMenuDrawer');
+    const btn = document.getElementById('hamburgerBtn');
+    if (drawer.classList.contains('open')) {
+      drawer.classList.remove('open');
+      btn.textContent = '☰';
+    } else {
+      drawer.classList.add('open');
+      btn.textContent = '✕';
+    }
+  }
+
+  function closeMobileMenu() {
+    const drawer = document.getElementById('mobileMenuDrawer');
+    const btn = document.getElementById('hamburgerBtn');
+    drawer.classList.remove('open');
+    btn.textContent = '☰';
   }
 </script>
 

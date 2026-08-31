@@ -501,10 +501,26 @@
     to { transform: translateY(0); opacity: 1; }
   }
 
-  /* ── Mobile Responsiveness ──────────── */
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(4px);
+    z-index: 98;
+    opacity: 0;
+    visibility: hidden;
+    transition: var(--transition);
+  }
+
+  .sidebar-backdrop.open {
+    opacity: 1;
+    visibility: visible;
+  }
+
   @media (max-width: 1024px) {
     .sidebar {
       transform: translateX(-100%);
+      z-index: 99;
     }
     .sidebar.open {
       transform: translateX(0);
@@ -518,7 +534,7 @@
       display: block;
     }
     .topbar-search {
-      width: 220px;
+      width: 200px;
     }
     .content-container {
       padding: 20px 16px;
@@ -533,6 +549,8 @@
 {% block extra_head %}{% endblock %}
 </head>
 <body>
+
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
 
 <div class="app-layout">
   <!-- Левый сайдбар в стиле Figma ATS -->
@@ -666,7 +684,9 @@
 
   function toggleSidebar() {
     const sb = document.getElementById('appSidebar');
+    const backdrop = document.getElementById('sidebarBackdrop');
     if (sb) sb.classList.toggle('open');
+    if (backdrop) backdrop.classList.toggle('open');
   }
 
   function showToast(msg) {

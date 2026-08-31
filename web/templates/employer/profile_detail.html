@@ -111,11 +111,17 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-wrap: wrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 4px;
     flex: 1;
   }
 
   .stepper-btn {
+    scroll-snap-align: start;
+    white-space: nowrap;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -140,12 +146,6 @@
     border-color: var(--primary);
     color: #fff;
     box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
-  }
-
-  .stepper-btn.completed {
-    background: var(--success-light);
-    border-color: rgba(16, 185, 129, 0.3);
-    color: var(--success);
   }
 
   /* ── 2-Column Main Workspace ───────────────── */
@@ -358,6 +358,42 @@
 
   @media (max-width: 1024px) {
     .workspace-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 640px) {
+    .profile-cover-banner { height: 120px; }
+    .profile-avatar-img {
+      width: 76px;
+      height: 76px;
+      font-size: 32px;
+      border-radius: 20px;
+    }
+    .profile-avatar-wrapper {
+      margin-top: -38px;
+    }
+    .profile-header-body {
+      padding: 0 16px 20px 16px;
+    }
+    .ats-stepper-card {
+      padding: 16px;
+    }
+    .rec-btn-group {
+      grid-template-columns: 1fr;
+    }
+    .tabs-nav-bar {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      white-space: nowrap;
+      padding-bottom: 8px;
+    }
+    .tab-nav-item {
+      flex-shrink: 0;
+      padding: 8px 14px;
+      font-size: 13px;
+    }
+    .scorecard-card {
+      padding: 18px 16px;
+    }
   }
 </style>
 {% endblock %}
