@@ -26,18 +26,18 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 async def profiles_list(
     request: Request,
     tab: str = Query(default="all"),
+    view: str = Query(default="table"),
     q: Optional[str] = Query(default=None),
     year: Optional[str] = Query(default=None),
     employer=Depends(get_current_employer),
     db: AsyncSession = Depends(get_db),
 ):
-    """Список выданных HR анкет с фильтрацией по вкладкам, поиском по ключевым словам и курсу."""
-    # Безопасный парсинг года (курса)
+    """Список выданных HR анкет с переключением Таблица/Канбан, фильтрацией и поиском."""
     year_int: Optional[int] = None
     if year is not None and str(year).strip().isdigit():
         year_int = int(str(year).strip())
 
-    filter_status = tab if tab in ("suitable", "archived") else None
+    filter_status = tab if tab in ("suitable", "archived", "new", "screening", "interview", "offer", "hired", "rejected") else None
     accesses = await get_employer_profiles(db, employer.id, status=filter_status)
     counts = await get_employer_profile_counts(db, employer.id)
 
@@ -59,13 +59,39 @@ async def profiles_list(
                 continue
         filtered_accesses.append(acc)
 
+    # Для канбан-доски группируем кандидатов по колонкам
+    kanban_groups = {
+        "new": [],
+        "screening": [],
+        "interview": [],
+        "offer": [],
+        "hired": [],
+        "archived": [],
+    }
+    # Для канбана берем все анкеты работодателя (с учетом фильтров)
+    for acc in filtered_accesses:
+        st = acc.status or "new"
+        if st in ("active", None):
+            st = "new"
+        elif st == "suitable":
+            st = "interview"
+        elif st == "rejected":
+            st = "archived"
+
+        if st in kanban_groups:
+            kanban_groups[st].append(acc)
+        else:
+            kanban_groups["new"].append(acc)
+
     return templates.TemplateResponse(
         "employer/profiles.html",
         {
             "request": request,
             "employer": employer,
             "accesses": filtered_accesses,
+            "kanban_groups": kanban_groups,
             "current_tab": tab,
+            "current_view": view,
             "counts": counts,
             "q": q or "",
             "year": year_int if year_int is not None else "",
@@ -79,17 +105,16 @@ async def export_profiles_csv(
     employer=Depends(get_current_employer),
     db: AsyncSession = Depends(get_db),
 ):
-    """Экспорт списка кандидатов (Все / Подходящие) в CSV для HR."""
-    filter_status = tab if tab in ("suitable", "archived") else None
+    """Экспорт списка кандидатов в CSV для HR."""
+    filter_status = tab if tab in ("suitable", "archived", "new", "screening", "interview", "offer", "hired") else None
     accesses = await get_employer_profiles(db, employer.id, status=filter_status)
 
     output = io.StringIO()
-    # Write UTF-8 BOM so Excel opens Cyrillic properly
     output.write('\ufeff')
     writer = csv.writer(output, delimiter=';')
     writer.writerow([
         "Имя", "ВУЗ", "Курс", "Специальность", "Рейтинг (баллы)", 
-        "Навыки и стек", "Формат работы", "Портфолио", "Telegram", "Статус в HR", "Заметка HR", "Дата выдачи"
+        "Оценка HR (1-5)", "Навыки и стек", "Формат работы", "Портфолио", "Telegram", "Этап воронки", "Заметка HR", "Дата выдачи"
     ])
 
     for acc in accesses:
@@ -98,7 +123,17 @@ async def export_profiles_csv(
         if not prof:
             continue
 
-        status_label = "Подходящий" if acc.status == "suitable" else ("В архиве" if acc.status == "archived" else "Активный")
+        stage_names = {
+            "new": "Новый",
+            "screening": "Скрининг",
+            "interview": "Собеседование",
+            "offer": "Оффер",
+            "hired": "Нанят",
+            "suitable": "Шортлист",
+            "archived": "В архиве",
+            "rejected": "Отказ",
+        }
+        status_label = stage_names.get(acc.status, "Новый")
         tg = f"@{user.tg_username}" if user and user.tg_username else "Скрыт"
         univ = user.university.short_name if user and user.university else "РУДН"
         granted_str = acc.granted_at.strftime("%d.%m.%Y") if acc.granted_at else ""
@@ -109,6 +144,7 @@ async def export_profiles_csv(
             f"{prof.year} курс" if prof.year else "—",
             prof.major or "—",
             int(prof.rating_score or 0),
+            acc.hr_rating or 0,
             prof.career_custom_skills or "—",
             prof.career_work_format or "Любой",
             prof.career_portfolio_url or "—",
@@ -163,7 +199,7 @@ async def profile_detail(
     if not access:
         return RedirectResponse("/employer/profiles")
 
-    # Гарантированно отмечаем просмотр в БД и в текущем объекте
+    # Гарантированно отмечаем просмотр в БД
     if not access.viewed_at:
         access.viewed_at = datetime.now(timezone.utc)
         await db.commit()
@@ -172,7 +208,7 @@ async def profile_detail(
     profile = access.profile
     user = profile.user if profile else None
 
-    # Только подтверждённые достижения (без документов!)
+    # Подтверждённые достижения студента
     achievements = []
     if user:
         result2 = await db.execute(
@@ -201,18 +237,37 @@ async def profile_detail(
 async def set_candidate_status(
     access_id: str,
     request: Request,
-    status: str = Form(...),
-    next_url: Optional[str] = Form(default=None),
     employer=Depends(get_current_employer),
     db: AsyncSession = Depends(get_db),
 ):
-    """Смена статуса кандидата (active / suitable / archived)."""
+    """Смена статуса кандидата (поддержка Form и JSON)."""
     try:
         access_uuid = uuid.UUID(access_id)
     except ValueError:
         return RedirectResponse("/employer/profiles")
 
-    if status in ("suitable", "archived", "active"):
+    status = None
+    next_url = None
+
+    # Проверяем content-type (JSON или Form)
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            status = body.get("status")
+            hr_rating = body.get("hr_rating")
+            if status:
+                await update_employer_candidate_status(db, access_uuid, employer.id, new_status=status, hr_rating=hr_rating)
+            return {"success": True, "status": status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    else:
+        form = await request.form()
+        status = form.get("status")
+        next_url = form.get("next_url")
+
+    valid_statuses = ("new", "screening", "interview", "offer", "hired", "archived", "rejected", "suitable", "active")
+    if status in valid_statuses:
         await update_employer_candidate_status(db, access_uuid, employer.id, new_status=status)
 
     if next_url and next_url.startswith("/employer"):
@@ -225,16 +280,18 @@ async def update_candidate_comment(
     access_id: str,
     request: Request,
     hr_comment: str = Form(default=""),
+    hr_rating: Optional[int] = Form(default=None),
     employer=Depends(get_current_employer),
     db: AsyncSession = Depends(get_db),
 ):
-    """Сохранение личной заметки HR по кандидату."""
+    """Сохранение личной заметки и оценки HR по кандидату."""
     try:
         access_uuid = uuid.UUID(access_id)
     except ValueError:
         return RedirectResponse("/employer/profiles")
 
     await update_employer_candidate_status(
-        db, access_uuid, employer.id, new_status=None, hr_comment=hr_comment.strip()
+        db, access_uuid, employer.id, hr_comment=hr_comment.strip(), hr_rating=hr_rating
     )
     return RedirectResponse(f"/employer/profiles/{access_id}?saved=1", status_code=302)
+

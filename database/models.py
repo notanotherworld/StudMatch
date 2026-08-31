@@ -354,8 +354,9 @@ class EmployerProfileAccess(Base):
     profile_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("profiles.id"))
     granted_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("admins.id"), nullable=True)
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Пометка от модератора ("Стажировка 2025")
-    status: Mapped[str] = mapped_column(String(20), default="active", server_default="active")  # "active", "suitable", "archived"
+    status: Mapped[str] = mapped_column(String(20), default="new", server_default="new")  # "new", "screening", "interview", "offer", "hired", "archived", "rejected", "suitable", "active"
     hr_comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Личная заметка HR
+    hr_rating: Mapped[Optional[int]] = mapped_column(Integer, default=0, server_default="0", nullable=True)  # Оценка 1-5 звезд
     granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     viewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 

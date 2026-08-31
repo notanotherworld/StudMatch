@@ -1,44 +1,110 @@
 {% extends "employer/base.html" %}
-{% block title %}Заявки на подбор — СтудМэч HR{% endblock %}
+{% block title %}Заявки на подбор — {{ employer.company_name }} | СтудМэч HR{% endblock %}
+{% block page_title %}📝 Заявки на подбор студентов{% endblock %}
 
 {% block content %}
-<div style="margin-bottom:24px;">
-  <h1 style="font-size:22px;font-weight:700;">📩 Заявки на подбор студентов</h1>
-  <p style="color:var(--muted);margin-top:4px;">
-    Оставьте требования к кандидатам, и команда СтудМэч подберёт лучших студентов и выдаст анкеты в ваш кабинет.
-  </p>
+<style>
+  .requests-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .form-group {
+    margin-bottom: 18px;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text-secondary);
+  }
+
+  .form-control {
+    width: 100%;
+    padding: 11px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: var(--transition);
+  }
+
+  .form-control:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+  }
+
+  .request-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 16px;
+    transition: var(--transition);
+  }
+
+  .request-card:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-sm);
+  }
+
+  @media (max-width: 1024px) {
+    .requests-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<!-- Приветственный баннер раздела -->
+<div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(99,102,241,0.08) 0%,rgba(168,85,247,0.05) 100%);">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div style="font-size:36px;">🎯</div>
+    <div>
+      <h2 style="font-size:18px;font-weight:800;letter-spacing:-0.3px;">Индивидуальный подбор студентов под ваши требования</h2>
+      <p style="color:var(--text-secondary);font-size:13px;margin-top:2px;">
+        Опишите стек, задачи и условия стажировки/вакансии. Кураторы СтудМэч отберут проверенных кандидатов из рейтинговой базы и выдадут анкеты прямо в ваш личный кабинет.
+      </p>
+    </div>
+  </div>
 </div>
 
 {% if success %}
-<div class="card" style="background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);color:#86efac;padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:12px;">
+<div class="card" style="background:var(--success-light);border-color:rgba(16,185,129,0.3);color:var(--success);padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:12px;">
   <span style="font-size:24px;">🎉</span>
   <div>
-    <strong>Заявка успешно отправлена кураторам СтудМэч!</strong>
-    <div style="font-size:13px;opacity:0.9;margin-top:2px;">Мы уже получили ваше уведомление и начали формировать подборку анкет. Вы получите уведомление о выдаче.</div>
+    <div style="font-weight:800;font-size:15px;">Заявка успешно отправлена кураторам СтудМэч!</div>
+    <div style="font-size:13px;opacity:0.9;margin-top:2px;">Мы уже начали формировать подборку анкет. Вы получите уведомление, когда кандидаты будут добавлены.</div>
   </div>
 </div>
 {% endif %}
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+<div class="requests-grid">
 
   <!-- Форма подачи новой заявки -->
-  <div class="card" style="padding:28px;">
-    <h2 style="font-size:17px;font-weight:700;margin-bottom:16px;">📝 Новая заявка на подбор</h2>
+  <div class="card">
+    <h2 style="font-size:18px;font-weight:800;margin-bottom:20px;letter-spacing:-0.2px;">
+      ✨ Создать новую заявку на поиск
+    </h2>
 
     <form method="POST" action="/employer/requests">
       
-      <div style="margin-bottom:16px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Название позиции / Роль <span style="color:#ef4444;">*</span>
+      <div class="form-group">
+        <label class="form-label">
+          Название позиции / Роль <span style="color:var(--danger);">*</span>
         </label>
         <input type="text" name="title" required placeholder="Например: Стажер Python / Backend разработчик"
-               style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;">
+               class="form-control">
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" class="form-group">
         <div>
-          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Направление</label>
-          <select name="direction" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;">
+          <label class="form-label">Направление</label>
+          <select name="direction" class="form-control">
             <option value="IT / Разработка">IT / Разработка</option>
             <option value="Data Science / Аналитика">Data Science / Аналитика</option>
             <option value="Дизайн и UI/UX">Дизайн и UI/UX</option>
@@ -51,8 +117,8 @@
         </div>
 
         <div>
-          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Формат работы</label>
-          <select name="work_format" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;">
+          <label class="form-label">Формат работы</label>
+          <select name="work_format" class="form-control">
             <option value="Удаленно">Удаленно</option>
             <option value="Офис (Москва)">Офис (Москва)</option>
             <option value="Гибрид">Гибрид</option>
@@ -61,85 +127,78 @@
         </div>
       </div>
 
-      <div style="margin-bottom:16px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Требуемый стек технологий и навыки
-        </label>
-        <textarea name="skills_required" rows="3" placeholder="Например: Python, FastAPI/Django, PostgreSQL, Git, базовое понимание Docker"
-                  style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+      <div class="form-group">
+        <label class="form-label">Требуемый стек технологий и навыки</label>
+        <textarea name="skills_required" rows="3" placeholder="Например: Python 3, FastAPI, PostgreSQL, Git, базовое понимание Docker и REST API"
+                  class="form-control" style="resize:vertical;"></textarea>
       </div>
 
-      <div style="margin-bottom:16px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Сколько кандидатов нужно в подборку?
-        </label>
-        <input type="number" name="candidates_count" value="5" min="1" max="50"
-               style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;">
+      <div class="form-group">
+        <label class="form-label">Сколько кандидатов нужно в подборку?</label>
+        <input type="number" name="candidates_count" value="5" min="1" max="50" class="form-control">
       </div>
 
-      <div style="margin-bottom:20px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Дополнительные пожелания / Комментарий
-        </label>
+      <div class="form-group">
+        <label class="form-label">Дополнительные пожелания / Комментарий</label>
         <textarea name="comment" rows="2" placeholder="Особые пожелания по курсу, опыту или тестовому заданию..."
-                  style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+                  class="form-control" style="resize:vertical;"></textarea>
       </div>
 
-      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px 20px;font-size:15px;">
+      <button type="submit" class="btn btn-primary btn-lg" style="width:100%;">
         🚀 Отправить заявку кураторам
       </button>
 
     </form>
   </div>
 
-  <!-- История поданных заявок -->
-  <div>
-    <div class="card" style="padding:28px;">
-      <h2 style="font-size:17px;font-weight:700;margin-bottom:16px;">📋 История заявок компании</h2>
+  <!-- История поданных заявок компании -->
+  <div class="card">
+    <h2 style="font-size:18px;font-weight:800;margin-bottom:20px;letter-spacing:-0.2px;">
+      📋 История заявок компании
+    </h2>
 
-      {% if requests_list %}
-      <div style="display:flex;flex-direction:column;gap:14px;">
+    {% if requests_list %}
+      <div>
         {% for req in requests_list %}
-        <div style="padding:16px;background:var(--surface2);border-radius:10px;border-left:4px solid {% if req.status == 'completed' %}var(--success){% elif req.status == 'in_progress' %}var(--accent2){% else %}#facc15{% endif %};">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px;">
-            <div style="font-weight:700;font-size:15px;">{{ req.title }}</div>
-            <div>
-              {% if req.status == 'pending' %}
-                <span class="badge" style="background:rgba(234,179,8,0.2);color:#facc15;">🟡 На модерации</span>
-              {% elif req.status == 'in_progress' %}
-                <span class="badge" style="background:rgba(99,102,241,0.2);color:var(--accent2);">🔵 В работе</span>
-              {% elif req.status == 'completed' %}
-                <span class="badge badge-viewed">🟢 Выполнено</span>
-              {% else %}
-                <span class="badge badge-archived">{{ req.status }}</span>
-              {% endif %}
-            </div>
+        <div class="request-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px;">
+            <div style="font-weight:800;font-size:15px;color:var(--text);">{{ req.title }}</div>
+            {% if req.status == 'completed' %}
+              <span class="badge badge-offer">Выполнена</span>
+            {% elif req.status == 'in_progress' %}
+              <span class="badge badge-interview">В работе</span>
+            {% elif req.status == 'rejected' %}
+              <span class="badge badge-archived">Отклонена</span>
+            {% else %}
+              <span class="badge badge-new">На модерации</span>
+            {% endif %}
           </div>
 
-          <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">
-            📚 {{ req.direction }} · 💼 {{ req.work_format }} · 👥 {{ req.candidates_count }} чел.
+          <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--text-secondary);margin-bottom:10px;">
+            <span>🎯 <strong>{{ req.direction }}</strong></span>
+            <span>📍 <strong>{{ req.work_format }}</strong></span>
+            <span>👥 <strong>{{ req.candidates_count }} чел.</strong></span>
           </div>
 
           {% if req.skills_required %}
-          <div style="font-size:12px;color:var(--accent2);margin-bottom:6px;">
-            🛠 {{ req.skills_required }}
+          <div style="font-size:12px;color:var(--primary);margin-bottom:8px;background:var(--surface);padding:8px 12px;border-radius:8px;border:1px solid var(--border);">
+            🛠 Стек: {{ req.skills_required }}
           </div>
           {% endif %}
 
-          <div style="font-size:11px;color:var(--muted);margin-top:8px;">
-            Дата создания: {{ req.created_at.strftime("%d.%m.%Y %H:%M") }}
+          <div style="font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;">
+            <span>Создана: {{ req.created_at.strftime('%d.%m.%Y %H:%M') if req.created_at else '—' }}</span>
           </div>
         </div>
         {% endfor %}
       </div>
-      {% else %}
-      <div style="text-align:center;padding:48px 16px;color:var(--muted);">
-        <div style="font-size:40px;margin-bottom:8px;">📝</div>
-        <div style="font-weight:600;margin-bottom:4px;color:var(--text);">Вы пока не подавали заявок</div>
-        <div style="font-size:13px;">Заполните форму слева, чтобы кураторы СтудМэч нашли подходящих студентов под ваш стек.</div>
+    {% else %}
+      <div style="text-align:center;padding:50px 20px;color:var(--text-muted);">
+        <div style="font-size:42px;margin-bottom:12px;">📭</div>
+        <h3 style="font-size:16px;font-weight:700;">У вас пока нет активных заявок</h3>
+        <p style="font-size:13px;margin-top:4px;">Заполните форму слева, чтобы отправить запрос на подбор студентов.</p>
       </div>
-      {% endif %}
-    </div>
+    {% endif %}
   </div>
 
 </div>

@@ -1,240 +1,485 @@
 {% extends "employer/base.html" %}
-{% block title %}Дашборд — СтудМэч HR{% endblock %}
+{% block title %}Дашборд рекрутера — {{ employer.company_name }} | СтудМэч HR{% endblock %}
+{% block page_title %}📊 Главный дашборд{% endblock %}
 
 {% block content %}
-<!-- Приветственный блок -->
-<div class="card" style="background:linear-gradient(135deg, #1e2238 0%, #171929 100%);border-color:var(--border);padding:28px;margin-bottom:24px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+<style>
+  .hero-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 32px;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  html[data-theme="dark"] .hero-card {
+    background: linear-gradient(135deg, rgba(31, 41, 55, 0.6) 0%, rgba(17, 24, 39, 0.9) 100%), var(--surface);
+    border-color: rgba(99, 102, 241, 0.2);
+  }
+
+  html[data-theme="light"] .hero-card {
+    background: linear-gradient(135deg, rgba(238, 242, 255, 0.7) 0%, rgba(255, 255, 255, 0.9) 100%), #ffffff;
+    border-color: rgba(99, 102, 241, 0.15);
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 28px;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: var(--transition);
+    position: relative;
+  }
+
+  .kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: rgba(99, 102, 241, 0.3);
+  }
+
+  .kpi-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .kpi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+  }
+
+  .kpi-val {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.1;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+
+  .kpi-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Funnel Visualization */
+  .funnel-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 28px;
+    margin-bottom: 28px;
+  }
+
+  .funnel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .funnel-steps {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    position: relative;
+  }
+
+  .funnel-step {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px 14px;
+    text-align: center;
+    transition: var(--transition);
+    position: relative;
+  }
+
+  .funnel-step:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+  }
+
+  .funnel-step-num {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+  }
+
+  .funnel-step-val {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .funnel-step-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+
+  .funnel-step-pct {
+    margin-top: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    display: inline-block;
+  }
+
+  /* 2-Column Grid */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 24px;
+  }
+
+  .candidate-row-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 10px;
+    text-decoration: none;
+    color: var(--text);
+    transition: var(--transition);
+  }
+
+  .candidate-row-card:hover {
+    border-color: var(--primary);
+    background: var(--surface-hover);
+    transform: translateX(3px);
+  }
+
+  .candidate-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--accent-gradient);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #fff;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .request-item-card {
+    padding: 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+  }
+
+  @media (max-width: 1200px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .funnel-steps { grid-template-columns: repeat(3, 1fr); }
+    .dashboard-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 640px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+    .funnel-steps { grid-template-columns: 1fr; }
+    .hero-card { padding: 20px; }
+  }
+</style>
+
+<!-- Приветственный Hero-блок -->
+<div class="hero-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;">
     <div>
-      <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(99,102,241,0.2);border-radius:20px;font-size:12px;font-weight:600;color:var(--accent2);margin-bottom:8px;">
-        💼 HR Платформа СтудМэч
+      <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:var(--primary-light);border-radius:20px;font-size:12px;font-weight:700;color:var(--primary);margin-bottom:12px;">
+        ✨ Кабинет прямого найма студентов
       </div>
-      <h1 style="font-size:24px;font-weight:700;margin-bottom:4px;">Добро пожаловать, {{ employer.contact_name }}! 👋</h1>
-      <p style="color:var(--muted);font-size:14px;">
-        Личный кабинет компании <strong>{{ employer.company_name }}</strong> для быстрого поиска и найма талантливых студентов.
+      <h1 style="font-size:26px;font-weight:800;letter-spacing:-0.4px;margin-bottom:6px;">
+        Здравствуйте, {{ employer.contact_name or 'Коллега' }}! 👋
+      </h1>
+      <p style="color:var(--text-secondary);font-size:14px;max-width:650px;line-height:1.5;">
+        В базе компании <strong>{{ employer.company_name }}</strong> отобраны проверенные студенты и выпускники с подтверждёнными портфолио, дипломами и GPA.
       </p>
     </div>
 
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <a href="/employer/profiles" class="btn btn-primary">
-        📋 База кандидатов ({{ counts.all }})
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <a href="/employer/profiles" class="btn btn-primary btn-lg">
+        👥 База кандидатов ({{ counts.all }})
       </a>
-      <a href="/employer/requests" class="btn btn-ghost">
-        📩 Подать заявку на поиск
+      <a href="/employer/profiles?view=kanban" class="btn btn-secondary btn-lg">
+        📋 Воронка (Канбан)
+      </a>
+      <a href="/employer/requests" class="btn btn-outline btn-lg">
+        ➕ Подать заявку
       </a>
     </div>
   </div>
 </div>
 
-<!-- Метрики KPI -->
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px;">
-  
-  <div class="card" style="padding:20px;margin-bottom:0;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-      <div style="color:var(--muted);font-size:13px;font-weight:500;">👥 Выдано кандидатов</div>
-      <div style="font-size:20px;">🎓</div>
+<!-- 4 Карточки Ключевых Метрик -->
+<div class="kpi-grid">
+  <!-- 1. Всего кандидатов -->
+  <div class="kpi-card">
+    <div class="kpi-header">
+      <div class="kpi-label">Всего кандидатов</div>
+      <div class="kpi-icon" style="background:var(--primary-light);color:var(--primary);">🎓</div>
     </div>
-    <div style="font-size:28px;font-weight:700;color:var(--text);margin-bottom:4px;">{{ counts.all }}</div>
-    <div style="font-size:12px;color:var(--muted);">Проверены модераторами СтудМэч</div>
-  </div>
-
-  <div class="card" style="padding:20px;margin-bottom:0;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-      <div style="color:var(--muted);font-size:13px;font-weight:500;">👁 Просмотрено</div>
-      <div style="font-size:20px;">👀</div>
-    </div>
-    <div style="font-size:28px;font-weight:700;color:var(--success);margin-bottom:4px;">{{ viewed_count }} <span style="font-size:16px;color:var(--muted);font-weight:400;">({{ viewed_pct }}%)</span></div>
-    <div style="font-size:12px;color:var(--muted);">Ознакомились с анкетой</div>
-  </div>
-
-  <div class="card" style="padding:20px;margin-bottom:0;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-      <div style="color:var(--muted);font-size:13px;font-weight:500;">⭐️ В шортлисте</div>
-      <div style="font-size:20px;">🌟</div>
-    </div>
-    <div style="font-size:28px;font-weight:700;color:#facc15;margin-bottom:4px;">{{ counts.suitable }} <span style="font-size:16px;color:var(--muted);font-weight:400;">({{ suitable_pct }}%)</span></div>
-    <div style="font-size:12px;color:var(--muted);">Отобраны в подходящие</div>
-  </div>
-
-  <div class="card" style="padding:20px;margin-bottom:0;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-      <div style="color:var(--muted);font-size:13px;font-weight:500;">⭐ Средний балл</div>
-      <div style="font-size:20px;">🏆</div>
-    </div>
-    <div style="font-size:28px;font-weight:700;color:var(--accent2);margin-bottom:4px;">{{ avg_score }} б.</div>
-    <div style="font-size:12px;color:var(--muted);">Рейтинг портфолио и GPA</div>
-  </div>
-
-</div>
-
-<!-- Воронка найма (Funnel) -->
-<div class="card" style="margin-bottom:24px;padding:24px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
     <div>
-      <h2 style="font-size:16px;font-weight:700;">📊 Воронка отбора студентов</h2>
-      <p style="color:var(--muted);font-size:13px;margin-top:2px;">Этапы работы рекрутера с выданными анкетами</p>
+      <div class="kpi-val">{{ counts.all }}</div>
+      <div class="kpi-sub">
+        <span style="color:var(--success);font-weight:700;">100%</span> проверены модераторами
+      </div>
     </div>
-    <a href="/employer/profiles/export/csv?tab=suitable" class="btn btn-outline btn-sm">
-      📥 Экспорт шортлиста (CSV)
-    </a>
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;text-align:center;">
-    
-    <div style="background:var(--surface2);padding:16px;border-radius:10px;border-top:3px solid var(--accent);">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">1. ВЫДАНО В БАЗУ</div>
-      <div style="font-size:22px;font-weight:700;">{{ counts.all }}</div>
-      <div style="font-size:11px;color:var(--accent2);margin-top:4px;">100% кандидатов</div>
+  <!-- 2. В пайплайне / активные -->
+  <div class="kpi-card">
+    <div class="kpi-header">
+      <div class="kpi-label">В активной работе</div>
+      <div class="kpi-icon" style="background:var(--info-light);color:var(--info);">⚡️</div>
     </div>
-
-    <div style="background:var(--surface2);padding:16px;border-radius:10px;border-top:3px solid var(--success);">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">2. ПРОСМОТРЕНО HR</div>
-      <div style="font-size:22px;font-weight:700;color:var(--success);">{{ viewed_count }}</div>
-      <div style="font-size:11px;color:var(--success);margin-top:4px;">{{ viewed_pct }}% от базы</div>
+    <div>
+      <div class="kpi-val" style="color:var(--info);">{{ counts.active or (counts.new + counts.screening + counts.interview) }}</div>
+      <div class="kpi-sub">
+        Новые и на этапе отбора
+      </div>
     </div>
+  </div>
 
-    <div style="background:var(--surface2);padding:16px;border-radius:10px;border-top:3px solid #facc15;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">3. В ШОРТЛИСТЕ (ПОДХОДЯЩИЕ)</div>
-      <div style="font-size:22px;font-weight:700;color:#facc15;">{{ counts.suitable }}</div>
-      <div style="font-size:11px;color:#facc15;margin-top:4px;">{{ suitable_pct }}% конверсия</div>
+  <!-- 3. На собеседовании / подходящие -->
+  <div class="kpi-card">
+    <div class="kpi-header">
+      <div class="kpi-label">Собеседования & Шортлист</div>
+      <div class="kpi-icon" style="background:var(--warning-light);color:var(--warning);">🌟</div>
     </div>
-
-    <div style="background:var(--surface2);padding:16px;border-radius:10px;border-top:3px solid var(--muted);">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">4. В АРХИВЕ</div>
-      <div style="font-size:22px;font-weight:700;color:var(--muted);">{{ counts.archived }}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Отсеяны / На паузе</div>
+    <div>
+      <div class="kpi-val" style="color:var(--warning);">{{ counts.interview + counts.suitable }}</div>
+      <div class="kpi-sub">
+        <span style="color:var(--warning);font-weight:700;">{{ suitable_pct }}%</span> от общей базы
+      </div>
     </div>
+  </div>
 
+  <!-- 4. Средний балл портфолио -->
+  <div class="kpi-card">
+    <div class="kpi-header">
+      <div class="kpi-label">Средний рейтинг портфолио</div>
+      <div class="kpi-icon" style="background:var(--success-light);color:var(--success);">🏆</div>
+    </div>
+    <div>
+      <div class="kpi-val" style="color:var(--success);">{{ avg_score }} <span style="font-size:16px;color:var(--text-muted);font-weight:500;">баллов</span></div>
+      <div class="kpi-sub">
+        Олимпиады, хакатоны, GPA
+      </div>
+    </div>
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
+<!-- Визуальная Воронка Найма (Funnel) -->
+<div class="funnel-container">
+  <div class="funnel-header">
+    <div>
+      <h2 style="font-size:18px;font-weight:800;letter-spacing:-0.3px;">📊 Воронка отбора и найма студентов</h2>
+      <p style="color:var(--text-secondary);font-size:13px;margin-top:2px;">Текущее распределение соискателей по стадиям воронки</p>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a href="/employer/profiles?view=kanban" class="btn btn-secondary btn-sm">
+        📋 Открыть Канбан-доску
+      </a>
+      <a href="/employer/profiles/export/csv" class="btn btn-outline btn-sm">
+        📥 Экспорт CSV
+      </a>
+    </div>
+  </div>
 
-  <!-- Левая колонка: Последние кандидаты -->
-  <div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <h2 style="font-size:18px;font-weight:700;">🆕 Последние выданные анкеты</h2>
-      <a href="/employer/profiles" style="font-size:13px;color:var(--accent2);text-decoration:none;font-weight:500;">Смотреть всех ({{ counts.all }}) →</a>
+  <div class="funnel-steps">
+    <!-- Шаг 1: Новые -->
+    <div class="funnel-step" style="border-top:3px solid var(--primary);">
+      <div class="funnel-step-num">Этап 1</div>
+      <div class="funnel-step-val">{{ counts.new or counts.all }}</div>
+      <div class="funnel-step-title">Новые анкеты</div>
+      <span class="funnel-step-pct" style="background:var(--primary-light);color:var(--primary);">База</span>
+    </div>
+
+    <!-- Шаг 2: Скрининг -->
+    <div class="funnel-step" style="border-top:3px solid var(--info);">
+      <div class="funnel-step-num">Этап 2</div>
+      <div class="funnel-step-val" style="color:var(--info);">{{ counts.screening }}</div>
+      <div class="funnel-step-title">Скрининг резюме</div>
+      <span class="funnel-step-pct" style="background:var(--info-light);color:var(--info);">Оценка</span>
+    </div>
+
+    <!-- Шаг 3: Собеседование -->
+    <div class="funnel-step" style="border-top:3px solid var(--warning);">
+      <div class="funnel-step-num">Этап 3</div>
+      <div class="funnel-step-val" style="color:var(--warning);">{{ counts.interview + counts.suitable }}</div>
+      <div class="funnel-step-title">Собеседование</div>
+      <span class="funnel-step-pct" style="background:var(--warning-light);color:var(--warning);">Шортлист</span>
+    </div>
+
+    <!-- Шаг 4: Оффер -->
+    <div class="funnel-step" style="border-top:3px solid #8b5cf6;">
+      <div class="funnel-step-num">Этап 4</div>
+      <div class="funnel-step-val" style="color:#8b5cf6;">{{ counts.offer }}</div>
+      <div class="funnel-step-title">Выставлен оффер</div>
+      <span class="funnel-step-pct" style="background:rgba(139,92,246,0.15);color:#8b5cf6;">Ожидание</span>
+    </div>
+
+    <!-- Шаг 5: Наняты -->
+    <div class="funnel-step" style="border-top:3px solid var(--success);">
+      <div class="funnel-step-num">Этап 5</div>
+      <div class="funnel-step-val" style="color:var(--success);">{{ counts.hired }}</div>
+      <div class="funnel-step-title">Приняты на работу</div>
+      <span class="funnel-step-pct" style="background:var(--success-light);color:var(--success);">Успех 🎉</span>
+    </div>
+  </div>
+</div>
+
+<!-- 2 Колонки: Недавние кандидаты & Заявки на подбор -->
+<div class="dashboard-grid">
+  <!-- Левая колонка: Недавние кандидаты -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div>
+        <h3 style="font-size:16px;font-weight:800;">👥 Недавно добавленные кандидаты</h3>
+        <p style="color:var(--text-muted);font-size:12px;">Анкеты, готовые к рассмотрению</p>
+      </div>
+      <a href="/employer/profiles" class="btn btn-outline btn-sm">Все кандидаты →</a>
     </div>
 
     {% if recent_accesses %}
-    <div style="display:flex;flex-direction:column;gap:12px;">
-      {% for access in recent_accesses %}
-      {% set profile = access.profile %}
-      {% set user = profile.user if profile else None %}
-      <div class="card" style="margin-bottom:0;padding:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;transition:border-color .2s;"
-           onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-        
-        <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1;">
-          <div style="width:44px;height:44px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">
-            {% if access.status == 'suitable' %}⭐️
-            {% elif access.status == 'archived' %}📁
-            {% else %}🎓{% endif %}
-          </div>
-          <div style="min-width:0;">
-            <a href="/employer/profiles/{{ access.id }}" style="font-weight:600;font-size:15px;color:inherit;text-decoration:none;">
-              {{ profile.name if profile else '—' }}
-            </a>
-            <div style="font-size:12px;color:var(--muted);">
-              {% if user and user.university %}{{ user.university.short_name }} · {% endif %}
-              {{ profile.year }} курс · {{ profile.major[:35] }}{% if profile.major|length > 35 %}...{% endif %}
+      <div>
+        {% for acc in recent_accesses %}
+        {% set prof = acc.profile %}
+        {% set u = prof.user if prof else None %}
+        <a href="/employer/profiles/{{ acc.id }}" class="candidate-row-card">
+          <div style="display:flex;align-items:center;gap:14px;min-width:0;">
+            <div class="candidate-avatar">
+              {{ (prof.name or 'С')[0]|upper }}
+            </div>
+            <div style="min-width:0;">
+              <div style="font-weight:700;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                {{ prof.name if prof and prof.name else 'Студент' }}
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                {% if u and u.university %}{{ u.university.short_name or u.university.name }}{% else %}РУДН{% endif %} • {{ prof.major or 'Специальность' }} • {{ prof.year or 1 }} курс
+              </div>
             </div>
           </div>
-        </div>
 
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="font-size:13px;font-weight:600;color:var(--accent2);">
-            ⭐ {{ profile.rating_score|int }} б.
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+            <div style="text-align:right;">
+              <div style="font-weight:800;font-size:13px;color:var(--primary);">⭐ {{ prof.rating_score|int if prof else 0 }}</div>
+              <div style="font-size:10px;color:var(--text-muted);">баллов</div>
+            </div>
+
+            {% if acc.status == 'interview' or acc.status == 'suitable' %}
+              <span class="badge badge-interview">Собеседование</span>
+            {% elif acc.status == 'offer' %}
+              <span class="badge badge-offer">Оффер</span>
+            {% elif acc.status == 'hired' %}
+              <span class="badge badge-hired">Принят</span>
+            {% elif acc.status == 'screening' %}
+              <span class="badge badge-screening">Скрининг</span>
+            {% else %}
+              <span class="badge badge-new">Новый</span>
+            {% endif %}
           </div>
-
-          {% if access.status == 'suitable' %}
-            <span class="badge badge-suitable">⭐️ В шортлисте</span>
-          {% elif access.status == 'archived' %}
-            <span class="badge badge-archived">📁 Архив</span>
-          {% elif access.viewed_at %}
-            <span class="badge badge-viewed">👁 Просмотрен</span>
-          {% else %}
-            <span class="badge badge-new">🆕 Новый</span>
-          {% endif %}
-
-          <a href="/employer/profiles/{{ access.id }}" class="btn btn-ghost btn-sm">
-            Анкета →
-          </a>
-        </div>
-
+        </a>
+        {% endfor %}
       </div>
-      {% endfor %}
-    </div>
     {% else %}
-    <div class="card" style="text-align:center;padding:36px;">
-      <div style="font-size:36px;margin-bottom:8px;">📭</div>
-      <div style="font-weight:600;margin-bottom:4px;">Пока нет выданных анкет</div>
-      <div style="color:var(--muted);font-size:13px;">Отправьте заявку на поиск студентов, и кураторы СтудМэч подберут резюме</div>
-    </div>
+      <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+        <div style="font-size:36px;margin-bottom:12px;">📭</div>
+        <div style="font-size:14px;font-weight:600;">Пока нет выданных кандидатов</div>
+        <p style="font-size:12px;margin-top:4px;">Подайте заявку на подбор, и модераторы подберут подходящих студентов.</p>
+        <a href="/employer/requests" class="btn btn-primary btn-sm" style="margin-top:16px;">Подать заявку на поиск</a>
+      </div>
     {% endif %}
   </div>
 
-  <!-- Правая колонка: Заявки на подбор & Инфо о компании -->
-  <div>
-    
-    <div class="card" style="margin-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <h2 style="font-size:15px;font-weight:700;">📩 Заявки на подбор</h2>
-        <a href="/employer/requests" style="font-size:12px;color:var(--accent2);text-decoration:none;">Все заявки →</a>
+  <!-- Правая колонка: Заявки на подбор персонала -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div>
+        <h3 style="font-size:16px;font-weight:800;">📝 Заявки на подбор</h3>
+        <p style="color:var(--text-muted);font-size:12px;">Запросы к модераторам СтудМэч</p>
       </div>
+      <a href="/employer/requests" class="btn btn-primary btn-sm">+ Новая заявка</a>
+    </div>
 
-      {% if recent_requests %}
-      <div style="display:flex;flex-direction:column;gap:10px;">
+    {% if recent_requests %}
+      <div>
         {% for req in recent_requests %}
-        <div style="padding:10px 12px;background:var(--surface2);border-radius:8px;">
-          <div style="font-weight:600;font-size:13px;margin-bottom:2px;">{{ req.title }}</div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">{{ req.direction }} · {{ req.candidates_count }} чел.</div>
-          <div>
-            {% if req.status == 'pending' %}
-              <span class="badge" style="background:rgba(234,179,8,0.15);color:#facc15;font-size:10px;">🟡 На модерации</span>
+        <div class="request-item-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+            <div style="font-weight:700;font-size:14px;color:var(--text);">{{ req.title }}</div>
+            {% if req.status == 'completed' %}
+              <span class="badge badge-offer">Выполнена</span>
             {% elif req.status == 'in_progress' %}
-              <span class="badge" style="background:rgba(99,102,241,0.2);color:var(--accent2);font-size:10px;">🔵 Подбор резюме</span>
-            {% elif req.status == 'completed' %}
-              <span class="badge badge-viewed" style="font-size:10px;">🟢 Выполнено</span>
+              <span class="badge badge-interview">В работе</span>
+            {% elif req.status == 'rejected' %}
+              <span class="badge badge-archived">Отклонена</span>
             {% else %}
-              <span class="badge badge-archived" style="font-size:10px;">{{ req.status }}</span>
+              <span class="badge badge-new">На модерации</span>
             {% endif %}
+          </div>
+
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">
+            <span>🎯 {{ req.direction }}</span> • <span>👥 Нужно: {{ req.candidates_count }} чел.</span> • <span>📍 {{ req.work_format }}</span>
+          </div>
+
+          <div style="font-size:11px;color:var(--text-muted);">
+            Создана: {{ req.created_at.strftime('%d.%m.%Y %H:%M') if req.created_at else '—' }}
           </div>
         </div>
         {% endfor %}
       </div>
-      {% else %}
-      <div style="color:var(--muted);font-size:13px;text-align:center;padding:16px 0;">
-        Активных заявок пока нет.
+    {% else %}
+      <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+        <div style="font-size:36px;margin-bottom:12px;">📋</div>
+        <div style="font-size:14px;font-weight:600;">Нет активных заявок</div>
+        <p style="font-size:12px;margin-top:4px;">Нужны стажеры или джуны? Опишите вакансию, и мы подберем кандидатов.</p>
+        <a href="/employer/requests" class="btn btn-primary btn-sm" style="margin-top:16px;">Создать заявку</a>
       </div>
-      {% endif %}
-
-      <div style="margin-top:14px;">
-        <a href="/employer/requests" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">
-          + Создать заявку на подбор
-        </a>
-      </div>
-    </div>
-
-    <!-- Инфо о профиле компании -->
-    <div class="card" style="margin-bottom:0;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:10px;">🏢 Профиль работодателя</div>
-      <div style="font-size:13px;line-height:1.6;">
-        <div style="color:var(--muted);">Компания: <strong style="color:var(--text);">{{ employer.company_name }}</strong></div>
-        <div style="color:var(--muted);">Контактное лицо: <strong style="color:var(--text);">{{ employer.contact_name }}</strong></div>
-        {% if employer.tg_contact %}
-        <div style="color:var(--muted);">Telegram: <strong style="color:var(--accent2);">{{ employer.tg_contact }}</strong></div>
-        {% endif %}
-        <div style="color:var(--muted);margin-top:6px;">Куратор СтудМэч: <strong style="color:var(--success);">На связи ✅</strong></div>
-      </div>
-      <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;">
-        <a href="/employer/settings" style="font-size:12px;color:var(--accent2);text-decoration:none;">
-          ⚙️ Редактировать профиль и сменить пароль →
-        </a>
-      </div>
-    </div>
-
+    {% endif %}
   </div>
-
 </div>
 {% endblock %}

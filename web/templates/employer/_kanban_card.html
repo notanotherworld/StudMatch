@@ -1,0 +1,49 @@
+{% set profile = acc.profile %}
+{% set user = profile.user if profile else None %}
+<div class="kanban-card" id="kanban-card-{{ acc.id }}" draggable="true"
+     ondragstart="handleDragStart(event, '{{ acc.id }}')" ondragend="handleDragEnd(event)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+      <div style="width:34px;height:34px;border-radius:10px;background:var(--accent-gradient);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">
+        {{ (profile.name or 'С')[0]|upper }}
+      </div>
+      <div style="min-width:0;">
+        <a href="/employer/profiles/{{ acc.id }}" style="font-weight:700;font-size:13px;color:var(--text);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          {{ profile.name if profile else '—' }}
+        </a>
+        <div style="font-size:11px;color:var(--text-muted);">
+          {% if user and user.university %}{{ user.university.short_name }}{% else %}РУДН{% endif %} • {{ profile.year if profile else 1 }} курс
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:right;flex-shrink:0;">
+      <span style="font-weight:800;font-size:12px;color:var(--primary);">⭐ {{ profile.rating_score|int if profile else 0 }}</span>
+    </div>
+  </div>
+
+  <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+    {{ profile.major if profile and profile.major else 'Специальность не указана' }}
+  </div>
+
+  {% if profile and profile.career_custom_skills %}
+  <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">
+    {% for skill in (profile.career_custom_skills.split(',')[:2]) %}
+      <span style="font-size:10px;padding:2px 6px;border-radius:6px;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);">
+        {{ skill.strip() }}
+      </span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px;margin-top:8px;">
+    <div class="star-rating" style="font-size:11px;">
+      {% set r = acc.hr_rating or 0 %}
+      {{ '★' * r }}{{ '☆' * (5 - r) }}
+    </div>
+
+    <a href="/employer/profiles/{{ acc.id }}" class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:11px;">
+      Профиль →
+    </a>
+  </div>
+</div>

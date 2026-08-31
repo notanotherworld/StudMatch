@@ -1,195 +1,536 @@
 {% extends "employer/base.html" %}
-{% block title %}Анкеты студентов — СтудМэч HR{% endblock %}
+{% block title %}База кандидатов — {{ employer.company_name }} | СтудМэч HR{% endblock %}
+{% block page_title %}👥 База кандидатов и воронка{% endblock %}
 
 {% block content %}
-<div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+<style>
+  .profiles-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .view-switcher {
+    display: inline-flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 4px;
+    border-radius: var(--radius-md);
+    gap: 4px;
+  }
+
+  .view-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: var(--transition);
+  }
+
+  .view-btn:hover {
+    color: var(--text);
+  }
+
+  .view-btn.active {
+    background: var(--surface2);
+    color: var(--primary);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Filters */
+  .filter-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .filter-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: var(--transition);
+  }
+
+  .filter-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+  }
+
+  /* Candidate Table */
+  .candidate-table-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .candidate-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+  }
+
+  .candidate-table th {
+    background: var(--surface2);
+    padding: 14px 18px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .candidate-table td {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    vertical-align: middle;
+  }
+
+  .candidate-table tr:hover td {
+    background: var(--surface-hover);
+  }
+
+  /* Kanban Board */
+  .kanban-board {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(260px, 1fr));
+    gap: 16px;
+    overflow-x: auto;
+    padding-bottom: 24px;
+    align-items: start;
+  }
+
+  .kanban-col {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 240px);
+  }
+
+  .kanban-col-header {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .kanban-col-title {
+    font-size: 14px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .kanban-col-count {
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  .kanban-cards-list {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    min-height: 200px;
+  }
+
+  .kanban-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    cursor: grab;
+    transition: var(--transition);
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+  }
+
+  .kanban-card:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .kanban-card.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+  }
+
+  .kanban-cards-list.drag-over {
+    background: var(--primary-light);
+    border: 2px dashed var(--primary);
+    border-radius: var(--radius-md);
+  }
+
+  .star-rating {
+    color: #facc15;
+    font-size: 13px;
+    letter-spacing: 2px;
+  }
+</style>
+
+<!-- Шапка страницы с переключателем режимов -->
+<div class="profiles-header">
   <div>
-    <h1 style="font-size:22px;font-weight:700;">📋 База кандидатов</h1>
-    <p style="color:var(--muted);margin-top:4px;">Выданные модератором анкеты студентов для найма и стажировок</p>
+    <h1 style="font-size:24px;font-weight:800;letter-spacing:-0.4px;">Кандидаты компании</h1>
+    <p style="color:var(--text-secondary);font-size:13px;margin-top:2px;">Управление воронкой подбора студентов и выпускников</p>
   </div>
 
-  <div style="display:flex;gap:8px;">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <!-- Переключатель Таблица / Канбан -->
+    <div class="view-switcher">
+      <a href="/employer/profiles?view=table{% if current_tab %}&tab={{ current_tab }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}"
+         class="view-btn {% if current_view != 'kanban' %}active{% endif %}">
+        <span>☰ Таблица</span>
+      </a>
+      <a href="/employer/profiles?view=kanban{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}"
+         class="view-btn {% if current_view == 'kanban' %}active{% endif %}">
+        <span>📋 Канбан-воронка</span>
+      </a>
+    </div>
+
     <a href="/employer/profiles/export/csv?tab={{ current_tab }}" class="btn btn-outline btn-sm">
-      📥 Экспорт текущего списка (CSV)
+      📥 Экспорт CSV
     </a>
   </div>
 </div>
 
 <!-- Панель поиска и фильтров -->
-<div class="card" style="padding:16px 20px;margin-bottom:20px;">
-  <form method="GET" action="/employer/profiles" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0;">
+<form method="GET" action="/employer/profiles" class="filter-panel">
+  <input type="hidden" name="view" value="{{ current_view }}">
+  {% if current_view != 'kanban' %}
     <input type="hidden" name="tab" value="{{ current_tab }}">
+  {% endif %}
 
-    <div style="flex:1;min-width:200px;">
-      <input type="text" name="q" value="{{ q }}" placeholder="🔍 Поиск по имени, стеку, навыкам, направлению..."
-             style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;">
-    </div>
+  <div style="flex:1;min-width:240px;position:relative;">
+    <input type="text" name="q" value="{{ q }}" placeholder="🔍 Поиск по имени, стеку, навыкам, направлению..."
+           class="filter-input" style="width:100%;">
+  </div>
 
-    <div style="width:140px;">
-      <select name="year" style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;">
-        <option value="">Все курсы</option>
-        <option value="1" {% if year == 1 %}selected{% endif %}>1 курс</option>
-        <option value="2" {% if year == 2 %}selected{% endif %}>2 курс</option>
-        <option value="3" {% if year == 3 %}selected{% endif %}>3 курс</option>
-        <option value="4" {% if year == 4 %}selected{% endif %}>4 курс</option>
-        <option value="5" {% if year == 5 %}selected{% endif %}>5 курс</option>
-        <option value="6" {% if year == 6 %}selected{% endif %}>6 курс / Маг.</option>
-      </select>
-    </div>
+  <div style="width:140px;">
+    <select name="year" class="filter-input" style="width:100%;">
+      <option value="">Все курсы</option>
+      <option value="1" {% if year == 1 %}selected{% endif %}>1 курс</option>
+      <option value="2" {% if year == 2 %}selected{% endif %}>2 курс</option>
+      <option value="3" {% if year == 3 %}selected{% endif %}>3 курс</option>
+      <option value="4" {% if year == 4 %}selected{% endif %}>4 курс</option>
+      <option value="5" {% if year == 5 %}selected{% endif %}>5 курс</option>
+      <option value="6" {% if year == 6 %}selected{% endif %}>6 курс / Маг.</option>
+    </select>
+  </div>
 
-    <button type="submit" class="btn btn-primary btn-sm">
-      🔍 Найти
-    </button>
+  <button type="submit" class="btn btn-primary btn-sm">
+    🔍 Найти
+  </button>
 
-    {% if q or year %}
-    <a href="/employer/profiles?tab={{ current_tab }}" class="btn btn-ghost btn-sm">
+  {% if q or year %}
+    <a href="/employer/profiles?view={{ current_view }}{% if current_view != 'kanban' %}&tab={{ current_tab }}{% endif %}" class="btn btn-secondary btn-sm">
       ✕ Сбросить
     </a>
-    {% endif %}
-  </form>
-</div>
+  {% endif %}
+</form>
 
-<!-- Вкладки (Tabs) -->
-<div class="tab-nav">
-  <a href="/employer/profiles?tab=all{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" class="tab-btn {% if current_tab == 'all' or not current_tab %}active{% endif %}">
-    📋 Все кандидаты <span class="tab-badge">{{ counts.all }}</span>
-  </a>
-  <a href="/employer/profiles?tab=suitable{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" class="tab-btn {% if current_tab == 'suitable' %}active{% endif %}">
-    ⭐️ Подходящие <span class="tab-badge" style="background:rgba(234,179,8,0.25);color:#facc15;">{{ counts.suitable }}</span>
-  </a>
-  <a href="/employer/profiles?tab=archived{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" class="tab-btn {% if current_tab == 'archived' %}active{% endif %}">
-    📁 Архив <span class="tab-badge">{{ counts.archived }}</span>
-  </a>
-</div>
-
-{% if accesses %}
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;">
-  {% for access in accesses %}
-  {% set profile = access.profile %}
-  {% set user = profile.user if profile else None %}
-  <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;transition:border-color .2s;position:relative;">
-    
-    <!-- Верхняя кликабельная часть карточки -->
-    <a href="/employer/profiles/{{ access.id }}" style="text-decoration:none;color:inherit;">
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
-        <div style="width:52px;height:52px;border-radius:50%;background:var(--surface2);
-                    display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">
-          {% if access.status == 'suitable' %}
-          ⭐️
-          {% elif access.status == 'archived' %}
-          📁
-          {% elif user and user.profile and user.profile.avatar_file_id %}
-          👤
-          {% else %}
-          🎓
-          {% endif %}
+{% if current_view == 'kanban' %}
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- РЕЖИМ 1: ИНТЕРАКТИВНАЯ КАНБАН-ДОСКА (FIGMA ATS) -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="kanban-board">
+    <!-- Колонка 1: Новые -->
+    <div class="kanban-col" data-stage="new">
+      <div class="kanban-col-header" style="border-top:3px solid var(--primary);">
+        <div class="kanban-col-title">
+          <span>🆕 Новые</span>
         </div>
-        <div style="min-width:0;flex:1;">
-          <div style="font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-            {{ profile.name if profile else '—' }}
-          </div>
-          <div style="color:var(--muted);font-size:13px;">
-            {% if user and user.university %}{{ user.university.short_name }}{% endif %}
-            {% if profile %} · {{ profile.year }} курс{% endif %}
-          </div>
-        </div>
-        
-        <!-- Бейджи статуса -->
-        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
-          {% if access.status == 'suitable' %}
-            <span class="badge badge-suitable">⭐️ В шортлисте</span>
-          {% elif access.status == 'archived' %}
-            <span class="badge badge-archived">📁 Архив</span>
-          {% endif %}
-
-          {% if access.viewed_at %}
-            <span class="badge badge-viewed">👁 Просмотрен</span>
-          {% else %}
-            <span class="badge badge-new">🆕 Новый</span>
-          {% endif %}
-        </div>
+        <span class="kanban-col-count" id="count-new">{{ kanban_groups.new|length }}</span>
       </div>
-
-      {% if profile %}
-      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;line-height:1.4;">
-        📚 {{ profile.major }}
+      <div class="kanban-cards-list" id="col-new" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'new')">
+        {% for acc in kanban_groups.new %}
+          {% include "employer/_kanban_card.html" %}
+        {% endfor %}
       </div>
-
-      {% if profile.career_custom_skills %}
-      <div style="font-size:12px;color:var(--accent2);margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-        🛠 {{ profile.career_custom_skills }}
-      </div>
-      {% endif %}
-
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding:8px 12px;background:var(--surface2);border-radius:8px;">
-        <div style="font-size:13px;">
-          ⭐ Рейтинг: <strong style="color:var(--accent2);">{{ profile.rating_score|int }} б.</strong>
-        </div>
-        {% if access.note %}
-        <div style="font-size:12px;color:var(--muted);max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-          📌 {{ access.note }}
-        </div>
-        {% endif %}
-      </div>
-      {% endif %}
-    </a>
-
-    <!-- Быстрые действия HR в 1 клик -->
-    <div style="display:flex;gap:6px;border-top:1px solid var(--border);padding-top:12px;margin-top:auto;align-items:center;">
-      <a href="/employer/profiles/{{ access.id }}" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;">
-        👀 Анкета
-      </a>
-
-      {% if access.status != 'suitable' %}
-      <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
-        <input type="hidden" name="status" value="suitable">
-        <input type="hidden" name="next_url" value="/employer/profiles?tab={{ current_tab }}">
-        <button type="submit" class="btn btn-warning btn-sm" title="Добавить в подходящие">
-          ⭐️ В подходящие
-        </button>
-      </form>
-      {% endif %}
-
-      {% if access.status != 'archived' %}
-      <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
-        <input type="hidden" name="status" value="archived">
-        <input type="hidden" name="next_url" value="/employer/profiles?tab={{ current_tab }}">
-        <button type="submit" class="btn btn-outline btn-sm" title="Переместить в архив">
-          📁 В архив
-        </button>
-      </form>
-      {% else %}
-      <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
-        <input type="hidden" name="status" value="active">
-        <input type="hidden" name="next_url" value="/employer/profiles?tab={{ current_tab }}">
-        <button type="submit" class="btn btn-ghost btn-sm" title="Вернуть из архива">
-          ↩️ Восстановить
-        </button>
-      </form>
-      {% endif %}
     </div>
 
+    <!-- Колонка 2: Скрининг -->
+    <div class="kanban-col" data-stage="screening">
+      <div class="kanban-col-header" style="border-top:3px solid var(--info);">
+        <div class="kanban-col-title">
+          <span>🔍 Скрининг</span>
+        </div>
+        <span class="kanban-col-count" id="count-screening">{{ kanban_groups.screening|length }}</span>
+      </div>
+      <div class="kanban-cards-list" id="col-screening" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'screening')">
+        {% for acc in kanban_groups.screening %}
+          {% include "employer/_kanban_card.html" %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Колонка 3: Собеседование -->
+    <div class="kanban-col" data-stage="interview">
+      <div class="kanban-col-header" style="border-top:3px solid var(--warning);">
+        <div class="kanban-col-title">
+          <span>💬 Интервью</span>
+        </div>
+        <span class="kanban-col-count" id="count-interview">{{ kanban_groups.interview|length }}</span>
+      </div>
+      <div class="kanban-cards-list" id="col-interview" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'interview')">
+        {% for acc in kanban_groups.interview %}
+          {% include "employer/_kanban_card.html" %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Колонка 4: Оффер -->
+    <div class="kanban-col" data-stage="offer">
+      <div class="kanban-col-header" style="border-top:3px solid #8b5cf6;">
+        <div class="kanban-col-title">
+          <span>💌 Оффер</span>
+        </div>
+        <span class="kanban-col-count" id="count-offer">{{ kanban_groups.offer|length }}</span>
+      </div>
+      <div class="kanban-cards-list" id="col-offer" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'offer')">
+        {% for acc in kanban_groups.offer %}
+          {% include "employer/_kanban_card.html" %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Колонка 5: Наняты / Архив -->
+    <div class="kanban-col" data-stage="hired">
+      <div class="kanban-col-header" style="border-top:3px solid var(--success);">
+        <div class="kanban-col-title">
+          <span>🏆 Наняты & Архив</span>
+        </div>
+        <span class="kanban-col-count" id="count-hired">{{ (kanban_groups.hired|length) + (kanban_groups.archived|length) }}</span>
+      </div>
+      <div class="kanban-cards-list" id="col-hired" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'hired')">
+        {% for acc in kanban_groups.hired %}
+          {% include "employer/_kanban_card.html" %}
+        {% endfor %}
+        {% for acc in kanban_groups.archived %}
+          {% include "employer/_kanban_card.html" %}
+        {% endfor %}
+      </div>
+    </div>
   </div>
-  {% endfor %}
-</div>
 
 {% else %}
-<div class="card" style="text-align:center;padding:64px;">
-  <div style="font-size:56px;margin-bottom:16px;">
-    {% if current_tab == 'suitable' %}⭐️
-    {% elif current_tab == 'archived' %}📁
-    {% else %}📭{% endif %}
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- РЕЖИМ 2: ТАБЛИЦА КАНДИДАТОВ С ФИЛЬТРАМИ И ВСПЛЫВАЮЩИМИ СТАТУСАМИ -->
+  <!-- ══════════════════════════════════════════════ -->
+
+  <!-- Вкладки по стадиям воронки -->
+  <div class="tab-nav" style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+    <a href="/employer/profiles?tab=all{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" 
+       class="btn btn-sm {% if current_tab == 'all' or not current_tab %}btn-primary{% else %}btn-secondary{% endif %}">
+      📋 Все ({{ counts.all }})
+    </a>
+    <a href="/employer/profiles?tab=new{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" 
+       class="btn btn-sm {% if current_tab == 'new' %}btn-primary{% else %}btn-secondary{% endif %}">
+      🆕 Новые ({{ counts.new }})
+    </a>
+    <a href="/employer/profiles?tab=screening{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" 
+       class="btn btn-sm {% if current_tab == 'screening' %}btn-primary{% else %}btn-secondary{% endif %}">
+      🔍 Скрининг ({{ counts.screening }})
+    </a>
+    <a href="/employer/profiles?tab=interview{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" 
+       class="btn btn-sm {% if current_tab == 'interview' or current_tab == 'suitable' %}btn-primary{% else %}btn-secondary{% endif %}">
+      🌟 Собеседование ({{ counts.interview + counts.suitable }})
+    </a>
+    <a href="/employer/profiles?tab=offer{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" 
+       class="btn btn-sm {% if current_tab == 'offer' %}btn-primary{% else %}btn-secondary{% endif %}">
+      💌 Оффер ({{ counts.offer }})
+    </a>
+    <a href="/employer/profiles?tab=hired{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" 
+       class="btn btn-sm {% if current_tab == 'hired' %}btn-primary{% else %}btn-secondary{% endif %}">
+      🏆 Наняты ({{ counts.hired }})
+    </a>
+    <a href="/employer/profiles?tab=archived{% if q %}&q={{ q }}{% endif %}{% if year %}&year={{ year }}{% endif %}" 
+       class="btn btn-sm {% if current_tab == 'archived' %}btn-primary{% else %}btn-secondary{% endif %}">
+      📁 Архив ({{ counts.archived }})
+    </a>
   </div>
-  <div style="font-size:18px;font-weight:600;margin-bottom:8px;">
-    {% if current_tab == 'suitable' %}В списке подходящих пока пусто
-    {% elif current_tab == 'archived' %}В архиве пока нет кандидатов
-    {% else %}Анкет пока нет{% endif %}
-  </div>
-  <div style="color:var(--muted);font-size:14px;">
-    {% if current_tab == 'suitable' %}Нажмите кнопку «⭐️ В подходящие» на карточке любого кандидата
-    {% elif current_tab == 'archived' %}Неподходящих кандидатов можно перемещать сюда, нажав «📁 В архив»
-    {% else %}Модератор СтудМэч выдаст вам доступ к проверенным анкетам студентов{% endif %}
-  </div>
-</div>
+
+  {% if accesses %}
+    <div class="candidate-table-container">
+      <table class="candidate-table">
+        <thead>
+          <tr>
+            <th>Кандидат</th>
+            <th>ВУЗ и Курс</th>
+            <th>Специальность</th>
+            <th>Рейтинг</th>
+            <th>Оценка HR</th>
+            <th>Этап воронки</th>
+            <th>Заметка HR</th>
+            <th style="text-align:right;">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for access in accesses %}
+          {% set profile = access.profile %}
+          {% set user = profile.user if profile else None %}
+          <tr id="row-{{ access.id }}">
+            <td>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:40px;height:40px;border-radius:10px;background:var(--accent-gradient);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:16px;">
+                  {{ (profile.name or 'С')[0]|upper }}
+                </div>
+                <div>
+                  <a href="/employer/profiles/{{ access.id }}" style="font-weight:700;color:var(--text);text-decoration:none;">
+                    {{ profile.name if profile else '—' }}
+                  </a>
+                  {% if not access.viewed_at %}
+                    <span class="badge badge-new" style="font-size:10px;padding:1px 6px;">NEW</span>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+
+            <td>
+              <div style="font-weight:600;">{% if user and user.university %}{{ user.university.short_name }}{% else %}РУДН{% endif %}</div>
+              <div style="font-size:12px;color:var(--text-muted);">{{ profile.year if profile else 1 }} курс</div>
+            </td>
+
+            <td>
+              <div style="font-size:13px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                {{ profile.major if profile and profile.major else '—' }}
+              </div>
+              <div style="font-size:11px;color:var(--primary);">{{ profile.career_custom_skills or '' }}</div>
+            </td>
+
+            <td>
+              <div style="font-weight:800;color:var(--primary);">⭐ {{ profile.rating_score|int if profile else 0 }}</div>
+              <div style="font-size:11px;color:var(--text-muted);">баллов</div>
+            </td>
+
+            <td>
+              <div class="star-rating" title="Оценка рекрутера">
+                {% set r = access.hr_rating or 0 %}
+                {{ '★' * r }}{{ '☆' * (5 - r) }}
+              </div>
+            </td>
+
+            <td>
+              <select onchange="updateCandidateStage('{{ access.id }}', this.value)" class="filter-input" style="padding:4px 8px;font-size:12px;">
+                <option value="new" {% if access.status in ['new', 'active', None] %}selected{% endif %}>🆕 Новый</option>
+                <option value="screening" {% if access.status == 'screening' %}selected{% endif %}>🔍 Скрининг</option>
+                <option value="interview" {% if access.status in ['interview', 'suitable'] %}selected{% endif %}>💬 Собеседование</option>
+                <option value="offer" {% if access.status == 'offer' %}selected{% endif %}>💌 Оффер</option>
+                <option value="hired" {% if access.status == 'hired' %}selected{% endif %}>🏆 Нанят</option>
+                <option value="archived" {% if access.status in ['archived', 'rejected'] %}selected{% endif %}>📁 В архиве</option>
+              </select>
+            </td>
+
+            <td>
+              <div style="font-size:12px;color:var(--text-secondary);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ access.hr_comment or access.note or '' }}">
+                {{ access.hr_comment or access.note or '—' }}
+              </div>
+            </td>
+
+            <td style="text-align:right;">
+              <a href="/employer/profiles/{{ access.id }}" class="btn btn-primary btn-sm">
+                Открыть профиль →
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="card" style="text-align:center;padding:50px 20px;">
+      <div style="font-size:40px;margin-bottom:12px;">🔍</div>
+      <h3 style="font-size:18px;font-weight:700;">Кандидаты не найдены</h3>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:4px;">Попробуйте изменить параметры поиска или фильтр по курсу.</p>
+    </div>
+  {% endif %}
 {% endif %}
+
+<script>
+  // ── Drag and Drop Logic for Kanban ──
+  let draggedCardId = null;
+
+  function handleDragStart(e, accessId) {
+    draggedCardId = accessId;
+    e.target.classList.add('dragging');
+    e.dataTransfer.setData('text/plain', accessId);
+  }
+
+  function handleDragEnd(e) {
+    e.target.classList.remove('dragging');
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+  }
+
+  function handleDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over');
+  }
+
+  async function handleDrop(e, targetStage) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if (!draggedCardId) return;
+
+    const card = document.getElementById(`kanban-card-${draggedCardId}`);
+    if (card) {
+      e.currentTarget.appendChild(card);
+    }
+
+    await updateCandidateStage(draggedCardId, targetStage);
+  }
+
+  async function updateCandidateStage(accessId, stage) {
+    try {
+      const res = await fetch(`/employer/profiles/${accessId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: stage }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`✅ Этап кандидата обновлен: <strong>${stage}</strong>`);
+      } else {
+        showToast(`⚠️ Ошибка: ${data.error || 'Не удалось обновить'}`);
+      }
+    } catch (e) {
+      showToast(`⚠️ Ошибка сети при обновлении этапа`);
+    }
+  }
+</script>
 {% endblock %}

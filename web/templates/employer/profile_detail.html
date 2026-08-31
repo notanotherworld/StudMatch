@@ -1,185 +1,593 @@
 {% extends "employer/base.html" %}
-{% block title %}{{ profile.name if profile else 'Профиль' }} — СтудМэч HR{% endblock %}
+{% block title %}{{ profile.name if profile else 'Кандидат' }} — Профиль соискателя | СтудМэч HR{% endblock %}
+{% block page_title %}👤 Профиль кандидата{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── ATS Stepper ─────────────────────── */
+  .stepper-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .stepper-steps {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .stepper-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: var(--radius-md);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: var(--transition);
+  }
+
+  .stepper-step:hover {
+    border-color: var(--primary);
+    color: var(--text);
+  }
+
+  .stepper-step.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  }
+
+  .stepper-step.completed {
+    background: var(--success-light);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: var(--success);
+  }
+
+  .stepper-arrow {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  /* ── 2-Column Detail Layout ──────────── */
+  .profile-layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  /* ── Left Sidebar Profile Card ───────── */
+  .candidate-card-main {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 28px 24px;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .candidate-avatar-large {
+    width: 96px;
+    height: 96px;
+    border-radius: 24px;
+    background: var(--accent-gradient);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 38px;
+    color: #fff;
+    font-weight: 800;
+    margin: 0 auto 16px;
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
+  }
+
+  .candidate-name-large {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 4px;
+    letter-spacing: -0.3px;
+  }
+
+  .candidate-headline {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+
+  .score-badge-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin: 16px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+  }
+
+  .star-selector {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    font-size: 24px;
+    cursor: pointer;
+    margin: 10px 0;
+  }
+
+  .star-selector span {
+    color: #e2e8f0;
+    transition: transform 0.15s ease, color 0.15s ease;
+  }
+
+  html[data-theme="dark"] .star-selector span { color: #374151; }
+
+  .star-selector span.active, .star-selector span:hover, .star-selector span.hover {
+    color: #facc15 !important;
+  }
+
+  /* ── Right Content Tabs ──────────────── */
+  .detail-tabs-nav {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+  }
+
+  .detail-tab-btn {
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+
+  .detail-tab-btn:hover {
+    background: var(--surface2);
+    color: var(--text);
+  }
+
+  .detail-tab-btn.active {
+    background: var(--primary-light);
+    color: var(--primary);
+  }
+
+  .skill-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .achievement-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+  }
+
+  /* Print Styling for PDF Export */
+  @media print {
+    .sidebar, .topbar, .stepper-container, .btn, .theme-toggle-btn, .mobile-menu-btn {
+      display: none !important;
+    }
+    .main-wrapper {
+      margin: 0 !important;
+      width: 100% !important;
+    }
+    .profile-layout {
+      grid-template-columns: 240px 1fr !important;
+    }
+    body {
+      background: #fff !important;
+      color: #000 !important;
+    }
+    .card, .candidate-card-main {
+      border: 1px solid #ddd !important;
+      box-shadow: none !important;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    .profile-layout { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-  <a href="/employer/profiles" class="btn btn-ghost btn-sm">← Назад к списку</a>
-  
-  <!-- Верхняя плашка действий со статусом -->
-  <div style="display:flex;align-items:center;gap:8px;">
-    {% if access.status == 'suitable' %}
-      <span class="badge badge-suitable" style="font-size:13px;padding:6px 14px;">⭐️ В списке подходящих</span>
-    {% elif access.status == 'archived' %}
-      <span class="badge badge-archived" style="font-size:13px;padding:6px 14px;">📁 В архиве</span>
-    {% endif %}
+<!-- Верхняя панель навигации и ATS-степпер -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+  <a href="/employer/profiles" class="btn btn-secondary btn-sm">
+    ← Назад к списку кандидатов
+  </a>
 
-    {% if access.status != 'suitable' %}
-    <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
-      <input type="hidden" name="status" value="suitable">
-      <button type="submit" class="btn btn-warning btn-sm">⭐️ В подходящие</button>
-    </form>
-    {% endif %}
+  <div style="display:flex;align-items:center;gap:10px;">
+    <button type="button" onclick="window.print()" class="btn btn-outline btn-sm" title="Распечатать или сохранить в PDF">
+      🖨 Сохранить в PDF
+    </button>
 
-    {% if access.status != 'archived' %}
-    <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
-      <input type="hidden" name="status" value="archived">
-      <button type="submit" class="btn btn-outline btn-sm">📁 В архив</button>
-    </form>
+    {% if access.status != 'archived' and access.status != 'rejected' %}
+    <button type="button" onclick="setStage('archived')" class="btn btn-secondary btn-sm">
+      📁 В архив
+    </button>
     {% else %}
-    <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
-      <input type="hidden" name="status" value="active">
-      <button type="submit" class="btn btn-ghost btn-sm">↩️ Восстановить из архива</button>
-    </form>
-    {% endif %}
-
-    {% if access.status == 'suitable' %}
-    <form method="POST" action="/employer/profiles/{{ access.id }}/status" style="margin:0;">
-      <input type="hidden" name="status" value="active">
-      <button type="submit" class="btn btn-ghost btn-sm">↩️ Убрать из подходящих</button>
-    </form>
+    <button type="button" onclick="setStage('new')" class="btn btn-secondary btn-sm">
+      ↩️ Восстановить из архива
+    </button>
     {% endif %}
   </div>
 </div>
 
-{% if saved %}
-<div class="card" style="background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);color:#86efac;padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
-  <span>✅</span>
-  <div>Заметка успешно сохранена!</div>
+<!-- ATS Stepper этапов найма кандидата -->
+<div class="stepper-container">
+  <div>
+    <div style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;">
+      Воронка найма
+    </div>
+    <div style="font-size:16px;font-weight:800;color:var(--text);margin-top:2px;">
+      Текущий этап: <span id="currentStageText" style="color:var(--primary);">
+        {% if access.status == 'screening' %}Скрининг резюме
+        {% elif access.status in ['interview', 'suitable'] %}Собеседование
+        {% elif access.status == 'offer' %}Выставлен оффер
+        {% elif access.status == 'hired' %}Принят на работу 🎉
+        {% elif access.status in ['archived', 'rejected'] %}В архиве / Отказ
+        {% else %}Новая анкета
+        {% endif %}
+      </span>
+    </div>
+  </div>
+
+  <div class="stepper-steps">
+    <button type="button" onclick="setStage('new')" class="stepper-step {% if access.status in ['new', 'active', None] %}active{% endif %}">
+      1. Новая
+    </button>
+    <span class="stepper-arrow">→</span>
+    <button type="button" onclick="setStage('screening')" class="stepper-step {% if access.status == 'screening' %}active{% endif %}">
+      2. Скрининг
+    </button>
+    <span class="stepper-arrow">→</span>
+    <button type="button" onclick="setStage('interview')" class="stepper-step {% if access.status in ['interview', 'suitable'] %}active{% endif %}">
+      3. Интервью
+    </button>
+    <span class="stepper-arrow">→</span>
+    <button type="button" onclick="setStage('offer')" class="stepper-step {% if access.status == 'offer' %}active{% endif %}">
+      4. Оффер
+    </button>
+    <span class="stepper-arrow">→</span>
+    <button type="button" onclick="setStage('hired')" class="stepper-step {% if access.status == 'hired' %}active{% endif %}">
+      5. Нанят 🎉
+    </button>
+  </div>
 </div>
-{% endif %}
 
 {% if profile and user %}
-<div style="display:grid;grid-template-columns:290px 1fr;gap:24px;align-items:start;">
+<div class="profile-layout">
 
-  <!-- Левая колонка: фото + основное + заметки HR -->
-  <div>
-    <div class="card" style="text-align:center;padding:32px 24px;">
-      <div style="width:100px;height:100px;border-radius:50%;background:var(--surface2);
-                  margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:48px;">
-        {% if access.status == 'suitable' %}⭐️
-        {% elif access.status == 'archived' %}📁
-        {% else %}🎓{% endif %}
-      </div>
-      <div style="font-size:20px;font-weight:700;margin-bottom:4px;">{{ profile.name }}</div>
-      <div style="color:var(--muted);font-size:14px;">
-        {% if user.university %}{{ user.university.name }}{% endif %}
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- ЛЕВАЯ КОЛОНКА: Аватар, Контакты, Оценка HR -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div style="display:flex;flex-direction:column;gap:20px;">
+    
+    <!-- Карточка соискателя -->
+    <div class="candidate-card-main">
+      <div class="candidate-avatar-large">
+        {{ (profile.name or 'С')[0]|upper }}
       </div>
 
-      <div style="margin:20px 0;padding:16px;background:var(--surface2);border-radius:10px;">
-        <div style="font-size:32px;font-weight:700;color:var(--accent2);">{{ profile.rating_score|int }}</div>
-        <div style="font-size:12px;color:var(--muted);">баллов рейтинга</div>
+      <div class="candidate-name-large">{{ profile.name }}</div>
+      <div class="candidate-headline">
+        {% if user.university %}{{ user.university.name }}{% else %}РУДН{% endif %} • {{ profile.year }} курс
       </div>
 
-      {% if user.tg_username %}
-      <a href="https://t.me/{{ user.tg_username }}" target="_blank"
-         class="btn btn-primary" style="width:100%;justify-content:center;">
-        💬 Написать в Telegram
-      </a>
-      {% else %}
-      <div style="color:var(--muted);font-size:13px;padding:8px 0;">Юзернейм скрыт студентом</div>
-      {% endif %}
+      <!-- Бейджи статуса -->
+      <div style="display:flex;justify-content:center;gap:6px;margin-bottom:16px;flex-wrap:wrap;">
+        {% if user.email_verified %}
+          <span class="badge" style="background:var(--success-light);color:var(--success);border:1px solid rgba(16,185,129,0.3);">
+            🎓 Верифицирован
+          </span>
+        {% endif %}
+        {% if user.is_premium %}
+          <span class="badge" style="background:linear-gradient(135deg,rgba(168,85,247,0.2),rgba(236,72,153,0.2));color:#c084fc;border:1px solid rgba(168,85,247,0.4);">
+            💎 Премиум
+          </span>
+        {% endif %}
+      </div>
+
+      <!-- Рейтинг СтудМэч -->
+      <div class="score-badge-card">
+        <div>
+          <div style="font-size:26px;font-weight:800;color:var(--primary);">⭐ {{ profile.rating_score|int }}</div>
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;">Баллов портфолио</div>
+        </div>
+        <div style="height:32px;width:1px;background:var(--border);"></div>
+        <div>
+          <div style="font-size:26px;font-weight:800;color:var(--success);">{{ profile.year }}</div>
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;">Курс обучения</div>
+        </div>
+      </div>
+
+      <!-- Контакты для связи -->
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
+        {% if user.tg_username %}
+        <a href="https://t.me/{{ user.tg_username }}" target="_blank" class="btn btn-primary" style="width:100%;">
+          💬 Написать в Telegram (@{{ user.tg_username }})
+        </a>
+        {% else %}
+        <button class="btn btn-secondary" disabled style="width:100%;opacity:0.7;">
+          🔒 Telegram скрыт соискателем
+        </button>
+        {% endif %}
+
+        {% if user.email %}
+        <a href="mailto:{{ user.email }}" class="btn btn-outline" style="width:100%;">
+          ✉️ {{ user.email }}
+        </a>
+        {% endif %}
+
+        {% if profile.career_portfolio_url %}
+        <a href="{{ profile.career_portfolio_url }}" target="_blank" class="btn btn-secondary" style="width:100%;">
+          🔗 Открыть портфолио / резюме
+        </a>
+        {% endif %}
+      </div>
     </div>
 
-    <!-- Личная заметка HR -->
+    <!-- Блок оценки рекрутера (1-5 звезд) и личных заметок -->
     <div class="card">
-      <div style="font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
-        <span>📝</span> Личная заметка HR
+      <div style="font-size:14px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+        <span>⭐️ Оценка рекрутера</span>
+        <span id="ratingScoreText" style="font-size:12px;color:var(--primary);font-weight:700;">{{ access.hr_rating or 0 }} / 5</span>
       </div>
-      <form method="POST" action="/employer/profiles/{{ access.id }}/comment">
-        <textarea name="hr_comment" rows="4" placeholder="Например: Позвали на тех. собес 15.09, хороший стек React..."
-                  style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;">{{ access.hr_comment or '' }}</textarea>
-        <button type="submit" class="btn btn-primary btn-sm" style="margin-top:10px;width:100%;justify-content:center;">
+
+      <div class="star-selector" id="starSelector">
+        {% for s in range(1, 6) %}
+          <span onclick="setRating({{ s }})" class="{% if (access.hr_rating or 0) >= s %}active{% endif %}" data-star="{{ s }}">★</span>
+        {% endfor %}
+      </div>
+
+      <form method="POST" action="/employer/profiles/{{ access.id }}/comment" style="margin-top:16px;">
+        <input type="hidden" name="hr_rating" id="hiddenRatingInput" value="{{ access.hr_rating or 0 }}">
+        <label style="font-size:12px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">
+          📝 Приватная заметка HR:
+        </label>
+        <textarea name="hr_comment" rows="4" placeholder="Заметки по кандидату, дата собеседования, впечатления..."
+                  style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;font-size:13px;resize:vertical;">{{ access.hr_comment or '' }}</textarea>
+        <button type="submit" class="btn btn-primary btn-sm" style="margin-top:10px;width:100%;">
           💾 Сохранить заметку
         </button>
       </form>
     </div>
 
     {% if access.note %}
-    <div class="card">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">📌 Пометка от модератора СтудМэч</div>
-      <div style="font-size:14px;">{{ access.note }}</div>
+    <div class="card" style="background:var(--surface2);">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">
+        📌 Пометка от модератора СтудМэч
+      </div>
+      <div style="font-size:13px;color:var(--text);font-weight:500;">{{ access.note }}</div>
     </div>
     {% endif %}
+
   </div>
 
-  <!-- Правая колонка: детали -->
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- ПРАВАЯ КОЛОНКА: Вкладки с детальной информацией -->
+  <!-- ══════════════════════════════════════════════ -->
   <div>
-    <div class="card">
-      <div style="font-size:16px;font-weight:700;margin-bottom:20px;">🎯 Профессиональная анкета студента</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-        <div>
-          <div style="font-size:12px;color:var(--muted);">Курс</div>
-          <div style="font-size:15px;font-weight:500;margin-top:2px;">{{ profile.year }} курс</div>
-        </div>
-        <div>
-          <div style="font-size:12px;color:var(--muted);">Направление</div>
-          <div style="font-size:15px;font-weight:500;margin-top:2px;">{{ profile.major }}</div>
-        </div>
-        <div style="grid-column:span 2;">
-          <div style="font-size:12px;color:var(--muted);">🛠 Навыки и стек технологий</div>
-          <div style="font-size:15px;font-weight:600;color:var(--accent2);margin-top:2px;">
-            {{ profile.career_custom_skills or 'Не указаны' }}
+    <!-- Вкладки деталей -->
+    <div class="detail-tabs-nav">
+      <button type="button" class="detail-tab-btn active" onclick="switchDetailTab('resume')">
+        📄 Резюме и Профиль
+      </button>
+      <button type="button" class="detail-tab-btn" onclick="switchDetailTab('achievements')">
+        🏆 Достижения ({{ achievements|length }})
+      </button>
+    </div>
+
+    <!-- Вкладка 1: Резюме и профиль -->
+    <div id="tab-content-resume">
+      <div class="card" style="margin-bottom:20px;">
+        <h3 style="font-size:16px;font-weight:800;margin-bottom:18px;letter-spacing:-0.2px;">
+          🎯 Профессиональные параметры
+        </h3>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;">ВУЗ</div>
+            <div style="font-size:15px;font-weight:700;margin-top:2px;">
+              {% if user.university %}{{ user.university.name }} ({{ user.university.short_name }}){% else %}РУДН{% endif %}
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;">Курс и уровень</div>
+            <div style="font-size:15px;font-weight:700;margin-top:2px;">
+              {{ profile.year }} курс {% if profile.year >= 5 %}(Магистратура){% else %}(Бакалавриат){% endif %}
+            </div>
+          </div>
+
+          <div style="grid-column:span 2;">
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;">Специальность / Факультет</div>
+            <div style="font-size:15px;font-weight:700;margin-top:2px;color:var(--text);">
+              {{ profile.major if profile.major else 'Не указана' }}
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;">Формат работы</div>
+            <div style="font-size:14px;font-weight:600;margin-top:2px;">
+              {{ profile.career_work_format or 'Удаленно / Офис / Гибрид' }}
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;">Дата выдачи анкеты в HR</div>
+            <div style="font-size:14px;font-weight:600;margin-top:2px;">
+              {{ access.granted_at.strftime('%d.%m.%Y') if access.granted_at else '—' }}
+            </div>
           </div>
         </div>
-        <div>
-          <div style="font-size:12px;color:var(--muted);">Формат работы</div>
-          <div style="font-size:15px;margin-top:2px;">{{ profile.career_work_format or 'Любой формат' }}</div>
-        </div>
-        <div>
-          <div style="font-size:12px;color:var(--muted);">Портфолио / Резюме</div>
-          <div style="font-size:15px;margin-top:2px;">
-            {% if profile.career_portfolio_url %}
-              <a href="{{ profile.career_portfolio_url }}" target="_blank" style="color:var(--accent2);text-decoration:underline;">
-                🔗 Открыть портфолио
-              </a>
-            {% else %}
-              —
-            {% endif %}
+      </div>
+
+      <!-- Навыки и стек -->
+      <div class="card" style="margin-bottom:20px;">
+        <h3 style="font-size:16px;font-weight:800;margin-bottom:14px;">
+          🛠 Навыки и технологии
+        </h3>
+        {% if profile.career_custom_skills %}
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            {% for sk in profile.career_custom_skills.split(',') %}
+              <span class="skill-pill">⚡️ {{ sk.strip() }}</span>
+            {% endfor %}
           </div>
-        </div>
-        <div style="grid-column:span 2;">
-          <div style="font-size:12px;color:var(--muted);">🎯 Карьерная цель / Опыт</div>
-          <div style="font-size:15px;margin-top:2px;">{{ profile.career_goal or profile.goal or '—' }}</div>
+        {% else %}
+          <div style="color:var(--text-muted);font-size:13px;">Стек навыков не заполнен</div>
+        {% endif %}
+      </div>
+
+      <!-- Карьерная цель и опыт -->
+      <div class="card">
+        <h3 style="font-size:16px;font-weight:800;margin-bottom:14px;">
+          📝 О себе и карьерная цель
+        </h3>
+        <div style="font-size:14px;line-height:1.6;color:var(--text);white-space:pre-line;">
+          {{ profile.career_goal or profile.goal or 'Соискатель не заполнил подробное описание.' }}
         </div>
       </div>
     </div>
 
-    <!-- Достижения -->
-    <div class="card">
-      <div style="font-size:16px;font-weight:600;margin-bottom:16px;">🏆 Подтверждённые достижения</div>
-      {% if achievements %}
-      <div style="display:flex;flex-direction:column;gap:10px;">
-        {% for a in achievements %}
-        <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--surface2);border-radius:8px;">
-          <div style="font-size:20px;">
-            {% if a.type.value == 'gpa' %}📊
-            {% elif a.type.value == 'olympiad' %}🏆
-            {% elif a.type.value == 'case' %}💼
-            {% elif a.type.value == 'competition' %}🥇
-            {% elif a.type.value == 'diploma' %}🎓
-            {% elif a.type.value == 'publication' %}📝
-            {% else %}🎯{% endif %}
-          </div>
+    <!-- Вкладка 2: Достижения и документы -->
+    <div id="tab-content-achievements" style="display:none;">
+      <div class="card">
+        <h3 style="font-size:16px;font-weight:800;margin-bottom:18px;">
+          🏆 Подтверждённые достижения студента
+        </h3>
+
+        {% if achievements %}
           <div>
-            <div style="font-size:14px;font-weight:500;">{{ a.title }}</div>
-            <div style="font-size:12px;color:var(--muted);">+{{ a.score|int }} баллов</div>
+            {% for a in achievements %}
+            <div class="achievement-item">
+              <div style="font-size:28px;">
+                {% if a.type.value == 'gpa' %}📊
+                {% elif a.type.value == 'olympiad' %}🏆
+                {% elif a.type.value == 'case' %}💼
+                {% elif a.type.value == 'competition' %}🥇
+                {% elif a.type.value == 'diploma' %}🎓
+                {% elif a.type.value == 'publication' %}📝
+                {% else %}🎯{% endif %}
+              </div>
+              <div style="flex:1;">
+                <div style="font-size:15px;font-weight:700;color:var(--text);">{{ a.title }}</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+                  Тип: {{ a.type.value|upper }} • Подтверждено модератором СтудМэч
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:16px;font-weight:800;color:var(--success);">+{{ a.score|int }}</div>
+                <div style="font-size:11px;color:var(--text-muted);">баллов</div>
+              </div>
+            </div>
+            {% endfor %}
           </div>
-          <div style="margin-left:auto;">
-            <span class="badge badge-viewed">✅ Верифицировано</span>
+        {% else %}
+          <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+            <div style="font-size:36px;margin-bottom:10px;">🎓</div>
+            <div style="font-size:14px;font-weight:600;">Нет подтвержденных сертификатов</div>
+            <p style="font-size:12px;margin-top:4px;">Студент пока не прикреплял дипломы олимпиад или публикации.</p>
           </div>
-        </div>
-        {% endfor %}
+        {% endif %}
       </div>
-      {% else %}
-      <div style="color:var(--muted);font-size:14px;">Верифицированных достижений нет</div>
-      {% endif %}
     </div>
+
   </div>
 
-</div>
-{% else %}
-<div class="card" style="text-align:center;padding:48px;">
-  <div>Профиль не найден</div>
 </div>
 {% endif %}
+
+<script>
+  function switchDetailTab(tab) {
+    const resumeTab = document.getElementById('tab-content-resume');
+    const achTab = document.getElementById('tab-content-achievements');
+    const btns = document.querySelectorAll('.detail-tab-btn');
+
+    btns.forEach(b => b.classList.remove('active'));
+
+    if (tab === 'resume') {
+      resumeTab.style.display = 'block';
+      achTab.style.display = 'none';
+      btns[0].classList.add('active');
+    } else {
+      resumeTab.style.display = 'none';
+      achTab.style.display = 'block';
+      btns[1].classList.add('active');
+    }
+  }
+
+  async function setStage(stage) {
+    try {
+      const res = await fetch('/employer/profiles/{{ access.id }}/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: stage }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`✅ Этап обновлен: <strong>${stage}</strong>`);
+        setTimeout(() => location.reload(), 500);
+      } else {
+        showToast(`⚠️ Ошибка: ${data.error || 'Не удалось обновить'}`);
+      }
+    } catch (e) {
+      showToast(`⚠️ Ошибка сети при обновлении этапа`);
+    }
+  }
+
+  async function setRating(stars) {
+    document.getElementById('hiddenRatingInput').value = stars;
+    document.getElementById('ratingScoreText').textContent = `${stars} / 5`;
+    const starSpans = document.querySelectorAll('#starSelector span');
+    starSpans.forEach((sp, idx) => {
+      if (idx < stars) sp.classList.add('active');
+      else sp.classList.remove('active');
+    });
+
+    try {
+      await fetch('/employer/profiles/{{ access.id }}/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hr_rating: stars }),
+      });
+      showToast(`⭐ Оценка сохранена: ${stars} из 5`);
+    } catch (e) {}
+  }
+</script>
 {% endblock %}

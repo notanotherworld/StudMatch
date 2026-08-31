@@ -1,49 +1,142 @@
 {% extends "employer/base.html" %}
-{% block title %}Вход — СтудМэч HR{% endblock %}
+{% block title %}Вход в кабинет рекрутера — СтудМэч HR{% endblock %}
 
 {% block content %}
 <style>
-  .container { display:flex; align-items:center; justify-content:center; min-height:80vh; }
+  .sidebar, .topbar { display: none !important; }
+  .main-wrapper { margin-left: 0 !important; width: 100% !important; }
+  
+  .login-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 80px);
+    padding: 20px;
+  }
+
   .login-box {
-    width:380px; background:var(--surface); border:1px solid var(--border);
-    border-radius:16px; padding:40px;
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 40px 32px;
+    box-shadow: var(--shadow-lg);
+    position: relative;
   }
-  .login-logo { text-align:center; margin-bottom:32px; }
-  .login-logo h2 { font-size:24px; color:var(--accent2); }
-  .login-logo p { color:var(--muted); font-size:14px; margin-top:4px; }
-  .form-group { margin-bottom:16px; }
-  label { font-size:13px; color:var(--muted); margin-bottom:6px; display:block; }
-  input {
-    width:100%; padding:10px 14px; background:var(--surface2);
-    border:1px solid var(--border); border-radius:8px; color:var(--text);
-    font-size:14px; outline:none;
+
+  .login-logo {
+    text-align: center;
+    margin-bottom: 32px;
   }
-  input:focus { border-color:var(--accent); }
-  .alert { padding:12px; border-radius:8px; background:#ef444422; color:#ef4444; font-size:14px; margin-bottom:16px; }
+
+  .login-logo-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: var(--accent-gradient);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin: 0 auto 16px;
+    box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
+  }
+
+  .login-logo-title {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .login-logo-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text-secondary);
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: var(--transition);
+  }
+
+  .form-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+  }
+
+  .login-alert {
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    background: var(--danger-light);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: var(--danger);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 </style>
 
-<div class="login-box">
-  <div class="login-logo">
-    <h2>👔 Кабинет HR</h2>
-    <p>СтудМэч — платформа для поиска студентов</p>
+<div class="login-wrapper">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-icon">💼</div>
+      <h1 class="login-logo-title">СтудМэч HR</h1>
+      <p class="login-logo-subtitle">Кабинет работодателя для найма студентов</p>
+    </div>
+
+    {% if error %}
+      <div class="login-alert">
+        <span>⚠️</span>
+        <div>{{ error }}</div>
+      </div>
+    {% endif %}
+
+    <form method="POST" action="/employer/login">
+      <div class="form-group">
+        <label class="form-label">Логин компании</label>
+        <input type="text" name="login" placeholder="company_login" required autofocus class="form-input">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Пароль</label>
+        <input type="password" name="password" placeholder="••••••••" required class="form-input">
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg" style="width:100%;margin-top:8px;">
+        Войти в кабинет →
+      </button>
+    </form>
+
+    <div style="margin-top:28px;text-align:center;border-top:1px solid var(--border);padding-top:16px;">
+      <button type="button" onclick="toggleTheme()" class="btn btn-outline btn-sm" style="font-size:12px;">
+        🌓 Сменить тему оформления
+      </button>
+    </div>
   </div>
-
-  {% if error %}
-    <div class="alert">{{ error }}</div>
-  {% endif %}
-
-  <form method="POST" action="/employer/login">
-    <div class="form-group">
-      <label>Логин</label>
-      <input type="text" name="login" placeholder="hr_login" required autofocus>
-    </div>
-    <div class="form-group">
-      <label>Пароль</label>
-      <input type="password" name="password" placeholder="••••••••" required>
-    </div>
-    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;">
-      Войти в кабинет
-    </button>
-  </form>
 </div>
 {% endblock %}

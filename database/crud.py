@@ -737,13 +737,15 @@ async def get_employer_profiles(
         .where(EmployerProfileAccess.employer_id == employer_id)
     )
 
-    if status == "suitable":
-        query = query.where(EmployerProfileAccess.status == "suitable")
-    elif status == "archived":
-        query = query.where(EmployerProfileAccess.status == "archived")
-    elif status == "active":
-        query = query.where(or_(EmployerProfileAccess.status == "active", EmployerProfileAccess.status.is_(None)))
-    # "all" or None returns all candidates
+    if status and status != "all":
+        if status == "suitable":
+            query = query.where(EmployerProfileAccess.status == "suitable")
+        elif status == "archived":
+            query = query.where(EmployerProfileAccess.status.in_(["archived", "rejected"]))
+        elif status == "active":
+            query = query.where(EmployerProfileAccess.status.in_(["active", "new", "screening", "interview", "offer", "hired", None]))
+        else:
+            query = query.where(EmployerProfileAccess.status == status)
 
     query = query.order_by(EmployerProfileAccess.granted_at.desc())
     result = await db.execute(query)
@@ -751,17 +753,33 @@ async def get_employer_profiles(
 
 
 async def get_employer_profile_counts(db: AsyncSession, employer_id: int) -> dict:
-    """Возвращает количество кандидатов по категориям."""
+    """Возвращает количество кандидатов по категориям и этапам воронки."""
     all_res = await db.execute(
         select(EmployerProfileAccess.status, func.count(EmployerProfileAccess.id))
         .where(EmployerProfileAccess.employer_id == employer_id)
         .group_by(EmployerProfileAccess.status)
     )
-    counts = {"all": 0, "suitable": 0, "archived": 0, "active": 0}
+    counts = {
+        "all": 0,
+        "new": 0,
+        "screening": 0,
+        "interview": 0,
+        "offer": 0,
+        "hired": 0,
+        "archived": 0,
+        "rejected": 0,
+        "suitable": 0,
+        "active": 0,
+    }
     for st, cnt in all_res.all():
-        st_key = st if st in counts else "active"
-        counts[st_key] += cnt
+        st_clean = st or "new"
+        if st_clean in counts:
+            counts[st_clean] += cnt
+        else:
+            counts["new"] += cnt
         counts["all"] += cnt
+        if st_clean in ("new", "screening", "interview", "offer", "hired", "active", None):
+            counts["active"] += cnt
     return counts
 
 
@@ -775,7 +793,12 @@ async def mark_profile_viewed(db: AsyncSession, access_id) -> None:
 
 
 async def update_employer_candidate_status(
-    db: AsyncSession, access_id, employer_id: int, new_status: Optional[str] = None, hr_comment: Optional[str] = None
+    db: AsyncSession,
+    access_id,
+    employer_id: int,
+    new_status: Optional[str] = None,
+    hr_comment: Optional[str] = None,
+    hr_rating: Optional[int] = None,
 ) -> Optional[EmployerProfileAccess]:
     result = await db.execute(
         select(EmployerProfileAccess).where(
@@ -789,6 +812,8 @@ async def update_employer_candidate_status(
             access.status = new_status
         if hr_comment is not None:
             access.hr_comment = hr_comment
+        if hr_rating is not None:
+            access.hr_rating = hr_rating
         await db.commit()
         await db.refresh(access)
     return access

@@ -1,137 +1,168 @@
 {% extends "employer/base.html" %}
-{% block title %}Настройки — СтудМэч HR{% endblock %}
+{% block title %}Настройки компании — {{ employer.company_name }} | СтудМэч HR{% endblock %}
+{% block page_title %}⚙️ Настройки аккаунта компании{% endblock %}
 
 {% block content %}
-<div style="margin-bottom:24px;">
-  <h1 style="font-size:22px;font-weight:700;">⚙️ Настройки аккаунта компании</h1>
-  <p style="color:var(--muted);margin-top:4px;">
-    Управление контактными данными компании <strong>{{ employer.company_name }}</strong> и безопасность аккаунта
-  </p>
-</div>
+<style>
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .form-group {
+    margin-bottom: 18px;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text-secondary);
+  }
+
+  .form-control {
+    width: 100%;
+    padding: 11px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: var(--transition);
+  }
+
+  .form-control:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+  }
+
+  .form-control:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 1024px) {
+    .settings-grid { grid-template-columns: 1fr; }
+  }
+</style>
 
 {% if success %}
-<div class="card" style="background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);color:#86efac;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+<div class="card" style="background:var(--success-light);border-color:rgba(16,185,129,0.3);color:var(--success);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
   <span>✅</span>
-  <div>{{ success }}</div>
+  <div style="font-weight:700;">{{ success }}</div>
 </div>
 {% endif %}
 
 {% if error %}
-<div class="card" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.3);color:#fca5a5;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+<div class="card" style="background:var(--danger-light);border-color:rgba(239,68,68,0.3);color:var(--danger);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
   <span>⚠️</span>
-  <div>{{ error }}</div>
+  <div style="font-weight:700;">{{ error }}</div>
 </div>
 {% endif %}
 
-<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:24px;align-items:start;">
+<div class="settings-grid">
 
   <!-- Редактирование профиля компании -->
-  <div class="card" style="padding:28px;">
-    <h2 style="font-size:17px;font-weight:700;margin-bottom:16px;">🏢 Контактные данные</h2>
+  <div class="card">
+    <h2 style="font-size:18px;font-weight:800;margin-bottom:20px;letter-spacing:-0.2px;">
+      🏢 Профиль и контакты компании
+    </h2>
 
     <form method="POST" action="/employer/settings/profile">
       
-      <div style="margin-bottom:16px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Название компании
-        </label>
-        <input type="text" disabled value="{{ employer.company_name }}"
-               style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:14px;font-family:inherit;">
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Название компании задаётся администратором СтудМэч</div>
+      <div class="form-group">
+        <label class="form-label">Название организации</label>
+        <input type="text" disabled value="{{ employer.company_name }}" class="form-control">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Название подтверждено администрацией СтудМэч</div>
       </div>
 
-      <div style="margin-bottom:16px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Логин для входа
-        </label>
-        <input type="text" disabled value="{{ employer.login }}"
-               style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:14px;font-family:inherit;">
+      <div class="form-group">
+        <label class="form-label">Логин для авторизации</label>
+        <input type="text" disabled value="{{ employer.login }}" class="form-control">
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" class="form-group">
         <div>
-          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-            Контактное лицо (HR) <span style="color:#ef4444;">*</span>
+          <label class="form-label">
+            Контактное лицо (HR) <span style="color:var(--danger);">*</span>
           </label>
-          <input type="text" name="contact_name" required value="{{ employer.contact_name }}"
-                 style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;">
+          <input type="text" name="contact_name" required value="{{ employer.contact_name }}" class="form-control">
         </div>
 
         <div>
-          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-            Telegram для связи
-          </label>
-          <input type="text" name="tg_contact" value="{{ employer.tg_contact or '' }}" placeholder="@hr_name"
-                 style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;">
+          <label class="form-label">Telegram для связи</label>
+          <input type="text" name="tg_contact" value="{{ employer.tg_contact or '' }}" placeholder="@username" class="form-control">
         </div>
       </div>
 
-      <div style="margin-bottom:16px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Веб-сайт или карьерная страница компании
-        </label>
-        <input type="url" name="website" value="{{ employer.website or '' }}" placeholder="https://company.ru/careers"
-               style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;">
+      <div class="form-group">
+        <label class="form-label">Веб-сайт или карьерный портал</label>
+        <input type="url" name="website" value="{{ employer.website or '' }}" placeholder="https://company.ru/careers" class="form-control">
       </div>
 
-      <div style="margin-bottom:16px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Краткое описание компании
-        </label>
-        <textarea name="company_description" rows="3" placeholder="Сфера деятельности, стек, проекты компании..."
-                  style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;">{{ employer.company_description or '' }}</textarea>
+      <div class="form-group">
+        <label class="form-label">Краткое описание деятельности компании</label>
+        <textarea name="company_description" rows="3" placeholder="Сфера деятельности, стек, масштаб проектов..."
+                  class="form-control" style="resize:vertical;">{{ employer.company_description or '' }}</textarea>
       </div>
 
-      <div style="margin-bottom:20px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Текущие стажировки и вакансии компании
-        </label>
+      <div class="form-group">
+        <label class="form-label">Текущие стажировки и вакансии компании</label>
         <textarea name="vacancies_description" rows="3" placeholder="Описание программ стажировок, условий и бонусов для студентов..."
-                  style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;">{{ employer.vacancies_description or '' }}</textarea>
+                  class="form-control" style="resize:vertical;">{{ employer.vacancies_description or '' }}</textarea>
       </div>
 
-      <button type="submit" class="btn btn-primary">
+      <button type="submit" class="btn btn-primary btn-lg">
         💾 Сохранить изменения
       </button>
 
     </form>
   </div>
 
-  <!-- Смена пароля -->
-  <div class="card" style="padding:28px;">
-    <h2 style="font-size:17px;font-weight:700;margin-bottom:16px;">🔒 Безопасность и смена пароля</h2>
+  <!-- Смена пароля и безопасность -->
+  <div class="card">
+    <h2 style="font-size:18px;font-weight:800;margin-bottom:20px;letter-spacing:-0.2px;">
+      🔐 Безопасность и пароль
+    </h2>
 
     <form method="POST" action="/employer/settings/password">
       
-      <div style="margin-bottom:16px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Текущий пароль <span style="color:#ef4444;">*</span>
-        </label>
-        <input type="password" name="current_password" required placeholder="••••••••"
-               style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;">
+      <div class="form-group">
+        <label class="form-label">Текущий пароль</label>
+        <input type="password" name="old_password" required placeholder="••••••••" class="form-control">
       </div>
 
-      <div style="margin-bottom:16px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Новый пароль <span style="color:#ef4444;">*</span>
-        </label>
-        <input type="password" name="new_password" required placeholder="Минимум 6 символов"
-               style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;">
+      <div class="form-group">
+        <label class="form-label">Новый пароль (мин. 6 символов)</label>
+        <input type="password" name="new_password" required placeholder="••••••••" minlength="6" class="form-control">
       </div>
 
-      <div style="margin-bottom:20px;">
-        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-          Повторите новый пароль <span style="color:#ef4444;">*</span>
-        </label>
-        <input type="password" name="confirm_password" required placeholder="Повторите новый пароль"
-               style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;">
+      <div class="form-group">
+        <label class="form-label">Повторите новый пароль</label>
+        <input type="password" name="confirm_password" required placeholder="••••••••" minlength="6" class="form-control">
       </div>
 
-      <button type="submit" class="btn btn-warning">
+      <button type="submit" class="btn btn-secondary btn-lg" style="width:100%;">
         🔑 Обновить пароль
       </button>
 
     </form>
+
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border);">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px;color:var(--text);">Тарифный план компании</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--surface2);border-radius:var(--radius-md);border:1px solid var(--border);">
+        <div>
+          <div style="font-weight:800;font-size:14px;color:var(--primary);">⭐️ Партнёр СтудМэч</div>
+          <div style="font-size:11px;color:var(--text-muted);">Прямой доступ к базе студентов</div>
+        </div>
+        <span class="badge badge-offer">Активен</span>
+      </div>
+    </div>
   </div>
 
 </div>
