@@ -30,8 +30,12 @@ logger = logging.getLogger(__name__)
 async def _send_hall_of_fame(target_message: Message, user: User, db: AsyncSession):
     """Сформировать и отправить Зал славы."""
     try:
+        from sqlalchemy.orm import selectinload
         result = await db.execute(
             select(Profile)
+            .options(
+                selectinload(Profile.user).selectinload(User.university)
+            )
             .where(Profile.is_complete == True)
             .order_by(Profile.rating_score.desc().nullslast())
             .limit(12)
@@ -45,7 +49,11 @@ async def _send_hall_of_fame(target_message: Message, user: User, db: AsyncSessi
             score = f"{raw_score:.0f}"
             year_str = f"{p.year} курс" if p.year else "Студент"
             medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}."))
-            lines.append(f"{medal} <b>{name}</b> ({year_str}) — ⭐ <b>{score}</b> б.")
+            u = p.user
+            ver_badge = " 🎓" if (u and getattr(u, "email_verified", False)) else ""
+            prem_badge = " 💎" if (u and getattr(u, "is_premium", False)) else ""
+            title_name = f"💎 <b>{name}</b> 💎" if (u and getattr(u, "is_premium", False)) else f"<b>{name}</b>"
+            lines.append(f"{medal} {title_name}{ver_badge}{prem_badge} ({year_str}) — ⭐ <b>{score}</b> б.")
 
         text_header = "🏅 <b>Зал славы СтудМэч (Топ-12)</b>\n\n"
         text_body = "\n".join(lines) if lines else "<i>Зал славы пока пуст. Будь первым!</i>"
@@ -60,7 +68,9 @@ async def _send_hall_of_fame(target_message: Message, user: User, db: AsyncSessi
         for idx, p in enumerate(profiles, start=1):
             name = html.escape(p.name or "Студент")
             medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}."))
-            builder.button(text=f"{medal} {name}", callback_data=f"profile:open:{p.user_id}")
+            u = p.user
+            p_label = f"{medal} 💎 {name}" if (u and getattr(u, "is_premium", False)) else f"{medal} {name}"
+            builder.button(text=p_label, callback_data=f"profile:open:{p.user_id}")
 
         profile_count = len(profiles)
         builder.button(text="➕ Добавить достижение", callback_data="achievement:add")

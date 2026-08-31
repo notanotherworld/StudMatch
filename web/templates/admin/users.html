@@ -50,8 +50,17 @@
     <a href="/admin/users" class="btn btn-sm {% if not is_fake and not filter_type %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
       Все
     </a>
+    <a href="/admin/users?filter_type=premium" class="btn btn-sm {% if filter_type == 'premium' %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;{% if filter_type == 'premium' %}background:linear-gradient(135deg,#a855f7,#ec4899);{% else %}color:#c084fc;{% endif %}font-weight:600;">
+      💎 Премиум ({{ premium_count }})
+    </a>
+    <a href="/admin/users?filter_type=verified" class="btn btn-sm {% if filter_type == 'verified' %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;{% if filter_type != 'verified' %}color:#4ade80;{% endif %}font-weight:600;">
+      🎓 Верифицированные ({{ verified_count }})
+    </a>
+    <a href="/admin/users?filter_type=unverified" class="btn btn-sm {% if filter_type == 'unverified' %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
+      ⏳ Без верификации
+    </a>
     <a href="/admin/users?is_fake=false" class="btn btn-sm {% if is_fake == 'false' and not filter_type %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
-      🎓 Студенты
+      👥 Реальные студенты
     </a>
     <a href="/admin/users?is_fake=true" class="btn btn-sm {% if is_fake == 'true' and not filter_type %}btn-primary{% else %}btn-ghost{% endif %}" style="border:none;">
       🎭 Тестовые анкеты
@@ -84,6 +93,9 @@
       <tr>
         <td>
           <div style="display:flex;align-items:center;gap:6px;font-weight:600;flex-wrap:wrap;" class="copyable" data-copy="{{ u.tg_username or u.id }}" title="Кликните чтобы скопировать">
+            {% if u.is_premium %}
+              <span title="Премиум-пользователь">💎</span>
+            {% endif %}
             {% if u.tg_username %}@{{ u.tg_username }}{% else %}#{{ u.id }}{% endif %}
             {% if u.is_fake %}
               <span class="badge badge-warning" style="font-size:10px;padding:1px 6px;">TEST</span>
@@ -98,9 +110,9 @@
           {% if u.email %}
             {{ u.email }}
             {% if u.email_verified %}
-              <span style="color:var(--success);font-size:11px;">✓</span>
+              <span style="color:var(--success);font-size:11px;" title="Email верифицирован">✓</span>
             {% else %}
-              <span style="color:var(--warning);font-size:11px;">⏳</span>
+              <span style="color:var(--warning);font-size:11px;" title="Email не подтвержден">⏳</span>
             {% endif %}
           {% else %}
             <span style="color:var(--muted);">—</span>
@@ -131,17 +143,23 @@
           {% endif %}
         </td>
         <td>
-          {% if not u.is_active %}
-            <span class="badge badge-danger">🚫 Забанен</span>
-          {% elif active_banned_ids and u.id in active_banned_ids %}
-            <span class="badge badge-danger" style="background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.5);color:#f87171;">⏳ В бане</span>
-          {% elif u.is_flagged_spammer %}
-            <span class="badge badge-warning" style="color:#fbbf24;border-color:rgba(251,191,36,0.4);">⚡️ Спамер</span>
-          {% elif u.email_verified %}
-            <span class="badge badge-success">✅ Верифицирован</span>
-          {% else %}
-            <span class="badge badge-warning">⏳ Не верифицирован</span>
-          {% endif %}
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">
+            {% if not u.is_active %}
+              <span class="badge badge-danger">🚫 Забанен</span>
+            {% elif active_banned_ids and u.id in active_banned_ids %}
+              <span class="badge badge-danger" style="background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.5);color:#f87171;">⏳ В бане</span>
+            {% elif u.is_flagged_spammer %}
+              <span class="badge badge-warning" style="color:#fbbf24;border-color:rgba(251,191,36,0.4);">⚡️ Спамер</span>
+            {% endif %}
+            {% if u.is_premium %}
+              <span class="badge" style="background:linear-gradient(135deg,#a855f7,#ec4899);color:#fff;font-size:11px;" title="До {{ u.premium_until.strftime('%d.%m.%Y') if u.premium_until else '' }}">💎 Премиум</span>
+            {% endif %}
+            {% if u.email_verified %}
+              <span class="badge badge-success" style="font-size:11px;">🎓 Верифицирован</span>
+            {% else %}
+              <span class="badge badge-warning" style="font-size:11px;">⏳ Не верифицирован</span>
+            {% endif %}
+          </div>
         </td>
         <td style="font-size:12px;color:var(--muted);">
           {{ u.created_at.strftime('%d.%m.%Y') if u.created_at else '—' }}

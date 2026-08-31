@@ -276,3 +276,35 @@ async def send_user_data(
     )
     await db.commit()
     return RedirectResponse("/admin/payments", status_code=302)
+
+
+# ─── YooKassa Webhook ─────────────────────────────────────────
+@router.post("/payments/webhook")
+async def yookassa_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """Обработка вебхуков от ЮKassa при успешной оплате."""
+    try:
+        body = await request.json()
+        event = body.get("event")
+        obj = body.get("object", {})
+        if event == "payment.succeeded":
+            yk_id = obj.get("id")
+            if yk_id:
+                from database.crud import confirm_payment
+                payment = await confirm_payment(db, yk_id)
+                if payment:
+                    try:
+                        from aiogram import Bot
+                        from bot.config import settings
+                        bot = Bot(token=settings.BOT_TOKEN)
+                        await bot.send_message(
+                            payment.user_id,
+                            "🎉 <b>Оплата прошла успешно!</b>\n\n"
+                            "Услуга / тариф успешно активированы на вашем аккаунте. Спасибо за поддержку СтудМэч! 🤲🏻",
+                            parse_mode="HTML",
+                        )
+                        await bot.session.close()
+                    except Exception:
+                        pass
+        return {"status": "ok"}
+    except Exception:
+        return {"status": "error"}

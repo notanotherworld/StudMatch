@@ -117,6 +117,17 @@ app.mount("/static", StaticFiles(directory="web/static"), name="static")
 async def favicon():
     return FileResponse("web/static/img/logo.jpg")
 
+
+@app.get("/", include_in_schema=False)
+async def root_redirect(request: Request):
+    """Главная страница: редирект в зависимости от авторизации."""
+    if request.cookies.get("employer_token"):
+        return RedirectResponse("/employer/dashboard", status_code=302)
+    if request.cookies.get("admin_token"):
+        return RedirectResponse("/admin/dashboard", status_code=302)
+    return RedirectResponse("/admin/login", status_code=302)
+
+
 app.include_router(admin_auth.router, prefix="/admin", tags=["Admin Auth"])
 app.include_router(dashboard.router, prefix="/admin", tags=["Dashboard"])
 app.include_router(fake_users.router, prefix="/admin", tags=["Fake Users"])

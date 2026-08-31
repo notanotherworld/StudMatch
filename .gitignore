@@ -46,3 +46,8 @@ minio_data/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# ── Agent Skills (Local) ────────────────────────────────────────
+.agents/
+skills-lock.json
+
