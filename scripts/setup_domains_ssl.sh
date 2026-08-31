@@ -45,23 +45,38 @@ sudo nginx -t
 echo "🔄 [5/6] Перезапуск Nginx..."
 sudo systemctl reload nginx || sudo service nginx reload || sudo systemctl restart nginx
 
-echo "🔐 [6/6] Выпуск независимых SSL-сертификатов Let's Encrypt..."
-echo "Настройка SSL для stud-match.ru, www.stud-match.ru, landing.stud-match.ru, hr.stud-match.ru, admin.stud-match.ru..."
-sudo certbot --nginx \
-    -d stud-match.ru \
-    -d www.stud-match.ru \
-    -d landing.stud-match.ru \
-    -d hr.stud-match.ru \
-    -d admin.stud-match.ru \
-    --cert-name studmatch \
-    --register-unsafely-without-email \
-    --agree-tos \
-    --redirect \
-    --expand \
-    --non-interactive || {
-        echo "⚠️ Certbot завершился с предупреждением."
-        echo "Убедитесь, что A-записи доменов (stud-match.ru, www, landing, hr, admin) указывают на IP 159.194.218.148."
-    }
+echo "🔐 [6/6] Проверка DNS и выпуск независимых SSL-сертификатов Let's Encrypt..."
+
+DOMAINS=("stud-match.ru" "hr.stud-match.ru" "admin.stud-match.ru" "landing.stud-match.ru" "www.stud-match.ru")
+VALID_DOMAINS=()
+
+for dom in "${DOMAINS[@]}"; do
+    echo -n "🔍 Проверка DNS для $dom... "
+    RESOLVED_IP=$(getent ahostsv4 "$dom" 2>/dev/null | head -n 1 | awk '{print $1}')
+    if [ -n "$RESOLVED_IP" ]; then
+        echo "OK ($RESOLVED_IP)"
+        VALID_DOMAINS+=("-d" "$dom")
+    else
+        echo "НЕ НАЙДЕН в DNS (добавьте A-запись в панели домена)"
+    fi
+done
+
+if [ ${#VALID_DOMAINS[@]} -gt 0 ]; then
+    echo "🚀 Запуск Certbot для доступных доменов: ${VALID_DOMAINS[*]}..."
+    sudo certbot --nginx \
+        "${VALID_DOMAINS[@]}" \
+        --cert-name studmatch \
+        --register-unsafely-without-email \
+        --agree-tos \
+        --redirect \
+        --expand \
+        --non-interactive || {
+            echo "⚠️ Certbot не смог завершить автоматическую настройку."
+            echo "Попробуйте вручную: sudo certbot --nginx -d hr.stud-match.ru -d admin.stud-match.ru -d stud-match.ru"
+        }
+else
+    echo "❌ Ни один из доменов не указывает на этот сервер. Сначала добавьте A-записи в панели управления доменом."
+fi
 
 echo "🔄 Финальный перезапуск Nginx..."
 sudo systemctl reload nginx || sudo service nginx reload
