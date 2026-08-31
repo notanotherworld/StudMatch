@@ -2,12 +2,14 @@
 FastAPI приложение: admin panel + HR cabinet + YooKassa webhook.
 Защиты: CSRF context processor, security headers, OpenAPI отключён в prod.
 """
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request, Depends
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.ext.asyncio import AsyncSession
 from contextlib import asynccontextmanager
 
+from web.routers import landing
 from web.routers.admin import (
     auth as admin_auth, dashboard, users, documents, ratings,
     payments as admin_payments, tariffs as admin_tariffs, employers, universities,
@@ -21,7 +23,7 @@ from web.routers.employer import (
     requests as employer_requests,
     settings as employer_settings,
 )
-from web.dependencies import generate_csrf_token
+from web.dependencies import generate_csrf_token, get_db
 
 
 import logging
@@ -119,14 +121,29 @@ async def favicon():
 
 
 @app.get("/", include_in_schema=False)
-async def root_redirect(request: Request):
-    """Главная страница: редирект в зависимости от авторизации."""
-    if request.cookies.get("employer_token"):
-        return RedirectResponse("/employer/dashboard", status_code=302)
-    if request.cookies.get("admin_token"):
-        return RedirectResponse("/admin/dashboard", status_code=302)
-    return RedirectResponse("/admin/login", status_code=302)
+async def root_redirect(request: Request, db: AsyncSession = Depends(get_db)):
+    """Главная страница: умный роутинг в зависимости от поддомена и авторизации."""
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").lower()
 
+    # 1. Поддомен HR: hr.stud-match.ru
+    if host.startswith("hr."):
+        if request.cookies.get("employer_token"):
+            return RedirectResponse("/employer/dashboard", status_code=302)
+        return RedirectResponse("/employer/login", status_code=302)
+
+    # 2. Поддомен Админки: admin.stud-match.ru
+    if host.startswith("admin."):
+        if request.cookies.get("admin_token"):
+            return RedirectResponse("/admin/dashboard", status_code=302)
+        return RedirectResponse("/admin/login", status_code=302)
+
+    # 3. Основной сайт / промо-поддомен: stud-match.ru, landing.stud-match.ru или прямой вход
+    from web.routers.landing import landing_page
+    return await landing_page(request, db)
+
+
+# Публичный промо-лендинг
+app.include_router(landing.router, tags=["Landing"])
 
 app.include_router(admin_auth.router, prefix="/admin", tags=["Admin Auth"])
 app.include_router(dashboard.router, prefix="/admin", tags=["Dashboard"])

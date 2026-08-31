@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>СтудМэч — Твой университетский нетворкинг, знакомства и карьера</title>
+<meta name="description" content="СтудМэч — платформа студенческого нетворкинга: умные знакомства, стажировки от ведущих компаний и верифицированный рейтинг студентов.">
+<link rel="icon" type="image/jpeg" href="/static/img/logo.jpg">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #090b10;
+    --surface: #121520;
+    --surface2: #1c2033;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --accent2: #818cf8;
+    --accent-pink: #ec4899;
+    --accent-gold: #f59e0b;
+    --success: #10b981;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --border: #232742;
+    --radius: 16px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
+
+  /* Header */
+  .header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(9, 11, 16, 0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo-container {
+    display: flex; align-items: center; gap: 10px; text-decoration: none;
+  }
+  .logo-badge {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-pink) 100%);
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+  }
+  .logo-text { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent2); }
+
+  .nav-menu { display: flex; align-items: center; gap: 24px; }
+  .nav-link { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; transition: color .2s; }
+  .nav-link:hover { color: var(--text); }
+
+  .header-actions { display: flex; align-items: center; gap: 12px; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 22px; border-radius: 10px; font-size: 14px; font-weight: 600;
+    text-decoration: none; cursor: pointer; transition: all .25s ease; border: none;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent) 0%, #4338ca 100%);
+    color: #fff; box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35);
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px); box-shadow: 0 6px 24px rgba(99, 102, 241, 0.5);
+  }
+  .btn-pink {
+    background: linear-gradient(135deg, var(--accent-pink) 0%, #be185d 100%);
+    color: #fff; box-shadow: 0 4px 20px rgba(236, 72, 153, 0.35);
+  }
+  .btn-pink:hover {
+    transform: translateY(-2px); box-shadow: 0 6px 24px rgba(236, 72, 153, 0.5);
+  }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: #262b45; color: #fff; }
+  .btn-lg { padding: 14px 32px; font-size: 16px; border-radius: 12px; }
+
+  /* Hero Section */
+  .hero-section {
+    padding: 160px 24px 100px;
+    max-width: 1200px; margin: 0 auto; text-align: center;
+    position: relative;
+  }
+  .hero-glow {
+    position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+    width: 600px; height: 350px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.22) 0%, rgba(236, 72, 153, 0.08) 50%, transparent 70%);
+    filter: blur(60px); z-index: -1; pointer-events: none;
+  }
+  .hero-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 16px; border-radius: 30px;
+    background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.3);
+    font-size: 13px; font-weight: 600; color: var(--accent2); margin-bottom: 24px;
+  }
+  .hero-title {
+    font-size: 56px; font-weight: 900; line-height: 1.15; letter-spacing: -1.5px;
+    max-width: 900px; margin: 0 auto 20px;
+  }
+  .hero-title .gradient-text {
+    background: linear-gradient(135deg, #fff 30%, var(--accent2) 70%, var(--accent-pink) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .hero-desc {
+    font-size: 18px; color: var(--muted); max-width: 680px; margin: 0 auto 36px;
+    line-height: 1.6;
+  }
+  .hero-buttons {
+    display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 48px;
+  }
+
+  /* Stats Bar */
+  .stats-bar {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    max-width: 800px; margin: 0 auto 80px;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 24px; border-radius: 20px;
+  }
+  .stat-item { text-align: center; }
+  .stat-num { font-size: 32px; font-weight: 800; color: #fff; }
+  .stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; font-weight: 500; }
+
+  /* Sections */
+  .section { padding: 80px 24px; max-width: 1200px; margin: 0 auto; }
+  .section-header { text-align: center; margin-bottom: 56px; }
+  .section-tag { font-size: 13px; font-weight: 700; color: var(--accent2); text-transform: uppercase; letter-spacing: 1px; }
+  .section-title { font-size: 36px; font-weight: 800; margin: 8px 0 12px; letter-spacing: -0.5px; }
+  .section-desc { font-size: 16px; color: var(--muted); max-width: 600px; margin: 0 auto; }
+
+  /* Cards Grid */
+  .cards-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 32px;
+    transition: all .3s ease; position: relative; overflow: hidden;
+  }
+  .card:hover {
+    border-color: var(--accent2); transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  }
+  .card-icon {
+    width: 56px; height: 56px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center; font-size: 28px;
+    margin-bottom: 20px;
+  }
+  .card-title { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+  .card-text { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* Banner CTA */
+  .cta-banner {
+    background: linear-gradient(135deg, #1e2238 0%, #171929 100%);
+    border: 1px solid var(--border); border-radius: 24px;
+    padding: 60px 40px; text-align: center; position: relative; overflow: hidden;
+    margin: 80px 24px;
+  }
+
+  /* Footer */
+  .footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 24px; text-align: center; color: var(--muted); font-size: 13px;
+  }
+  .footer-links { display: flex; justify-content: center; gap: 20px; margin-bottom: 16px; }
+  .footer-link { color: var(--muted); text-decoration: none; transition: color .2s; }
+  .footer-link:hover { color: var(--text); }
+
+  /* Responsive */
+  @media(max-width: 768px) {
+    .header { padding: 14px 16px; }
+    .nav-menu { display: none; }
+    .hero-section { padding: 120px 16px 60px; }
+    .hero-title { font-size: 34px; }
+    .hero-desc { font-size: 15px; }
+    .stats-bar { grid-template-columns: 1fr; gap: 20px; }
+    .section-title { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <a href="/" class="logo-container">
+    <div class="logo-badge">🎓</div>
+    <div class="logo-text">Студ<span>Мэч</span></div>
+  </a>
+
+  <nav class="nav-menu">
+    <a href="#about" class="nav-link">О платформе</a>
+    <a href="#dating" class="nav-link">Знакомства</a>
+    <a href="#career" class="nav-link">Карьера</a>
+    <a href="#rating" class="nav-link">Рейтинг</a>
+    <a href="#employers" class="nav-link">ВУЗам & HR</a>
+  </nav>
+
+  <div class="header-actions">
+    <a href="http://hr.stud-match.ru/" class="btn btn-ghost" title="Вход для компаний">
+      👔 Кабинет HR
+    </a>
+    <a href="https://t.me/{{ bot_username }}" target="_blank" class="btn btn-primary">
+      🚀 Открыть бота
+    </a>
+  </div>
+</header>
+
+<!-- Hero Section -->
+<section class="hero-section">
+  <div class="hero-glow"></div>
+
+  <div class="hero-pill">
+    ✨ Главная университетская экосистема 2026
+  </div>
+
+  <h1 class="hero-title">
+    Твой университетский <span class="gradient-text">нетворкинг, любовь</span> и старт карьеры
+  </h1>
+
+  <p class="hero-desc">
+    СтудМэч объединяет проверенных студентов РУДН и топовых ВУЗов. Находи единомышленников, строй отношения и получай офферы на стажировки от ведущих работодателей.
+  </p>
+
+  <div class="hero-buttons">
+    <a href="https://t.me/{{ bot_username }}" target="_blank" class="btn btn-primary btn-lg">
+      💬 Запустить в Telegram
+    </a>
+    <a href="http://hr.stud-match.ru/" class="btn btn-ghost btn-lg">
+      🏢 Для работодателей
+    </a>
+  </div>
+
+  <!-- Live Stats -->
+  <div class="stats-bar">
+    <div class="stat-item">
+      <div class="stat-num">{{ students_count }}+</div>
+      <div class="stat-label">Студентов в сообществе</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num" style="color:var(--accent-pink);">{{ matches_count }}+</div>
+      <div class="stat-label">Взаимных мэтчей</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num" style="color:var(--accent2);">{{ universities_count }}+</div>
+      <div class="stat-label">ВУЗов и институтов</div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 Pillars Section -->
+<section class="section" id="about">
+  <div class="section-header">
+    <div class="section-tag">Возможности платформы</div>
+    <h2 class="section-title">Всё для яркой студенческой жизни</h2>
+    <p class="section-desc">Единая экосистема с двумя независимыми анкетами и подтвержденной верификацией по студенческой почте.</p>
+  </div>
+
+  <div class="cards-grid">
+    
+    <!-- Карточка 1: Знакомства -->
+    <div class="card" id="dating">
+      <div class="card-icon" style="background:rgba(236,72,153,0.15);color:var(--accent-pink);">❤️</div>
+      <h3 class="card-title">Умные знакомства</h3>
+      <p class="card-text">
+        Свайпай студентов своего или соседних институтов. Гибкие фильтры по возрасту, курсу и факультету. Никаких ботов — только реальные студенты с верификацией.
+      </p>
+    </div>
+
+    <!-- Карточка 2: Карьера -->
+    <div class="card" id="career">
+      <div class="card-icon" style="background:rgba(99,102,241,0.15);color:var(--accent2);">🎯</div>
+      <h3 class="card-title">Карьера и стажировки</h3>
+      <p class="card-text">
+        Создай отдельную профессиональную анкету. Указывай стек технологий, портфолио и навыки. Прямые HR-менеджеры компаний отбирают стажеров прямо из бота.
+      </p>
+    </div>
+
+    <!-- Карточка 3: Зал Славы -->
+    <div class="card" id="rating">
+      <div class="card-icon" style="background:rgba(245,158,11,0.15);color:var(--accent-gold);">🏆</div>
+      <h3 class="card-title">Зал Славы и Рейтинг</h3>
+      <p class="card-text">
+        Загружай дипломы олимпиад, сертификаты кейс-чемпионатов и научные статьи. Модераторы верифицируют достижения и начисляют баллы рейтинга.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- Section For HR and Employers -->
+<section class="section" id="employers" style="background:var(--surface);border-radius:24px;border:1px solid var(--border);">
+  <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:40px;align-items:center;">
+    <div>
+      <div class="section-tag">Для работодателей и партнеров</div>
+      <h2 style="font-size:32px;font-weight:800;margin:8px 0 16px;">Найм лучших молодых специалистов</h2>
+      <p style="color:var(--muted);font-size:15px;line-height:1.7;margin-bottom:24px;">
+        СтудМэч предоставляет компаниям доступ к изолированному HR-порталу с базой проверенных студентов:
+      </p>
+      <ul style="color:var(--text);font-size:14px;display:flex;flex-direction:column;gap:12px;list-style:none;margin-bottom:30px;">
+        <li style="display:flex;align-items:center;gap:10px;">✅ <strong>Шортлисты и архив кандидатов</strong> в 1 клик</li>
+        <li style="display:flex;align-items:center;gap:10px;">✅ <strong>Фильтрация по стеку, курсу и GPA</strong></li>
+        <li style="display:flex;align-items:center;gap:10px;">✅ <strong>Подача заявок на подбор</strong> кураторам сервиса</li>
+        <li style="display:flex;align-items:center;gap:10px;">✅ <strong>Экспорт в CSV</strong> для передачи лидам и нанимающим менеджерам</li>
+      </ul>
+      <a href="http://hr.stud-match.ru/" class="btn btn-primary btn-lg">
+        Войти в HR-платформу →
+      </a>
+    </div>
+
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:32px;text-align:center;">
+      <div style="font-size:48px;margin-bottom:12px;">👔</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:6px;">HR Платформа СтудМэч</div>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:20px;">Автономный кабинет рекрутера для быстрого закрытия стажировок</p>
+      <a href="http://hr.stud-match.ru/" class="btn btn-ghost" style="width:100%;justify-content:center;">
+        hr.stud-match.ru
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Banner CTA -->
+<div class="cta-banner">
+  <h2 style="font-size:32px;font-weight:800;margin-bottom:12px;">Готов найти своих людей в университете?</h2>
+  <p style="color:var(--muted);font-size:16px;max-width:550px;margin:0 auto 28px;">
+    Запусти бота прямо сейчас, заполни анкету за 2 минуты и начни общаться со студентами своего ВУЗа!
+  </p>
+  <a href="https://t.me/{{ bot_username }}" target="_blank" class="btn btn-pink btn-lg">
+    🚀 Запустить СтудМэч в Telegram
+  </a>
+</div>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-links">
+    <a href="/landing" class="footer-link">Главная</a>
+    <a href="http://hr.stud-match.ru/" class="footer-link">HR-портал</a>
+    <a href="http://admin.stud-match.ru/" class="footer-link">Панель администратора</a>
+    <a href="https://t.me/{{ bot_username }}" target="_blank" class="footer-link">Telegram-бот</a>
+  </div>
+  <div>© 2026 СтудМэч. Все права защищены. Платформа студенческого нетворкинга и карьеры.</div>
+</footer>
+
+</body>
+</html>
