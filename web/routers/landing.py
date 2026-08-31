@@ -36,7 +36,7 @@ async def landing_page(request: Request, db: AsyncSession = Depends(get_db)):
     display_matches = max(matches_count, 3400)
     display_unis = max(universities_count, 12)
 
-    bot_username = getattr(settings, "BOT_USERNAME", "StudMatchBot") or "StudMatchBot"
+    bot_username = getattr(settings, "BOT_USERNAME", "edudating_bot") or "edudating_bot"
 
     return templates.TemplateResponse(
         "landing.html",

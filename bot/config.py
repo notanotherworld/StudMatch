@@ -7,6 +7,7 @@ class Settings(BaseSettings):
 
     # Bot
     BOT_TOKEN: str
+    BOT_USERNAME: str = "edudating_bot"
     ADMIN_TG_IDS: str = ""  # "123,456"
 
     # Database
