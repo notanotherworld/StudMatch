@@ -1532,8 +1532,10 @@
   }
 
   async function refreshEmergencyStatusUI() {
+    if (!emergencyStatusDot) return;
     try {
       const res = await fetch('/admin/emergency/status');
+      if (!res.ok) return;
       const data = await res.json();
       if (data.success && data.status) {
         const s = data.status;
@@ -1555,7 +1557,7 @@
         }
       }
     } catch (e) {
-      console.warn('Failed to load emergency status', e);
+      // Ignored for unauthenticated requests
     }
   }
 
