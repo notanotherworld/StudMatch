@@ -12,7 +12,7 @@
 
 set -e
 
-echo "🚀 [1/5] Проверка и установка Certbot & Nginx..."
+echo "🚀 [1/6] Проверка и установка Certbot & Nginx..."
 if ! command -v nginx &> /dev/null; then
     echo "Установка Nginx..."
     sudo apt-get update && sudo apt-get install -y nginx
@@ -23,25 +23,29 @@ if ! command -v certbot &> /dev/null; then
     sudo apt-get update && sudo apt-get install -y certbot python3-certbot-nginx
 fi
 
-echo "🚀 [2/5] Применение конфигурации Nginx для СтудМэч..."
-# Создаем в sites-available/sites-enabled (стандарт Debian/Ubuntu)
+echo "🚀 [2/6] Отключение конфликтующих дефолтных сайтов..."
+if [ -f "/etc/nginx/sites-enabled/default" ]; then
+    echo "Отключение /etc/nginx/sites-enabled/default для устранения перехвата трафика..."
+    sudo rm -f /etc/nginx/sites-enabled/default
+fi
+
+echo "🚀 [3/6] Применение конфигурации Nginx для СтудМэч..."
 if [ -d "/etc/nginx/sites-available" ]; then
     sudo cp nginx/stud-match.conf /etc/nginx/sites-available/stud-match.conf
     sudo ln -sf /etc/nginx/sites-available/stud-match.conf /etc/nginx/sites-enabled/stud-match.conf
 fi
 
-# Дублируем в conf.d на случай использования include conf.d/*.conf
 if [ -d "/etc/nginx/conf.d" ]; then
     sudo cp nginx/stud-match.conf /etc/nginx/conf.d/stud-match.conf
 fi
 
-echo "🔍 [3/5] Тестирование конфигурации Nginx..."
+echo "🔍 [4/6] Тестирование конфигурации Nginx..."
 sudo nginx -t
 
-echo "🔄 [4/5] Перезапуск Nginx..."
+echo "🔄 [5/6] Перезапуск Nginx..."
 sudo systemctl reload nginx || sudo service nginx reload || sudo systemctl restart nginx
 
-echo "🔐 [5/5] Выпуск независимых SSL-сертификатов Let's Encrypt..."
+echo "🔐 [6/6] Выпуск независимых SSL-сертификатов Let's Encrypt..."
 echo "Настройка SSL для stud-match.ru, www.stud-match.ru, landing.stud-match.ru, hr.stud-match.ru, admin.stud-match.ru..."
 sudo certbot --nginx \
     -d stud-match.ru \
@@ -49,12 +53,14 @@ sudo certbot --nginx \
     -d landing.stud-match.ru \
     -d hr.stud-match.ru \
     -d admin.stud-match.ru \
+    --cert-name studmatch \
     --register-unsafely-without-email \
     --agree-tos \
     --redirect \
+    --expand \
     --non-interactive || {
         echo "⚠️ Certbot завершился с предупреждением."
-        echo "Проверьте, что в DNS добавлены A-записи для @, www, landing, hr, admin на IP вашего сервера."
+        echo "Убедитесь, что A-записи доменов (stud-match.ru, www, landing, hr, admin) указывают на IP 159.194.218.148."
     }
 
 echo "🔄 Финальный перезапуск Nginx..."
