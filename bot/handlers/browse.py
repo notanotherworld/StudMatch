@@ -126,18 +126,34 @@ from aiogram.types import FSInputFile, URLInputFile
 
 def _get_photo_input(photo_id: Optional[str]):
     """Возвращает InputFile (FSInputFile, URLInputFile или file_id) для Telegram."""
-    if not photo_id:
+    if not photo_id or not str(photo_id).strip() or str(photo_id).strip().lower() in ("none", "null"):
         return None
-    if photo_id.startswith("http://") or photo_id.startswith("https://"):
-        return URLInputFile(photo_id)
-    if photo_id.startswith("/static/") or photo_id.startswith("static/") or photo_id.startswith("web/"):
-        clean_path = photo_id.lstrip("/")
+    photo_str = str(photo_id).strip()
+    if photo_str.startswith("http://") or photo_str.startswith("https://"):
+        return URLInputFile(photo_str)
+    if (
+        photo_str.startswith("/static/")
+        or photo_str.startswith("static/")
+        or photo_str.startswith("web/")
+        or photo_str.startswith("/uploads/")
+        or photo_str.startswith("uploads/")
+    ):
+        clean_path = photo_str.lstrip("/")
         if not clean_path.startswith("web/"):
             clean_path = os.path.join("web", clean_path)
         if os.path.exists(clean_path):
             return FSInputFile(clean_path)
         return None
-    return photo_id
+    return photo_str
+
+
+def _safe_media_caption(caption: str, max_len: int = 1024) -> str:
+    """Безопасная обрезка подписи медиа для соблюдения лимита Telegram API (1024 символа)."""
+    if len(caption) <= max_len:
+        return caption
+    # Обрезаем так, чтобы не сломать незакрытый тег, если возможно
+    trimmed = caption[: max_len - 10]
+    return trimmed + "...\n<i>(анкета сокращена)</i>"
 
 
 async def send_next_card(
@@ -212,6 +228,8 @@ async def send_next_card(
     # Если медиа больше одного — отправляем медиагруппу (альбом)
     total_media_count = len(photos) + (1 if video_id else 0)
 
+    media_caption = _safe_media_caption(caption)
+
     if total_media_count > 1:
         media_group = []
         is_first = True
@@ -219,7 +237,7 @@ async def send_next_card(
             p_input = _get_photo_input(p_id)
             if p_input:
                 if is_first:
-                    media_group.append(InputMediaPhoto(media=p_input, caption=caption, parse_mode="HTML"))
+                    media_group.append(InputMediaPhoto(media=p_input, caption=media_caption, parse_mode="HTML"))
                     is_first = False
                 else:
                     media_group.append(InputMediaPhoto(media=p_input))
@@ -228,7 +246,7 @@ async def send_next_card(
             v_input = _get_photo_input(video_id)
             if v_input:
                 if is_first:
-                    media_group.append(InputMediaVideo(media=v_input, caption=caption, parse_mode="HTML"))
+                    media_group.append(InputMediaVideo(media=v_input, caption=media_caption, parse_mode="HTML"))
                     is_first = False
                 else:
                     media_group.append(InputMediaVideo(media=v_input))
@@ -254,7 +272,7 @@ async def send_next_card(
                 await bot.send_photo(
                     chat_id=chat_id,
                     photo=p_input,
-                    caption=caption,
+                    caption=media_caption,
                     parse_mode="HTML",
                     reply_markup=kb,
                 )
@@ -269,7 +287,7 @@ async def send_next_card(
                 await bot.send_video(
                     chat_id=chat_id,
                     video=v_input,
-                    caption=caption,
+                    caption=media_caption,
                     parse_mode="HTML",
                     reply_markup=kb,
                 )
@@ -345,6 +363,7 @@ async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSessio
 
         caption = await _build_profile_caption(target.profile, tags_map, user=target)
         reply_kb = swipe_card_keyboard(target.id, superlikes_count=user.superlike_balance)
+        media_caption = _safe_media_caption(caption)
 
         photo_input = _get_photo_input(target.profile.avatar_file_id)
         if photo_input:
@@ -352,7 +371,7 @@ async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSessio
                 await callback.bot.send_photo(
                     chat_id=callback.message.chat.id,
                     photo=photo_input,
-                    caption=caption,
+                    caption=media_caption,
                     parse_mode="HTML",
                     reply_markup=reply_kb,
                 )
@@ -501,6 +520,7 @@ async def show_incoming_likes_entry(event: Message | CallbackQuery, user: User, 
 
     header = f"💌 <b>Входящая симпатия (всего {pending_count}):</b>\n{action_label}{comment_block}\n\n"
     full_text = header + card_text
+    media_full_text = _safe_media_caption(full_text)
 
     portfolio_url = cand_profile.career_portfolio_url if candidate.mode == ModeEnum.career else None
     kb = incoming_like_keyboard(from_user_id=candidate.id, portfolio_url=portfolio_url)
@@ -517,7 +537,7 @@ async def show_incoming_likes_entry(event: Message | CallbackQuery, user: User, 
     photo_input = _get_photo_input(photos[0]) if photos else None
     if photo_input:
         try:
-            await event.bot.send_photo(chat_id=target_chat_id, photo=photo_input, caption=full_text, parse_mode="HTML", reply_markup=kb)
+            await event.bot.send_photo(chat_id=target_chat_id, photo=photo_input, caption=media_full_text, parse_mode="HTML", reply_markup=kb)
             return
         except Exception as e:
             logger.warning(f"Failed to send incoming like photo: {e}")
@@ -594,6 +614,7 @@ async def send_like_notification(
 
     footer = "\n\n👇 <i>Нажми «❤️ Ответить взаимностью», чтобы получить контакты и начать общение!</i>"
     full_caption = f"{header}{body_caption}{letter_block}{footer}"
+    media_full_caption = _safe_media_caption(full_caption)
 
     portfolio_url = profile.career_portfolio_url if mode == ModeEnum.career else None
     kb = incoming_like_keyboard(from_user_id=from_user.id, portfolio_url=portfolio_url)
@@ -616,7 +637,7 @@ async def send_like_notification(
             p_input = _get_photo_input(p_id)
             if p_input:
                 if is_first:
-                    media_group.append(InputMediaPhoto(media=p_input, caption=full_caption, parse_mode="HTML"))
+                    media_group.append(InputMediaPhoto(media=p_input, caption=media_full_caption, parse_mode="HTML"))
                     is_first = False
                 else:
                     media_group.append(InputMediaPhoto(media=p_input))
@@ -624,7 +645,7 @@ async def send_like_notification(
             v_input = _get_photo_input(video_id)
             if v_input:
                 if is_first:
-                    media_group.append(InputMediaVideo(media=v_input, caption=full_caption, parse_mode="HTML"))
+                    media_group.append(InputMediaVideo(media=v_input, caption=media_full_caption, parse_mode="HTML"))
                     is_first = False
                 else:
                     media_group.append(InputMediaVideo(media=v_input))
@@ -649,7 +670,7 @@ async def send_like_notification(
                 await bot.send_photo(
                     chat_id=target_user_id,
                     photo=p_input,
-                    caption=full_caption,
+                    caption=media_full_caption,
                     parse_mode="HTML",
                     reply_markup=kb,
                 )
