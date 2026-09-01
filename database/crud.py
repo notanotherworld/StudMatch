@@ -406,10 +406,14 @@ async def create_swipe(
         existing = await db.execute(
             select(Swipe).where(and_(Swipe.from_user_id == from_id, Swipe.to_user_id == to_id))
         )
-        if existing.scalar_one_or_none():
-            return False
-
-        db.add(Swipe(from_user_id=from_id, to_user_id=to_id, action=action, comment=comment))
+        existing_swipe = existing.scalar_one_or_none()
+        if existing_swipe:
+            # Обновляем действие (например, если был skip, а пользователь ответил взаимностью на лайк)
+            existing_swipe.action = action
+            if comment:
+                existing_swipe.comment = comment
+        else:
+            db.add(Swipe(from_user_id=from_id, to_user_id=to_id, action=action, comment=comment))
         await db.commit()
 
         # Проверяем взаимный лайк
@@ -465,9 +469,7 @@ async def create_swipe(
                     user_mode = from_user.mode if from_user and from_user.mode else ModeEnum.dating
                     db.add(Match(user1_id=from_id, user2_id=to_id, mode=user_mode))
                     await db.commit()
-                    return True
-                else:
-                    return False
+                return True
         return False
     except Exception as e:
         await db.rollback()
@@ -476,7 +478,47 @@ async def create_swipe(
 
 
 async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, User]]:
-    """Получить список всех мэтчей пользователя с деталями о партнере."""
+    """Получить список всех мэтчей пользователя с деталями о партнере (с авто-восстановлением взаимных лайков)."""
+    # 1. Автоматический бекфилл/исправление: находим все взаимные лайки, у которых нет записи в matches
+    try:
+        my_likes_res = await db.execute(
+            select(Swipe.to_user_id).where(
+                and_(
+                    Swipe.from_user_id == user_id,
+                    Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+                )
+            )
+        )
+        my_liked_ids = list(my_likes_res.scalars().all())
+
+        if my_liked_ids:
+            mutual_res = await db.execute(
+                select(Swipe.from_user_id).where(
+                    and_(
+                        Swipe.from_user_id.in_(my_liked_ids),
+                        Swipe.to_user_id == user_id,
+                        Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+                    )
+                )
+            )
+            mutual_ids = list(mutual_res.scalars().all())
+
+            for partner_id in mutual_ids:
+                exist_match = await db.scalar(
+                    select(Match).where(
+                        or_(
+                            and_(Match.user1_id == user_id, Match.user2_id == partner_id),
+                            and_(Match.user1_id == partner_id, Match.user2_id == user_id),
+                        )
+                    )
+                )
+                if not exist_match:
+                    db.add(Match(user1_id=user_id, user2_id=partner_id, mode=ModeEnum.dating))
+            await db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to auto-heal matches for user {user_id}: {e}")
+
+    # 2. Выбираем все актуальные мэтчи
     query = (
         select(Match)
         .where(or_(Match.user1_id == user_id, Match.user2_id == user_id))
@@ -486,10 +528,14 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
     matches = list(result.scalars().all())
 
     partner_matches = []
+    seen_partners = set()
     for m in matches:
         partner_id = m.user2_id if m.user1_id == user_id else m.user1_id
+        if partner_id in seen_partners:
+            continue
         partner = await get_user(db, partner_id)
-        if partner:
+        if partner and partner.profile and partner.is_active and not partner.is_banned:
+            seen_partners.add(partner_id)
             partner_matches.append((m, partner))
     return partner_matches
 

@@ -398,17 +398,34 @@ async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSessio
         await callback.answer("Не удалось открыть анкету.", show_alert=True)
 
 
+@router.callback_query(F.data == "match:list")
 @router.message(StateFilter("*"), F.text.in_({"🫂 Мои мэтчи", "💘 Мои мэтчи", "Мои мэтчи", "/matches"}))
-async def show_my_matches(message: Message, user: User, db: AsyncSession, state: FSMContext = None):
+async def show_my_matches(event: Message | CallbackQuery, user: User, db: AsyncSession, state: FSMContext = None):
     if state:
         await state.clear()
     from database.crud import get_user_matches
     matches = await get_user_matches(db, user.id)
 
+    target_chat_id = event.message.chat.id if isinstance(event, CallbackQuery) else event.chat.id
+    bot = event.bot
+
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+        try:
+            await event.message.delete()
+        except Exception:
+            pass
+
     if not matches:
-        await message.answer(
+        empty_text = (
             "🫂 <b>У тебя пока нет мэтчей</b>\n\n"
-            "Продолжай смотреть анкеты в разделе <b>«🔍 Смотреть анкеты»</b> — взаимная симпатия появится совсем скоро! 🔥",
+            "Продолжай смотреть анкеты в разделе <b>«🔍 Смотреть анкеты»</b> — взаимная симпатия появится совсем скоро! 🔥"
+        )
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🔍 Смотреть анкеты", callback_data="top:swipe_next")
+        await bot.send_message(
+            chat_id=target_chat_id,
+            text=empty_text,
             parse_mode="HTML",
             reply_markup=main_menu_keyboard(),
         )
@@ -428,20 +445,107 @@ async def show_my_matches(message: Message, user: User, db: AsyncSession, state:
 
         lines.append(f"{idx}. <b>{p_name}</b>{ver_badge}{prem_badge} ({p_year}) — <b>{p_username}</b> <i>({date_str})</i>")
 
+        # Кнопка просмотра анкеты
+        builder.button(text=f"👤 {p_name}", callback_data=f"match:view:{partner.id}")
+
+        # Кнопка перехода в диалог
         if partner.tg_username:
             clean_username = partner.tg_username.lstrip("@")
-            builder.button(text=f"💬 Написать {p_name}", url=f"https://t.me/{clean_username}")
+            builder.button(text=f"💬 Написать", url=f"https://t.me/{clean_username}")
+        else:
+            builder.button(text="🔒 Username скрыт", callback_data="none")
 
     builder.button(text="🔍 Искать новые анкеты", callback_data="top:swipe_next")
-    builder.adjust(1)
+    
+    # Распределяем кнопки: по 2 на каждого кандидата (Анкета + Написать), и в конце кнопка поиска
+    row_widths = [2] * len(matches) + [1]
+    builder.adjust(*row_widths)
 
     text = (
-        f"🫂 <b>Твои мэтчи ({len(matches)}):</b>\n\n" +
+        f"🫂 <b>Твои взаимные мэтчи ({len(matches)}):</b>\n\n" +
         "\n".join(lines) +
-        "\n\nНажми кнопку ниже, чтобы сразу написать человеку в Telegram!"
+        "\n\nНажми <b>👤 {Имя}</b>, чтобы открыть анкету и фото, или <b>💬 Написать</b>, чтобы перейти в диалог!"
     )
 
-    await message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
+    await bot.send_message(chat_id=target_chat_id, text=text, parse_mode="HTML", reply_markup=builder.as_markup())
+
+
+@router.callback_query(F.data.startswith("match:view:"))
+async def view_match_profile(callback: CallbackQuery, user: User, db: AsyncSession):
+    """Открытие полной анкеты пользователя из списка мэтчей."""
+    try:
+        partner_id = int(callback.data.split(":")[2])
+    except (IndexError, ValueError):
+        await callback.answer("Ошибка открытия анкеты.", show_alert=True)
+        return
+
+    partner = await get_user(db, partner_id)
+    if not partner or not partner.profile:
+        await callback.answer("Анкета больше не найдена или была удалена.", show_alert=True)
+        return
+
+    await callback.answer()
+
+    # Загружаем интересы
+    tags_map = {}
+    if partner.profile.interest_ids:
+        try:
+            result = await db.execute(
+                select(InterestTag).where(InterestTag.id.in_(partner.profile.interest_ids))
+            )
+            for tag in result.scalars().all():
+                tags_map[tag.id] = tag
+        except Exception:
+            pass
+
+    caption = await _build_profile_caption(partner.profile, tags_map, user=partner, mode=partner.mode)
+    full_caption = f"🫂 <b>Анкета твоего мэтча:</b>\n\n" + caption
+    media_caption = _safe_media_caption(full_caption)
+
+    # Клавиатура просмотра анкеты мэтча
+    builder = InlineKeyboardBuilder()
+    if partner.tg_username:
+        clean_username = partner.tg_username.lstrip("@")
+        builder.button(text="💬 Написать в Telegram", url=f"https://t.me/{clean_username}")
+    
+    if partner.mode == ModeEnum.career and partner.profile.career_portfolio_url:
+        builder.button(text="💼 Портфолио / Резюме", url=partner.profile.career_portfolio_url)
+
+    builder.button(text="🔙 Назад к списку мэтчей", callback_data="match:list")
+    builder.adjust(1)
+    reply_kb = builder.as_markup()
+
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    # Отправляем фото, если есть
+    photos = list(partner.profile.photos) if partner.profile.photos else ([partner.profile.avatar_file_id] if partner.profile.avatar_file_id else [])
+    if partner.mode == ModeEnum.career and partner.profile.career_avatar_file_id and partner.profile.career_avatar_file_id not in photos:
+        photos = [partner.profile.career_avatar_file_id] + photos
+    photos = photos[:3]
+
+    photo_input = _get_photo_input(photos[0]) if photos else None
+    if photo_input:
+        try:
+            await callback.bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=photo_input,
+                caption=media_caption,
+                parse_mode="HTML",
+                reply_markup=reply_kb,
+            )
+            return
+        except Exception as pe:
+            logger.warning(f"Failed to send match profile photo: {pe}")
+
+    await callback.bot.send_message(
+        chat_id=callback.message.chat.id,
+        text=full_caption,
+        parse_mode="HTML",
+        reply_markup=reply_kb,
+    )
 
 
 @router.callback_query(F.data == "profile:incoming_likes")
