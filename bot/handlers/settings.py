@@ -262,6 +262,17 @@ async def toggle_visibility(callback: CallbackQuery, user: User, db: AsyncSessio
 @router.callback_query(F.data == "settings:reset_swipes")
 @router.message(F.text == "/reset_swipes")
 async def reset_user_swipes(event, user: User, db: AsyncSession):
+    from bot.config import settings
+    admin_ids = [int(x.strip()) for x in str(settings.ADMIN_IDS).split(",") if x.strip().isdigit()]
+    is_admin = user.id in admin_ids or getattr(user, "is_fake", False)
+
+    if not is_admin:
+        if isinstance(event, CallbackQuery):
+            await event.answer("Команда доступна только администраторам и тестировщикам.", show_alert=True)
+        else:
+            await event.answer("⚠️ Команда доступна только администраторам и тестировщикам.")
+        return
+
     from sqlalchemy import delete
     from database.models import Swipe
     await db.execute(delete(Swipe).where(Swipe.from_user_id == user.id))
@@ -277,6 +288,7 @@ async def reset_user_swipes(event, user: User, db: AsyncSession):
         await event.message.answer(msg_text, parse_mode="HTML")
     else:
         await event.answer(msg_text, parse_mode="HTML")
+
 
 
 # ─── Фильтры поиска анкет ─────────────────────────────────────

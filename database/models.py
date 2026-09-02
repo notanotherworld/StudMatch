@@ -7,7 +7,7 @@ from typing import Optional, List
 
 from sqlalchemy import (
     BigInteger, Boolean, DateTime, Enum, Float, ForeignKey,
-    Integer, Numeric, String, Text, ARRAY, func, UniqueConstraint,
+    Integer, Numeric, String, Text, ARRAY, func, UniqueConstraint, Index,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -181,6 +181,9 @@ class User(Base):
 # ─────────────────────────────────────────────────────────────
 class Profile(Base):
     __tablename__ = "profiles"
+    __table_args__ = (
+        Index("idx_profiles_feed_active", "is_visible", "is_complete", "rating_score"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), unique=True)
@@ -278,6 +281,8 @@ class Swipe(Base):
     __tablename__ = "swipes"
     __table_args__ = (
         UniqueConstraint("from_user_id", "to_user_id", name="uq_swipe_pair"),
+        Index("idx_swipes_to_user_action", "to_user_id", "action"),
+        Index("idx_swipes_from_user_action", "from_user_id", "action"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -296,6 +301,11 @@ class Swipe(Base):
 # ─────────────────────────────────────────────────────────────
 class Match(Base):
     __tablename__ = "matches"
+    __table_args__ = (
+        Index("idx_matches_users_1_2", "user1_id", "user2_id"),
+        Index("idx_matches_users_2_1", "user2_id", "user1_id"),
+        Index("idx_matches_created_at", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user1_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))

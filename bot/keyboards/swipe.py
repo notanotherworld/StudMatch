@@ -364,17 +364,13 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
     vis_label = "🔒 Скрыть из поиска" if is_visible else "👁 Показать в поиске"
     builder.button(text=vis_label, callback_data="settings:toggle_visibility")
     builder.button(text="🎯 Фильтры поиска", callback_data="settings:filters")
-    builder.button(text="🔄 Сбросить историю свайпов", callback_data="settings:reset_swipes")
     builder.button(text="🏷 Изменить интересы", callback_data="settings:edit_interests")
     builder.button(text="📸 Изменить фото и видео", callback_data="settings:edit_media")
     builder.button(text="👫 Пол и предпочтения", callback_data="settings:edit_gender")
     builder.button(text="🎁 Промокод", callback_data="settings:enter_promo")
     builder.button(text="✏️ Редактировать анкету", callback_data="settings:choose_edit_profile")
 
-    if not email_verified:
-        builder.adjust(1, 1, 1, 1, 1, 1, 1, 1, 1)
-    else:
-        builder.adjust(1, 1, 1, 1, 1, 1, 1, 1)
+    builder.adjust(1)
     return builder.as_markup()
 
 

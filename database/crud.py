@@ -3,12 +3,14 @@ CRUD-операции для основных сущностей.
 """
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, and_, or_, func, case
-from sqlalchemy.orm import selectinload
+import uuid
 import random
 import string
 import logging
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update, and_, or_, func, case, exists
+from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger(__name__)
 
@@ -245,22 +247,27 @@ async def get_next_profile(
     """
     Получить следующую не свайпнутую анкету для поочерёдного свайпа (1 за раз).
     Исключаем: самого пользователя, уже свайпнутых, тех на кого отправлена жалоба, забаненных.
-    Сортировка: буст → рейтинг.
+    Сортировка: буст → рейтинг. Оптимизировано через SQL subquery NOT EXISTS.
     """
-    swiped_result = await db.execute(
-        select(Swipe.to_user_id).where(Swipe.from_user_id == viewer_id)
-    )
-    swiped_ids = {row[0] for row in swiped_result.all()}
-
-    reported_result = await db.execute(
-        select(Report.reported_id).where(Report.reporter_id == viewer_id)
-    )
-    for row in reported_result.all():
-        swiped_ids.add(row[0])
-
-    swiped_ids.add(viewer_id)
-
     now = datetime.now(timezone.utc)
+
+    # Подзапросы исключения уже свайпнутых анкет и отправленных жалоб
+    swiped_subq = exists(
+        select(1).where(
+            and_(
+                Swipe.from_user_id == viewer_id,
+                Swipe.to_user_id == Profile.user_id,
+            )
+        )
+    )
+    reported_subq = exists(
+        select(1).where(
+            and_(
+                Report.reporter_id == viewer_id,
+                Report.reported_id == Profile.user_id,
+            )
+        )
+    )
 
     # Загружаем профиль смотрящего для фильтрации
     viewer_profile = await get_profile(db, viewer_id)
@@ -359,11 +366,14 @@ async def get_next_profile(
                 Profile.is_visible == True,
                 is_complete_cond,
                 User.is_active == True,
-                ~Profile.user_id.in_(swiped_ids),
+                Profile.user_id != viewer_id,
+                ~swiped_subq,
+                ~reported_subq,
                 *gender_filters,
                 *search_filters,
             )
         )
+
         .order_by(
             priority_incoming.desc(),
             (User.premium_until > now).desc(),
@@ -408,6 +418,8 @@ async def create_swipe(
         )
         existing_swipe = existing.scalar_one_or_none()
         if existing_swipe:
+            if existing_swipe.action == action:
+                return False
             # Обновляем действие (например, если был skip, а пользователь ответил взаимностью на лайк)
             existing_swipe.action = action
             if comment:
@@ -503,27 +515,33 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
             )
             mutual_ids = [uid for uid in mutual_res.scalars().all() if uid and uid != user_id]
 
-            for partner_id in mutual_ids:
-                partner_user = await get_user(db, partner_id)
-                if not partner_user:
-                    continue
+            if mutual_ids:
+                # Проверяем существование партнеров в БД одним запросом
+                valid_partners_res = await db.execute(
+                    select(User.id).where(User.id.in_(mutual_ids))
+                )
+                valid_partner_ids = set(valid_partners_res.scalars().all())
 
-                exist_match = await db.scalar(
-                    select(Match).where(
-                        or_(
-                            and_(Match.user1_id == user_id, Match.user2_id == partner_id),
-                            and_(Match.user1_id == partner_id, Match.user2_id == user_id),
+                for partner_id in mutual_ids:
+                    if partner_id not in valid_partner_ids:
+                        continue
+
+                    exist_match = await db.scalar(
+                        select(Match).where(
+                            or_(
+                                and_(Match.user1_id == user_id, Match.user2_id == partner_id),
+                                and_(Match.user1_id == partner_id, Match.user2_id == user_id),
+                            )
                         )
                     )
-                )
-                if not exist_match:
-                    db.add(Match(id=uuid.uuid4(), user1_id=user_id, user2_id=partner_id, mode=ModeEnum.dating))
-            await db.commit()
+                    if not exist_match:
+                        db.add(Match(id=uuid.uuid4(), user1_id=user_id, user2_id=partner_id, mode=ModeEnum.dating))
+                await db.commit()
     except Exception as e:
         await db.rollback()
         logger.warning(f"Failed to auto-heal matches for user {user_id}: {e}")
 
-    # 2. Выбираем все актуальные мэтчи
+    # 2. Выбираем все актуальные мэтчи с пакетной загрузкой партнеров (устранение N+1)
     try:
         query = (
             select(Match)
@@ -533,21 +551,48 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
         result = await db.execute(query)
         matches = list(result.scalars().all())
 
+        if not matches:
+            return []
+
+        # Собираем уникальные ID партнеров
+        seen_pids = set()
+        partner_ids = []
+        for m in matches:
+            pid = m.user2_id if m.user1_id == user_id else m.user1_id
+            if pid not in seen_pids and pid != user_id:
+                seen_pids.add(pid)
+                partner_ids.append(pid)
+
+        # Пакетная загрузка всех партнеров одним SQL-запросом с жадной загрузкой профиля и ВУЗа
+        partners_map = {}
+        if partner_ids:
+            partners_res = await db.execute(
+                select(User)
+                .options(
+                    selectinload(User.profile),
+                    selectinload(User.university),
+                )
+                .where(User.id.in_(partner_ids))
+            )
+            for u in partners_res.scalars().all():
+                partners_map[u.id] = u
+
         partner_matches = []
-        seen_partners = set()
+        added_partners = set()
         for m in matches:
             partner_id = m.user2_id if m.user1_id == user_id else m.user1_id
-            if partner_id in seen_partners or partner_id == user_id:
+            if partner_id in added_partners or partner_id == user_id:
                 continue
-            partner = await get_user(db, partner_id)
+            partner = partners_map.get(partner_id)
             if partner and getattr(partner, "is_active", True):
-                seen_partners.add(partner_id)
+                added_partners.add(partner_id)
                 partner_matches.append((m, partner))
         return partner_matches
     except Exception as e:
         await db.rollback()
         logger.error(f"Error querying matches for user {user_id}: {e}", exc_info=True)
         return []
+
 
 
 # ─────────────────────────────────────────────────────────────
