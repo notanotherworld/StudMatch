@@ -645,13 +645,14 @@ async def webapp_toggle_mode(
     return {"status": "ok", "mode": new_mode.value}
 
 
-# ─── API: Поисковые фильтры (Возраст, Курс, Факультет) ────────
+# ─── API: Поисковые фильтры (Возраст, Курс, Факультет, Пол) ───
 class WebAppFiltersRequest(BaseModel):
     min_age: int = 16
     max_age: int = 35
     min_year: int = 1
     max_year: int = 6
     major: Optional[str] = "all"
+    gender: Optional[str] = "all"  # "all", "female", "male"
 
 
 @router.get("/api/webapp/filters")
@@ -667,6 +668,7 @@ async def webapp_get_filters(
         "min_year": p.filter_min_year if (p and p.filter_min_year) else 1,
         "max_year": p.filter_max_year if (p and p.filter_max_year) else 6,
         "major": p.filter_major if (p and p.filter_major) else "all",
+        "gender": p.target_gender if (p and p.target_gender) else "all",
     }
 
 
@@ -676,7 +678,7 @@ async def webapp_save_filters(
     student: User = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    """Сохранить фильтры поиска (возраст, курс, факультет)."""
+    """Сохранить фильтры поиска (возраст, курс, факультет, пол)."""
     p = student.profile
     if p:
         p.filter_min_age = max(16, min(50, payload.min_age))
@@ -684,6 +686,8 @@ async def webapp_save_filters(
         p.filter_min_year = max(1, min(6, payload.min_year))
         p.filter_max_year = max(payload.min_year, min(6, payload.max_year))
         p.filter_major = None if payload.major in ("all", "", None) else payload.major.strip()
+        if payload.gender in ("all", "female", "male"):
+            p.target_gender = payload.gender
         await db.commit()
     return {"status": "ok"}
 

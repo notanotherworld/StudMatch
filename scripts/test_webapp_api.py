@@ -83,10 +83,11 @@ def test_jwt_student_tokens():
 def test_models_and_schemas():
     from web.routers.webapp import WebAppFiltersRequest, WebAppReportRequest, WebAppSwipeRequest
     
-    filt = WebAppFiltersRequest(min_age=18, max_age=25, min_year=2, max_year=4, major="IT")
+    filt = WebAppFiltersRequest(min_age=18, max_age=25, min_year=2, max_year=4, major="IT", gender="female")
     assert filt.min_age == 18
     assert filt.max_year == 4
     assert filt.major == "IT"
+    assert filt.gender == "female"
     print("  ✅ [5] Валидация Pydantic-схемы фильтров поиска (WebAppFiltersRequest): УСПЕШНО")
 
     rep = WebAppReportRequest(reported_id=777, reason="📢 Спам или реклама")

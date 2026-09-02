@@ -893,6 +893,11 @@
           const pmax = parseInt(p.dataset.max, 10);
           p.classList.toggle("active", pmin === data.min_year && pmax === data.max_year);
         });
+
+        const targetGender = data.gender || "all";
+        document.querySelectorAll(".gender-pill").forEach((gp) => {
+          gp.classList.toggle("active", gp.dataset.gender === targetGender);
+        });
       }
     } catch (e) {
       console.warn("Failed to load filters:", e);
@@ -903,8 +908,20 @@
   function setupModalListeners() {
     // Filters Modal
     document.getElementById("closeFiltersBtn")?.addEventListener("click", () => filtersModal.classList.remove("active"));
+    
+    // Gender pills
+    document.querySelectorAll(".gender-pill").forEach((pill) => {
+      pill.addEventListener("click", () => {
+        triggerHaptic("light");
+        document.querySelectorAll(".gender-pill").forEach((p) => p.classList.remove("active"));
+        pill.classList.add("active");
+      });
+    });
+
+    // Course pills
     document.querySelectorAll(".course-pill").forEach((pill) => {
       pill.addEventListener("click", () => {
+        triggerHaptic("light");
         document.querySelectorAll(".course-pill").forEach((p) => p.classList.remove("active"));
         pill.classList.add("active");
       });
@@ -919,6 +936,9 @@
       const minYear = activePill ? parseInt(activePill.dataset.min, 10) : 1;
       const maxYear = activePill ? parseInt(activePill.dataset.max, 10) : 6;
 
+      const activeGenderPill = document.querySelector(".gender-pill.active");
+      const selectedGender = activeGenderPill ? activeGenderPill.dataset.gender : "all";
+
       triggerHaptic("medium");
       await apiFetch("/api/webapp/filters", {
         method: "POST",
@@ -928,6 +948,7 @@
           min_year: minYear,
           max_year: maxYear,
           major: major,
+          gender: selectedGender,
         }),
       });
 
@@ -947,7 +968,11 @@
           min_year: 1,
           max_year: 6,
           major: "all",
+          gender: "all",
         }),
+      });
+      document.querySelectorAll(".gender-pill").forEach((p) => {
+        p.classList.toggle("active", p.dataset.gender === "all");
       });
       filtersModal.classList.remove("active");
       state.feed = [];

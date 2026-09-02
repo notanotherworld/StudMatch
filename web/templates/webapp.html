@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_13" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_14" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -172,6 +172,15 @@
               <input type="number" id="filterMinAge" min="16" max="35" class="filter-input" placeholder="От 16" />
               <span>—</span>
               <input type="number" id="filterMaxAge" min="16" max="35" class="filter-input" placeholder="До 35" />
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Кого вы ищете (Пол):</label>
+            <div class="gender-filter-pills" id="genderFilterPills">
+              <button type="button" class="gender-pill active" data-gender="all">✨ Всех</button>
+              <button type="button" class="gender-pill" data-gender="female">👩 Девушек</button>
+              <button type="button" class="gender-pill" data-gender="male">👨 Парней</button>
             </div>
           </div>
 
@@ -339,6 +348,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260902_13"></script>
+  <script src="/static/webapp/webapp.js?v=20260902_14"></script>
 </body>
 </html>
