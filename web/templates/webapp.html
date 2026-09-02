@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_11" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_12" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -48,38 +48,15 @@
       </div>
     </header>
 
-    <!-- Top Stories Row (Figma Prototype) -->
+    <!-- Top Stories Row (Real Premium Profiles from Backend) -->
     <div class="stories-row" id="storiesRow">
-      <div class="story-item">
+      <!-- Loaded dynamically via /api/webapp/stories -->
+      <div class="story-item" id="myStoryItem">
         <div class="story-avatar-wrap my-story">
-          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" class="story-avatar" alt="My Story" />
+          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" class="story-avatar" alt="Вы" />
           <div class="story-add-badge">+</div>
         </div>
-        <span class="story-name">Мой профиль</span>
-      </div>
-      <div class="story-item">
-        <div class="story-avatar-wrap">
-          <img src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80" class="story-avatar" alt="МГУ" />
-        </div>
-        <span class="story-name">МГУ</span>
-      </div>
-      <div class="story-item">
-        <div class="story-avatar-wrap">
-          <img src="https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80" class="story-avatar" alt="ВШЭ" />
-        </div>
-        <span class="story-name">НИУ ВШЭ</span>
-      </div>
-      <div class="story-item">
-        <div class="story-avatar-wrap">
-          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80" class="story-avatar" alt="МГТУ" />
-        </div>
-        <span class="story-name">МГТУ</span>
-      </div>
-      <div class="story-item">
-        <div class="story-avatar-wrap">
-          <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80" class="story-avatar" alt="МГИМО" />
-        </div>
-        <span class="story-name">МГИМО</span>
+        <span class="story-name">Вы</span>
       </div>
     </div>
 
@@ -362,6 +339,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260902_11"></script>
+  <script src="/static/webapp/webapp.js?v=20260902_12"></script>
 </body>
 </html>

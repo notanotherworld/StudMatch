@@ -477,6 +477,106 @@ async def webapp_incoming_likes(
     }
 
 
+# ─── API: Истории (Stories / Топ пользователей с Премиумом) ─────
+@router.get("/api/webapp/stories")
+async def webapp_stories(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Возвращает список пользователей для верхней ленты Stories:
+    1. Находит реальных пользователей с активным премиумом (premium_until > now или супер-админов).
+    2. Если их меньше 10, дополняет профилями с активным бустом и высоким рейтингом.
+    3. Первым элементом возвращает профиль текущего пользователя.
+    """
+    now = datetime.now(timezone.utc)
+
+    # 1. Пользователи с активным Премиумом
+    stmt_prem = (
+        select(User)
+        .options(selectinload(User.profile), selectinload(User.university))
+        .where(
+            and_(
+                User.id != student.id,
+                User.is_active.is_(True),
+                or_(
+                    User.premium_until > now,
+                    User.id == settings.SUPERADMIN_ID,
+                    User.id.in_(settings.admin_ids)
+                )
+            )
+        )
+        .order_by(desc(User.premium_until), desc(User.created_at))
+        .limit(20)
+    )
+    res_prem = await db.execute(stmt_prem)
+    prem_users = list(res_prem.scalars().all())
+
+    # 2. Дополняем активными заполненными анкетами, если премиумов пока мало
+    needed = 12 - len(prem_users)
+    other_users = []
+    if needed > 0:
+        seen_ids = {u.id for u in prem_users} | {student.id}
+        stmt_other = (
+            select(User)
+            .options(selectinload(User.profile), selectinload(User.university))
+            .join(Profile, Profile.user_id == User.id)
+            .where(
+                and_(
+                    User.id.not_in(seen_ids),
+                    User.is_active.is_(True),
+                    Profile.is_complete.is_(True)
+                )
+            )
+            .order_by(desc(User.boost_until), desc(Profile.rating_score), desc(User.created_at))
+            .limit(needed)
+        )
+        res_other = await db.execute(stmt_other)
+        other_users = list(res_other.scalars().all())
+
+    all_candidates = prem_users + other_users
+
+    stories = []
+    for u in all_candidates:
+        p = u.profile
+        if not p:
+            continue
+        p_name = p.name or "Студент"
+        first_name = p_name.split()[0] if p_name else "Студент"
+
+        photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
+        first_photo = photos[0] if photos else None
+        avatar_url = resolve_photo_url(first_photo) or DEFAULT_FALLBACK_AVATAR
+
+        univ = u.university.short_name if u.university else (p.university or "")
+
+        stories.append({
+            "user_id": u.id,
+            "name": first_name,
+            "full_name": p_name,
+            "avatar_url": avatar_url,
+            "is_premium": u.is_premium or u.id == settings.SUPERADMIN_ID,
+            "is_verified": u.is_verified,
+            "university": univ,
+        })
+
+    # Данные для своей истории
+    my_p = student.profile
+    my_photos = list(my_p.photos) if (my_p and my_p.photos) else ([my_p.avatar_file_id] if (my_p and my_p.avatar_file_id) else [])
+    my_avatar = resolve_photo_url(my_photos[0] if my_photos else None) or DEFAULT_FALLBACK_AVATAR
+
+    return {
+        "status": "ok",
+        "my_story": {
+            "user_id": student.id,
+            "name": "Моя анкета",
+            "avatar_url": my_avatar,
+            "is_premium": student.is_premium or student.id == settings.SUPERADMIN_ID,
+        },
+        "stories": stories
+    }
+
+
 # ─── API: Профиль текущего студента ──────────────────────────
 @router.get("/api/webapp/profile")
 async def webapp_profile(

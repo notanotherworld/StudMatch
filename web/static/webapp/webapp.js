@@ -103,6 +103,7 @@
             localStorage.setItem("studmatch_token", savedToken);
             updateHeaderUser();
             await loadFeed();
+            await loadStories();
             return;
           }
         }
@@ -177,6 +178,7 @@
         localStorage.setItem("studmatch_token", data.token);
         updateHeaderUser();
         await loadFeed();
+        await loadStories();
       } else {
         deckContainer.innerHTML = `
           <div class="deck-empty" style="display:flex;">
@@ -260,6 +262,86 @@
 
     setupModalListeners();
     setupAdminListeners();
+  }
+
+
+  // ─── Верхняя лента Stories (Реальные Премиум-пользователи) ───
+  async function loadStories() {
+    const row = document.getElementById("storiesRow");
+    if (!row) return;
+
+    try {
+      const data = await apiFetch("/api/webapp/stories");
+      if (!data) return;
+
+      const my = data.my_story || {
+        name: "Вы",
+        avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+        is_premium: false,
+      };
+
+      const myBadge = my.is_premium
+        ? `<div class="story-premium-badge" title="Премиум активен">💎</div>`
+        : `<div class="story-add-badge" title="Попасть в топ">+</div>`;
+
+      let html = `
+        <div class="story-item" id="myStoryItem">
+          <div class="story-avatar-wrap my-story ${my.is_premium ? "premium-ring" : ""}">
+            <img src="${my.avatar_url}" class="story-avatar" alt="Вы" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
+            ${myBadge}
+          </div>
+          <span class="story-name">Вы</span>
+        </div>
+      `;
+
+      if (data.stories && data.stories.length > 0) {
+        html += data.stories
+          .map((s) => {
+            const premRing = s.is_premium ? "premium-ring" : "";
+            const badge = s.is_premium
+              ? `<div class="story-premium-badge" title="Премиум">💎</div>`
+              : (s.is_verified ? `<div class="story-premium-badge" style="background:#4834d4;" title="Студент">🎓</div>` : "");
+
+            return `
+              <div class="story-item" data-user-id="${s.user_id}">
+                <div class="story-avatar-wrap ${premRing}">
+                  <img src="${s.avatar_url}" class="story-avatar" alt="${escapeHtml(s.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
+                  ${badge}
+                </div>
+                <span class="story-name">${escapeHtml(s.name)}</span>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      row.innerHTML = html;
+
+      // Клик по своей истории
+      document.getElementById("myStoryItem")?.addEventListener("click", () => {
+        triggerHaptic("medium");
+        if (my.is_premium) {
+          switchTab("profile");
+        } else {
+          if (confirm("👑 Хотите попасть в топ Stories?\n\nПремиум-пользователи отображаются в верхней ленте у всех студентов сервиса!\n\nОткрыть оформление Премиума?")) {
+            tg?.openTelegramLink("https://t.me/" + (window.BOT_USERNAME || "edudating_bot") + "?start=premium");
+          }
+        }
+      });
+
+      // Клик по анкетам других пользователей
+      row.querySelectorAll(".story-item[data-user-id]").forEach((item) => {
+        item.addEventListener("click", () => {
+          const uid = item.dataset.userId;
+          if (uid) {
+            triggerHaptic("light");
+            openMatchFullProfile(uid);
+          }
+        });
+      });
+    } catch (e) {
+      console.warn("[StudMatch] Failed to load stories:", e);
+    }
   }
 
   async function resetSwipesAndReload() {

@@ -187,6 +187,33 @@ body {
   border: 2px solid #fff;
 }
 
+.story-avatar-wrap.premium-ring {
+  background: linear-gradient(135deg, #FFD700 0%, #FF6584 50%, #845EC2 100%);
+  box-shadow: 0 4px 14px rgba(255, 101, 132, 0.4);
+  position: relative;
+  transition: transform 0.2s ease;
+}
+.story-avatar-wrap.premium-ring:active {
+  transform: scale(0.94);
+}
+
+.story-premium-badge {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: #fff;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
 .story-name {
   font-size: 11px;
   font-weight: 600;
