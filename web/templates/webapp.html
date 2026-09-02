@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_16" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_17" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -28,7 +28,18 @@
         <img src="/static/webapp/assets/app_logo.svg" class="brand-figma-logo" alt="Logo" onerror="this.style.display='none'" />
         <div class="brand-title">StudMatch</div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;">
+
+      <!-- Mode Switcher Pills (Header Segmented Control) -->
+      <div class="header-mode-toggle">
+        <button class="mode-pill-btn active" id="pillDating" data-mode="dating">
+          💘 Знакомства
+        </button>
+        <button class="mode-pill-btn" id="pillCareer" data-mode="career">
+          💼 Карьера
+        </button>
+      </div>
+
+      <div class="header-actions">
         <button class="header-icon-btn" id="openFiltersBtn" title="Фильтры поиска">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="4" y1="21" x2="4" y2="14"></line>
@@ -58,16 +69,6 @@
         </div>
         <span class="story-name">Вы</span>
       </div>
-    </div>
-
-    <!-- Mode Switcher Pills (Figma Meet Friends / Search Partner Prototype) -->
-    <div class="mode-pills-bar">
-      <button class="mode-pill-btn active" id="pillDating" data-mode="dating">
-        💘 Знакомства
-      </button>
-      <button class="mode-pill-btn" id="pillCareer" data-mode="career">
-        💼 Карьера
-      </button>
     </div>
 
     <!-- Main Screens Viewport -->
@@ -348,6 +349,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260902_16"></script>
+  <script src="/static/webapp/webapp.js?v=20260902_17"></script>
 </body>
 </html>
