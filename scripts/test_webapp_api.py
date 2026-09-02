@@ -100,6 +100,43 @@ def test_models_and_schemas():
     print("  ✅ [7] Валидация свайпа с комплиментом/комментарием: УСПЕШНО")
 
 
+def test_superadmin_security():
+    import asyncio
+    from fastapi import HTTPException
+    from web.routers.webapp import require_superadmin, AdminUserActionRequest, ResolveReportRequest
+    from bot.config import settings
+
+    assert settings.SUPERADMIN_ID == 149620234
+    assert 149620234 in settings.admin_ids
+
+    # Создаем фиктивного пользователя
+    class DummyUser:
+        def __init__(self, user_id):
+            self.id = user_id
+
+    # Проверяем, что главному админу доступ РАЗРЕШЕН
+    superadmin = DummyUser(149620234)
+    res = asyncio.run(require_superadmin(student=superadmin))
+    assert res.id == 149620234
+    print("  ✅ [8] Доступ к Admin Hub для Superadmin (149620234): РАЗРЕШЕН")
+
+    # Проверяем, что обычному пользователю доступ ЗАПРЕЩЕН (403 Forbidden)
+    regular_user = DummyUser(999999)
+    try:
+        asyncio.run(require_superadmin(student=regular_user))
+        assert False, "Should have raised HTTPException 403"
+    except HTTPException as exc:
+        assert exc.status_code == 403
+    print("  ✅ [9] Защита от несанкционированного доступа (403 Forbidden): УСПЕШНО")
+
+    # Валидация схем
+    act = AdminUserActionRequest(action="toggle_ban")
+    assert act.action == "toggle_ban"
+    res_rep = ResolveReportRequest(action="ban_reported")
+    assert res_rep.action == "ban_reported"
+    print("  ✅ [10] Валидация схем действий админа и модерации жалоб: УСПЕШНО")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚀 ТЕСТИРОВАНИЕ КРИПТОГРАФИИ И БЕЗОПАСНОСТИ STUDMATCH WEBAPP")
@@ -107,7 +144,9 @@ if __name__ == "__main__":
     test_telegram_init_data_validation()
     test_jwt_student_tokens()
     test_models_and_schemas()
+    test_superadmin_security()
     print("=" * 60)
-    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (7 из 7)!")
+    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (10 из 10)!")
     print("=" * 60)
+
 

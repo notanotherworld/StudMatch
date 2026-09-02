@@ -1,7 +1,8 @@
 /**
  * StudMatch Telegram Mini App (TWA / WebApp) Core Client
  * Touch-driven swipe engine, multi-photo carousel, candidate details sheet,
- * search filters, superlike with compliment, reports, and match profile viewer.
+ * search filters, superlike with compliment, reports, match profile viewer,
+ * and hidden Superadmin Hub (God Mode, analytics, user management, reports moderation).
  */
 
 (function () {
@@ -34,6 +35,7 @@
   const superlikeModal = document.getElementById("superlikeModal");
   const reportModal = document.getElementById("reportModal");
   const matchProfileModal = document.getElementById("matchProfileModal");
+  const adminHubModal = document.getElementById("adminHubModal");
   const navButtons = document.querySelectorAll(".nav-tab-btn");
 
   // Haptic feedback helper
@@ -163,6 +165,7 @@
     document.getElementById("changeFiltersDeckBtn")?.addEventListener("click", openFiltersModal);
 
     setupModalListeners();
+    setupAdminListeners();
   }
 
   async function resetSwipesAndReload() {
@@ -987,12 +990,11 @@
       const data = await apiFetch("/api/webapp/profile");
       if (!data || !data.user) return;
       const u = data.user;
+      state.currentUser = u;
 
       const avatar = u.photos && u.photos.length > 0
         ? u.photos[0]
         : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80";
-
-      const tags = (u.tags || []).map((t) => `<span class="card-tag">${t.emoji} ${t.name}</span>`).join("");
 
       container.innerHTML = `
         <div class="profile-card">
@@ -1019,6 +1021,12 @@
         </div>
 
         <div class="profile-menu-list">
+          ${u.is_superadmin ? `
+            <div class="profile-menu-item admin-btn" id="btnOpenAdminHub">
+              <span>👑 Панель управления (Admin Hub)</span>
+              <span style="font-size: 11px; background:linear-gradient(135deg, #FFB800, #FF6584); color:#fff; padding:3px 8px; border-radius:10px; font-weight:900;">GOD MODE</span>
+            </div>
+          ` : ""}
           <div class="profile-menu-item" id="btnToggleProfileMode">
             <span>Режим поиска: <b>${u.mode === "career" ? "💼 Карьера" : "💘 Знакомства"}</b></span>
             <span>⇄</span>
@@ -1038,6 +1046,9 @@
         </div>
       `;
 
+      if (u.is_superadmin) {
+        document.getElementById("btnOpenAdminHub")?.addEventListener("click", openAdminHubModal);
+      }
       document.getElementById("btnToggleProfileMode")?.addEventListener("click", toggleMode);
       document.getElementById("btnOpenSearchFilters")?.addEventListener("click", openFiltersModal);
       document.getElementById("btnResetSwipesProfile")?.addEventListener("click", resetSwipesAndReload);
@@ -1048,6 +1059,186 @@
       console.error("Profile load error:", e);
     }
   }
+
+  // 12. Скрытая Админ-Панель (Superadmin ID: 149620234)
+  function setupAdminListeners() {
+    // Табы внутри Admin Hub
+    document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = btn.dataset.adminTab;
+        document.querySelectorAll(".admin-tab-btn").forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".admin-pane").forEach((p) => p.classList.remove("active"));
+        btn.classList.add("active");
+
+        if (tab === "stats") {
+          document.getElementById("adminPaneStats")?.classList.add("active");
+          loadAdminStats();
+        } else if (tab === "users") {
+          document.getElementById("adminPaneUsers")?.classList.add("active");
+        } else if (tab === "reports") {
+          document.getElementById("adminPaneReports")?.classList.add("active");
+          loadAdminReports();
+        }
+      });
+    });
+
+    document.getElementById("adminRefreshStatsBtn")?.addEventListener("click", loadAdminStats);
+
+    // Поиск пользователей
+    document.getElementById("adminUserSearchBtn")?.addEventListener("click", searchAdminUsers);
+    document.getElementById("adminUserSearchInput")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") searchAdminUsers();
+    });
+
+    adminHubModal?.addEventListener("click", (e) => {
+      if (e.target === adminHubModal) adminHubModal.classList.remove("active");
+    });
+  }
+
+  function openAdminHubModal() {
+    triggerHaptic("heavy");
+    adminHubModal.classList.add("active");
+    loadAdminStats();
+  }
+
+  async function loadAdminStats() {
+    try {
+      const data = await apiFetch("/api/webapp/admin/stats");
+      if (data && data.stats) {
+        document.getElementById("statTotalUsers").textContent = data.stats.total_users;
+        document.getElementById("statActive24h").textContent = data.stats.active_24h;
+        document.getElementById("statTotalMatches").textContent = data.stats.total_matches;
+        document.getElementById("statTotalSwipes").textContent = data.stats.total_swipes;
+      }
+    } catch (e) {
+      console.error("Admin stats error:", e);
+    }
+  }
+
+  async function searchAdminUsers() {
+    const input = document.getElementById("adminUserSearchInput");
+    const container = document.getElementById("adminUserSearchResults");
+    const q = input.value.trim();
+    if (!q) return;
+
+    triggerHaptic("light");
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Поиск...</div>';
+
+    try {
+      const data = await apiFetch(`/api/webapp/admin/users/search?q=${encodeURIComponent(q)}`);
+      if (!data || !data.users || data.users.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Пользователи не найдены</div>';
+        return;
+      }
+
+      container.innerHTML = data.users
+        .map((u) => {
+          const statusBadges = `
+            ${u.is_banned ? '<span style="color:#E84118;font-weight:bold;">[ЗАБАНЕН]</span> ' : ''}
+            ${u.is_premium ? '💎 ' : ''}
+            ${u.is_verified ? '🎓 ' : ''}
+          `;
+
+          return `
+            <div class="admin-user-card" data-user-id="${u.id}">
+              <div class="admin-user-header">
+                <span class="admin-user-title">${escapeHtml(u.name)} (ID: ${u.id})</span>
+                <span>${statusBadges}</span>
+              </div>
+              <div class="admin-user-sub">
+                @${u.username || "нет_юзернейма"} • ${u.university || "ВУЗ не указан"}
+              </div>
+              <div class="admin-user-sub" style="margin-top:4px;">
+                ⭐ Звёзды: ${u.superlike_balance} • Рег: ${u.created_at}
+              </div>
+              <div class="admin-user-actions">
+                <button class="admin-action-chip ${u.is_banned ? '' : 'danger'}" onclick="window.adminUserAction(${u.id}, 'toggle_ban')">
+                  ${u.is_banned ? '🟢 Разбанить' : '🚫 Забанить'}
+                </button>
+                <button class="admin-action-chip" onclick="window.adminUserAction(${u.id}, 'grant_premium')">
+                  ${u.is_premium ? 'Снять VIP' : '💎 Выдать VIP'}
+                </button>
+                <button class="admin-action-chip" onclick="window.adminUserAction(${u.id}, 'grant_verified')">
+                  ${u.is_verified ? 'Снять ВУЗ' : '🎓 Верифицировать'}
+                </button>
+                <button class="admin-action-chip" onclick="window.adminUserAction(${u.id}, 'add_superlikes')">
+                  ⭐ +10 звёзд
+                </button>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+    } catch (e) {
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:red;">Ошибка поиска</div>';
+    }
+  }
+
+  window.adminUserAction = async function (userId, action) {
+    triggerHaptic("medium");
+    try {
+      const res = await apiFetch(`/api/webapp/admin/users/${userId}/action`, {
+        method: "POST",
+        body: JSON.stringify({ action: action }),
+      });
+      if (res && res.message) {
+        if (tg && tg.showAlert) tg.showAlert(res.message);
+        searchAdminUsers();
+      }
+    } catch (e) {
+      console.error("Admin user action error:", e);
+    }
+  };
+
+  async function loadAdminReports() {
+    const container = document.getElementById("adminReportsList");
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Загрузка жалоб...</div>';
+
+    try {
+      const data = await apiFetch("/api/webapp/admin/reports");
+      if (!data || !data.reports || data.reports.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">🎉 Нет активных жалоб</div>';
+        return;
+      }
+
+      container.innerHTML = data.reports
+        .map((r) => `
+          <div class="admin-report-card">
+            <div class="admin-report-header">🚩 Жалоба от ${escapeHtml(r.reporter_name)} (ID ${r.reporter_id})</div>
+            <div class="admin-report-text">
+              <b>На кого:</b> ${escapeHtml(r.reported_name)} (ID ${r.reported_id})<br/>
+              <b>Причина:</b> ${escapeHtml(r.reason)}<br/>
+              <span style="font-size:11px;color:var(--text-muted);">${r.created_at}</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-primary" style="background:#E84118;padding:8px 12px;font-size:12px;" onclick="window.resolveReport('${r.id}', 'ban_reported')">
+                🚫 Забанить нарушителя
+              </button>
+              <button class="btn-secondary" style="padding:8px 12px;font-size:12px;" onclick="window.resolveReport('${r.id}', 'dismiss')">
+                ✓ Отклонить
+              </button>
+            </div>
+          </div>
+        `)
+        .join("");
+    } catch (e) {
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:red;">Ошибка загрузки</div>';
+    }
+  }
+
+  window.resolveReport = async function (reportId, action) {
+    triggerHaptic("heavy");
+    try {
+      await apiFetch(`/api/webapp/admin/reports/${reportId}/resolve`, {
+        method: "POST",
+        body: JSON.stringify({ action: action }),
+      });
+      loadAdminReports();
+    } catch (e) {
+      console.error("Resolve report error:", e);
+    }
+  };
 
   function escapeHtml(str) {
     if (!str) return "";

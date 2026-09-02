@@ -55,11 +55,15 @@ class Settings(BaseSettings):
     PRICE_SUPERLIKE_10: int = 249
     PRICE_BOOST_24H: int = 149
 
+    SUPERADMIN_ID: int = 149620234
+
     @property
     def admin_ids(self) -> List[int]:
-        if not self.ADMIN_TG_IDS:
-            return []
-        return [int(x.strip()) for x in self.ADMIN_TG_IDS.split(",") if x.strip()]
+        ids = [self.SUPERADMIN_ID]
+        if self.ADMIN_TG_IDS:
+            ids.extend([int(x.strip()) for x in self.ADMIN_TG_IDS.split(",") if x.strip() and x.strip().isdigit()])
+        return list(set(ids))
+
 
 
 settings = Settings()

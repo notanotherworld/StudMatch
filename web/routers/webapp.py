@@ -177,6 +177,13 @@ async def webapp_auth(
     from database.crud import get_or_create_user
     user = await get_or_create_user(db, user_id=user_id, tg_username=tg_username)
 
+    is_superadmin = (user.id == settings.SUPERADMIN_ID or user.id in settings.admin_ids)
+    if is_superadmin:
+        user.is_premium = True
+        user.email_verified = True
+        user.superlike_balance = max(user.superlike_balance or 0, 9999)
+        await db.commit()
+
     token = create_student_token(user.id, user.tg_username)
     response.set_cookie(
         key="student_token",
@@ -199,6 +206,7 @@ async def webapp_auth(
             "superlike_balance": user.superlike_balance,
             "mode": user.mode.value if user.mode else "dating",
             "has_profile": profile is not None and bool(profile.name),
+            "is_superadmin": is_superadmin,
         },
     }
 
@@ -451,6 +459,13 @@ async def webapp_profile(
         for t in tag_res.scalars().all():
             tags.append({"id": t.id, "name": t.name, "emoji": t.emoji})
 
+    is_superadmin = (student.id == settings.SUPERADMIN_ID or student.id in settings.admin_ids)
+    if is_superadmin:
+        student.is_premium = True
+        student.email_verified = True
+        student.superlike_balance = max(student.superlike_balance or 0, 9999)
+        await db.commit()
+
     return {
         "status": "ok",
         "user": {
@@ -470,6 +485,7 @@ async def webapp_profile(
             "tags": tags,
             "photos": photo_urls,
             "rating_score": round(p.rating_score or 0.0, 1) if p else 0.0,
+            "is_superadmin": is_superadmin,
         }
     }
 
@@ -635,6 +651,203 @@ async def webapp_reset_swipes(
     await db.commit()
     logger.info(f"User {student.id} reset their swipes in WebApp")
     return {"status": "ok"}
+
+
+# ─── API: Админ-панель для Главного Администратора (ID: 149620234) ───
+async def require_superadmin(student: User = Depends(get_current_student)) -> User:
+    if student.id != settings.SUPERADMIN_ID and student.id not in settings.admin_ids:
+        raise HTTPException(status_code=403, detail="Доступ только для главного администратора")
+    return student
+
+
+@router.get("/api/webapp/admin/stats")
+async def webapp_admin_stats(
+    admin: User = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Живая статистика сервиса."""
+    now = datetime.now(timezone.utc)
+    yesterday = now - timedelta(days=1)
+
+    total_users = await db.scalar(select(func.count(User.id))) or 0
+    active_24h = await db.scalar(
+        select(func.count(User.id)).where(User.last_active_at >= yesterday)
+    ) or 0
+    total_matches = await db.scalar(select(func.count(Match.id))) or 0
+    total_swipes = await db.scalar(select(func.count(Swipe.id))) or 0
+    pending_reports = await db.scalar(
+        select(func.count(Report.id)).where(Report.status == ReportStatus.pending)
+    ) or 0
+
+    return {
+        "status": "ok",
+        "stats": {
+            "total_users": total_users,
+            "active_24h": active_24h,
+            "total_matches": total_matches,
+            "total_swipes": total_swipes,
+            "pending_reports": pending_reports,
+        },
+    }
+
+
+@router.get("/api/webapp/admin/users/search")
+async def webapp_admin_search_user(
+    q: str,
+    admin: User = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Поиск пользователя по ID или @username."""
+    q_clean = q.strip().lstrip("@")
+    query = select(User).options(selectinload(User.profile), selectinload(User.university))
+
+    if q_clean.isdigit():
+        query = query.where(or_(User.id == int(q_clean), User.tg_username.ilike(f"%{q_clean}%")))
+    else:
+        query = query.where(User.tg_username.ilike(f"%{q_clean}%"))
+
+    result = await db.execute(query.limit(10))
+    users = result.scalars().all()
+
+    found = []
+    for u in users:
+        p = u.profile
+        found.append({
+            "id": u.id,
+            "username": u.tg_username,
+            "name": p.name if p else "Без имени",
+            "age": p.age if p else None,
+            "university": u.university.name if u.university else "",
+            "is_active": u.is_active,
+            "is_banned": not u.is_active,
+            "is_premium": u.is_premium,
+            "is_verified": getattr(u, "email_verified", False),
+            "superlike_balance": u.superlike_balance,
+            "created_at": u.created_at.strftime("%d.%m.%Y") if u.created_at else "",
+        })
+    return {"status": "ok", "users": found}
+
+
+class AdminUserActionRequest(BaseModel):
+    action: str  # toggle_ban, grant_premium, grant_verified, add_superlikes
+
+
+@router.post("/api/webapp/admin/users/{user_id}/action")
+async def webapp_admin_user_action(
+    user_id: int,
+    payload: AdminUserActionRequest,
+    admin: User = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Быстрые административные действия над пользователем."""
+    target = await get_user(db, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    action = payload.action.lower()
+    msg = "Действие выполнено"
+
+    if action == "toggle_ban":
+        if target.id == settings.SUPERADMIN_ID:
+            raise HTTPException(status_code=400, detail="Нельзя заблокировать главного администратора")
+        target.is_active = not target.is_active
+        msg = "Пользователь заблокирован" if not target.is_active else "Пользователь разблокирован"
+
+    elif action == "grant_premium":
+        target.is_premium = not target.is_premium
+        if target.is_premium:
+            target.premium_until = datetime.now(timezone.utc) + timedelta(days=365)
+        msg = "Премиум активирован" if target.is_premium else "Премиум отключен"
+
+    elif action == "grant_verified":
+        target.email_verified = not target.email_verified
+        msg = "Статус студента верифицирован" if target.email_verified else "Верификация снята"
+
+    elif action == "add_superlikes":
+        target.superlike_balance = (target.superlike_balance or 0) + 10
+        msg = f"Начислено +10 суперлайков. Баланс: {target.superlike_balance}"
+
+    await db.commit()
+    return {
+        "status": "ok",
+        "message": msg,
+        "user": {
+            "id": target.id,
+            "is_active": target.is_active,
+            "is_premium": target.is_premium,
+            "is_verified": target.email_verified,
+            "superlike_balance": target.superlike_balance,
+        }
+    }
+
+
+@router.get("/api/webapp/admin/reports")
+async def webapp_admin_get_reports(
+    admin: User = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Список активных жалоб для модерации."""
+    res = await db.execute(
+        select(Report)
+        .options(
+            selectinload(Report.reporter).selectinload(User.profile),
+            selectinload(Report.reported).selectinload(User.profile),
+        )
+        .where(Report.status == ReportStatus.pending)
+        .order_by(Report.created_at.desc())
+        .limit(20)
+    )
+    reports = res.scalars().all()
+
+    items = []
+    for r in reports:
+        reporter_p = r.reporter.profile if (r.reporter and r.reporter.profile) else None
+        reported_p = r.reported.profile if (r.reported and r.reported.profile) else None
+
+        items.append({
+            "id": str(r.id),
+            "reporter_id": r.reporter_id,
+            "reporter_name": reporter_p.name if reporter_p else f"ID {r.reporter_id}",
+            "reported_id": r.reported_id,
+            "reported_name": reported_p.name if reported_p else f"ID {r.reported_id}",
+            "reason": r.reason,
+            "created_at": r.created_at.strftime("%d.%m.%Y %H:%M") if r.created_at else "",
+        })
+    return {"status": "ok", "reports": items}
+
+
+class ResolveReportRequest(BaseModel):
+    action: str  # ban_reported, dismiss
+
+
+@router.post("/api/webapp/admin/reports/{report_id}/resolve")
+async def webapp_admin_resolve_report(
+    report_id: str,
+    payload: ResolveReportRequest,
+    admin: User = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Модерация жалобы: бан нарушителя или отклонение."""
+    import uuid
+    rep_uuid = uuid.UUID(report_id)
+    report = await db.get(Report, rep_uuid)
+    if not report:
+        raise HTTPException(status_code=404, detail="Жалоба не найдена")
+
+    if payload.action == "ban_reported":
+        reported_user = await get_user(db, report.reported_id)
+        if reported_user and reported_user.id != settings.SUPERADMIN_ID:
+            reported_user.is_active = False
+        report.status = ReportStatus.resolved
+        report.resolution_note = f"Заблокирован супер-админом {admin.id}"
+    else:
+        report.status = ReportStatus.dismissed
+        report.resolution_note = "Отклонено администратором"
+
+    report.resolved_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"status": "ok"}
+
 
 
 

@@ -274,9 +274,65 @@
         </div>
       </div>
     </div>
+
+    <!-- Admin Hub Modal (Exclusive for Superadmin ID 149620234) -->
+    <div class="bottom-sheet-overlay" id="adminHubModal">
+      <div class="bottom-sheet-content admin-sheet-content">
+        <div class="sheet-drag-handle"></div>
+        <div class="admin-header">
+          <div class="admin-badge">👑 SUPERADMIN</div>
+          <h2 class="admin-title">Панель управления</h2>
+        </div>
+
+        <div class="admin-tabs">
+          <button class="admin-tab-btn active" data-admin-tab="stats">📊 Аналитика</button>
+          <button class="admin-tab-btn" data-admin-tab="users">👥 Студенты</button>
+          <button class="admin-tab-btn" data-admin-tab="reports">🚩 Жалобы</button>
+        </div>
+
+        <!-- Admin Tab 1: Stats -->
+        <div class="admin-pane active" id="adminPaneStats">
+          <div class="admin-stats-grid">
+            <div class="admin-stat-card">
+              <span class="stat-num" id="statTotalUsers">—</span>
+              <span class="stat-desc">Всего студентов</span>
+            </div>
+            <div class="admin-stat-card">
+              <span class="stat-num" id="statActive24h">—</span>
+              <span class="stat-desc">Активных (24ч)</span>
+            </div>
+            <div class="admin-stat-card">
+              <span class="stat-num" id="statTotalMatches">—</span>
+              <span class="stat-desc">Взаимных пар</span>
+            </div>
+            <div class="admin-stat-card">
+              <span class="stat-num" id="statTotalSwipes">—</span>
+              <span class="stat-desc">Всего свайпов</span>
+            </div>
+          </div>
+          <div style="margin-top:16px;">
+            <button class="btn-primary" id="adminRefreshStatsBtn">🔄 Обновить статистику</button>
+          </div>
+        </div>
+
+        <!-- Admin Tab 2: Users -->
+        <div class="admin-pane" id="adminPaneUsers">
+          <div class="admin-search-box">
+            <input type="text" id="adminUserSearchInput" class="filter-input" placeholder="Поиск по ID или @username..." />
+            <button class="btn-primary" id="adminUserSearchBtn" style="padding: 10px 16px; width: auto;">🔍</button>
+          </div>
+          <div id="adminUserSearchResults" style="margin-top: 12px;"></div>
+        </div>
+
+        <!-- Admin Tab 3: Reports -->
+        <div class="admin-pane" id="adminPaneReports">
+          <div id="adminReportsList" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260902_4"></script>
+  <script src="/static/webapp/webapp.js?v=20260902_5"></script>
 </body>
 </html>
