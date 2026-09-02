@@ -72,9 +72,8 @@ def verify_telegram_init_data(init_data: str, bot_token: str) -> Optional[Dict[s
     try:
         init_data = init_data.strip().lstrip("?").lstrip("#")
         if "tgWebAppData=" in init_data:
-            init_data = init_data.split("tgWebAppData=")[1].split("&tgWebAppVersion")[0]
-            from urllib.parse import unquote
-            init_data = unquote(init_data)
+            outer_params = dict(parse_qsl(init_data, keep_blank_values=True))
+            init_data = outer_params.get("tgWebAppData") or outer_params.get("#tgWebAppData") or init_data
 
         parsed_data = dict(parse_qsl(init_data, keep_blank_values=True))
         if "hash" not in parsed_data:

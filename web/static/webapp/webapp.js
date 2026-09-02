@@ -146,6 +146,26 @@
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
+        if (res.status === 401 || res.status === 403) {
+          console.warn("[StudMatch] Auth forbidden/unauthorized:", errData);
+          deckContainer.innerHTML = `
+            <div class="deck-empty" style="display:flex;">
+              <div class="deck-empty-icon">🔒</div>
+              <h2 class="deck-empty-title">Сессия Telegram устарела</h2>
+              <p class="deck-empty-desc">${errData.detail || "Не удалось подтвердить сессию Telegram."}<br><small style="color:var(--text-muted);font-size:12px;margin-top:4px;display:block;">Закройте приложение и откройте его заново кнопкой в боте.</small></p>
+              <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:240px;margin:12px auto 0;">
+                <button class="btn-primary" onclick="window.Telegram?.WebApp?.close();">
+                  🚪 Закрыть и открыть из бота
+                </button>
+                <button class="btn-secondary" id="btnRetryAuthNow">
+                  🔄 Попробовать снова
+                </button>
+              </div>
+            </div>
+          `;
+          document.getElementById("btnRetryAuthNow")?.addEventListener("click", () => authenticateUser());
+          return;
+        }
         throw new Error(errData.detail || `HTTP ${res.status}`);
       }
 
