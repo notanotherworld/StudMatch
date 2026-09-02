@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_4" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_7" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -25,15 +25,25 @@
     <!-- Top Header -->
     <header class="app-header">
       <div class="header-brand">
-        <div class="brand-logo">🎓</div>
+        <img src="/static/webapp/assets/app_logo.svg" class="brand-figma-logo" alt="Logo" onerror="this.style.display='none'" />
         <div class="brand-title">StudMatch</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <div class="mode-badge" id="headerModeBadge">
-          💘 Знакомства
-        </div>
         <button class="header-icon-btn" id="openFiltersBtn" title="Фильтры поиска">
-          🎯
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="21" x2="4" y2="14"></line>
+            <line x1="4" y1="10" x2="4" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12" y2="3"></line>
+            <line x1="20" y1="21" x2="20" y2="16"></line>
+            <line x1="20" y1="12" x2="20" y2="3"></line>
+            <line x1="1" y1="14" x2="7" y2="14"></line>
+            <line x1="9" y1="8" x2="15" y2="8"></line>
+            <line x1="17" y1="16" x2="23" y2="16"></line>
+          </svg>
+        </button>
+        <button class="header-icon-btn" id="headerNotificationBtn" title="Уведомления">
+          <img src="/static/webapp/assets/icon_notification.svg" width="20" height="20" alt="Notification" />
         </button>
       </div>
     </header>
@@ -71,6 +81,16 @@
         </div>
         <span class="story-name">МГИМО</span>
       </div>
+    </div>
+
+    <!-- Mode Switcher Pills (Figma Meet Friends / Search Partner Prototype) -->
+    <div class="mode-pills-bar">
+      <button class="mode-pill-btn active" id="pillDating" data-mode="dating">
+        💘 Знакомства
+      </button>
+      <button class="mode-pill-btn" id="pillCareer" data-mode="career">
+        💼 Карьера
+      </button>
     </div>
 
     <!-- Main Screens Viewport -->
@@ -125,20 +145,28 @@
       </section>
     </main>
 
-    <!-- Floating Bottom Navigation Bar (Figma Prototype) -->
+    <!-- Floating Bottom Navigation Bar (Figma Prototype Island Dock) -->
     <div class="bottom-nav-wrap">
       <nav class="floating-nav">
         <button class="nav-tab-btn active" data-tab="explore" aria-label="Explore">
-          <span class="nav-icon">🔥</span>
+          <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM10.5 7.5L16.5 10.5L13.5 16.5L7.5 13.5L10.5 7.5Z" fill="currentColor"/>
+          </svg>
         </button>
         <button class="nav-tab-btn" data-tab="likes" aria-label="Likes">
-          <span class="nav-icon">💌</span>
+          <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M12 21.35L10.55 20.03C5.4 15.36 2 12.28 2 8.5C2 5.42 4.42 3 7.5 3C9.24 3 10.91 3.81 12 5.09C13.09 3.81 14.76 3 16.5 3C19.58 3 22 5.42 22 8.5C22 12.28 18.6 15.36 13.45 20.04L12 21.35Z" fill="currentColor"/>
+          </svg>
         </button>
         <button class="nav-tab-btn" data-tab="matches" aria-label="Matches">
-          <span class="nav-icon">💬</span>
+          <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM18 14H6V12H18V14ZM18 11H6V9H18V11ZM18 8H6V6H18V8Z" fill="currentColor"/>
+          </svg>
         </button>
         <button class="nav-tab-btn" data-tab="profile" aria-label="Profile">
-          <span class="nav-icon">👤</span>
+          <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12ZM12 14C9.33 14 4 15.34 4 18V20H20V18C20 15.34 14.67 14 12 14Z" fill="currentColor"/>
+          </svg>
         </button>
       </nav>
     </div>
@@ -259,8 +287,9 @@
       <div class="match-modal-content">
         <div class="match-avatars-pair">
           <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80" class="pair-avatar" id="matchMyAvatar" alt="You" />
-          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80" class="pair-avatar" id="matchPartnerAvatar" alt="Partner" />
-          <div class="pair-heart">❤️</div>
+          <div class="pair-heart">
+            <img src="/static/webapp/assets/heart-animation.svg" class="figma-heart-pulse" alt="Match Heart" />
+          </div>
         </div>
         <h2 class="match-title">Это Мэтч! 🎉</h2>
         <p class="match-desc">Вы и <b id="matchPartnerName">Студент</b> понравились друг другу! Не откладывайте знакомство в долгий ящик.</p>
@@ -333,6 +362,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260902_5"></script>
+  <script src="/static/webapp/webapp.js?v=20260902_7"></script>
 </body>
 </html>

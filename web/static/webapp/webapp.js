@@ -2,7 +2,7 @@
  * StudMatch Telegram Mini App (TWA / WebApp) Core Client
  * Touch-driven swipe engine, multi-photo carousel, candidate details sheet,
  * search filters, superlike with compliment, reports, match profile viewer,
- * and hidden Superadmin Hub (God Mode, analytics, user management, reports moderation).
+ * Figma components integration, and hidden Superadmin Hub (God Mode, analytics, user management, reports moderation).
  */
 
 (function () {
@@ -133,11 +133,9 @@
   }
 
   function updateHeaderUser() {
-    const modeBadge = document.getElementById("headerModeBadge");
-    if (modeBadge && state.currentUser) {
-      const isCareer = state.currentUser.mode === "career";
-      modeBadge.textContent = isCareer ? "💼 Карьера" : "💘 Знакомства";
-    }
+    const isCareer = state.currentUser?.mode === "career";
+    document.getElementById("pillDating")?.classList.toggle("active", !isCareer);
+    document.getElementById("pillCareer")?.classList.toggle("active", isCareer);
   }
 
   // 2. Навигация по табам
@@ -149,16 +147,23 @@
       });
     });
 
-    const modeBadge = document.getElementById("headerModeBadge");
-    if (modeBadge) {
-      modeBadge.addEventListener("click", toggleMode);
-    }
+    // Figma Mode Switcher Pills
+    document.getElementById("pillDating")?.addEventListener("click", () => setMode("dating"));
+    document.getElementById("pillCareer")?.addEventListener("click", () => setMode("career"));
 
     // Кнопка открытия фильтров в шапке
     const openFiltersBtn = document.getElementById("openFiltersBtn");
     if (openFiltersBtn) {
       openFiltersBtn.addEventListener("click", openFiltersModal);
     }
+
+    // Кнопка уведомлений
+    document.getElementById("headerNotificationBtn")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      if (tg && tg.showAlert) {
+        tg.showAlert("Уведомления включены! Новые мэтчи приходят мгновенно в чат с ботом.");
+      }
+    });
 
     // Кнопки в Empty State колоды
     document.getElementById("resetSwipesDeckBtn")?.addEventListener("click", resetSwipesAndReload);
@@ -205,15 +210,14 @@
     }
   }
 
-  async function toggleMode() {
-    if (!state.currentUser) return;
-    const nextMode = state.currentUser.mode === "career" ? "dating" : "career";
+  async function setMode(targetMode) {
+    if (!state.currentUser || state.currentUser.mode === targetMode) return;
     triggerHaptic("medium");
 
     try {
       const res = await apiFetch("/api/webapp/profile/mode", {
         method: "POST",
-        body: JSON.stringify({ mode: nextMode }),
+        body: JSON.stringify({ mode: targetMode }),
       });
       if (res && res.status === "ok") {
         state.currentUser.mode = res.mode;
@@ -223,8 +227,14 @@
         loadFeed();
       }
     } catch (e) {
-      console.error("Toggle mode error:", e);
+      console.error("Set mode error:", e);
     }
+  }
+
+  async function toggleMode() {
+    if (!state.currentUser) return;
+    const nextMode = state.currentUser.mode === "career" ? "dating" : "career";
+    await setMode(nextMode);
   }
 
   // 3. Загрузка ленты свайпов (Feed)
@@ -276,7 +286,7 @@
     });
   }
 
-  // 4. Создание DOM элемента карточки с каруселью фото
+  // 4. Создание DOM элемента карточки с каруселью фото и кнопками Figma
   function createCardElement(profile, isTop) {
     const card = document.createElement("div");
     card.className = "swipe-card";
@@ -347,10 +357,17 @@
         ${tagsHtml ? `<div class="card-tags">${tagsHtml}</div>` : ""}
         ${profile.goal ? `<p class="card-bio">${escapeHtml(profile.goal)}</p>` : ""}
 
+        <!-- Authentic Figma Action Buttons -->
         <div class="card-actions-row">
-          <button class="action-btn dislike" data-action="skip">✕</button>
-          <button class="action-btn superlike" data-action="superlike">⭐</button>
-          <button class="action-btn like" data-action="like">❤️</button>
+          <button class="action-btn dislike" data-action="skip" title="Пропустить">
+            <img src="/static/webapp/assets/reaction-circle-1.svg" class="action-svg" alt="Skip" />
+          </button>
+          <button class="action-btn superlike" data-action="superlike" title="Суперлайк">
+            ⭐
+          </button>
+          <button class="action-btn like" data-action="like" title="Нравится">
+            <img src="/static/webapp/assets/reaction-circle-2.svg" class="action-svg" alt="Like" />
+          </button>
         </div>
       </div>
     `;
@@ -602,9 +619,13 @@
       ${careerSection}
 
       <div class="card-actions-row" style="margin-top: 10px;">
-        <button class="action-btn dislike" id="sheetDislikeBtn">✕</button>
+        <button class="action-btn dislike" id="sheetDislikeBtn">
+          <img src="/static/webapp/assets/reaction-circle-1.svg" class="action-svg" alt="Skip" />
+        </button>
         <button class="action-btn superlike" id="sheetSuperlikeBtn">⭐</button>
-        <button class="action-btn like" id="sheetLikeBtn">❤️</button>
+        <button class="action-btn like" id="sheetLikeBtn">
+          <img src="/static/webapp/assets/reaction-circle-2.svg" class="action-svg" alt="Like" />
+        </button>
       </div>
 
       <button class="sheet-report-btn" id="sheetReportBtn">
@@ -792,7 +813,7 @@
     triggerHaptic("medium");
   }
 
-  // 8. Всплывающее окно взаимного мэтча (Match Celebration)
+  // 8. Всплывающее окно взаимного мэтча с Figma-сердцем (Match Celebration)
   function showMatchPopup(partner) {
     triggerHaptic("success");
     const pNameEl = document.getElementById("matchPartnerName");
