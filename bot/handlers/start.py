@@ -126,9 +126,30 @@ async def _after_consent(message: Message, state: FSMContext, user: User, db: As
         from bot.handlers.profile import start_profile_creation
         await start_profile_creation(message, state)
     else:
+        # Обновляем кнопку меню для этого пользователя
+        try:
+            from aiogram.types import MenuButtonWebApp, WebAppInfo
+            from bot.config import settings
+            await message.bot.set_chat_menu_button(
+                chat_id=message.chat.id,
+                menu_button=MenuButtonWebApp(
+                    text="🚀 StudMatch App",
+                    web_app=WebAppInfo(url=settings.webapp_url),
+                )
+            )
+        except Exception:
+            pass
+
+        from bot.keyboards.swipe import webapp_inline_keyboard
         await message.answer(
-            f"👋 С возвращением, <b>{user.profile.name}</b>!\n"
-            "Выбери раздел:",
+            f"👋 С возвращением, <b>{user.profile.name}</b>!\n\n"
+            "📱 Доступно мобильное приложение StudMatch со свайпами и мэтчами!\n"
+            "Нажми на кнопку ниже или в меню, чтобы открыть:",
+            parse_mode="HTML",
+            reply_markup=webapp_inline_keyboard(),
+        )
+        await message.answer(
+            "📋 Или выбери действие в меню:",
             parse_mode="HTML",
             reply_markup=main_menu_keyboard(),
         )
@@ -141,6 +162,26 @@ async def cmd_menu(message: Message, user: User, state: FSMContext = None):
     if state:
         await state.clear()
     if user.profile and user.profile.is_complete:
+        try:
+            from aiogram.types import MenuButtonWebApp, WebAppInfo
+            from bot.config import settings
+            await message.bot.set_chat_menu_button(
+                chat_id=message.chat.id,
+                menu_button=MenuButtonWebApp(
+                    text="🚀 StudMatch App",
+                    web_app=WebAppInfo(url=settings.webapp_url),
+                )
+            )
+        except Exception:
+            pass
+
+        from bot.keyboards.swipe import webapp_inline_keyboard
+        await message.answer(
+            "📱 <b>StudMatch WebApp:</b>\n"
+            "Нажми на кнопку, чтобы открыть приложение:",
+            parse_mode="HTML",
+            reply_markup=webapp_inline_keyboard(),
+        )
         await message.answer(
             "📋 <b>Главное меню:</b>",
             parse_mode="HTML",
@@ -148,6 +189,21 @@ async def cmd_menu(message: Message, user: User, state: FSMContext = None):
         )
     else:
         await message.answer("❌ Сначала заполни анкету. Напиши /start")
+
+
+@router.message(F.text.in_({"🚀 Открыть StudMatch App", "🚀 Открыть StudMatch", "📱 Открыть приложение", "/app", "/webapp"}))
+@router.message(Command("app"))
+@router.message(Command("webapp"))
+async def cmd_open_webapp(message: Message, user: User):
+    """Прямой запуск WebApp по команде или тексту кнопки."""
+    from bot.keyboards.swipe import webapp_inline_keyboard
+    await message.answer(
+        "✨ <b>StudMatch WebApp</b>\n\n"
+        "Нажми на кнопку ниже, чтобы открыть приложение со свайпами прямо в Telegram:",
+        parse_mode="HTML",
+        reply_markup=webapp_inline_keyboard(),
+    )
+
 
 
 @router.message(Command("health"))

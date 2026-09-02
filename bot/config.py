@@ -40,7 +40,15 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change_me"
     WEB_HOST: str = "0.0.0.0"
     WEB_PORT: int = 8000
-    DOMAIN: str = "https://yourdomain.com"
+    DOMAIN: str = "https://stud-match.ru"
+
+    @property
+    def webapp_url(self) -> str:
+        domain = (self.DOMAIN or "").strip()
+        if "yourdomain.com" in domain or not domain:
+            domain = "stud-match.ru"
+        clean = domain.replace("https://", "").replace("http://", "").strip("/")
+        return f"https://{clean}/app"
 
     # Prices (RUB)
     PRICE_SUPERLIKE_3: int = 99

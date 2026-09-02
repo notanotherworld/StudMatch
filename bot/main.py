@@ -92,17 +92,16 @@ async def main() -> None:
     # Установка постоянной кнопки запуска WebApp в меню бота
     try:
         from aiogram.types import MenuButtonWebApp, WebAppInfo
-        webapp_domain = settings.DOMAIN if settings.DOMAIN.startswith("http") else f"https://{settings.DOMAIN}"
-        webapp_url = f"{webapp_domain}/app"
         await bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(
                 text="🚀 StudMatch App",
-                web_app=WebAppInfo(url=webapp_url),
+                web_app=WebAppInfo(url=settings.webapp_url),
             )
         )
-        logger.info(f"Telegram MenuButtonWebApp успешно установлена: {webapp_url}")
+        logger.info(f"Telegram MenuButtonWebApp успешно установлена: {settings.webapp_url}")
     except Exception as e:
         logger.warning(f"Не удалось установить MenuButtonWebApp: {e}")
+
 
     try:
         await bot.delete_webhook(drop_pending_updates=True)

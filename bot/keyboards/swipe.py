@@ -451,14 +451,20 @@ def media_upload_keyboard(uploaded_photos_count: int = 0, has_video: bool = Fals
     return builder.as_markup()
 
 
+def webapp_inline_keyboard() -> InlineKeyboardMarkup:
+    """Инлайн-кнопка для гарантированного открытия WebApp на всех клиентах Telegram."""
+    builder = InlineKeyboardBuilder()
+    from bot.config import settings
+    from aiogram.types import WebAppInfo
+    builder.button(text="🚀 Открыть StudMatch App", web_app=WebAppInfo(url=settings.webapp_url))
+    return builder.as_markup()
+
+
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     from bot.config import settings
     from aiogram.types import WebAppInfo
-    webapp_domain = settings.DOMAIN if settings.DOMAIN.startswith("http") else f"https://{settings.DOMAIN}"
-    webapp_url = f"{webapp_domain}/app"
-
-    builder.button(text="🚀 Открыть StudMatch App", web_app=WebAppInfo(url=webapp_url))
+    builder.button(text="🚀 Открыть StudMatch App", web_app=WebAppInfo(url=settings.webapp_url))
     builder.button(text="🔍 Смотреть анкеты")
     builder.button(text="🏅 Зал славы")
     builder.button(text="🫂 Мои мэтчи")
@@ -467,6 +473,7 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder.button(text="🪢 Пригласить друга (+3 ⭐️)")
     builder.adjust(1, 2, 2, 2)
     return builder.as_markup(resize_keyboard=True, input_field_placeholder="Выбери раздел...")
+
 
 
 
