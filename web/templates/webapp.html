@@ -1,0 +1,161 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>StudMatch — Студенческий дейтинг и нетворкинг</title>
+
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- App Stylesheet -->
+  <link rel="stylesheet" href="/static/webapp/webapp.css" />
+
+  <script>
+    window.BOT_USERNAME = "{{ bot_username }}";
+  </script>
+</head>
+<body>
+  <div class="app-viewport">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo">🎓</div>
+        <div class="brand-title">StudMatch</div>
+      </div>
+      <div class="mode-badge" id="headerModeBadge">
+        💘 Знакомства
+      </div>
+    </header>
+
+    <!-- Top Stories Row (Figma Prototype) -->
+    <div class="stories-row" id="storiesRow">
+      <div class="story-item">
+        <div class="story-avatar-wrap my-story">
+          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" class="story-avatar" alt="My Story" />
+          <div class="story-add-badge">+</div>
+        </div>
+        <span class="story-name">Мой профиль</span>
+      </div>
+      <div class="story-item">
+        <div class="story-avatar-wrap">
+          <img src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80" class="story-avatar" alt="МГУ" />
+        </div>
+        <span class="story-name">МГУ</span>
+      </div>
+      <div class="story-item">
+        <div class="story-avatar-wrap">
+          <img src="https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80" class="story-avatar" alt="ВШЭ" />
+        </div>
+        <span class="story-name">НИУ ВШЭ</span>
+      </div>
+      <div class="story-item">
+        <div class="story-avatar-wrap">
+          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80" class="story-avatar" alt="МГТУ" />
+        </div>
+        <span class="story-name">МГТУ</span>
+      </div>
+      <div class="story-item">
+        <div class="story-avatar-wrap">
+          <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80" class="story-avatar" alt="МГИМО" />
+        </div>
+        <span class="story-name">МГИМО</span>
+      </div>
+    </div>
+
+    <!-- Main Screens Viewport -->
+    <main class="app-content">
+      <!-- TAB 1: Explore / Swipes -->
+      <section class="app-screen active" id="screen-explore">
+        <div class="deck-container">
+          <div class="card-stack" id="cardDeck">
+            <!-- Swipe cards injected dynamically by JS -->
+          </div>
+
+          <!-- Empty State -->
+          <div class="deck-empty" id="deckEmpty">
+            <div class="deck-empty-icon">✨</div>
+            <h2 class="deck-empty-title">Все анкеты просмотрены!</h2>
+            <p class="deck-empty-desc">Загляните позже или смените фильтры поиска, чтобы увидеть новые знакомства в ВУЗах.</p>
+            <button class="btn-primary" onclick="location.reload()" style="max-width: 220px;">
+              🔄 Обновить ленту
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: Likes -->
+      <section class="app-screen" id="screen-likes">
+        <div class="screen-padding">
+          <h2 class="section-title">Симпатии</h2>
+          <p class="section-desc">Студенты, которые проявили к вам интерес</p>
+          <div id="likesContainer"></div>
+        </div>
+      </section>
+
+      <!-- TAB 3: Matches -->
+      <section class="app-screen" id="screen-matches">
+        <div class="screen-padding">
+          <h2 class="section-title">Взаимные мэтчи</h2>
+          <p class="section-desc">Начните общение с понравившимися студентами</p>
+          <div class="matches-list" id="matchesContainer"></div>
+        </div>
+      </section>
+
+      <!-- TAB 4: Profile -->
+      <section class="app-screen" id="screen-profile">
+        <div class="screen-padding" id="profileContainer">
+          <!-- Injected dynamically by JS -->
+        </div>
+      </section>
+    </main>
+
+    <!-- Floating Bottom Navigation Bar (Figma Prototype) -->
+    <div class="bottom-nav-wrap">
+      <nav class="floating-nav">
+        <button class="nav-tab-btn active" data-tab="explore" aria-label="Explore">
+          <span class="nav-icon">🔥</span>
+        </button>
+        <button class="nav-tab-btn" data-tab="likes" aria-label="Likes">
+          <span class="nav-icon">💌</span>
+        </button>
+        <button class="nav-tab-btn" data-tab="matches" aria-label="Matches">
+          <span class="nav-icon">💬</span>
+        </button>
+        <button class="nav-tab-btn" data-tab="profile" aria-label="Profile">
+          <span class="nav-icon">👤</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Match Celebration Modal -->
+    <div class="match-modal-overlay" id="matchModal">
+      <div class="match-modal-content">
+        <div class="match-avatars-pair">
+          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80" class="pair-avatar" id="matchMyAvatar" alt="You" />
+          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80" class="pair-avatar" id="matchPartnerAvatar" alt="Partner" />
+          <div class="pair-heart">❤️</div>
+        </div>
+        <h2 class="match-title">Это Мэтч! 🎉</h2>
+        <p class="match-desc">Вы и <b id="matchPartnerName">Студент</b> понравились друг другу! Не откладывайте знакомство в долгий ящик.</p>
+        <div class="match-modal-buttons">
+          <a href="#" target="_blank" class="btn-primary" id="matchChatBtn" style="text-decoration:none;display:block;">
+            💬 Написать в Telegram
+          </a>
+          <button class="btn-secondary" id="matchCloseBtn">
+            Продолжить поиск
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Script -->
+  <script src="/static/webapp/webapp.js"></script>
+</body>
+</html>

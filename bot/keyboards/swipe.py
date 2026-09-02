@@ -453,14 +453,21 @@ def media_upload_keyboard(uploaded_photos_count: int = 0, has_video: bool = Fals
 
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
+    from bot.config import settings
+    from aiogram.types import WebAppInfo
+    webapp_domain = settings.DOMAIN if settings.DOMAIN.startswith("http") else f"https://{settings.DOMAIN}"
+    webapp_url = f"{webapp_domain}/app"
+
+    builder.button(text="🚀 Открыть StudMatch App", web_app=WebAppInfo(url=webapp_url))
     builder.button(text="🔍 Смотреть анкеты")
     builder.button(text="🏅 Зал славы")
     builder.button(text="🫂 Мои мэтчи")
     builder.button(text="🐾 Мой профиль")
     builder.button(text="⚙️ Настройки")
     builder.button(text="🪢 Пригласить друга (+3 ⭐️)")
-    builder.adjust(2, 2, 2)
+    builder.adjust(1, 2, 2, 2)
     return builder.as_markup(resize_keyboard=True, input_field_placeholder="Выбери раздел...")
+
 
 
 def cancel_reply_keyboard() -> ReplyKeyboardMarkup:

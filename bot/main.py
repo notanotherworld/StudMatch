@@ -89,9 +89,25 @@ async def main() -> None:
     from bot.services.health_checker import hourly_health_monitor
     asyncio.create_task(hourly_health_monitor(bot))
 
+    # Установка постоянной кнопки запуска WebApp в меню бота
+    try:
+        from aiogram.types import MenuButtonWebApp, WebAppInfo
+        webapp_domain = settings.DOMAIN if settings.DOMAIN.startswith("http") else f"https://{settings.DOMAIN}"
+        webapp_url = f"{webapp_domain}/app"
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text="🚀 StudMatch App",
+                web_app=WebAppInfo(url=webapp_url),
+            )
+        )
+        logger.info(f"Telegram MenuButtonWebApp успешно установлена: {webapp_url}")
+    except Exception as e:
+        logger.warning(f"Не удалось установить MenuButtonWebApp: {e}")
+
     try:
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
+
     finally:
         await bot.session.close()
         logger.info("Бот остановлен.")

@@ -1,0 +1,91 @@
+"""
+Тестирование логики WebApp:
+- Валидация подписи initData (HMAC-SHA256)
+- Проверка генерации и декодирования JWT токенов студентов
+- Проверка базовых структур WebApp API
+"""
+import os
+import sys
+
+# Настраиваем UTF-8 для вывода в консоль Windows
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
+os.environ.setdefault("BOT_TOKEN", "123456:TEST_TOKEN_FOR_AUDIT_RUNNER")
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///test_audit.db")
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+import hmac
+import hashlib
+import json
+from urllib.parse import urlencode
+
+from web.routers.webapp import verify_telegram_init_data, create_student_token
+from web.dependencies import SECRET, ALGORITHM
+import jwt
+
+
+
+
+def test_telegram_init_data_validation():
+    bot_token = "123456789:ABCdefGhIJKlmNoPQRstuVWXyz"
+    user_data = {"id": 999888, "first_name": "Алексей", "username": "alex_student"}
+    
+    # Формируем валидный initData
+    params = {
+        "auth_date": "1725300000",
+        "query_id": "AAHdF6IQAAAAAN0XohCQq123",
+        "user": json.dumps(user_data, separators=(",", ":")),
+    }
+    
+    data_check_string = "\n".join(f"{k}={params[k]}" for k in sorted(params.keys()))
+    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    valid_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    
+    params["hash"] = valid_hash
+    valid_init_data = urlencode(params)
+
+    # 1. Тест валидной строки
+    verified_user = verify_telegram_init_data(valid_init_data, bot_token)
+    assert verified_user is not None, "Валидная подпись initData должна успешно проверяться"
+    assert verified_user["id"] == 999888
+    assert verified_user["username"] == "alex_student"
+    print("  ✅ [1] Валидация корректной подписи Telegram initData: УСПЕШНО")
+
+    # 2. Тест поддельного токена бота
+    bad_bot = verify_telegram_init_data(valid_init_data, "999999:WRONG_TOKEN")
+    assert bad_bot is None, "Поддельный токен бота должен быть отклонен"
+    print("  ✅ [2] Защита от поддельного bot_token: УСПЕШНО")
+
+    # 3. Тест модифицированных данных (tampered data)
+    tampered_params = params.copy()
+    tampered_params["auth_date"] = "1725309999"
+    tampered_init_data = urlencode(tampered_params)
+    tampered_result = verify_telegram_init_data(tampered_init_data, bot_token)
+    assert tampered_result is None, "Поддельные параметры должны быть отклонены"
+    print("  ✅ [3] Защита от подмены параметров (Tampering): УСПЕШНО")
+
+
+def test_jwt_student_tokens():
+    token = create_student_token(user_id=123456, tg_username="test_student")
+    assert isinstance(token, str) and len(token) > 20
+
+    payload = jwt.decode(token, SECRET, algorithms=[ALGORITHM])
+    assert payload["user_id"] == 123456
+    assert payload["tg_username"] == "test_student"
+    assert payload["role"] == "student"
+    print("  ✅ [4] Генерация и валидация JWT-токенов студентов: УСПЕШНО")
+
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("🚀 ТЕСТИРОВАНИЕ КРИПТОГРАФИИ И БЕЗОПАСНОСТИ STUDMATCH WEBAPP")
+    print("=" * 60)
+    test_telegram_init_data_validation()
+    test_jwt_student_tokens()
+    print("=" * 60)
+    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (4 из 4)!")
+    print("=" * 60)
