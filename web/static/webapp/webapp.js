@@ -74,8 +74,44 @@
     return await res.json();
   }
 
+  let reconnectTimer = null;
+  let retryCount = 0;
+
   // 1. Авторизация
   async function authenticateUser() {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+
+    // Попытка восстановить активную сессию из сохранённого токена
+    const savedToken = state.token || localStorage.getItem("studmatch_token");
+    if (savedToken) {
+      try {
+        const profRes = await fetch("/api/webapp/profile", {
+          headers: {
+            "Authorization": `Bearer ${savedToken}`,
+            "Content-Type": "application/json"
+          }
+        });
+        if (profRes.ok) {
+          const profData = await profRes.json();
+          if (profData && profData.status === "ok" && profData.user) {
+            console.log("[StudMatch] Re-used valid saved session token");
+            state.token = savedToken;
+            state.currentUser = profData.user;
+            localStorage.setItem("studmatch_token", savedToken);
+            updateHeaderUser();
+            await loadFeed();
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("[StudMatch] Saved token verification failed:", e);
+      }
+    }
+
+    // Получаем актуальные данные сессии Telegram
     let initData = tg?.initData || "";
     if (!initData && window.location.hash) {
       try {
@@ -84,11 +120,22 @@
         initData = params.get("tgWebAppData") || "";
       } catch (e) {}
     }
+
     if (!initData) {
-      initData = "dev_mock";
+      deckContainer.innerHTML = `
+        <div class="deck-empty" style="display:flex;">
+          <div class="deck-empty-icon">📱</div>
+          <h2 class="deck-empty-title">Вход через Telegram</h2>
+          <p class="deck-empty-desc">Откройте StudMatch через нашего Telegram бота, чтобы войти в свою студенческую анкету.</p>
+          <a href="https://t.me/${window.BOT_USERNAME || "edudating_bot"}" class="btn-primary" style="text-decoration:none;display:block;max-width:240px;margin:0 auto;text-align:center;">
+            🚀 Открыть бота
+          </a>
+        </div>
+      `;
+      return;
     }
 
-    console.log("[StudMatch] Authenticating, initData length:", initData.length);
+    console.log("[StudMatch] Authenticating via initData, length:", initData.length);
 
     try {
       const res = await fetch("/api/webapp/auth", {
@@ -96,59 +143,61 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ init_data: initData }),
       });
-      const data = await res.json();
-      console.log("[StudMatch] Auth result:", res.status, data);
 
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
       if (data.status === "ok") {
+        retryCount = 0;
         state.token = data.token;
         state.currentUser = data.user;
         localStorage.setItem("studmatch_token", data.token);
         updateHeaderUser();
-        loadFeed();
+        await loadFeed();
       } else {
         deckContainer.innerHTML = `
           <div class="deck-empty" style="display:flex;">
             <div class="deck-empty-icon">🔒</div>
             <h2 class="deck-empty-title">Авторизация в Telegram</h2>
             <p class="deck-empty-desc">${data.detail || "Не удалось проверить сессию Telegram."}</p>
-            <button class="btn-primary" onclick="location.reload()" style="max-width: 220px; margin: 0 auto;">
+            <button class="btn-primary" id="btnRetryAuthNow" style="max-width: 220px; margin: 0 auto;">
               🔄 Попробовать снова
             </button>
           </div>
         `;
+        document.getElementById("btnRetryAuthNow")?.addEventListener("click", () => authenticateUser());
       }
     } catch (err) {
-      console.error("[StudMatch] Auth error:", err);
-      // Если сервер был временно недоступен во время деплоя, пробуем повторить через 1.5 секунды
-      setTimeout(async () => {
-        try {
-          const retryRes = await fetch("/api/webapp/auth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ init_data: initData }),
-          });
-          const retryData = await retryRes.json();
-          if (retryData.status === "ok") {
-            state.token = retryData.token;
-            state.currentUser = retryData.user;
-            localStorage.setItem("studmatch_token", retryData.token);
-            updateHeaderUser();
-            loadFeed();
-            return;
-          }
-        } catch (e2) {}
-      }, 1500);
+      console.warn("[StudMatch] Auth attempt failed:", err);
+      retryCount++;
 
       deckContainer.innerHTML = `
         <div class="deck-empty" style="display:flex;">
-          <div class="deck-empty-icon">⚠️</div>
-          <h2 class="deck-empty-title">Ошибка соединения</h2>
-          <p class="deck-empty-desc">Сервер обновляется или соединение прервалось. Повторяем подключение...</p>
-          <button class="btn-primary" onclick="location.reload()" style="max-width: 220px; margin: 0 auto;">
-            🔄 Повторить
-          </button>
+          <div class="deck-empty-icon">🔄</div>
+          <h2 class="deck-empty-title">Подключение к серверу</h2>
+          <p class="deck-empty-desc">Сервер перезагружается или обновляется.<br>Автоматическое подключение (попытка ${retryCount})...</p>
+          <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:240px;margin:0 auto;">
+            <button class="btn-primary" id="btnConnectManual">
+              ⚡ Подключиться сейчас
+            </button>
+            <button class="btn-secondary" onclick="window.Telegram?.WebApp?.close()">
+              Закрыть
+            </button>
+          </div>
         </div>
       `;
+
+      document.getElementById("btnConnectManual")?.addEventListener("click", () => {
+        authenticateUser();
+      });
+
+      // Автоматический периодический реконнект каждые 2 секунды
+      reconnectTimer = setTimeout(() => {
+        authenticateUser();
+      }, 2000);
     }
   }
 
