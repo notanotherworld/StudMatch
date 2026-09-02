@@ -365,7 +365,7 @@
 
     card.innerHTML = `
       ${barsHtml}
-      <img src="${photos[0]}" class="card-photo-bg" alt="${escapeHtml(profile.name)}" />
+      <img src="${photos[0]}" class="card-photo-bg" alt="${escapeHtml(profile.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
       <div class="card-gradient-overlay"></div>
 
       <!-- Tap zones for photo carousel -->
@@ -427,7 +427,7 @@
         if (idx > 0) {
           idx--;
           card.dataset.photoIndex = idx.toString();
-          photoImg.src = photos[idx];
+          photoImg.onerror = function() { this.onerror = null; this.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"; }; photoImg.src = photos[idx];
           storyBars.forEach((bar, i) => bar.classList.toggle("active", i <= idx));
           triggerHaptic("light");
         }
@@ -439,7 +439,7 @@
         if (idx < photos.length - 1) {
           idx++;
           card.dataset.photoIndex = idx.toString();
-          photoImg.src = photos[idx];
+          photoImg.onerror = function() { this.onerror = null; this.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"; }; photoImg.src = photos[idx];
           storyBars.forEach((bar, i) => bar.classList.toggle("active", i <= idx));
           triggerHaptic("light");
         }
@@ -609,7 +609,7 @@
       : ["https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80"];
 
     const galleryHtml = photos
-      .map((p) => `<img src="${p}" class="sheet-photo" alt="Photo" />`)
+      .map((p) => `<img src="${p}" class="sheet-photo" alt="Photo" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />`)
       .join("");
 
     const tagsHtml = (profile.tags || [])
@@ -901,7 +901,7 @@
 
           return `
             <div class="match-item" data-partner-id="${m.user_id}">
-              <img src="${photoUrl}" class="match-avatar" alt="${escapeHtml(m.name)}" />
+              <img src="${photoUrl}" class="match-avatar" alt="${escapeHtml(m.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
               <div class="match-info">
                 <div class="match-name-row">
                   <span class="match-name">${escapeHtml(m.name)}${verified}${prem}</span>
@@ -943,7 +943,7 @@
       }
       const u = data.user;
       const photos = u.photos && u.photos.length > 0 ? u.photos : ["https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80"];
-      const gallery = photos.map((p) => `<img src="${p}" class="sheet-photo" />`).join("");
+      const gallery = photos.map((p) => `<img src="${p}" class="sheet-photo" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />`).join("");
       const tags = (u.tags || []).map((t) => `<span class="card-tag">${t.emoji} ${t.name}</span>`).join("");
       const chatUrl = u.tg_username ? `https://t.me/${u.tg_username.replace("@", "")}` : "#";
 
@@ -1021,7 +1021,7 @@
                 const img = lk.photo_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80";
                 return `
                   <div class="like-card" onclick="window.acceptLike(${lk.user_id})">
-                    <img src="${img}" class="like-card-img" />
+                    <img src="${img}" class="like-card-img" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
                     <div class="like-card-overlay">
                       <div class="like-card-name">${escapeHtml(lk.name)}</div>
                       <div class="like-card-sub">${lk.university || ""}</div>
@@ -1062,7 +1062,7 @@
       container.innerHTML = `
         <div class="profile-card">
           <div class="profile-avatar-wrap ${u.is_premium ? "premium" : ""}">
-            <img src="${avatar}" class="profile-avatar" />
+            <img src="${avatar}" class="profile-avatar" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
           </div>
           <div class="profile-name">${escapeHtml(u.name || "Студент")} ${u.is_verified ? "🎓" : ""} ${u.is_premium ? "💎" : ""}</div>
           <div class="profile-univ">${u.university || ""} ${u.major ? `• ${u.major}` : ""}</div>

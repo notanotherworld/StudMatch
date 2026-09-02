@@ -10,9 +10,10 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 from urllib.parse import parse_qsl
 
+import os
 import aiohttp
 from fastapi import APIRouter, Request, Depends, HTTPException, Header, Response
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +39,26 @@ router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
 
 STUDENT_SESSION_TTL_DAYS = 30
+
+PHOTO_CACHE_DIR = os.path.abspath("web/static/uploads/cache")
+os.makedirs(PHOTO_CACHE_DIR, exist_ok=True)
+DEFAULT_FALLBACK_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"
+
+
+def resolve_photo_url(photo_id: Optional[str]) -> Optional[str]:
+    """Преобразует идентификатор фото в валидный HTTP/HTTPS URL или путь к медиа-прокси."""
+    if not photo_id or not str(photo_id).strip():
+        return None
+    p_str = str(photo_id).strip()
+    if p_str.lower() in ("none", "null", "undefined", "false", ""):
+        return None
+    if p_str.startswith("http://") or p_str.startswith("https://"):
+        return p_str
+    if p_str.startswith("/static/") or p_str.startswith("/uploads/"):
+        return p_str
+    if p_str.startswith("static/") or p_str.startswith("uploads/"):
+        return f"/{p_str}"
+    return f"/api/webapp/photo/{p_str}"
 
 
 # ─── Валидация Telegram WebApp initData ──────────────────────
@@ -265,8 +286,10 @@ async def webapp_feed(
         if mode == ModeEnum.career and p.career_avatar_file_id and p.career_avatar_file_id not in photos:
             photos = [p.career_avatar_file_id] + photos
 
-        # Преобразуем фото в URL медиа-прокси
-        photo_urls = [f"/api/webapp/photo/{pid}" for pid in photos if pid]
+        # Преобразуем фото в URL медиа-прокси или прямые ссылки
+        photo_urls = [resolve_photo_url(pid) for pid in photos if resolve_photo_url(pid)]
+        if not photo_urls:
+            photo_urls = [DEFAULT_FALLBACK_AVATAR]
 
         cand_tags = [tags_map[tid] for tid in (p.interest_ids or []) if tid in tags_map]
 
@@ -342,13 +365,13 @@ async def webapp_swipe(
         partner = await get_user(db, payload.target_id)
         if partner:
             p_profile = partner.profile
-            p_name = p_profile.name if (p_profile and p_profile.name) else "Студент"
-            p_photos = list(p_profile.photos) if (p_profile and p_profile.photos) else []
+            p_photos = list(p_profile.photos) if (p_profile and p_profile.photos) else ([p_profile.avatar_file_id] if (p_profile and p_profile.avatar_file_id) else [])
+            first_p = p_photos[0] if p_photos else None
             match_data = {
                 "user_id": partner.id,
                 "name": p_name,
                 "tg_username": partner.tg_username,
-                "photo_url": f"/api/webapp/photo/{p_photos[0]}" if p_photos else None,
+                "photo_url": resolve_photo_url(first_p) or DEFAULT_FALLBACK_AVATAR,
             }
 
             # Отправка Telegram-уведомления партнеру в фоновом режиме
@@ -393,7 +416,8 @@ async def webapp_matches(
         p = partner.profile
         raw_name = p.name if (p and p.name) else "Студент"
         photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
-        photo_url = f"/api/webapp/photo/{photos[0]}" if photos else None
+        first_p = photos[0] if photos else None
+        photo_url = resolve_photo_url(first_p) or DEFAULT_FALLBACK_AVATAR
 
         univ_name = partner.university.short_name if partner.university else ""
         date_str = m.created_at.strftime("%d.%m") if m.created_at else ""
@@ -434,13 +458,14 @@ async def webapp_incoming_likes(
             c = lk.from_user
             p = c.profile
             photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
+            first_p = photos[0] if photos else None
             likes_list.append({
                 "user_id": c.id,
                 "name": p.name if (p and p.name) else "Студент",
                 "age": p.age if p else None,
                 "year": p.year if p else None,
                 "university": c.university.short_name if c.university else "",
-                "photo_url": f"/api/webapp/photo/{photos[0]}" if photos else None,
+                "photo_url": resolve_photo_url(first_p) or DEFAULT_FALLBACK_AVATAR,
                 "is_superlike": lk.action == SwipeAction.superlike,
                 "comment": lk.comment,
             })
@@ -462,7 +487,9 @@ async def webapp_profile(
     """Данные текущего профиля для вкладки Profile."""
     p = student.profile
     photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
-    photo_urls = [f"/api/webapp/photo/{pid}" for pid in photos if pid]
+    photo_urls = [resolve_photo_url(pid) for pid in photos if resolve_photo_url(pid)]
+    if not photo_urls:
+        photo_urls = [DEFAULT_FALLBACK_AVATAR]
 
     tags = []
     if p and p.interest_ids:
@@ -616,7 +643,9 @@ async def webapp_get_user_details(
     if p and p.career_avatar_file_id and p.career_avatar_file_id not in photos:
         photos.append(p.career_avatar_file_id)
 
-    photo_urls = [f"/api/webapp/photo/{pid}" for pid in photos if pid]
+    photo_urls = [resolve_photo_url(pid) for pid in photos if resolve_photo_url(pid)]
+    if not photo_urls:
+        photo_urls = [DEFAULT_FALLBACK_AVATAR]
 
     tags = []
     if p and p.interest_ids:
@@ -864,58 +893,75 @@ async def webapp_admin_resolve_report(
 
 
 # ─── Медиа-прокси: отдача фото из Telegram Bot API ───────────
-# Кэш file_path в памяти: file_id -> (file_path, expire_time)
-_file_path_cache: Dict[str, str] = {}
-
-
-@router.get("/api/webapp/photo/{file_id}")
+@router.get("/api/webapp/photo/{file_id:path}")
 async def webapp_photo_proxy(file_id: str):
     """
-    Безопасный медиа-прокси: получает фото из Telegram Bot API по file_id
-    и отдает его браузеру с кэшированием без раскрытия BOT_TOKEN.
+    Безопасный медиа-прокси с дисковым кэшированием:
+    - Отдает из локального кэша за 1-2 мс
+    - Если нет в кэше, запрашивает Telegram Bot API и сохраняет
+    - При любой ошибке возвращает DEFAULT_FALLBACK_AVATAR вместо поломанного 404/500
     """
-    if not file_id or file_id in ("none", "null", "undefined"):
-        raise HTTPException(status_code=404, detail="File not found")
+    if not file_id or file_id.strip().lower() in ("none", "null", "undefined", ""):
+        return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
 
-    file_path = _file_path_cache.get(file_id)
+    # 1. Если передана внешняя ссылка (http/https)
+    if file_id.startswith("http://") or file_id.startswith("https://"):
+        return RedirectResponse(file_id, status_code=307)
 
-    # 1. Получаем путь к файлу у Telegram Bot API
-    if not file_path:
-        get_file_url = f"https://api.telegram.org/bot{settings.BOT_TOKEN}/getFile?file_id={file_id}"
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(get_file_url, timeout=5) as resp:
-                    if resp.status != 200:
-                        raise HTTPException(status_code=404, detail="Photo not found in Telegram")
-                    data = await resp.json()
-                    if not data.get("ok"):
-                        raise HTTPException(status_code=404, detail="Telegram getFile returned error")
-                    file_path = data["result"]["file_path"]
-                    _file_path_cache[file_id] = file_path
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.warning(f"Error resolving telegram file_id {file_id}: {e}")
-            raise HTTPException(status_code=500, detail="Failed to fetch image from Telegram")
+    # 2. Если передан локальный путь на сервере
+    if file_id.startswith("static/") or file_id.startswith("uploads/") or file_id.startswith("web/"):
+        clean_p = file_id.lstrip("/web/").lstrip("/")
+        if not clean_p.startswith("web/"):
+            clean_p = os.path.join("web", clean_p)
+        if os.path.exists(clean_p):
+            return FileResponse(clean_p, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
 
-    # 2. Стримим бинарные данные картинки
-    download_url = f"https://api.telegram.org/file/bot{settings.BOT_TOKEN}/{file_path}"
+    file_hash = hashlib.md5(file_id.encode("utf-8")).hexdigest()
+    cached_file = os.path.join(PHOTO_CACHE_DIR, f"{file_hash}.jpg")
+
+    # 3. Если файл уже сохранён на диске — отдаем мгновенно из локального хранилища
+    if os.path.exists(cached_file) and os.path.getsize(cached_file) > 0:
+        return FileResponse(
+            cached_file,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=604800"}  # 7 дней в браузере
+        )
+
+    # 4. Запрашиваем файл у Telegram Bot API
+    get_file_url = f"https://api.telegram.org/bot{settings.BOT_TOKEN}/getFile?file_id={file_id}"
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(download_url, timeout=10) as img_resp:
+            async with session.get(get_file_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status != 200:
+                    logger.warning(f"Telegram getFile returned HTTP {resp.status} for file_id {file_id}")
+                    return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
+                data = await resp.json()
+                if not data.get("ok") or not data.get("result", {}).get("file_path"):
+                    logger.warning(f"Telegram getFile data not ok for file_id {file_id}: {data}")
+                    return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
+                tg_file_path = data["result"]["file_path"]
+
+            # 5. Скачиваем бинарные данные картинки
+            download_url = f"https://api.telegram.org/file/bot{settings.BOT_TOKEN}/{tg_file_path}"
+            async with session.get(download_url, timeout=aiohttp.ClientTimeout(total=8)) as img_resp:
                 if img_resp.status != 200:
-                    raise HTTPException(status_code=404, detail="Failed to download image")
+                    logger.warning(f"Telegram file download failed HTTP {img_resp.status}")
+                    return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
                 content = await img_resp.read()
                 content_type = img_resp.headers.get("Content-Type", "image/jpeg")
+
+                # Сохраняем в дисковый кэш
+                try:
+                    with open(cached_file, "wb") as f:
+                        f.write(content)
+                except Exception as save_err:
+                    logger.warning(f"Failed to write cache file {cached_file}: {save_err}")
+
                 return Response(
                     content=content,
                     media_type=content_type,
-                    headers={
-                        "Cache-Control": "public, max-age=86400",  # Кэшировать на 24 часа
-                    }
+                    headers={"Cache-Control": "public, max-age=604800"}
                 )
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.warning(f"Error streaming telegram image: {e}")
-        raise HTTPException(status_code=500, detail="Image streaming error")
+        logger.warning(f"Error proxying telegram image {file_id}: {e}")
+        return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
