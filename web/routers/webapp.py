@@ -525,10 +525,18 @@ async def webapp_stories(
                 and_(
                     User.id.not_in(seen_ids),
                     User.is_active.is_(True),
-                    Profile.is_complete.is_(True)
+                    or_(
+                        Profile.is_complete.is_(True),
+                        Profile.career_is_complete.is_(True),
+                        Profile.name.isnot(None),
+                    ),
                 )
             )
-            .order_by(desc(User.boost_until), desc(Profile.rating_score), desc(User.created_at))
+            .order_by(
+                User.boost_until.desc().nullslast(),
+                Profile.rating_score.desc().nullslast(),
+                User.created_at.desc(),
+            )
             .limit(needed)
         )
         res_other = await db.execute(stmt_other)
@@ -836,20 +844,23 @@ async def webapp_admin_stats(
 
 @router.get("/api/webapp/admin/users/search")
 async def webapp_admin_search_user(
-    q: str,
+    q: Optional[str] = "",
     admin: User = Depends(require_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Поиск пользователя по ID или @username."""
-    q_clean = q.strip().lstrip("@")
+    """Поиск пользователя по ID или @username, либо последние 25 пользователей."""
     query = select(User).options(selectinload(User.profile), selectinload(User.university))
 
-    if q_clean.isdigit():
-        query = query.where(or_(User.id == int(q_clean), User.tg_username.ilike(f"%{q_clean}%")))
+    if q and q.strip():
+        q_clean = q.strip().lstrip("@")
+        if q_clean.isdigit():
+            query = query.where(or_(User.id == int(q_clean), User.tg_username.ilike(f"%{q_clean}%")))
+        else:
+            query = query.where(User.tg_username.ilike(f"%{q_clean}%"))
     else:
-        query = query.where(User.tg_username.ilike(f"%{q_clean}%"))
+        query = query.order_by(desc(User.created_at))
 
-    result = await db.execute(query.limit(10))
+    result = await db.execute(query.limit(25))
     users = result.scalars().all()
 
     found = []

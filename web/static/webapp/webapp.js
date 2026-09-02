@@ -834,6 +834,22 @@
 
       ${careerSection}
 
+      ${state.currentUser?.id === 149620234 ? `
+        <div class="admin-quick-toolbar" style="margin-top:14px;padding:12px;background:#f8f9fe;border-radius:14px;border:1px dashed #6c5ce7;">
+          <div style="font-size:11px;font-weight:700;color:#6c5ce7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            👑 Панель управления (Superadmin)
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-primary" id="sheetAdminPremBtn" style="font-size:12px;padding:8px 12px;background:${profile.is_premium ? '#ff7675' : 'linear-gradient(135deg, #FFD700, #FFA500)'};color:#fff;border:none;">
+              ${profile.is_premium ? "💎 Снять Премиум" : "👑 Выдать Премиум (1 год)"}
+            </button>
+            <button class="btn-secondary" id="sheetAdminVerifyBtn" style="font-size:12px;padding:8px 12px;">
+              🎓 ${profile.is_verified ? "Снять статус" : "Верифицировать"}
+            </button>
+          </div>
+        </div>
+      ` : ""}
+
       <div class="card-actions-row" style="margin-top: 10px;">
         <button class="action-btn dislike" id="sheetDislikeBtn">
           <img src="/static/webapp/assets/reaction-circle-1.svg" class="action-svg" alt="Skip" />
@@ -850,6 +866,23 @@
     `;
 
     detailsSheetOverlay.classList.add("active");
+
+    if (state.currentUser?.id === 149620234) {
+      document.getElementById("sheetAdminPremBtn")?.addEventListener("click", async () => {
+        triggerHaptic("medium");
+        await window.adminUserAction(profile.user_id, "grant_premium");
+        profile.is_premium = !profile.is_premium;
+        openDetailsSheet(profile);
+        await loadStories();
+      });
+      document.getElementById("sheetAdminVerifyBtn")?.addEventListener("click", async () => {
+        triggerHaptic("medium");
+        await window.adminUserAction(profile.user_id, "grant_verified");
+        profile.is_verified = !profile.is_verified;
+        openDetailsSheet(profile);
+        await loadStories();
+      });
+    }
 
     document.getElementById("sheetDislikeBtn")?.addEventListener("click", () => {
       closeDetailsSheet();
@@ -1171,12 +1204,43 @@
           </div>
         ` : ""}
 
+        ${state.currentUser?.id === 149620234 ? `
+          <div class="admin-quick-toolbar" style="margin-top:14px;padding:12px;background:#f8f9fe;border-radius:14px;border:1px dashed #6c5ce7;">
+            <div style="font-size:11px;font-weight:700;color:#6c5ce7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+              👑 Панель управления (Superadmin)
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-primary" id="btnAdminMatchPrem-${u.id}" style="font-size:12px;padding:8px 12px;background:${u.is_premium ? '#ff7675' : 'linear-gradient(135deg, #FFD700, #FFA500)'};color:#fff;border:none;">
+                ${u.is_premium ? "💎 Снять Премиум" : "👑 Выдать Премиум (1 год)"}
+              </button>
+              <button class="btn-secondary" id="btnAdminMatchVerify-${u.id}" style="font-size:12px;padding:8px 12px;">
+                🎓 ${u.is_verified ? "Снять статус" : "Верифицировать"}
+              </button>
+            </div>
+          </div>
+        ` : ""}
+
         <div style="margin-top: 10px;">
           <a href="${chatUrl}" target="_blank" class="btn-primary" style="text-decoration:none;display:block;text-align:center;">
             💬 Написать в Telegram
           </a>
         </div>
       `;
+
+      if (state.currentUser?.id === 149620234) {
+        document.getElementById(`btnAdminMatchPrem-${u.id}`)?.addEventListener("click", async () => {
+          triggerHaptic("medium");
+          await window.adminUserAction(u.id, "grant_premium");
+          openMatchFullProfile(partnerId);
+          await loadStories();
+        });
+        document.getElementById(`btnAdminMatchVerify-${u.id}`)?.addEventListener("click", async () => {
+          triggerHaptic("medium");
+          await window.adminUserAction(u.id, "grant_verified");
+          openMatchFullProfile(partnerId);
+          await loadStories();
+        });
+      }
     } catch (e) {
       body.innerHTML = '<div style="text-align:center;padding:30px;color:red;">Ошибка загрузки анкеты</div>';
     }
@@ -1337,6 +1401,7 @@
           loadAdminStats();
         } else if (tab === "users") {
           document.getElementById("adminPaneUsers")?.classList.add("active");
+          searchAdminUsers();
         } else if (tab === "reports") {
           document.getElementById("adminPaneReports")?.classList.add("active");
           loadAdminReports();
@@ -1380,11 +1445,11 @@
   async function searchAdminUsers() {
     const input = document.getElementById("adminUserSearchInput");
     const container = document.getElementById("adminUserSearchResults");
-    const q = input.value.trim();
-    if (!q) return;
+    if (!container) return;
+    const q = input ? input.value.trim() : "";
 
     triggerHaptic("light");
-    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Поиск...</div>';
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Загрузка списка студентов...</div>';
 
     try {
       const data = await apiFetch(`/api/webapp/admin/users/search?q=${encodeURIComponent(q)}`);
@@ -1417,8 +1482,8 @@
                 <button class="admin-action-chip ${u.is_banned ? '' : 'danger'}" onclick="window.adminUserAction(${u.id}, 'toggle_ban')">
                   ${u.is_banned ? '🟢 Разбанить' : '🚫 Забанить'}
                 </button>
-                <button class="admin-action-chip" onclick="window.adminUserAction(${u.id}, 'grant_premium')">
-                  ${u.is_premium ? 'Снять VIP' : '💎 Выдать VIP'}
+                <button class="admin-action-chip" style="${u.is_premium ? 'background:#ff7675;color:#fff;' : 'background:linear-gradient(135deg, #FFD700, #FFA500);color:#fff;'}" onclick="window.adminUserAction(${u.id}, 'grant_premium')">
+                  ${u.is_premium ? '💎 Снять Премиум' : '👑 Дать Премиум'}
                 </button>
                 <button class="admin-action-chip" onclick="window.adminUserAction(${u.id}, 'grant_verified')">
                   ${u.is_verified ? 'Снять ВУЗ' : '🎓 Верифицировать'}
@@ -1446,6 +1511,7 @@
       if (res && res.message) {
         if (tg && tg.showAlert) tg.showAlert(res.message);
         searchAdminUsers();
+        await loadStories();
       }
     } catch (e) {
       console.error("Admin user action error:", e);
