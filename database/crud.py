@@ -540,7 +540,7 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
             if partner_id in seen_partners or partner_id == user_id:
                 continue
             partner = await get_user(db, partner_id)
-            if partner and partner.profile and partner.is_active and not partner.is_banned:
+            if partner and getattr(partner, "is_active", True):
                 seen_partners.add(partner_id)
                 partner_matches.append((m, partner))
         return partner_matches
