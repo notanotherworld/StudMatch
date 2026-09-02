@@ -119,11 +119,31 @@
       }
     } catch (err) {
       console.error("[StudMatch] Auth error:", err);
+      // Если сервер был временно недоступен во время деплоя, пробуем повторить через 1.5 секунды
+      setTimeout(async () => {
+        try {
+          const retryRes = await fetch("/api/webapp/auth", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ init_data: initData }),
+          });
+          const retryData = await retryRes.json();
+          if (retryData.status === "ok") {
+            state.token = retryData.token;
+            state.currentUser = retryData.user;
+            localStorage.setItem("studmatch_token", retryData.token);
+            updateHeaderUser();
+            loadFeed();
+            return;
+          }
+        } catch (e2) {}
+      }, 1500);
+
       deckContainer.innerHTML = `
         <div class="deck-empty" style="display:flex;">
           <div class="deck-empty-icon">⚠️</div>
           <h2 class="deck-empty-title">Ошибка соединения</h2>
-          <p class="deck-empty-desc">Не удалось подключиться к серверу StudMatch.</p>
+          <p class="deck-empty-desc">Сервер обновляется или соединение прервалось. Повторяем подключение...</p>
           <button class="btn-primary" onclick="location.reload()" style="max-width: 220px; margin: 0 auto;">
             🔄 Повторить
           </button>
@@ -211,8 +231,29 @@
   }
 
   async function setMode(targetMode) {
-    if (!state.currentUser || state.currentUser.mode === targetMode) return;
+    // 1. Мгновенное визуальное переключение пилюль (Optimistic UI)
+    document.getElementById("pillDating")?.classList.toggle("active", targetMode === "dating");
+    document.getElementById("pillCareer")?.classList.toggle("active", targetMode === "career");
     triggerHaptic("medium");
+
+    if (state.currentUser) {
+      state.currentUser.mode = targetMode;
+    }
+
+    // 2. Показываем плавный индикатор загрузки нового режима в колоде
+    if (deckContainer) {
+      deckContainer.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:320px;color:var(--text-muted);font-weight:700;">
+          <div style="font-size:48px;margin-bottom:12px;animation:figmaHeartPulse 1s infinite;">
+            ${targetMode === "career" ? "💼" : "💘"}
+          </div>
+          <div style="font-size:15px;color:var(--text-main);">
+            Загрузка анкет: ${targetMode === "career" ? "Карьера" : "Знакомства"}...
+          </div>
+        </div>
+      `;
+    }
+    if (deckEmpty) deckEmpty.style.display = "none";
 
     try {
       const res = await apiFetch("/api/webapp/profile/mode", {
@@ -220,15 +261,16 @@
         body: JSON.stringify({ mode: targetMode }),
       });
       if (res && res.status === "ok") {
-        state.currentUser.mode = res.mode;
-        updateHeaderUser();
-        state.feed = [];
-        state.currentCardIndex = 0;
-        loadFeed();
+        if (state.currentUser) state.currentUser.mode = res.mode;
       }
     } catch (e) {
-      console.error("Set mode error:", e);
+      console.warn("Set mode API warning:", e);
     }
+
+    // 3. Загружаем свежие анкеты под выбранный режим
+    state.feed = [];
+    state.currentCardIndex = 0;
+    await loadFeed();
   }
 
   async function toggleMode() {

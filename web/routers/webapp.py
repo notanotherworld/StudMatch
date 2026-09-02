@@ -235,6 +235,17 @@ async def webapp_feed(
         seen_ids.add(cand_profile.user_id)
         candidates.append(cand_profile)
 
+    # Если в режиме Карьеры пока нет анкет с заполненной карьерой — показываем общие студенческие анкеты
+    if not candidates and mode == ModeEnum.career:
+        for _ in range(10):
+            cand_profile = await get_next_profile(
+                db, viewer_id=student.id, mode=ModeEnum.dating, exclude_ids=seen_ids
+            )
+            if not cand_profile:
+                break
+            seen_ids.add(cand_profile.user_id)
+            candidates.append(cand_profile)
+
     # Загружаем теги интересов
     all_tag_ids = set()
     for p in candidates:
