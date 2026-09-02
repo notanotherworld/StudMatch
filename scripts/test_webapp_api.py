@@ -80,12 +80,34 @@ def test_jwt_student_tokens():
     print("  ✅ [4] Генерация и валидация JWT-токенов студентов: УСПЕШНО")
 
 
+def test_models_and_schemas():
+    from web.routers.webapp import WebAppFiltersRequest, WebAppReportRequest, WebAppSwipeRequest
+    
+    filt = WebAppFiltersRequest(min_age=18, max_age=25, min_year=2, max_year=4, major="IT")
+    assert filt.min_age == 18
+    assert filt.max_year == 4
+    assert filt.major == "IT"
+    print("  ✅ [5] Валидация Pydantic-схемы фильтров поиска (WebAppFiltersRequest): УСПЕШНО")
+
+    rep = WebAppReportRequest(reported_id=777, reason="📢 Спам или реклама")
+    assert rep.reported_id == 777
+    assert "Спам" in rep.reason
+    print("  ✅ [6] Валидация схемы жалоб (WebAppReportRequest): УСПЕШНО")
+
+    swipe = WebAppSwipeRequest(target_id=888, action="superlike", comment="Отличный профиль!")
+    assert swipe.action == "superlike"
+    assert swipe.comment == "Отличный профиль!"
+    print("  ✅ [7] Валидация свайпа с комплиментом/комментарием: УСПЕШНО")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚀 ТЕСТИРОВАНИЕ КРИПТОГРАФИИ И БЕЗОПАСНОСТИ STUDMATCH WEBAPP")
     print("=" * 60)
     test_telegram_init_data_validation()
     test_jwt_student_tokens()
+    test_models_and_schemas()
     print("=" * 60)
-    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (4 из 4)!")
+    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (7 из 7)!")
     print("=" * 60)
+

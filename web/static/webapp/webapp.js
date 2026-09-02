@@ -1,6 +1,7 @@
-﻿/**
+/**
  * StudMatch Telegram Mini App (TWA / WebApp) Core Client
- * Touch-driven swipe engine, Telegram initData auth, Haptic feedback, tabs & matching.
+ * Touch-driven swipe engine, multi-photo carousel, candidate details sheet,
+ * search filters, superlike with compliment, reports, and match profile viewer.
  */
 
 (function () {
@@ -20,12 +21,19 @@
     incomingLikes: [],
     activeTab: "explore",
     isSwiping: false,
+    selectedCandidateForSuperlike: null,
+    selectedCandidateForReport: null,
   };
 
   // DOM Elements
   const deckContainer = document.getElementById("cardDeck");
   const deckEmpty = document.getElementById("deckEmpty");
   const matchModal = document.getElementById("matchModal");
+  const detailsSheetOverlay = document.getElementById("detailsSheetOverlay");
+  const filtersModal = document.getElementById("filtersModal");
+  const superlikeModal = document.getElementById("superlikeModal");
+  const reportModal = document.getElementById("reportModal");
+  const matchProfileModal = document.getElementById("matchProfileModal");
   const navButtons = document.querySelectorAll(".nav-tab-btn");
 
   // Haptic feedback helper
@@ -57,7 +65,6 @@
 
     const res = await fetch(url, options);
     if (res.status === 401) {
-      // Re-auth
       await authenticateUser();
       return;
     }
@@ -94,7 +101,7 @@
     }
   }
 
-  // 2. Навигация по табам (Explore, Likes, Matches, Profile)
+  // 2. Навигация по табам
   function setupNavigation() {
     navButtons.forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -107,6 +114,14 @@
     if (modeBadge) {
       modeBadge.addEventListener("click", toggleMode);
     }
+
+    // Кнопка открытия фильтров в шапке
+    const openFiltersBtn = document.getElementById("openFiltersBtn");
+    if (openFiltersBtn) {
+      openFiltersBtn.addEventListener("click", openFiltersModal);
+    }
+
+    setupModalListeners();
   }
 
   function switchTab(tabName) {
@@ -190,14 +205,17 @@
     });
   }
 
+  // 4. Создание DOM элемента карточки с каруселью фото
   function createCardElement(profile, isTop) {
     const card = document.createElement("div");
     card.className = "swipe-card";
     card.dataset.userId = profile.user_id;
 
-    const photoUrl = profile.photos && profile.photos.length > 0
-      ? profile.photos[0]
-      : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80";
+    const photos = profile.photos && profile.photos.length > 0
+      ? profile.photos
+      : ["https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"];
+
+    card.dataset.photoIndex = "0";
 
     const verifiedBadge = profile.is_verified ? '<span class="card-badge verified">🎓 ВУЗ</span>' : "";
     const premiumBadge = profile.is_premium ? '<span class="card-badge premium">💎 VIP</span>' : "";
@@ -209,15 +227,33 @@
       .map((t) => `<span class="card-tag">${t.emoji || "🏷"} ${t.name}</span>`)
       .join("");
 
+    // Stories indicator bars
+    const barsHtml = photos.length > 1
+      ? `<div class="card-stories-bars">
+           ${photos.map((_, i) => `<div class="story-bar ${i === 0 ? "active" : ""}"></div>`).join("")}
+         </div>`
+      : "";
+
+    // Career specifics
+    let careerSub = "";
+    if (profile.career_skills && profile.career_skills.length > 0) {
+      careerSub = `<div class="card-subtext" style="color:#A8A5FF;">💼 Карьерная анкета</div>`;
+    }
+
     card.innerHTML = `
-      <img src="${photoUrl}" class="card-photo-bg" alt="${profile.name}" />
+      ${barsHtml}
+      <img src="${photos[0]}" class="card-photo-bg" alt="${escapeHtml(profile.name)}" />
       <div class="card-gradient-overlay"></div>
+
+      <!-- Tap zones for photo carousel -->
+      <div class="card-tap-left"></div>
+      <div class="card-tap-right"></div>
 
       <div class="stamp like-stamp">LIKE</div>
       <div class="stamp nope-stamp">SKIP</div>
       <div class="stamp super-stamp">SUPER</div>
 
-      <div class="card-top-bar">
+      <div class="card-top-bar" style="margin-top: ${photos.length > 1 ? "14px" : "0"};">
         <div class="card-tags-top">
           ${verifiedBadge}
           ${premiumBadge}
@@ -231,7 +267,9 @@
         <div class="card-title-row">
           <span class="card-name">${escapeHtml(profile.name)}</span>
           ${profile.age ? `<span class="card-age">${profile.age}</span>` : ""}
+          <button class="action-btn info" data-action="info" title="Подробнее" style="margin-left:auto;">ℹ️</button>
         </div>
+        ${careerSub}
         <div class="card-subtext">
           ${univStr ? `🏛 ${univStr}` : ""} ${yearStr ? `• ${yearStr}` : ""}
         </div>
@@ -246,19 +284,57 @@
       </div>
     `;
 
+    // Обработка кликов по левой/правой зоне для переключения фото
+    const tapLeft = card.querySelector(".card-tap-left");
+    const tapRight = card.querySelector(".card-tap-right");
+    const photoImg = card.querySelector(".card-photo-bg");
+    const storyBars = card.querySelectorAll(".story-bar");
+
+    if (tapLeft && tapRight && photos.length > 1) {
+      tapLeft.addEventListener("click", (e) => {
+        e.stopPropagation();
+        let idx = parseInt(card.dataset.photoIndex || "0", 10);
+        if (idx > 0) {
+          idx--;
+          card.dataset.photoIndex = idx.toString();
+          photoImg.src = photos[idx];
+          storyBars.forEach((bar, i) => bar.classList.toggle("active", i <= idx));
+          triggerHaptic("light");
+        }
+      });
+
+      tapRight.addEventListener("click", (e) => {
+        e.stopPropagation();
+        let idx = parseInt(card.dataset.photoIndex || "0", 10);
+        if (idx < photos.length - 1) {
+          idx++;
+          card.dataset.photoIndex = idx.toString();
+          photoImg.src = photos[idx];
+          storyBars.forEach((bar, i) => bar.classList.toggle("active", i <= idx));
+          triggerHaptic("light");
+        }
+      });
+    }
+
     // Кнопки действий
     card.querySelectorAll(".action-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const action = btn.dataset.action;
-        handleSwipeAction(profile, action);
+        if (action === "info") {
+          openDetailsSheet(profile);
+        } else if (action === "superlike") {
+          openSuperlikeModal(profile);
+        } else {
+          handleSwipeAction(profile, action);
+        }
       });
     });
 
     return card;
   }
 
-  // 4. Сенсорный свайп-движок (Touch & Mouse Drag)
+  // 5. Сенсорный свайп-движок (Touch & Mouse Drag)
   function initCardDrag(card, profile) {
     let startX = 0;
     let startY = 0;
@@ -314,13 +390,16 @@
       if (!isDragging) return;
       isDragging = false;
 
-      // Пороги срабатывания
+      // Пороги срабатывания свайпа
       if (currentX > 90) {
         finishSwipe(card, profile, "like", 500, 0);
       } else if (currentX < -90) {
         finishSwipe(card, profile, "skip", -500, 0);
-      } else if (currentY < -100 && Math.abs(currentX) < 60) {
-        finishSwipe(card, profile, "superlike", 0, -600);
+      } else if (currentY < -110 && Math.abs(currentX) < 60) {
+        openSuperlikeModal(profile);
+        card.style.transition = "transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+        card.style.transform = "translate(0, 0) rotate(0deg)";
+        superStamp.style.opacity = 0;
       } else {
         // Возврат в центр
         card.style.transition = "transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
@@ -340,7 +419,7 @@
     window.addEventListener("mouseup", onEnd);
   }
 
-  function finishSwipe(card, profile, action, exitX, exitY) {
+  function finishSwipe(card, profile, action, exitX, exitY, comment = null) {
     state.isSwiping = true;
     card.style.transition = "transform 0.35s ease-out, opacity 0.35s";
     card.style.transform = `translate(${exitX}px, ${exitY}px) rotate(${exitX * 0.08}deg)`;
@@ -354,13 +433,11 @@
       state.isSwiping = false;
 
       renderCardStack();
-
-      // Отправка свайпа на бэкенд
-      sendSwipe(profile.user_id, action);
+      sendSwipe(profile.user_id, action, comment);
     }, 300);
   }
 
-  function handleSwipeAction(profile, action) {
+  function handleSwipeAction(profile, action, comment = null) {
     if (state.isSwiping) return;
     const topCard = deckContainer.querySelector(".swipe-card:last-child");
     if (!topCard) return;
@@ -368,32 +445,288 @@
     if (action === "like") {
       finishSwipe(topCard, profile, "like", 500, 0);
     } else if (action === "superlike") {
-      finishSwipe(topCard, profile, "superlike", 0, -600);
+      finishSwipe(topCard, profile, "superlike", 0, -600, comment);
     } else {
       finishSwipe(topCard, profile, "skip", -500, 0);
     }
   }
 
-  async function sendSwipe(targetId, action) {
+  async function sendSwipe(targetId, action, comment = null) {
     try {
       const res = await apiFetch("/api/webapp/swipe", {
         method: "POST",
-        body: JSON.stringify({ target_id: targetId, action: action }),
+        body: JSON.stringify({ target_id: targetId, action: action, comment: comment }),
       });
       if (res && res.is_match && res.match) {
         showMatchPopup(res.match);
+      }
+      if (res && res.superlike_balance !== undefined && state.currentUser) {
+        state.currentUser.superlike_balance = res.superlike_balance;
       }
     } catch (e) {
       console.error("Swipe API error:", e);
     }
   }
 
-  // 5. Всплывающее окно взаимного мэтча (Match Popup)
+  // 6. Детальный Bottom Sheet анкеты (ℹ️)
+  function openDetailsSheet(profile) {
+    triggerHaptic("medium");
+    const body = document.getElementById("detailsSheetBody");
+    if (!body) return;
+
+    const photos = profile.photos && profile.photos.length > 0
+      ? profile.photos
+      : ["https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80"];
+
+    const galleryHtml = photos
+      .map((p) => `<img src="${p}" class="sheet-photo" alt="Photo" />`)
+      .join("");
+
+    const tagsHtml = (profile.tags || [])
+      .map((t) => `<span class="card-tag">${t.emoji || "🏷"} ${t.name}</span>`)
+      .join("");
+
+    // Career information
+    let careerSection = "";
+    if (profile.career_goal || profile.career_custom_skills || profile.career_portfolio_url || profile.career_work_format) {
+      careerSection = `
+        <div class="sheet-section">
+          <div class="sheet-section-title">💼 Профессиональная информация</div>
+          ${profile.career_work_format ? `<p class="sheet-section-text"><b>Формат:</b> ${escapeHtml(profile.career_work_format)}</p>` : ""}
+          ${profile.career_custom_skills ? `<p class="sheet-section-text"><b>Навыки / Стек:</b> ${escapeHtml(profile.career_custom_skills)}</p>` : ""}
+          ${profile.career_goal ? `<p class="sheet-section-text"><b>Цель:</b> ${escapeHtml(profile.career_goal)}</p>` : ""}
+          ${profile.career_portfolio_url ? `<a href="${escapeHtml(profile.career_portfolio_url)}" target="_blank" class="sheet-link-btn">🔗 Открыть резюме / портфолио</a>` : ""}
+        </div>
+      `;
+    }
+
+    body.innerHTML = `
+      <div class="sheet-gallery">${galleryHtml}</div>
+
+      <div>
+        <h2 style="font-size: 24px; font-weight: 800; margin-bottom: 4px;">
+          ${escapeHtml(profile.name)}, ${profile.age || ""}
+          ${profile.is_verified ? "🎓" : ""} ${profile.is_premium ? "💎" : ""}
+        </h2>
+        <p style="font-size: 14px; color: var(--text-muted);">
+          🏛 ${profile.university || "ВУЗ"} ${profile.major ? `• ${profile.major}` : ""} ${profile.year ? `• ${profile.year} курс` : ""}
+        </p>
+      </div>
+
+      ${profile.goal ? `
+        <div class="sheet-section">
+          <div class="sheet-section-title">О себе</div>
+          <p class="sheet-section-text">${escapeHtml(profile.goal)}</p>
+        </div>
+      ` : ""}
+
+      ${tagsHtml ? `
+        <div class="sheet-section">
+          <div class="sheet-section-title">Интересы</div>
+          <div class="card-tags" style="margin-top: 6px;">${tagsHtml}</div>
+          ${profile.custom_interests ? `<p class="sheet-section-text" style="margin-top: 6px;">${escapeHtml(profile.custom_interests)}</p>` : ""}
+        </div>
+      ` : ""}
+
+      ${careerSection}
+
+      <div class="card-actions-row" style="margin-top: 10px;">
+        <button class="action-btn dislike" id="sheetDislikeBtn">✕</button>
+        <button class="action-btn superlike" id="sheetSuperlikeBtn">⭐</button>
+        <button class="action-btn like" id="sheetLikeBtn">❤️</button>
+      </div>
+
+      <button class="sheet-report-btn" id="sheetReportBtn">
+        🚩 Пожаловаться на анкету
+      </button>
+    `;
+
+    detailsSheetOverlay.classList.add("active");
+
+    document.getElementById("sheetDislikeBtn")?.addEventListener("click", () => {
+      closeDetailsSheet();
+      handleSwipeAction(profile, "skip");
+    });
+    document.getElementById("sheetSuperlikeBtn")?.addEventListener("click", () => {
+      closeDetailsSheet();
+      openSuperlikeModal(profile);
+    });
+    document.getElementById("sheetLikeBtn")?.addEventListener("click", () => {
+      closeDetailsSheet();
+      handleSwipeAction(profile, "like");
+    });
+    document.getElementById("sheetReportBtn")?.addEventListener("click", () => {
+      closeDetailsSheet();
+      openReportModal(profile);
+    });
+  }
+
+  function closeDetailsSheet() {
+    detailsSheetOverlay.classList.remove("active");
+  }
+
+  detailsSheetOverlay?.addEventListener("click", (e) => {
+    if (e.target === detailsSheetOverlay) closeDetailsSheet();
+  });
+
+  // 7. Фильтры поиска (Explore Filters)
+  async function openFiltersModal() {
+    triggerHaptic("medium");
+    try {
+      const data = await apiFetch("/api/webapp/filters");
+      if (data) {
+        document.getElementById("filterMinAge").value = data.min_age || 17;
+        document.getElementById("filterMaxAge").value = data.max_age || 28;
+        document.getElementById("filterMajor").value = data.major === "all" ? "" : (data.major || "");
+
+        const pills = document.querySelectorAll(".course-pill");
+        pills.forEach((p) => {
+          const pmin = parseInt(p.dataset.min, 10);
+          const pmax = parseInt(p.dataset.max, 10);
+          p.classList.toggle("active", pmin === data.min_year && pmax === data.max_year);
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to load filters:", e);
+    }
+    filtersModal.classList.add("active");
+  }
+
+  function setupModalListeners() {
+    // Filters Modal
+    document.getElementById("closeFiltersBtn")?.addEventListener("click", () => filtersModal.classList.remove("active"));
+    document.querySelectorAll(".course-pill").forEach((pill) => {
+      pill.addEventListener("click", () => {
+        document.querySelectorAll(".course-pill").forEach((p) => p.classList.remove("active"));
+        pill.classList.add("active");
+      });
+    });
+
+    document.getElementById("saveFiltersBtn")?.addEventListener("click", async () => {
+      const minAge = parseInt(document.getElementById("filterMinAge").value || "16", 10);
+      const maxAge = parseInt(document.getElementById("filterMaxAge").value || "35", 10);
+      const major = document.getElementById("filterMajor").value.trim() || "all";
+
+      const activePill = document.querySelector(".course-pill.active");
+      const minYear = activePill ? parseInt(activePill.dataset.min, 10) : 1;
+      const maxYear = activePill ? parseInt(activePill.dataset.max, 10) : 6;
+
+      triggerHaptic("medium");
+      await apiFetch("/api/webapp/filters", {
+        method: "POST",
+        body: JSON.stringify({
+          min_age: minAge,
+          max_age: maxAge,
+          min_year: minYear,
+          max_year: maxYear,
+          major: major,
+        }),
+      });
+
+      filtersModal.classList.remove("active");
+      state.feed = [];
+      state.currentCardIndex = 0;
+      loadFeed();
+    });
+
+    document.getElementById("resetFiltersBtn")?.addEventListener("click", async () => {
+      triggerHaptic("medium");
+      await apiFetch("/api/webapp/filters", {
+        method: "POST",
+        body: JSON.stringify({
+          min_age: 16,
+          max_age: 35,
+          min_year: 1,
+          max_year: 6,
+          major: "all",
+        }),
+      });
+      filtersModal.classList.remove("active");
+      state.feed = [];
+      state.currentCardIndex = 0;
+      loadFeed();
+    });
+
+    // Superlike Modal
+    const commentInput = document.getElementById("superlikeComment");
+    const charCount = document.getElementById("commentCharCount");
+    commentInput?.addEventListener("input", () => {
+      if (charCount) charCount.textContent = `${commentInput.value.length}/200`;
+    });
+
+    document.getElementById("closeSuperlikeBtn")?.addEventListener("click", () => superlikeModal.classList.remove("active"));
+    document.getElementById("sendSuperlikeWithCommentBtn")?.addEventListener("click", () => {
+      const candidate = state.selectedCandidateForSuperlike;
+      const comment = commentInput.value.trim();
+      superlikeModal.classList.remove("active");
+      if (candidate) handleSwipeAction(candidate, "superlike", comment);
+    });
+    document.getElementById("sendSuperlikeQuickBtn")?.addEventListener("click", () => {
+      const candidate = state.selectedCandidateForSuperlike;
+      superlikeModal.classList.remove("active");
+      if (candidate) handleSwipeAction(candidate, "superlike", null);
+    });
+
+    // Report Modal
+    document.getElementById("closeReportBtn")?.addEventListener("click", () => reportModal.classList.remove("active"));
+    document.getElementById("cancelReportBtn")?.addEventListener("click", () => reportModal.classList.remove("active"));
+    document.getElementById("submitReportBtn")?.addEventListener("click", async () => {
+      const candidate = state.selectedCandidateForReport;
+      if (!candidate) return;
+      const checkedReason = document.querySelector('input[name="reportReason"]:checked')?.value || "Другое";
+
+      triggerHaptic("heavy");
+      await apiFetch("/api/webapp/report", {
+        method: "POST",
+        body: JSON.stringify({
+          reported_id: candidate.user_id,
+          reason: checkedReason,
+        }),
+      });
+
+      reportModal.classList.remove("active");
+      const topCard = deckContainer.querySelector(`.swipe-card[data-user-id="${candidate.user_id}"]`);
+      if (topCard) {
+        topCard.style.transition = "transform 0.3s, opacity 0.3s";
+        topCard.style.transform = "translate(0, 500px) scale(0.8)";
+        topCard.style.opacity = "0";
+        setTimeout(() => {
+          topCard.remove();
+          state.currentCardIndex++;
+          renderCardStack();
+        }, 300);
+      }
+    });
+
+    // Match celebration close
+    document.getElementById("matchCloseBtn")?.addEventListener("click", () => {
+      matchModal.classList.remove("active");
+    });
+  }
+
+  function openSuperlikeModal(profile) {
+    state.selectedCandidateForSuperlike = profile;
+    const balanceLabel = document.getElementById("superlikeBalanceLabel");
+    if (balanceLabel && state.currentUser) {
+      balanceLabel.textContent = state.currentUser.superlike_balance || "0";
+    }
+    const input = document.getElementById("superlikeComment");
+    if (input) input.value = "";
+    superlikeModal.classList.add("active");
+    triggerHaptic("medium");
+  }
+
+  function openReportModal(profile) {
+    state.selectedCandidateForReport = profile;
+    reportModal.classList.add("active");
+    triggerHaptic("medium");
+  }
+
+  // 8. Всплывающее окно взаимного мэтча (Match Celebration)
   function showMatchPopup(partner) {
     triggerHaptic("success");
     const pNameEl = document.getElementById("matchPartnerName");
     const pAvatarEl = document.getElementById("matchPartnerAvatar");
-    const myAvatarEl = document.getElementById("matchMyAvatar");
     const chatBtn = document.getElementById("matchChatBtn");
 
     if (pNameEl) pNameEl.textContent = partner.name || "Студент";
@@ -407,14 +740,7 @@
     matchModal.classList.add("active");
   }
 
-  const matchCloseBtn = document.getElementById("matchCloseBtn");
-  if (matchCloseBtn) {
-    matchCloseBtn.addEventListener("click", () => {
-      matchModal.classList.remove("active");
-    });
-  }
-
-  // 6. Загрузка раздела «Мэтчи»
+  // 9. Раздел «Мэтчи» с возможностью открыть полную анкету мэтча
   async function loadMatches() {
     const container = document.getElementById("matchesContainer");
     if (!container) return;
@@ -441,27 +767,95 @@
           const prem = m.is_premium ? " 💎" : "";
 
           return `
-            <div class="match-item">
+            <div class="match-item" data-partner-id="${m.user_id}">
               <img src="${photoUrl}" class="match-avatar" alt="${escapeHtml(m.name)}" />
               <div class="match-info">
                 <div class="match-name-row">
                   <span class="match-name">${escapeHtml(m.name)}${verified}${prem}</span>
                 </div>
-                <div class="match-univ">${m.university || "Студент"} ${m.year ? `• ${m.year} курс` : ""}</div>
+                <div class="match-univ">${m.university || "ВУЗ"} ${m.year ? `• ${m.year} курс` : ""}</div>
               </div>
-              <a href="${chatUrl}" target="_blank" class="match-chat-btn">
+              <a href="${chatUrl}" target="_blank" class="match-chat-btn" onclick="event.stopPropagation();">
                 💬 Написать
               </a>
             </div>
           `;
         })
         .join("");
+
+      // Клик по строке мэтча открывает его подробную анкету
+      container.querySelectorAll(".match-item").forEach((item) => {
+        item.addEventListener("click", () => {
+          const pid = item.dataset.partnerId;
+          openMatchFullProfile(pid);
+        });
+      });
     } catch (e) {
       container.innerHTML = '<div style="text-align:center;padding:30px;color:red;">Ошибка загрузки</div>';
     }
   }
 
-  // 7. Загрузка раздела «Симпатии» (Incoming Likes)
+  // Открытие полной анкеты мэтча
+  async function openMatchFullProfile(partnerId) {
+    triggerHaptic("medium");
+    const body = document.getElementById("matchProfileBody");
+    if (!body) return;
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Загрузка анкеты...</div>';
+    matchProfileModal.classList.add("active");
+
+    try {
+      const data = await apiFetch(`/api/webapp/user/${partnerId}`);
+      if (!data || !data.user) {
+        body.innerHTML = '<div style="text-align:center;padding:30px;color:red;">Не удалось загрузить анкету</div>';
+        return;
+      }
+      const u = data.user;
+      const photos = u.photos && u.photos.length > 0 ? u.photos : ["https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80"];
+      const gallery = photos.map((p) => `<img src="${p}" class="sheet-photo" />`).join("");
+      const tags = (u.tags || []).map((t) => `<span class="card-tag">${t.emoji} ${t.name}</span>`).join("");
+      const chatUrl = u.tg_username ? `https://t.me/${u.tg_username.replace("@", "")}` : "#";
+
+      body.innerHTML = `
+        <div class="sheet-gallery">${gallery}</div>
+        <div>
+          <h2 style="font-size: 24px; font-weight: 800; margin-bottom: 4px;">
+            ${escapeHtml(u.name)}, ${u.age || ""} ${u.is_verified ? "🎓" : ""} ${u.is_premium ? "💎" : ""}
+          </h2>
+          <p style="font-size: 14px; color: var(--text-muted);">
+            🏛 ${u.university || "ВУЗ"} ${u.major ? `• ${u.major}` : ""} ${u.year ? `• ${u.year} курс` : ""}
+          </p>
+        </div>
+
+        ${u.goal ? `
+          <div class="sheet-section">
+            <div class="sheet-section-title">О себе</div>
+            <p class="sheet-section-text">${escapeHtml(u.goal)}</p>
+          </div>
+        ` : ""}
+
+        ${tags ? `
+          <div class="sheet-section">
+            <div class="sheet-section-title">Интересы</div>
+            <div class="card-tags" style="margin-top:6px;">${tags}</div>
+          </div>
+        ` : ""}
+
+        <div style="margin-top: 10px;">
+          <a href="${chatUrl}" target="_blank" class="btn-primary" style="text-decoration:none;display:block;text-align:center;">
+            💬 Написать в Telegram
+          </a>
+        </div>
+      `;
+    } catch (e) {
+      body.innerHTML = '<div style="text-align:center;padding:30px;color:red;">Ошибка загрузки анкеты</div>';
+    }
+  }
+
+  matchProfileModal?.addEventListener("click", (e) => {
+    if (e.target === matchProfileModal) matchProfileModal.classList.remove("active");
+  });
+
+  // 10. Раздел «Симпатии» (Incoming Likes)
   async function loadIncomingLikes() {
     const container = document.getElementById("likesContainer");
     if (!container) return;
@@ -471,7 +865,6 @@
       if (!data) return;
 
       if (!data.is_premium) {
-        // Пейволл-тизер
         container.innerHTML = `
           <div class="paywall-card">
             <div class="paywall-icon">💌</div>
@@ -519,7 +912,7 @@
     loadIncomingLikes();
   };
 
-  // 8. Загрузка профиля (Profile)
+  // 11. Раздел «Профиль»
   async function loadProfile() {
     const container = document.getElementById("profileContainer");
     if (!container) return;
@@ -564,14 +957,19 @@
             <span>Режим поиска: <b>${u.mode === "career" ? "💼 Карьера" : "💘 Знакомства"}</b></span>
             <span>⇄</span>
           </div>
+          <div class="profile-menu-item" id="btnOpenSearchFilters">
+            <span>🎯 Настройки фильтров поиска</span>
+            <span>→</span>
+          </div>
           <div class="profile-menu-item" id="btnOpenBotSettings">
-            <span>⚙️ Настройки в боте</span>
+            <span>⚙️ Настройки анкеты в боте</span>
             <span>→</span>
           </div>
         </div>
       `;
 
       document.getElementById("btnToggleProfileMode")?.addEventListener("click", toggleMode);
+      document.getElementById("btnOpenSearchFilters")?.addEventListener("click", openFiltersModal);
       document.getElementById("btnOpenBotSettings")?.addEventListener("click", () => {
         tg?.openTelegramLink("https://t.me/" + (window.BOT_USERNAME || "edudating_bot") + "?start=settings");
       });

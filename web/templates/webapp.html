@@ -28,8 +28,13 @@
         <div class="brand-logo">🎓</div>
         <div class="brand-title">StudMatch</div>
       </div>
-      <div class="mode-badge" id="headerModeBadge">
-        💘 Знакомства
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="mode-badge" id="headerModeBadge">
+          💘 Знакомства
+        </div>
+        <button class="header-icon-btn" id="openFiltersBtn" title="Фильтры поиска">
+          🎯
+        </button>
       </div>
     </header>
 
@@ -131,6 +136,117 @@
           <span class="nav-icon">👤</span>
         </button>
       </nav>
+    </div>
+
+    <!-- Candidate Details Bottom Sheet -->
+    <div class="bottom-sheet-overlay" id="detailsSheetOverlay">
+      <div class="bottom-sheet-content">
+        <div class="sheet-drag-handle"></div>
+        <div class="sheet-body" id="detailsSheetBody">
+          <!-- Dynamic Candidate Content -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters Modal -->
+    <div class="modal-overlay" id="filtersModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">🎯 Фильтры поиска</h3>
+          <button class="modal-close" id="closeFiltersBtn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="filter-group">
+            <label class="filter-label">Возраст студента (от и до):</label>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="number" id="filterMinAge" min="16" max="35" class="filter-input" placeholder="От 16" />
+              <span>—</span>
+              <input type="number" id="filterMaxAge" min="16" max="35" class="filter-input" placeholder="До 35" />
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Курс обучения:</label>
+            <div class="course-pills" id="coursePills">
+              <button type="button" class="course-pill active" data-min="1" data-max="6">Все курсы</button>
+              <button type="button" class="course-pill" data-min="1" data-max="1">1 курс</button>
+              <button type="button" class="course-pill" data-min="2" data-max="2">2 курс</button>
+              <button type="button" class="course-pill" data-min="3" data-max="3">3 курс</button>
+              <button type="button" class="course-pill" data-min="4" data-max="4">4 курс</button>
+              <button type="button" class="course-pill" data-min="5" data-max="6">Магистратура (5-6)</button>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Специальность / Факультет:</label>
+            <input type="text" id="filterMajor" class="filter-input full-width" placeholder="Любой (или, например: Экономика, IT)" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" id="saveFiltersBtn">Применить фильтры</button>
+          <button class="btn-secondary" id="resetFiltersBtn">Сбросить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Superlike Modal -->
+    <div class="modal-overlay" id="superlikeModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">⭐ Суперлайк с комплиментом</h3>
+          <button class="modal-close" id="closeSuperlikeBtn">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+            Суперлайк выделит вашу анкету и поднимет её на 1 место! Вы можете сразу отправить первое сообщение:
+          </p>
+          <textarea id="superlikeComment" class="filter-textarea" placeholder="Привет! Классная анкета, тоже учусь в..." maxlength="200"></textarea>
+          <div style="font-size:12px;color:var(--text-muted);display:flex;justify-content:space-between;margin-top:4px;">
+            <span>Баланс: <b id="superlikeBalanceLabel">0</b> ⭐</span>
+            <span id="commentCharCount">0/200</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" id="sendSuperlikeWithCommentBtn">⭐ Отправить суперлайк</button>
+          <button class="btn-secondary" id="sendSuperlikeQuickBtn">Без сообщения</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div class="modal-overlay" id="reportModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">🚩 Пожаловаться на анкету</h3>
+          <button class="modal-close" id="closeReportBtn">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">
+            Укажите причину жалобы. Анкета будет немедленно исключена из вашей ленты:
+          </p>
+          <div class="report-options" id="reportOptions">
+            <label class="report-option"><input type="radio" name="reportReason" value="📢 Спам или реклама" checked /> 📢 Спам или реклама</label>
+            <label class="report-option"><input type="radio" name="reportReason" value="🎭 Фейковый профиль" /> 🎭 Фейковый профиль</label>
+            <label class="report-option"><input type="radio" name="reportReason" value="🤬 Оскорбления или грубость" /> 🤬 Оскорбления или грубость</label>
+            <label class="report-option"><input type="radio" name="reportReason" value="🔞 Неприемлемый контент 18+" /> 🔞 Неприемлемый контент 18+</label>
+            <label class="report-option"><input type="radio" name="reportReason" value="❓ Другое нарушение" /> ❓ Другое нарушение</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary danger" id="submitReportBtn">Отправить жалобу</button>
+          <button class="btn-secondary" id="cancelReportBtn">Отмена</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match Full Profile Modal -->
+    <div class="bottom-sheet-overlay" id="matchProfileModal">
+      <div class="bottom-sheet-content">
+        <div class="sheet-drag-handle"></div>
+        <div class="sheet-body" id="matchProfileBody">
+          <!-- Dynamic Match Content -->
+        </div>
+      </div>
     </div>
 
     <!-- Match Celebration Modal -->

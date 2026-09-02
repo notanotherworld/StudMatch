@@ -1,4 +1,4 @@
-﻿"""
+"""
 Роутер Telegram Mini App (WebApp) для StudMatch.
 Полнофункциональный SPA: авторизация через initData, свайпы, мэтчи, профиль, медиа-прокси.
 """
@@ -23,7 +23,8 @@ from bot.config import settings
 from web.dependencies import get_db, SECRET, ALGORITHM
 import jwt
 from database.models import (
-    User, Profile, University, Swipe, Match, SwipeAction, ModeEnum, InterestTag
+    User, Profile, University, Swipe, Match, SwipeAction, ModeEnum, InterestTag,
+    Report, ReportStatus
 )
 from database.crud import (
     get_user, get_profile, get_next_profile, create_swipe,
@@ -255,7 +256,9 @@ async def webapp_feed(
             # Специфика карьеры
             "career_goal": p.career_goal if mode == ModeEnum.career else None,
             "career_skills": p.career_skills if mode == ModeEnum.career else None,
+            "career_custom_skills": p.career_custom_skills if mode == ModeEnum.career else None,
             "career_portfolio_url": p.career_portfolio_url if mode == ModeEnum.career else None,
+            "career_work_format": p.career_work_format if mode == ModeEnum.career else None,
         })
 
     return {"status": "ok", "count": len(result), "profiles": result}
@@ -473,6 +476,139 @@ async def webapp_toggle_mode(
     student.mode = new_mode
     await db.commit()
     return {"status": "ok", "mode": new_mode.value}
+
+
+# ─── API: Поисковые фильтры (Возраст, Курс, Факультет) ────────
+class WebAppFiltersRequest(BaseModel):
+    min_age: int = 16
+    max_age: int = 35
+    min_year: int = 1
+    max_year: int = 6
+    major: Optional[str] = "all"
+
+
+@router.get("/api/webapp/filters")
+async def webapp_get_filters(
+    student: User = Depends(get_current_student),
+):
+    """Получить текущие сохраненные фильтры пользователя."""
+    p = student.profile
+    return {
+        "status": "ok",
+        "min_age": p.filter_min_age if (p and p.filter_min_age) else 16,
+        "max_age": p.filter_max_age if (p and p.filter_max_age) else 35,
+        "min_year": p.filter_min_year if (p and p.filter_min_year) else 1,
+        "max_year": p.filter_max_year if (p and p.filter_max_year) else 6,
+        "major": p.filter_major if (p and p.filter_major) else "all",
+    }
+
+
+@router.post("/api/webapp/filters")
+async def webapp_save_filters(
+    payload: WebAppFiltersRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Сохранить фильтры поиска (возраст, курс, факультет)."""
+    p = student.profile
+    if p:
+        p.filter_min_age = max(16, min(50, payload.min_age))
+        p.filter_max_age = max(payload.min_age, min(50, payload.max_age))
+        p.filter_min_year = max(1, min(6, payload.min_year))
+        p.filter_max_year = max(payload.min_year, min(6, payload.max_year))
+        p.filter_major = None if payload.major in ("all", "", None) else payload.major.strip()
+        await db.commit()
+    return {"status": "ok"}
+
+
+# ─── API: Жалоба на анкету (Report) ──────────────────────────
+class WebAppReportRequest(BaseModel):
+    reported_id: int
+    reason: str
+
+
+@router.post("/api/webapp/report")
+async def webapp_report_user(
+    payload: WebAppReportRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Отправить жалобу на пользователя и исключить его из выдачи."""
+    if payload.reported_id == student.id:
+        raise HTTPException(status_code=400, detail="Нельзя пожаловаться на самого себя")
+
+    exist_report = await db.scalar(
+        select(Report).where(
+            Report.reporter_id == student.id,
+            Report.reported_id == payload.reported_id,
+        )
+    )
+    if not exist_report:
+        import uuid
+        db.add(
+            Report(
+                id=uuid.uuid4(),
+                reporter_id=student.id,
+                reported_id=payload.reported_id,
+                reason=payload.reason[:500],
+                status=ReportStatus.pending,
+            )
+        )
+        await db.commit()
+    return {"status": "ok"}
+
+
+# ─── API: Детальная анкета пользователя (для листа и мэтчей) ─
+@router.get("/api/webapp/user/{user_id}")
+async def webapp_get_user_details(
+    user_id: int,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Возвращает полную карточку любого студента (для модалки и мэтчей)."""
+    target = await get_user(db, user_id)
+    if not target or not target.is_active:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    p = target.profile
+    photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
+    if p and p.career_avatar_file_id and p.career_avatar_file_id not in photos:
+        photos.append(p.career_avatar_file_id)
+
+    photo_urls = [f"/api/webapp/photo/{pid}" for pid in photos if pid]
+
+    tags = []
+    if p and p.interest_ids:
+        tag_res = await db.execute(select(InterestTag).where(InterestTag.id.in_(p.interest_ids)))
+        for t in tag_res.scalars().all():
+            tags.append({"id": t.id, "name": t.name, "emoji": t.emoji})
+
+    return {
+        "status": "ok",
+        "user": {
+            "user_id": target.id,
+            "name": p.name if p else "Студент",
+            "age": p.age if p else None,
+            "year": p.year if p else None,
+            "major": p.major if p else "",
+            "university": target.university.name if target.university else "",
+            "goal": p.goal if p else "",
+            "custom_interests": p.custom_interests if p else "",
+            "tags": tags,
+            "photos": photo_urls,
+            "rating_score": round(p.rating_score or 0.0, 1) if p else 0.0,
+            "is_verified": getattr(target, "email_verified", False),
+            "is_premium": getattr(target, "is_premium", False),
+            "tg_username": target.tg_username,
+            # Карьерные параметры
+            "career_goal": p.career_goal if p else None,
+            "career_skills": p.career_skills if p else None,
+            "career_custom_skills": p.career_custom_skills if p else None,
+            "career_portfolio_url": p.career_portfolio_url if p else None,
+            "career_work_format": p.career_work_format if p else None,
+        }
+    }
+
 
 
 # ─── Медиа-прокси: отдача фото из Telegram Bot API ───────────
