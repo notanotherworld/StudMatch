@@ -154,8 +154,8 @@ async def get_current_student(
 
 
 # ─── HTML Страница WebApp ─────────────────────────────────────
-@router.get("/app", response_class=HTMLResponse)
-@router.get("/webapp", response_class=HTMLResponse)
+@router.api_route("/app", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@router.api_route("/webapp", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def webapp_page(request: Request):
     """Отдача основного HTML5 SPA приложения для Telegram WebApp."""
     return templates.TemplateResponse(
