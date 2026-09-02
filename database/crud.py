@@ -489,7 +489,7 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
                 )
             )
         )
-        my_liked_ids = list(my_likes_res.scalars().all())
+        my_liked_ids = [uid for uid in my_likes_res.scalars().all() if uid and uid != user_id]
 
         if my_liked_ids:
             mutual_res = await db.execute(
@@ -501,9 +501,13 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
                     )
                 )
             )
-            mutual_ids = list(mutual_res.scalars().all())
+            mutual_ids = [uid for uid in mutual_res.scalars().all() if uid and uid != user_id]
 
             for partner_id in mutual_ids:
+                partner_user = await get_user(db, partner_id)
+                if not partner_user:
+                    continue
+
                 exist_match = await db.scalar(
                     select(Match).where(
                         or_(
@@ -513,31 +517,37 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
                     )
                 )
                 if not exist_match:
-                    db.add(Match(user1_id=user_id, user2_id=partner_id, mode=ModeEnum.dating))
+                    db.add(Match(id=uuid.uuid4(), user1_id=user_id, user2_id=partner_id, mode=ModeEnum.dating))
             await db.commit()
     except Exception as e:
+        await db.rollback()
         logger.warning(f"Failed to auto-heal matches for user {user_id}: {e}")
 
     # 2. Выбираем все актуальные мэтчи
-    query = (
-        select(Match)
-        .where(or_(Match.user1_id == user_id, Match.user2_id == user_id))
-        .order_by(Match.created_at.desc())
-    )
-    result = await db.execute(query)
-    matches = list(result.scalars().all())
+    try:
+        query = (
+            select(Match)
+            .where(or_(Match.user1_id == user_id, Match.user2_id == user_id))
+            .order_by(Match.created_at.desc())
+        )
+        result = await db.execute(query)
+        matches = list(result.scalars().all())
 
-    partner_matches = []
-    seen_partners = set()
-    for m in matches:
-        partner_id = m.user2_id if m.user1_id == user_id else m.user1_id
-        if partner_id in seen_partners:
-            continue
-        partner = await get_user(db, partner_id)
-        if partner and partner.profile and partner.is_active and not partner.is_banned:
-            seen_partners.add(partner_id)
-            partner_matches.append((m, partner))
-    return partner_matches
+        partner_matches = []
+        seen_partners = set()
+        for m in matches:
+            partner_id = m.user2_id if m.user1_id == user_id else m.user1_id
+            if partner_id in seen_partners or partner_id == user_id:
+                continue
+            partner = await get_user(db, partner_id)
+            if partner and partner.profile and partner.is_active and not partner.is_banned:
+                seen_partners.add(partner_id)
+                partner_matches.append((m, partner))
+        return partner_matches
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error querying matches for user {user_id}: {e}", exc_info=True)
+        return []
 
 
 # ─────────────────────────────────────────────────────────────
