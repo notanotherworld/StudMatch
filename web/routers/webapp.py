@@ -199,7 +199,7 @@ async def webapp_auth(
 
     is_superadmin = (user.id == settings.SUPERADMIN_ID or user.id in settings.admin_ids)
     if is_superadmin:
-        user.is_premium = True
+        user.premium_until = datetime.now(timezone.utc) + timedelta(days=3650)
         user.email_verified = True
         user.superlike_balance = max(user.superlike_balance or 0, 9999)
         await db.commit()
@@ -598,7 +598,7 @@ async def webapp_profile(
 
     is_superadmin = (student.id == settings.SUPERADMIN_ID or student.id in settings.admin_ids)
     if is_superadmin:
-        student.is_premium = True
+        student.premium_until = datetime.now(timezone.utc) + timedelta(days=3650)
         student.email_verified = True
         student.superlike_balance = max(student.superlike_balance or 0, 9999)
         await db.commit()
@@ -893,10 +893,12 @@ async def webapp_admin_user_action(
         msg = "Пользователь заблокирован" if not target.is_active else "Пользователь разблокирован"
 
     elif action == "grant_premium":
-        target.is_premium = not target.is_premium
         if target.is_premium:
+            target.premium_until = None
+            msg = "Премиум отключен"
+        else:
             target.premium_until = datetime.now(timezone.utc) + timedelta(days=365)
-        msg = "Премиум активирован" if target.is_premium else "Премиум отключен"
+            msg = "Премиум активирован на 1 год"
 
     elif action == "grant_verified":
         target.email_verified = not target.email_verified

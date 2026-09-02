@@ -74,71 +74,80 @@
     return await res.json();
   }
 
+  let isAuthenticating = false;
   let reconnectTimer = null;
   let retryCount = 0;
 
   // 1. Авторизация
   async function authenticateUser() {
+    if (isAuthenticating) return;
+    isAuthenticating = true;
+
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
 
-    // Попытка восстановить активную сессию из сохранённого токена
-    const savedToken = state.token || localStorage.getItem("studmatch_token");
-    if (savedToken) {
-      try {
-        const profRes = await fetch("/api/webapp/profile", {
-          headers: {
-            "Authorization": `Bearer ${savedToken}`,
-            "Content-Type": "application/json"
-          }
-        });
-        if (profRes.ok) {
-          const profData = await profRes.json();
-          if (profData && profData.status === "ok" && profData.user) {
-            console.log("[StudMatch] Re-used valid saved session token");
-            state.token = savedToken;
-            state.currentUser = profData.user;
-            localStorage.setItem("studmatch_token", savedToken);
-            updateHeaderUser();
-            await loadFeed();
-            await loadStories();
-            return;
-          }
-        }
-      } catch (e) {
-        console.warn("[StudMatch] Saved token verification failed:", e);
-      }
-    }
-
-    // Получаем актуальные данные сессии Telegram
-    let initData = tg?.initData || "";
-    if (!initData && window.location.hash) {
-      try {
-        const hash = window.location.hash.slice(1);
-        const params = new URLSearchParams(hash);
-        initData = params.get("tgWebAppData") || "";
-      } catch (e) {}
-    }
-
-    if (!initData) {
-      deckContainer.innerHTML = `
-        <div class="deck-empty" style="display:flex;">
-          <div class="deck-empty-icon">📱</div>
-          <h2 class="deck-empty-title">Вход через Telegram</h2>
-          <p class="deck-empty-desc">Откройте StudMatch через нашего Telegram бота, чтобы войти в свою студенческую анкету.</p>
-          <a href="https://t.me/${window.BOT_USERNAME || "edudating_bot"}" class="btn-primary" style="text-decoration:none;display:block;max-width:240px;margin:0 auto;text-align:center;">
-            🚀 Открыть бота
-          </a>
-        </div>
-      `;
-      return;
-    }
-
-    console.log("[StudMatch] Authenticating via initData, length:", initData.length);
-
     try {
+      // Попытка восстановить активную сессию из сохранённого токена
+      const savedToken = state.token || localStorage.getItem("studmatch_token");
+      if (savedToken) {
+        try {
+          const profRes = await fetch("/api/webapp/profile", {
+            headers: {
+              "Authorization": `Bearer ${savedToken}`,
+              "Content-Type": "application/json"
+            }
+          });
+          if (profRes.ok) {
+            const profData = await profRes.json();
+            if (profData && profData.status === "ok" && profData.user) {
+              console.log("[StudMatch] Re-used valid saved session token");
+              state.token = savedToken;
+              state.currentUser = profData.user;
+              localStorage.setItem("studmatch_token", savedToken);
+              updateHeaderUser();
+              retryCount = 0;
+              if (state.feed.length === 0) {
+                await loadFeed();
+              }
+              await loadStories();
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn("[StudMatch] Saved token verification failed:", e);
+        }
+      }
+
+      // Получаем актуальные данные сессии Telegram
+      let initData = tg?.initData || "";
+      if (!initData && window.location.hash) {
+        try {
+          const hash = window.location.hash.slice(1);
+          const params = new URLSearchParams(hash);
+          initData = params.get("tgWebAppData") || "";
+        } catch (e) {}
+      }
+
+      if (!initData) {
+        if (state.feed.length === 0) {
+          deckContainer.innerHTML = `
+            <div class="deck-empty" style="display:flex;">
+              <div class="deck-empty-icon">📱</div>
+              <h2 class="deck-empty-title">Вход через Telegram</h2>
+              <p class="deck-empty-desc">Откройте StudMatch через нашего Telegram бота, чтобы войти в свою студенческую анкету.</p>
+              <a href="https://t.me/${window.BOT_USERNAME || "edudating_bot"}" class="btn-primary" style="text-decoration:none;display:block;max-width:240px;margin:0 auto;text-align:center;">
+                🚀 Открыть бота
+              </a>
+            </div>
+          `;
+        }
+        return;
+      }
+
+      console.log("[StudMatch] Authenticating via initData, length:", initData.length);
+
       const res = await fetch("/api/webapp/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -149,22 +158,24 @@
         const errData = await res.json().catch(() => ({}));
         if (res.status === 401 || res.status === 403) {
           console.warn("[StudMatch] Auth forbidden/unauthorized:", errData);
-          deckContainer.innerHTML = `
-            <div class="deck-empty" style="display:flex;">
-              <div class="deck-empty-icon">🔒</div>
-              <h2 class="deck-empty-title">Сессия Telegram устарела</h2>
-              <p class="deck-empty-desc">${errData.detail || "Не удалось подтвердить сессию Telegram."}<br><small style="color:var(--text-muted);font-size:12px;margin-top:4px;display:block;">Закройте приложение и откройте его заново кнопкой в боте.</small></p>
-              <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:240px;margin:12px auto 0;">
-                <button class="btn-primary" onclick="window.Telegram?.WebApp?.close();">
-                  🚪 Закрыть и открыть из бота
-                </button>
-                <button class="btn-secondary" id="btnRetryAuthNow">
-                  🔄 Попробовать снова
-                </button>
+          if (state.feed.length === 0) {
+            deckContainer.innerHTML = `
+              <div class="deck-empty" style="display:flex;">
+                <div class="deck-empty-icon">🔒</div>
+                <h2 class="deck-empty-title">Сессия Telegram устарела</h2>
+                <p class="deck-empty-desc">${errData.detail || "Не удалось подтвердить сессию Telegram."}<br><small style="color:var(--text-muted);font-size:12px;margin-top:4px;display:block;">Закройте приложение и откройте его заново кнопкой в боте.</small></p>
+                <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:240px;margin:12px auto 0;">
+                  <button class="btn-primary" onclick="window.Telegram?.WebApp?.close();">
+                    🚪 Закрыть и открыть из бота
+                  </button>
+                  <button class="btn-secondary" id="btnRetryAuthNow">
+                    🔄 Попробовать снова
+                  </button>
+                </div>
               </div>
-            </div>
-          `;
-          document.getElementById("btnRetryAuthNow")?.addEventListener("click", () => authenticateUser());
+            `;
+            document.getElementById("btnRetryAuthNow")?.addEventListener("click", () => authenticateUser());
+          }
           return;
         }
         throw new Error(errData.detail || `HTTP ${res.status}`);
@@ -177,25 +188,34 @@
         state.currentUser = data.user;
         localStorage.setItem("studmatch_token", data.token);
         updateHeaderUser();
-        await loadFeed();
+        if (state.feed.length === 0) {
+          await loadFeed();
+        }
         await loadStories();
       } else {
-        deckContainer.innerHTML = `
-          <div class="deck-empty" style="display:flex;">
-            <div class="deck-empty-icon">🔒</div>
-            <h2 class="deck-empty-title">Авторизация в Telegram</h2>
-            <p class="deck-empty-desc">${data.detail || "Не удалось проверить сессию Telegram."}</p>
-            <button class="btn-primary" id="btnRetryAuthNow" style="max-width: 220px; margin: 0 auto;">
-              🔄 Попробовать снова
-            </button>
-          </div>
-        `;
-        document.getElementById("btnRetryAuthNow")?.addEventListener("click", () => authenticateUser());
+        if (state.feed.length === 0) {
+          deckContainer.innerHTML = `
+            <div class="deck-empty" style="display:flex;">
+              <div class="deck-empty-icon">🔒</div>
+              <h2 class="deck-empty-title">Авторизация в Telegram</h2>
+              <p class="deck-empty-desc">${data.detail || "Не удалось проверить сессию Telegram."}</p>
+              <button class="btn-primary" id="btnRetryAuthNow" style="max-width: 220px; margin: 0 auto;">
+                🔄 Попробовать снова
+              </button>
+            </div>
+          `;
+          document.getElementById("btnRetryAuthNow")?.addEventListener("click", () => authenticateUser());
+        }
       }
     } catch (err) {
       console.warn("[StudMatch] Auth attempt failed:", err);
-      retryCount++;
 
+      // Если анкеты уже загружены и отображаются — НЕ стираем колоду!
+      if (state.token && state.feed.length > 0) {
+        return;
+      }
+
+      retryCount++;
       deckContainer.innerHTML = `
         <div class="deck-empty" style="display:flex;">
           <div class="deck-empty-icon">🔄</div>
@@ -216,10 +236,13 @@
         authenticateUser();
       });
 
-      // Автоматический периодический реконнект каждые 2 секунды
-      reconnectTimer = setTimeout(() => {
-        authenticateUser();
-      }, 2000);
+      if (retryCount <= 5) {
+        reconnectTimer = setTimeout(() => {
+          authenticateUser();
+        }, 2500);
+      }
+    } finally {
+      isAuthenticating = false;
     }
   }
 
