@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_17" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_18" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -124,26 +124,32 @@
     </main>
 
     <!-- Floating Bottom Navigation Bar (Figma Prototype Island Dock) -->
-    <div class="bottom-nav-wrap">
+    <div class="bottom-nav-wrap collapsed" id="bottomNavWrap">
       <nav class="floating-nav">
-        <button class="nav-tab-btn active" data-tab="explore" aria-label="Explore">
+        <button class="nav-tab-btn active" data-tab="explore" aria-label="Explore" title="Лента">
           <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none">
             <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM10.5 7.5L16.5 10.5L13.5 16.5L7.5 13.5L10.5 7.5Z" fill="currentColor"/>
           </svg>
         </button>
-        <button class="nav-tab-btn" data-tab="likes" aria-label="Likes">
+        <button class="nav-tab-btn" data-tab="likes" aria-label="Likes" title="Симпатии">
           <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none">
             <path d="M12 21.35L10.55 20.03C5.4 15.36 2 12.28 2 8.5C2 5.42 4.42 3 7.5 3C9.24 3 10.91 3.81 12 5.09C13.09 3.81 14.76 3 16.5 3C19.58 3 22 5.42 22 8.5C22 12.28 18.6 15.36 13.45 20.04L12 21.35Z" fill="currentColor"/>
           </svg>
         </button>
-        <button class="nav-tab-btn" data-tab="matches" aria-label="Matches">
+        <button class="nav-tab-btn" data-tab="matches" aria-label="Matches" title="Мэтчи">
           <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none">
             <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM18 14H6V12H18V14ZM18 11H6V9H18V11ZM18 8H6V6H18V8Z" fill="currentColor"/>
           </svg>
         </button>
-        <button class="nav-tab-btn" data-tab="profile" aria-label="Profile">
+        <button class="nav-tab-btn" data-tab="profile" aria-label="Profile" title="Профиль">
           <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none">
             <path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12ZM12 14C9.33 14 4 15.34 4 18V20H20V18C20 15.34 14.67 14 12 14Z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="nav-tab-btn nav-close-btn" id="closeBottomNavBtn" aria-label="Скрыть меню" title="Скрыть меню">
+          <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
       </nav>
@@ -349,6 +355,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260902_17"></script>
+  <script src="/static/webapp/webapp.js?v=20260902_18"></script>
 </body>
 </html>

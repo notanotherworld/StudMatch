@@ -262,7 +262,7 @@ body {
   flex: 1;
   position: relative;
   overflow: hidden;
-  padding-bottom: 74px;
+  padding-bottom: 0;
 }
 
 .app-screen {
@@ -276,6 +276,17 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+#screen-explore {
+  padding-bottom: 8px;
+  overflow: hidden;
+}
+
+#screen-likes,
+#screen-matches,
+#screen-profile {
+  padding-bottom: 84px;
+}
+
 .app-screen.active {
   display: flex;
   flex-direction: column;
@@ -285,7 +296,7 @@ body {
 .deck-container {
   flex: 1;
   position: relative;
-  margin: 2px 14px 6px;
+  margin: 2px 12px 6px;
   border-radius: var(--radius-xl);
   overflow: hidden;
   display: flex;
@@ -882,38 +893,56 @@ body {
   justify-content: center;
   z-index: 100;
   pointer-events: none;
+  transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease;
+  will-change: transform, opacity;
+}
+
+.bottom-nav-wrap.collapsed {
+  transform: translateY(140%) scale(0.94);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .floating-nav {
   pointer-events: auto;
-  width: calc(100% - 36px);
-  max-width: 380px;
-  height: 66px;
-  background: rgba(255, 255, 255, 0.92);
+  width: calc(100% - 32px);
+  max-width: 390px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-radius: 38px;
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 16px 36px rgba(108, 92, 231, 0.12), 0 4px 16px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 16px 36px rgba(108, 92, 231, 0.16), 0 4px 16px rgba(0, 0, 0, 0.06);
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: 0 12px;
+  padding: 0 8px;
 }
 
 .nav-tab-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 24px;
+  width: 46px;
+  height: 46px;
+  border-radius: 23px;
   background: transparent;
   border: none;
   cursor: pointer;
   position: relative;
   transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   color: #8E92A4;
+}
+
+.nav-close-btn {
+  color: #A0A4B8;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.nav-close-btn:active {
+  transform: scale(0.9);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .nav-svg-icon {

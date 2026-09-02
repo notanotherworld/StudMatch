@@ -283,6 +283,16 @@
     document.getElementById("resetSwipesDeckBtn")?.addEventListener("click", resetSwipesAndReload);
     document.getElementById("changeFiltersDeckBtn")?.addEventListener("click", openFiltersModal);
 
+    // Кнопка закрытия плавающей панели навигации
+    document.getElementById("closeBottomNavBtn")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      const navWrap = document.getElementById("bottomNavWrap");
+      if (navWrap) navWrap.classList.add("collapsed");
+      if (state.activeTab !== "explore") {
+        switchTab("explore");
+      }
+    });
+
     setupModalListeners();
     setupAdminListeners();
   }
@@ -340,16 +350,12 @@
 
       row.innerHTML = html;
 
-      // Клик по своей истории
+      // Клик по своей истории (раскрывает меню навигации и открывает профиль)
       document.getElementById("myStoryItem")?.addEventListener("click", () => {
         triggerHaptic("medium");
-        if (my.is_premium) {
-          switchTab("profile");
-        } else {
-          if (confirm("👑 Хотите попасть в топ Stories?\n\nПремиум-пользователи отображаются в верхней ленте у всех студентов сервиса!\n\nОткрыть оформление Премиума?")) {
-            tg?.openTelegramLink("https://t.me/" + (window.BOT_USERNAME || "edudating_bot") + "?start=premium");
-          }
-        }
+        const navWrap = document.getElementById("bottomNavWrap");
+        if (navWrap) navWrap.classList.remove("collapsed");
+        switchTab("profile");
       });
 
       // Клик по анкетам других пользователей
@@ -383,6 +389,13 @@
   }
 
   function switchTab(tabName) {
+    const navWrap = document.getElementById("bottomNavWrap");
+    if (tabName === "explore") {
+      if (navWrap) navWrap.classList.add("collapsed");
+    } else {
+      if (navWrap) navWrap.classList.remove("collapsed");
+    }
+
     if (state.activeTab === tabName) return;
     state.activeTab = tabName;
     triggerHaptic("light");
