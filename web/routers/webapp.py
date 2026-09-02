@@ -46,11 +46,18 @@ def verify_telegram_init_data(init_data: str, bot_token: str) -> Optional[Dict[s
     Криптографическая проверка подписи initData от Telegram WebApp (HMAC-SHA256).
     Возвращает dict с данными пользователя или None при невалидной подписи.
     """
-    if not init_data:
+    if not init_data or not bot_token:
         return None
     try:
+        init_data = init_data.strip().lstrip("?").lstrip("#")
+        if "tgWebAppData=" in init_data:
+            init_data = init_data.split("tgWebAppData=")[1].split("&tgWebAppVersion")[0]
+            from urllib.parse import unquote
+            init_data = unquote(init_data)
+
         parsed_data = dict(parse_qsl(init_data, keep_blank_values=True))
         if "hash" not in parsed_data:
+            logger.warning("Telegram initData missing 'hash' parameter")
             return None
         received_hash = parsed_data.pop("hash")
 
@@ -58,9 +65,10 @@ def verify_telegram_init_data(init_data: str, bot_token: str) -> Optional[Dict[s
             f"{k}={v}" for k, v in sorted(parsed_data.items())
         )
 
+        clean_token = bot_token.strip()
         secret_key = hmac.new(
             key=b"WebAppData",
-            msg=bot_token.encode("utf-8"),
+            msg=clean_token.encode("utf-8"),
             digestmod=hashlib.sha256
         ).digest()
 
@@ -74,6 +82,10 @@ def verify_telegram_init_data(init_data: str, bot_token: str) -> Optional[Dict[s
             user_raw = parsed_data.get("user")
             if user_raw:
                 return json.loads(user_raw)
+        else:
+            logger.warning(
+                f"Telegram initData hash mismatch: calc={calculated_hash[:10]}... vs rec={received_hash[:10]}..."
+            )
         return None
     except Exception as e:
         logger.warning(f"Error validating Telegram initData: {e}")
@@ -207,8 +219,10 @@ async def webapp_feed(
     seen_ids = set()
 
     for _ in range(10):
-        cand_profile = await get_next_profile(db, viewer_id=student.id, mode=mode)
-        if not cand_profile or cand_profile.user_id in seen_ids:
+        cand_profile = await get_next_profile(
+            db, viewer_id=student.id, mode=mode, exclude_ids=seen_ids
+        )
+        if not cand_profile:
             break
         seen_ids.add(cand_profile.user_id)
         candidates.append(cand_profile)
@@ -608,6 +622,20 @@ async def webapp_get_user_details(
             "career_work_format": p.career_work_format if p else None,
         }
     }
+
+
+@router.post("/api/webapp/reset_swipes")
+async def webapp_reset_swipes(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Сбросить историю свайпов для повторного просмотра анкет."""
+    from sqlalchemy import delete
+    await db.execute(delete(Swipe).where(Swipe.from_user_id == student.id))
+    await db.commit()
+    logger.info(f"User {student.id} reset their swipes in WebApp")
+    return {"status": "ok"}
+
 
 
 

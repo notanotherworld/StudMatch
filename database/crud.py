@@ -2,7 +2,7 @@
 CRUD-операции для основных сущностей.
 """
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Collection, Set
 import uuid
 import random
 import string
@@ -243,6 +243,7 @@ async def get_next_profile(
     db: AsyncSession,
     viewer_id: int,
     mode: Optional[ModeEnum] = None,
+    exclude_ids: Optional[Collection[int]] = None,
 ) -> Optional[Profile]:
     """
     Получить следующую не свайпнутую анкету для поочерёдного свайпа (1 за раз).
@@ -367,6 +368,7 @@ async def get_next_profile(
                 is_complete_cond,
                 User.is_active == True,
                 Profile.user_id != viewer_id,
+                *([Profile.user_id.not_in(exclude_ids)] if exclude_ids else []),
                 ~swiped_subq,
                 ~reported_subq,
                 *gender_filters,

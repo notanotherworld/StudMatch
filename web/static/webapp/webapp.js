@@ -65,6 +65,7 @@
 
     const res = await fetch(url, options);
     if (res.status === 401) {
+      console.warn("[StudMatch] Token expired or 401, re-authenticating...");
       await authenticateUser();
       return;
     }
@@ -73,7 +74,20 @@
 
   // 1. Авторизация
   async function authenticateUser() {
-    const initData = tg?.initData || "dev_mock";
+    let initData = tg?.initData || "";
+    if (!initData && window.location.hash) {
+      try {
+        const hash = window.location.hash.slice(1);
+        const params = new URLSearchParams(hash);
+        initData = params.get("tgWebAppData") || "";
+      } catch (e) {}
+    }
+    if (!initData) {
+      initData = "dev_mock";
+    }
+
+    console.log("[StudMatch] Authenticating, initData length:", initData.length);
+
     try {
       const res = await fetch("/api/webapp/auth", {
         method: "POST",
@@ -81,15 +95,38 @@
         body: JSON.stringify({ init_data: initData }),
       });
       const data = await res.json();
+      console.log("[StudMatch] Auth result:", res.status, data);
+
       if (data.status === "ok") {
         state.token = data.token;
         state.currentUser = data.user;
         localStorage.setItem("studmatch_token", data.token);
         updateHeaderUser();
         loadFeed();
+      } else {
+        deckContainer.innerHTML = `
+          <div class="deck-empty" style="display:flex;">
+            <div class="deck-empty-icon">🔒</div>
+            <h2 class="deck-empty-title">Авторизация в Telegram</h2>
+            <p class="deck-empty-desc">${data.detail || "Не удалось проверить сессию Telegram."}</p>
+            <button class="btn-primary" onclick="location.reload()" style="max-width: 220px; margin: 0 auto;">
+              🔄 Попробовать снова
+            </button>
+          </div>
+        `;
       }
     } catch (err) {
-      console.error("Auth error:", err);
+      console.error("[StudMatch] Auth error:", err);
+      deckContainer.innerHTML = `
+        <div class="deck-empty" style="display:flex;">
+          <div class="deck-empty-icon">⚠️</div>
+          <h2 class="deck-empty-title">Ошибка соединения</h2>
+          <p class="deck-empty-desc">Не удалось подключиться к серверу StudMatch.</p>
+          <button class="btn-primary" onclick="location.reload()" style="max-width: 220px; margin: 0 auto;">
+            🔄 Повторить
+          </button>
+        </div>
+      `;
     }
   }
 
@@ -121,7 +158,26 @@
       openFiltersBtn.addEventListener("click", openFiltersModal);
     }
 
+    // Кнопки в Empty State колоды
+    document.getElementById("resetSwipesDeckBtn")?.addEventListener("click", resetSwipesAndReload);
+    document.getElementById("changeFiltersDeckBtn")?.addEventListener("click", openFiltersModal);
+
     setupModalListeners();
+  }
+
+  async function resetSwipesAndReload() {
+    triggerHaptic("heavy");
+    deckContainer.innerHTML = '<div style="text-align:center;padding:50px;color:var(--text-muted);">Сброс истории свайпов...</div>';
+    deckEmpty.style.display = "none";
+    try {
+      await apiFetch("/api/webapp/reset_swipes", { method: "POST" });
+      state.feed = [];
+      state.currentCardIndex = 0;
+      await loadFeed();
+    } catch (e) {
+      console.error("Reset swipes error:", e);
+      location.reload();
+    }
   }
 
   function switchTab(tabName) {
@@ -171,14 +227,26 @@
   // 3. Загрузка ленты свайпов (Feed)
   async function loadFeed() {
     try {
+      console.log("[StudMatch] Loading feed profiles...");
       const data = await apiFetch("/api/webapp/feed");
+      console.log("[StudMatch] Feed received:", data);
       if (data && data.profiles) {
         state.feed = data.profiles;
         state.currentCardIndex = 0;
         renderCardStack();
       }
     } catch (err) {
-      console.error("Feed error:", err);
+      console.error("[StudMatch] Feed error:", err);
+      deckContainer.innerHTML = `
+        <div class="deck-empty" style="display:flex;">
+          <div class="deck-empty-icon">⚠️</div>
+          <h2 class="deck-empty-title">Ошибка ленты</h2>
+          <p class="deck-empty-desc">Не удалось загрузить анкеты. Проверьте соединение.</p>
+          <button class="btn-primary" onclick="location.reload()" style="max-width: 220px; margin: 0 auto;">
+            🔄 Обновить
+          </button>
+        </div>
+      `;
     }
   }
 
@@ -698,7 +766,6 @@
       }
     });
 
-    // Match celebration close
     document.getElementById("matchCloseBtn")?.addEventListener("click", () => {
       matchModal.classList.remove("active");
     });
@@ -783,7 +850,6 @@
         })
         .join("");
 
-      // Клик по строке мэтча открывает его подробную анкету
       container.querySelectorAll(".match-item").forEach((item) => {
         item.addEventListener("click", () => {
           const pid = item.dataset.partnerId;
@@ -961,6 +1027,10 @@
             <span>🎯 Настройки фильтров поиска</span>
             <span>→</span>
           </div>
+          <div class="profile-menu-item" id="btnResetSwipesProfile">
+            <span>🔄 Сбросить историю свайпов</span>
+            <span>→</span>
+          </div>
           <div class="profile-menu-item" id="btnOpenBotSettings">
             <span>⚙️ Настройки анкеты в боте</span>
             <span>→</span>
@@ -970,6 +1040,7 @@
 
       document.getElementById("btnToggleProfileMode")?.addEventListener("click", toggleMode);
       document.getElementById("btnOpenSearchFilters")?.addEventListener("click", openFiltersModal);
+      document.getElementById("btnResetSwipesProfile")?.addEventListener("click", resetSwipesAndReload);
       document.getElementById("btnOpenBotSettings")?.addEventListener("click", () => {
         tg?.openTelegramLink("https://t.me/" + (window.BOT_USERNAME || "edudating_bot") + "?start=settings");
       });
@@ -988,7 +1059,6 @@
       .replace(/'/g, "&#039;");
   }
 
-  // Запуск приложения
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();
     authenticateUser();

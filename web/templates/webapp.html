@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_4" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -86,10 +86,15 @@
           <div class="deck-empty" id="deckEmpty">
             <div class="deck-empty-icon">✨</div>
             <h2 class="deck-empty-title">Все анкеты просмотрены!</h2>
-            <p class="deck-empty-desc">Загляните позже или смените фильтры поиска, чтобы увидеть новые знакомства в ВУЗах.</p>
-            <button class="btn-primary" onclick="location.reload()" style="max-width: 220px;">
-              🔄 Обновить ленту
-            </button>
+            <p class="deck-empty-desc">Вы просмотрели всех кандидатов по текущим фильтрам.</p>
+            <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:260px;margin:0 auto;">
+              <button class="btn-primary" id="resetSwipesDeckBtn">
+                🔄 Начать сначала (сбросить свайпы)
+              </button>
+              <button class="btn-secondary" id="changeFiltersDeckBtn">
+                🎯 Настроить фильтры
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -272,6 +277,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js"></script>
+  <script src="/static/webapp/webapp.js?v=20260902_4"></script>
 </body>
 </html>
