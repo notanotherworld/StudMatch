@@ -542,6 +542,14 @@ async def webapp_stories(
         res_other = await db.execute(stmt_other)
         other_users = list(res_other.scalars().all())
 
+    # Если реальных премиумов пока мало — наделяем топовые анкеты в сторис статусом Премиум
+    if len(prem_users) < 6 and other_users:
+        to_grant = other_users[: (6 - len(prem_users))]
+        for u in to_grant:
+            if not u.premium_until or u.premium_until <= now:
+                u.premium_until = now + timedelta(days=365)
+        await db.commit()
+
     all_candidates = prem_users + other_users
 
     stories = []
@@ -556,7 +564,7 @@ async def webapp_stories(
         first_photo = photos[0] if photos else None
         avatar_url = resolve_photo_url(first_photo) or DEFAULT_FALLBACK_AVATAR
 
-        univ = u.university.short_name if u.university else (p.university or "")
+        univ = (u.university.short_name or u.university.name) if u.university else (p.major or "")
 
         stories.append({
             "user_id": u.id,
