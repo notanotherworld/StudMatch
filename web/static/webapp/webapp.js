@@ -271,14 +271,6 @@
       openFiltersBtn.addEventListener("click", openFiltersModal);
     }
 
-    // Кнопка уведомлений
-    document.getElementById("headerNotificationBtn")?.addEventListener("click", () => {
-      triggerHaptic("light");
-      if (tg && tg.showAlert) {
-        tg.showAlert("Уведомления включены! Новые мэтчи приходят мгновенно в чат с ботом.");
-      }
-    });
-
     // Кнопки в Empty State колоды
     document.getElementById("resetSwipesDeckBtn")?.addEventListener("click", resetSwipesAndReload);
     document.getElementById("changeFiltersDeckBtn")?.addEventListener("click", openFiltersModal);
@@ -1374,6 +1366,19 @@
             <span>🎯 Настройки фильтров поиска</span>
             <span>→</span>
           </div>
+          <div class="profile-menu-item" id="btnToggleNotifications">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-size: 20px;">🔔</span>
+              <div style="text-align: left;">
+                <div style="font-size: 14.5px; font-weight: 700; color: var(--text-main);">Уведомления о мэтчах</div>
+                <div style="font-size: 11.5px; color: var(--text-muted); font-weight: 500;">Мгновенные алерты в чат с ботом</div>
+              </div>
+            </div>
+            <label class="ios-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" id="notificationToggleInput" ${localStorage.getItem("studmatch_notifications") !== "0" ? "checked" : ""}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           <div class="profile-menu-item" id="btnResetSwipesProfile">
             <span>🔄 Сбросить историю свайпов</span>
             <span>→</span>
@@ -1390,6 +1395,29 @@
       }
       document.getElementById("btnToggleProfileMode")?.addEventListener("click", toggleMode);
       document.getElementById("btnOpenSearchFilters")?.addEventListener("click", openFiltersModal);
+      
+      // Обработчик тумблера уведомлений
+      const notifToggle = document.getElementById("notificationToggleInput");
+      const notifItem = document.getElementById("btnToggleNotifications");
+      const handleNotifChange = (newState) => {
+        triggerHaptic("light");
+        localStorage.setItem("studmatch_notifications", newState ? "1" : "0");
+        if (tg && tg.showAlert) {
+          tg.showAlert(newState ? "🔔 Уведомления о новых мэтчах и лайках включены!" : "🔕 Уведомления о мэтчах отключены.");
+        }
+      };
+      if (notifToggle) {
+        notifToggle.addEventListener("change", (e) => handleNotifChange(e.target.checked));
+      }
+      if (notifItem) {
+        notifItem.addEventListener("click", () => {
+          if (notifToggle) {
+            notifToggle.checked = !notifToggle.checked;
+            handleNotifChange(notifToggle.checked);
+          }
+        });
+      }
+
       document.getElementById("btnResetSwipesProfile")?.addEventListener("click", resetSwipesAndReload);
       document.getElementById("btnOpenBotSettings")?.addEventListener("click", () => {
         tg?.openTelegramLink("https://t.me/" + (window.BOT_USERNAME || "edudating_bot") + "?start=settings");
