@@ -627,7 +627,7 @@ async def webapp_toggle_mode(
     return {"status": "ok", "mode": new_mode.value}
 
 
-# ─── API: Social Mate Career Networking ───────────────────────
+# ─── API: StudMatch Career Networking ───────────────────────
 class CareerProfileUpdateRequest(BaseModel):
     career_goal: Optional[str] = None
     career_custom_skills: Optional[str] = None
@@ -641,7 +641,7 @@ async def webapp_update_career_profile(
     student: User = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    """Быстрое сохранение карьерных данных студента (Social Mate)."""
+    """Быстрое сохранение карьерных данных студента (StudMatch)."""
     p_res = await db.execute(select(Profile).where(Profile.user_id == student.id))
     p = p_res.scalar_one_or_none()
     if not p:
@@ -663,7 +663,7 @@ async def webapp_update_career_profile(
 
     return {
         "status": "ok",
-        "message": "Карьерный профиль Social Mate обновлен!",
+        "message": "Карьерный профиль StudMatch обновлен!",
         "profile": {
             "career_goal": p.career_goal,
             "career_custom_skills": p.career_custom_skills,
@@ -683,7 +683,7 @@ async def webapp_career_feed(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Профессиональная лента нетворкинга Social Mate:
+    Профессиональная лента нетворкинга StudMatch:
     Возвращает карточки специалистов/студентов с навыками, целями и портфолио.
     """
     query = (

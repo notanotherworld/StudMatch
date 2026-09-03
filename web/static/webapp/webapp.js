@@ -485,7 +485,7 @@
 
     if (targetMode === "career") {
       document.body.classList.add("career-theme");
-      if (brandTitle) brandTitle.textContent = "Social Mate";
+      if (brandTitle) brandTitle.textContent = "StudMatch";
       if (careerSubnav) careerSubnav.style.display = "flex";
       setCareerSubnavView(currentCareerView || "swipe");
     } else {
@@ -1824,7 +1824,7 @@
     }
   }, { passive: true });
 
-  // ─── Social Mate Career Networking Controller (Figma vbfeuV2tIwHqJzvrgMh4kN) ───
+  // ─── StudMatch Career Networking Controller ───
   let careerActiveCategory = "all";
   let careerSearchQuery = "";
   let careerSearchTimeout = null;
@@ -1836,7 +1836,7 @@
     feedContainer.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--text-muted);">
         <div style="font-size:36px;margin-bottom:12px;animation:figmaHeartPulse 1s infinite;">💼</div>
-        <div style="font-size:14px;font-weight:600;color:#2563EB;">Загрузка ленты Social Mate...</div>
+        <div style="font-size:14px;font-weight:600;color:#2563EB;">Загрузка ленты StudMatch...</div>
       </div>
     `;
 
@@ -1879,7 +1879,7 @@
         feedContainer.appendChild(card);
       });
     } catch (e) {
-      console.error("[SocialMate] Career feed error:", e);
+      console.error("[StudMatch] Career feed error:", e);
       feedContainer.innerHTML = `
         <div class="career-empty-state">
           <div class="career-empty-icon">⚠️</div>
@@ -1996,7 +1996,7 @@
         body: JSON.stringify({
           target_id: targetUserId,
           action: "like",
-          comment: "Предложил проект в Social Mate 💼",
+          comment: "Предложил проект в StudMatch 💼",
         }),
       });
 
@@ -2017,7 +2017,7 @@
         btn.innerHTML = "💼 Предложить проект";
       }
     } catch (e) {
-      console.error("[SocialMate] Connect error:", e);
+      console.error("[StudMatch] Connect error:", e);
       btn.disabled = false;
       btn.innerHTML = "💼 Предложить проект";
     }
@@ -2138,11 +2138,11 @@
         loadCareerFeed();
       }
     } catch (e) {
-      console.error("[SocialMate] Save career error:", e);
+      console.error("[StudMatch] Save career error:", e);
     } finally {
       if (saveBtn) {
         saveBtn.disabled = false;
-        saveBtn.innerHTML = "💾 Сохранить в Social Mate";
+        saveBtn.innerHTML = "💾 Сохранить в StudMatch";
       }
     }
   }
