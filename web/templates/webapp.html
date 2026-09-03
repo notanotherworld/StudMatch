@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_23" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_24" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -72,6 +72,16 @@
     <main class="app-content">
       <!-- TAB 1: Explore / Swipes -->
       <section class="app-screen active" id="screen-explore">
+        <!-- Career Subnav Switcher: Swipes vs Feed -->
+        <div class="career-subnav-toggle" id="careerSubnavToggle" style="display: none;">
+          <button class="career-subnav-btn active" id="btnCareerSubnavSwipe" data-career-view="swipe">
+            🎴 Свайпы анкет
+          </button>
+          <button class="career-subnav-btn" id="btnCareerSubnavFeed" data-career-view="feed">
+            📋 Лента Social Mate
+          </button>
+        </div>
+
         <div class="deck-container">
           <div class="card-stack" id="cardDeck">
             <!-- Swipe cards injected dynamically by JS -->
@@ -507,6 +517,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260902_23"></script>
+  <script src="/static/webapp/webapp.js?v=20260902_24"></script>
 </body>
 </html>

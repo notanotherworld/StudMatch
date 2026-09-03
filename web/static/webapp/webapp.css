@@ -2377,5 +2377,64 @@ body.career-theme #pillCareer.active {
   line-height: 1.4;
 }
 
+/* ─── Career Subnav Toggle (Swipes vs Feed) ─────────────────── */
+.career-subnav-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #EFF6FF;
+  border: 1px solid #DBEAFE;
+  border-radius: 16px;
+  padding: 3px;
+  margin: 2px 14px 6px;
+  gap: 4px;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.career-subnav-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.career-subnav-btn.active {
+  background: #2563EB;
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+/* Scroll handling when in Career Feed View */
+body.career-theme.feed-view-active #screen-explore {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y !important;
+  height: 100% !important;
+}
+
+body.career-theme.feed-view-active .app-content {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* Career Swipe Card specifics */
+.swipe-card.career-card-swipe .action-btn.like {
+  background: linear-gradient(135deg, #2563EB, #1D4ED8) !important;
+  border-color: #3B82F6 !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4) !important;
+}
+
 
 

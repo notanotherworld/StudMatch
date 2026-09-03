@@ -423,6 +423,40 @@
     }
   }
 
+  let currentCareerView = "swipe";
+
+  function setCareerSubnavView(view) {
+    currentCareerView = view;
+    triggerHaptic("light");
+    document.getElementById("btnCareerSubnavSwipe")?.classList.toggle("active", view === "swipe");
+    document.getElementById("btnCareerSubnavFeed")?.classList.toggle("active", view === "feed");
+
+    const deckWrapper = document.querySelector(".deck-container");
+    const careerView = document.getElementById("careerFeedView");
+    const exploreScreen = document.getElementById("screen-explore");
+
+    if (view === "swipe") {
+      document.body.classList.remove("feed-view-active");
+      if (deckWrapper) deckWrapper.style.display = "flex";
+      if (careerView) careerView.style.display = "none";
+      if (exploreScreen) {
+        exploreScreen.style.overflowY = "hidden";
+      }
+      state.feed = [];
+      state.currentCardIndex = 0;
+      loadFeed();
+    } else {
+      document.body.classList.add("feed-view-active");
+      if (deckWrapper) deckWrapper.style.display = "none";
+      if (careerView) careerView.style.display = "flex";
+      if (exploreScreen) {
+        exploreScreen.style.overflowY = "auto";
+        exploreScreen.style.webkitOverflowScrolling = "touch";
+      }
+      loadCareerFeed();
+    }
+  }
+
   async function setMode(targetMode) {
     // 1. Мгновенное визуальное переключение пилюль (Optimistic UI)
     document.getElementById("pillDating")?.classList.toggle("active", targetMode === "dating");
@@ -444,20 +478,24 @@
     }
 
     const brandTitle = document.querySelector(".header-brand .brand-title");
+    const careerSubnav = document.getElementById("careerSubnavToggle");
+    const exploreScreen = document.getElementById("screen-explore");
     const deckWrapper = document.querySelector(".deck-container");
     const careerView = document.getElementById("careerFeedView");
 
     if (targetMode === "career") {
       document.body.classList.add("career-theme");
       if (brandTitle) brandTitle.textContent = "Social Mate";
-      if (deckWrapper) deckWrapper.style.display = "none";
-      if (careerView) careerView.style.display = "flex";
-      loadCareerFeed();
+      if (careerSubnav) careerSubnav.style.display = "flex";
+      setCareerSubnavView(currentCareerView || "swipe");
     } else {
       document.body.classList.remove("career-theme");
+      document.body.classList.remove("feed-view-active");
       if (brandTitle) brandTitle.textContent = "StudMatch";
+      if (careerSubnav) careerSubnav.style.display = "none";
       if (careerView) careerView.style.display = "none";
-      if (deckWrapper) deckWrapper.style.display = "block";
+      if (deckWrapper) deckWrapper.style.display = "flex";
+      if (exploreScreen) exploreScreen.style.overflowY = "hidden";
       state.feed = [];
       state.currentCardIndex = 0;
       await loadFeed();
@@ -543,6 +581,11 @@
 
     card.dataset.photoIndex = "0";
 
+    const isCareer = state.currentUser?.mode === "career";
+    if (isCareer) {
+      card.classList.add("career-card-swipe");
+    }
+
     const verifiedBadge = profile.is_verified ? '<span class="card-badge verified">🎓 ВУЗ</span>' : "";
     const premiumBadge = profile.is_premium ? '<span class="card-badge premium">💎 VIP</span>' : "";
     const yearStr = profile.year ? `${profile.year} курс` : "";
@@ -562,7 +605,33 @@
 
     // Career specifics
     let careerSub = "";
-    if (profile.career_skills && profile.career_skills.length > 0) {
+    let careerSkillsHtml = "";
+    let careerPortfolioBtn = "";
+    if (isCareer) {
+      careerSub = `
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0;">
+          ${profile.career_work_format ? `<span class="career-badge-format">🟢 ${escapeHtml(profile.career_work_format)}</span>` : ""}
+          ${profile.major ? `<span style="font-size:12px;font-weight:700;color:#93C5FD;">💼 ${escapeHtml(profile.major)}</span>` : ""}
+        </div>
+      `;
+      if (profile.career_custom_skills) {
+        const skillsList = profile.career_custom_skills.split(",").map((s) => s.trim()).filter(Boolean);
+        if (skillsList.length > 0) {
+          careerSkillsHtml = `
+            <div class="career-skills-chips" style="margin:4px 0;">
+              ${skillsList.slice(0, 4).map((s) => `<span class="career-skill-chip">#${escapeHtml(s)}</span>`).join("")}
+            </div>
+          `;
+        }
+      }
+      if (profile.career_portfolio_url) {
+        careerPortfolioBtn = `
+          <a href="${escapeHtml(profile.career_portfolio_url)}" target="_blank" rel="noopener noreferrer" class="career-portfolio-link" style="margin:4px 0;display:inline-flex;" onclick="event.stopPropagation();">
+            🔗 Резюме / Портфолио →
+          </a>
+        `;
+      }
+    } else if (profile.career_skills && profile.career_skills.length > 0) {
       careerSub = `<div class="card-subtext" style="color:#A8A5FF;">💼 Карьерная анкета</div>`;
     }
 
@@ -575,9 +644,9 @@
       <div class="card-tap-left"></div>
       <div class="card-tap-right"></div>
 
-      <div class="stamp like-stamp">LIKE</div>
+      <div class="stamp like-stamp">${isCareer ? "CONNECT" : "LIKE"}</div>
       <div class="stamp nope-stamp">SKIP</div>
-      <div class="stamp super-stamp">SUPER</div>
+      <div class="stamp super-stamp">${isCareer ? "STAR" : "SUPER"}</div>
 
       <div class="card-top-bar" style="margin-top: ${photos.length > 1 ? "14px" : "0"};">
         <div class="card-tags-top">
@@ -592,15 +661,16 @@
       <div class="card-info-bottom">
         <div class="card-title-row">
           <span class="card-name">${escapeHtml(profile.name)}</span>
-          ${profile.age ? `<span class="card-age">${profile.age}</span>` : ""}
+          ${profile.age && !isCareer ? `<span class="card-age">${profile.age}</span>` : ""}
           <button class="action-btn info" data-action="info" title="Подробнее" style="margin-left:auto;">ℹ️</button>
         </div>
         ${careerSub}
         <div class="card-subtext">
           ${univStr ? `🏛 ${univStr}` : ""} ${yearStr ? `• ${yearStr}` : ""}
         </div>
-        ${tagsHtml ? `<div class="card-tags">${tagsHtml}</div>` : ""}
-        ${profile.goal ? `<p class="card-bio">${escapeHtml(profile.goal)}</p>` : ""}
+        ${careerSkillsHtml || tagsHtml ? `<div class="card-tags">${careerSkillsHtml || tagsHtml}</div>` : ""}
+        ${(profile.career_goal || profile.goal) ? `<p class="card-bio">${escapeHtml(profile.career_goal || profile.goal)}</p>` : ""}
+        ${careerPortfolioBtn}
 
         <!-- Authentic Figma Action Buttons -->
         <div class="card-actions-row">
@@ -610,8 +680,10 @@
           <button class="action-btn superlike" data-action="superlike" title="Суперлайк">
             ⭐
           </button>
-          <button class="action-btn like" data-action="like" title="Нравится">
-            <img src="/static/webapp/assets/reaction-circle-2.svg" class="action-svg" alt="Like" />
+          <button class="action-btn like" data-action="like" title="${isCareer ? 'Предложить проект' : 'Нравится'}">
+            ${isCareer 
+              ? '<span style="font-size:22px;">💼</span>' 
+              : '<img src="/static/webapp/assets/reaction-circle-2.svg" class="action-svg" alt="Like" />'}
           </button>
         </div>
       </div>
@@ -2002,6 +2074,14 @@
     });
 
     document.getElementById("careerSaveBtn")?.addEventListener("click", saveCareerProfile);
+
+    // 6. Subnav toggle buttons (Swipes vs Feed)
+    document.getElementById("btnCareerSubnavSwipe")?.addEventListener("click", () => {
+      setCareerSubnavView("swipe");
+    });
+    document.getElementById("btnCareerSubnavFeed")?.addEventListener("click", () => {
+      setCareerSubnavView("feed");
+    });
   }
 
   function openCareerEditModal() {
