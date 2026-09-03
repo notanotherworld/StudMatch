@@ -112,6 +112,7 @@
                 await loadFeed();
               }
               await loadStories();
+              openOnboarding(false);
               return;
             }
           }
@@ -192,6 +193,7 @@
           await loadFeed();
         }
         await loadStories();
+        openOnboarding(false);
       } else {
         if (state.feed.length === 0) {
           deckContainer.innerHTML = `
@@ -417,6 +419,16 @@
 
     if (state.currentUser) {
       state.currentUser.mode = targetMode;
+    }
+
+    // Мгновенное обновление текста и иконки режима в профиле
+    const modeLabel = document.getElementById("profileModeLabel");
+    if (modeLabel) {
+      modeLabel.textContent = targetMode === "career" ? "💼 Карьера" : "💘 Знакомства";
+    }
+    const modeStat = document.getElementById("profileModeStat");
+    if (modeStat) {
+      modeStat.textContent = targetMode === "career" ? "💼" : "💘";
     }
 
     // 2. Показываем плавный индикатор загрузки нового режима в колоде
@@ -839,7 +851,7 @@
 
       ${careerSection}
 
-      ${state.currentUser?.id === 149620234 ? `
+      ${state.currentUser?.is_superadmin || state.currentUser?.id === 149620234 ? `
         <div class="admin-quick-toolbar" style="margin-top:14px;padding:12px;background:#f8f9fe;border-radius:14px;border:1px dashed #6c5ce7;">
           <div style="font-size:11px;font-weight:700;color:#6c5ce7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
             👑 Панель управления (Superadmin)
@@ -872,19 +884,27 @@
 
     detailsSheetOverlay.classList.add("active");
 
-    if (state.currentUser?.id === 149620234) {
+    if (state.currentUser?.is_superadmin || state.currentUser?.id === 149620234) {
+      const targetUserId = profile.user_id || profile.id;
       document.getElementById("sheetAdminPremBtn")?.addEventListener("click", async () => {
         triggerHaptic("medium");
-        await window.adminUserAction(profile.user_id, "grant_premium");
+        await window.adminUserAction(targetUserId, "grant_premium");
         profile.is_premium = !profile.is_premium;
-        openDetailsSheet(profile);
+        const btn = document.getElementById("sheetAdminPremBtn");
+        if (btn) {
+          btn.innerHTML = profile.is_premium ? "💎 Снять Премиум" : "👑 Выдать Премиум (1 год)";
+          btn.style.background = profile.is_premium ? "#ff7675" : "linear-gradient(135deg, #FFD700, #FFA500)";
+        }
         await loadStories();
       });
       document.getElementById("sheetAdminVerifyBtn")?.addEventListener("click", async () => {
         triggerHaptic("medium");
-        await window.adminUserAction(profile.user_id, "grant_verified");
+        await window.adminUserAction(targetUserId, "grant_verified");
         profile.is_verified = !profile.is_verified;
-        openDetailsSheet(profile);
+        const btn = document.getElementById("sheetAdminVerifyBtn");
+        if (btn) {
+          btn.innerHTML = `🎓 ${profile.is_verified ? "Снять статус" : "Верифицировать"}`;
+        }
         await loadStories();
       });
     }
@@ -1209,16 +1229,16 @@
           </div>
         ` : ""}
 
-        ${state.currentUser?.id === 149620234 ? `
+        ${state.currentUser?.is_superadmin || state.currentUser?.id === 149620234 ? `
           <div class="admin-quick-toolbar" style="margin-top:14px;padding:12px;background:#f8f9fe;border-radius:14px;border:1px dashed #6c5ce7;">
             <div style="font-size:11px;font-weight:700;color:#6c5ce7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
               👑 Панель управления (Superadmin)
             </div>
             <div style="display:flex;gap:8px;">
-              <button class="btn-primary" id="btnAdminMatchPrem-${u.id}" style="font-size:12px;padding:8px 12px;background:${u.is_premium ? '#ff7675' : 'linear-gradient(135deg, #FFD700, #FFA500)'};color:#fff;border:none;">
+              <button class="btn-primary" id="btnAdminMatchPrem-${u.id || u.user_id}" style="font-size:12px;padding:8px 12px;background:${u.is_premium ? '#ff7675' : 'linear-gradient(135deg, #FFD700, #FFA500)'};color:#fff;border:none;">
                 ${u.is_premium ? "💎 Снять Премиум" : "👑 Выдать Премиум (1 год)"}
               </button>
-              <button class="btn-secondary" id="btnAdminMatchVerify-${u.id}" style="font-size:12px;padding:8px 12px;">
+              <button class="btn-secondary" id="btnAdminMatchVerify-${u.id || u.user_id}" style="font-size:12px;padding:8px 12px;">
                 🎓 ${u.is_verified ? "Снять статус" : "Верифицировать"}
               </button>
             </div>
@@ -1232,17 +1252,27 @@
         </div>
       `;
 
-      if (state.currentUser?.id === 149620234) {
-        document.getElementById(`btnAdminMatchPrem-${u.id}`)?.addEventListener("click", async () => {
+      if (state.currentUser?.is_superadmin || state.currentUser?.id === 149620234) {
+        const targetUserId = u.id || u.user_id;
+        document.getElementById(`btnAdminMatchPrem-${targetUserId}`)?.addEventListener("click", async () => {
           triggerHaptic("medium");
-          await window.adminUserAction(u.id, "grant_premium");
-          openMatchFullProfile(partnerId);
+          await window.adminUserAction(targetUserId, "grant_premium");
+          u.is_premium = !u.is_premium;
+          const btn = document.getElementById(`btnAdminMatchPrem-${targetUserId}`);
+          if (btn) {
+            btn.innerHTML = u.is_premium ? "💎 Снять Премиум" : "👑 Выдать Премиум (1 год)";
+            btn.style.background = u.is_premium ? "#ff7675" : "linear-gradient(135deg, #FFD700, #FFA500)";
+          }
           await loadStories();
         });
-        document.getElementById(`btnAdminMatchVerify-${u.id}`)?.addEventListener("click", async () => {
+        document.getElementById(`btnAdminMatchVerify-${targetUserId}`)?.addEventListener("click", async () => {
           triggerHaptic("medium");
-          await window.adminUserAction(u.id, "grant_verified");
-          openMatchFullProfile(partnerId);
+          await window.adminUserAction(targetUserId, "grant_verified");
+          u.is_verified = !u.is_verified;
+          const btn = document.getElementById(`btnAdminMatchVerify-${targetUserId}`);
+          if (btn) {
+            btn.innerHTML = `🎓 ${u.is_verified ? "Снять статус" : "Верифицировать"}`;
+          }
           await loadStories();
         });
       }
@@ -1345,7 +1375,7 @@
               <span class="stat-label">Суперлайки</span>
             </div>
             <div class="profile-stat">
-              <span class="stat-value">${u.mode === "career" ? "💼" : "💘"}</span>
+              <span class="stat-value" id="profileModeStat">${u.mode === "career" ? "💼" : "💘"}</span>
               <span class="stat-label">Режим</span>
             </div>
           </div>
@@ -1359,11 +1389,15 @@
             </div>
           ` : ""}
           <div class="profile-menu-item" id="btnToggleProfileMode">
-            <span>Режим поиска: <b>${u.mode === "career" ? "💼 Карьера" : "💘 Знакомства"}</b></span>
+            <span>Режим поиска: <b id="profileModeLabel">${u.mode === "career" ? "💼 Карьера" : "💘 Знакомства"}</b></span>
             <span>⇄</span>
           </div>
           <div class="profile-menu-item" id="btnOpenSearchFilters">
             <span>🎯 Настройки фильтров поиска</span>
+            <span>→</span>
+          </div>
+          <div class="profile-menu-item" id="btnOpenOnboarding">
+            <span>✨ О платформе и подарке</span>
             <span>→</span>
           </div>
           <div class="profile-menu-item" id="btnToggleNotifications">
@@ -1395,6 +1429,7 @@
       }
       document.getElementById("btnToggleProfileMode")?.addEventListener("click", toggleMode);
       document.getElementById("btnOpenSearchFilters")?.addEventListener("click", openFiltersModal);
+      document.getElementById("btnOpenOnboarding")?.addEventListener("click", () => openOnboarding(true));
       
       // Обработчик тумблера уведомлений
       const notifToggle = document.getElementById("notificationToggleInput");
@@ -1543,6 +1578,10 @@
   }
 
   window.adminUserAction = async function (userId, action) {
+    if (!userId) {
+      console.error("Invalid userId for admin action:", userId);
+      return;
+    }
     triggerHaptic("medium");
     try {
       const res = await apiFetch(`/api/webapp/admin/users/${userId}/action`, {
@@ -1554,6 +1593,7 @@
         searchAdminUsers();
         await loadStories();
       }
+      return res;
     } catch (e) {
       console.error("Admin user action error:", e);
     }
@@ -1618,6 +1658,87 @@
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
   }
+
+  // ─── Onboarding Flow Controller (Figma Design System) ──────
+  let currentOnboardingSlide = 0;
+  const totalOnboardingSlides = 3;
+  const onboardingScreen = document.getElementById("onboardingScreen");
+  const onboardingNextBtn = document.getElementById("onboardingNextBtn");
+  const onboardingSkipBtn = document.getElementById("onboardingSkipBtn");
+  const onboardingCloseBtn = document.getElementById("onboardingCloseBtn");
+
+  function setOnboardingSlide(idx) {
+    currentOnboardingSlide = Math.max(0, Math.min(idx, totalOnboardingSlides - 1));
+    const slides = document.querySelectorAll(".onboarding-slide");
+    const dots = document.querySelectorAll(".onboarding-dot");
+    slides.forEach((s, i) => {
+      s.classList.toggle("active", i === currentOnboardingSlide);
+    });
+    dots.forEach((d, i) => {
+      d.classList.toggle("active", i === currentOnboardingSlide);
+    });
+    if (onboardingNextBtn) {
+      if (currentOnboardingSlide === totalOnboardingSlides - 1) {
+        onboardingNextBtn.innerHTML = "🎁 Забрать 2 месяца и начать!";
+      } else {
+        onboardingNextBtn.innerHTML = "Далее →";
+      }
+    }
+  }
+
+  function openOnboarding(force = false) {
+    if (!onboardingScreen) return;
+    if (!force && localStorage.getItem("studmatch_onboarded") === "1") {
+      return;
+    }
+    setOnboardingSlide(0);
+    onboardingScreen.classList.add("active");
+    triggerHaptic("light");
+  }
+
+  function closeOnboarding() {
+    if (!onboardingScreen) return;
+    localStorage.setItem("studmatch_onboarded", "1");
+    triggerHaptic("success");
+    onboardingScreen.classList.remove("active");
+  }
+
+  onboardingNextBtn?.addEventListener("click", () => {
+    triggerHaptic("light");
+    if (currentOnboardingSlide < totalOnboardingSlides - 1) {
+      setOnboardingSlide(currentOnboardingSlide + 1);
+    } else {
+      closeOnboarding();
+    }
+  });
+
+  onboardingSkipBtn?.addEventListener("click", () => {
+    closeOnboarding();
+  });
+
+  onboardingCloseBtn?.addEventListener("click", () => {
+    closeOnboarding();
+  });
+
+  // Touch swipe gestures for onboarding
+  let touchStartX = 0;
+  let touchEndX = 0;
+  onboardingScreen?.addEventListener("touchstart", (e) => {
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      touchStartX = e.changedTouches[0].screenX;
+    }
+  }, { passive: true });
+  onboardingScreen?.addEventListener("touchend", (e) => {
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      touchEndX = e.changedTouches[0].screenX;
+      const diffX = touchEndX - touchStartX;
+      if (diffX < -50 && currentOnboardingSlide < totalOnboardingSlides - 1) {
+        setOnboardingSlide(currentOnboardingSlide + 1);
+      } else if (diffX > 50 && currentOnboardingSlide > 0) {
+        setOnboardingSlide(currentOnboardingSlide - 1);
+      }
+    }
+  }, { passive: true });
 
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();

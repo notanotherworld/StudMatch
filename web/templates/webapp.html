@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_19" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_21" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -351,7 +351,59 @@
     </div>
   </div>
 
+  <!-- Figma Onboarding Screen -->
+  <div class="onboarding-overlay" id="onboardingScreen">
+    <div class="onboarding-top-bar">
+      <button class="onboarding-skip-btn" id="onboardingSkipBtn">Пропустить</button>
+    </div>
+
+    <div class="onboarding-content-wrap">
+      <!-- Slide 1: Algorithm -->
+      <div class="onboarding-slide active" data-slide="0">
+        <div class="onboarding-image-card">
+          <img src="/static/webapp/assets/onboarding_1.png" alt="Умный алгоритм" />
+        </div>
+        <h2 class="onboarding-title">Умный алгоритм</h2>
+        <p class="onboarding-desc">Строгая верификация студентов ведущих вузов. Знакомься для общения, романтики или карьеры без ботов и фейков.</p>
+      </div>
+
+      <!-- Slide 2: Matches -->
+      <div class="onboarding-slide" data-slide="1">
+        <div class="onboarding-image-card">
+          <img src="/static/webapp/assets/onboarding_2.png" alt="Взаимные симпатии" />
+        </div>
+        <h2 class="onboarding-title">Взаимные мэтчи</h2>
+        <p class="onboarding-desc">Подбираем студентов со схожими интересами, факультетами и целями. Мгновенные чаты в Telegram при взаимном лайке.</p>
+      </div>
+
+      <!-- Slide 3: Premium Promo -->
+      <div class="onboarding-slide" data-slide="2">
+        <div class="onboarding-image-card">
+          <img src="/static/webapp/assets/onboarding_3.png" alt="2 месяца Премиума в подарок" />
+        </div>
+        <h2 class="onboarding-title">Премиум в подарок 💎</h2>
+        <p class="onboarding-desc">Дарим 2 месяца бесплатного Премиума всем новым пользователям до 10 октября! Топ в сторис, безлимит свайпов и суперлайки.</p>
+      </div>
+
+      <!-- Dots Indicator -->
+      <div class="onboarding-dots" id="onboardingDots">
+        <span class="onboarding-dot active" data-index="0"></span>
+        <span class="onboarding-dot" data-index="1"></span>
+        <span class="onboarding-dot" data-index="2"></span>
+      </div>
+    </div>
+
+    <div class="onboarding-bottom-actions">
+      <button class="onboarding-primary-btn" id="onboardingNextBtn">
+        Далее →
+      </button>
+      <button class="onboarding-signin-link" id="onboardingCloseBtn">
+        Уже есть анкета? <b>Войти</b>
+      </button>
+    </div>
+  </div>
+
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260902_19"></script>
+  <script src="/static/webapp/webapp.js?v=20260902_21"></script>
 </body>
 </html>

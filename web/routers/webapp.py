@@ -197,9 +197,18 @@ async def webapp_auth(
     from database.crud import get_or_create_user
     user = await get_or_create_user(db, user_id=user_id, tg_username=tg_username)
 
+    now = datetime.now(timezone.utc)
+    # Промо-акция: 2 месяца (60 дней) бесплатного Премиума всем новым пользователям до 10 октября 2026
+    promo_until = datetime(2026, 10, 10, 23, 59, 59, tzinfo=timezone.utc)
+    if now <= promo_until and not user.premium_until:
+        user.premium_until = now + timedelta(days=60)
+        user.superlike_balance = max(user.superlike_balance or 0, 5)
+        await db.commit()
+
     is_superadmin = (user.id == settings.SUPERADMIN_ID or user.id in settings.admin_ids)
     if is_superadmin:
-        user.premium_until = datetime.now(timezone.utc) + timedelta(days=3650)
+        if not user.premium_until:
+            user.premium_until = now + timedelta(days=365)
         user.email_verified = True
         user.superlike_balance = max(user.superlike_balance or 0, 9999)
         await db.commit()
@@ -491,66 +500,24 @@ async def webapp_stories(
     """
     now = datetime.now(timezone.utc)
 
-    # 1. Пользователи с активным Премиумом
+    # 1. В Stories попадают ТОЛЬКО пользователи с активным Премиумом
     stmt_prem = (
         select(User)
         .options(selectinload(User.profile), selectinload(User.university))
+        .join(Profile, Profile.user_id == User.id)
         .where(
             and_(
                 User.id != student.id,
                 User.is_active.is_(True),
-                or_(
-                    User.premium_until > now,
-                    User.id == settings.SUPERADMIN_ID,
-                    User.id.in_(settings.admin_ids)
-                )
+                User.premium_until.isnot(None),
+                User.premium_until > now,
             )
         )
         .order_by(desc(User.premium_until), desc(User.created_at))
-        .limit(20)
+        .limit(30)
     )
     res_prem = await db.execute(stmt_prem)
-    prem_users = list(res_prem.scalars().all())
-
-    # 2. Дополняем активными заполненными анкетами, если премиумов пока мало
-    needed = 12 - len(prem_users)
-    other_users = []
-    if needed > 0:
-        seen_ids = {u.id for u in prem_users} | {student.id}
-        stmt_other = (
-            select(User)
-            .options(selectinload(User.profile), selectinload(User.university))
-            .join(Profile, Profile.user_id == User.id)
-            .where(
-                and_(
-                    User.id.not_in(seen_ids),
-                    User.is_active.is_(True),
-                    or_(
-                        Profile.is_complete.is_(True),
-                        Profile.career_is_complete.is_(True),
-                        Profile.name.isnot(None),
-                    ),
-                )
-            )
-            .order_by(
-                User.boost_until.desc().nullslast(),
-                Profile.rating_score.desc().nullslast(),
-                User.created_at.desc(),
-            )
-            .limit(needed)
-        )
-        res_other = await db.execute(stmt_other)
-        other_users = list(res_other.scalars().all())
-
-    # Если реальных премиумов пока мало — наделяем топовые анкеты в сторис статусом Премиум
-    if len(prem_users) < 6 and other_users:
-        to_grant = other_users[: (6 - len(prem_users))]
-        for u in to_grant:
-            if not u.premium_until or u.premium_until <= now:
-                u.premium_until = now + timedelta(days=365)
-        await db.commit()
-
-    all_candidates = prem_users + other_users
+    all_candidates = list(res_prem.scalars().all())
 
     stories = []
     for u in all_candidates:
@@ -571,8 +538,8 @@ async def webapp_stories(
             "name": first_name,
             "full_name": p_name,
             "avatar_url": avatar_url,
-            "is_premium": u.is_premium or u.id == settings.SUPERADMIN_ID,
-            "is_verified": u.is_verified,
+            "is_premium": bool(u.is_premium),
+            "is_verified": bool(u.is_verified),
             "university": univ,
         })
 
@@ -587,7 +554,7 @@ async def webapp_stories(
             "user_id": student.id,
             "name": "Моя анкета",
             "avatar_url": my_avatar,
-            "is_premium": student.is_premium or student.id == settings.SUPERADMIN_ID,
+            "is_premium": bool(student.is_premium),
         },
         "stories": stories
     }
@@ -614,7 +581,6 @@ async def webapp_profile(
 
     is_superadmin = (student.id == settings.SUPERADMIN_ID or student.id in settings.admin_ids)
     if is_superadmin:
-        student.premium_until = datetime.now(timezone.utc) + timedelta(days=3650)
         student.email_verified = True
         student.superlike_balance = max(student.superlike_balance or 0, 9999)
         await db.commit()
@@ -775,6 +741,7 @@ async def webapp_get_user_details(
     return {
         "status": "ok",
         "user": {
+            "id": target.id,
             "user_id": target.id,
             "name": p.name if p else "Студент",
             "age": p.age if p else None,
@@ -932,6 +899,7 @@ async def webapp_admin_user_action(
         msg = f"Начислено +10 суперлайков. Баланс: {target.superlike_balance}"
 
     await db.commit()
+    await db.refresh(target)
     return {
         "status": "ok",
         "message": msg,
