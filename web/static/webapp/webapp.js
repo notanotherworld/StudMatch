@@ -108,8 +108,14 @@
               localStorage.setItem("studmatch_token", savedToken);
               updateHeaderUser();
               retryCount = 0;
-              if (state.feed.length === 0) {
+              if (state.currentUser?.mode === "career") {
+                await setMode("career");
+              } else if (state.feed.length === 0) {
                 await loadFeed();
+              }
+              const composerAvatar = document.getElementById("composerUserAvatar");
+              if (composerAvatar && state.currentUser?.avatar_url) {
+                composerAvatar.src = state.currentUser.avatar_url;
               }
               await loadStories();
               openOnboarding(false);
@@ -189,8 +195,14 @@
         state.currentUser = data.user;
         localStorage.setItem("studmatch_token", data.token);
         updateHeaderUser();
-        if (state.feed.length === 0) {
+        if (state.currentUser?.mode === "career") {
+          await setMode("career");
+        } else if (state.feed.length === 0) {
           await loadFeed();
+        }
+        const composerAvatar = document.getElementById("composerUserAvatar");
+        if (composerAvatar && state.currentUser?.avatar_url) {
+          composerAvatar.src = state.currentUser.avatar_url;
         }
         await loadStories();
         openOnboarding(false);
@@ -431,20 +443,25 @@
       modeStat.textContent = targetMode === "career" ? "💼" : "💘";
     }
 
-    // 2. Показываем плавный индикатор загрузки нового режима в колоде
-    if (deckContainer) {
-      deckContainer.innerHTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:320px;color:var(--text-muted);font-weight:700;">
-          <div style="font-size:48px;margin-bottom:12px;animation:figmaHeartPulse 1s infinite;">
-            ${targetMode === "career" ? "💼" : "💘"}
-          </div>
-          <div style="font-size:15px;color:var(--text-main);">
-            Загрузка анкет: ${targetMode === "career" ? "Карьера" : "Знакомства"}...
-          </div>
-        </div>
-      `;
+    const brandTitle = document.querySelector(".header-brand .brand-title");
+    const deckWrapper = document.querySelector(".deck-container");
+    const careerView = document.getElementById("careerFeedView");
+
+    if (targetMode === "career") {
+      document.body.classList.add("career-theme");
+      if (brandTitle) brandTitle.textContent = "Social Mate";
+      if (deckWrapper) deckWrapper.style.display = "none";
+      if (careerView) careerView.style.display = "flex";
+      loadCareerFeed();
+    } else {
+      document.body.classList.remove("career-theme");
+      if (brandTitle) brandTitle.textContent = "StudMatch";
+      if (careerView) careerView.style.display = "none";
+      if (deckWrapper) deckWrapper.style.display = "block";
+      state.feed = [];
+      state.currentCardIndex = 0;
+      await loadFeed();
     }
-    if (deckEmpty) deckEmpty.style.display = "none";
 
     try {
       const res = await apiFetch("/api/webapp/profile/mode", {
@@ -457,11 +474,6 @@
     } catch (e) {
       console.warn("Set mode API warning:", e);
     }
-
-    // 3. Загружаем свежие анкеты под выбранный режим
-    state.feed = [];
-    state.currentCardIndex = 0;
-    await loadFeed();
   }
 
   async function toggleMode() {
@@ -1740,8 +1752,324 @@
     }
   }, { passive: true });
 
+  // ─── Social Mate Career Networking Controller (Figma vbfeuV2tIwHqJzvrgMh4kN) ───
+  let careerActiveCategory = "all";
+  let careerSearchQuery = "";
+  let careerSearchTimeout = null;
+
+  async function loadCareerFeed() {
+    const feedContainer = document.getElementById("careerFeedList");
+    if (!feedContainer) return;
+
+    feedContainer.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--text-muted);">
+        <div style="font-size:36px;margin-bottom:12px;animation:figmaHeartPulse 1s infinite;">💼</div>
+        <div style="font-size:14px;font-weight:600;color:#2563EB;">Загрузка ленты Social Mate...</div>
+      </div>
+    `;
+
+    try {
+      let url = `/api/webapp/career/feed?category=${encodeURIComponent(careerActiveCategory)}`;
+      if (careerSearchQuery.trim()) {
+        url += `&q=${encodeURIComponent(careerSearchQuery.trim())}`;
+      }
+
+      const res = await apiFetch(url);
+      if (!res || !res.candidates || res.candidates.length === 0) {
+        feedContainer.innerHTML = `
+          <div class="career-empty-state">
+            <div class="career-empty-icon">🔍</div>
+            <h3 class="career-empty-title">Специалисты не найдены</h3>
+            <p class="career-empty-desc">
+              Попробуйте выбрать другую категорию или очистить поисковый запрос.
+            </p>
+            <button class="btn-primary" id="resetCareerFiltersBtn" style="background:#2563EB;margin-top:10px;width:auto;padding:10px 20px;">
+              🔄 Показать всех специалистов
+            </button>
+          </div>
+        `;
+        document.getElementById("resetCareerFiltersBtn")?.addEventListener("click", () => {
+          careerActiveCategory = "all";
+          careerSearchQuery = "";
+          const searchInput = document.getElementById("careerSearchInput");
+          if (searchInput) searchInput.value = "";
+          document.querySelectorAll(".career-category-chip").forEach((c) => {
+            c.classList.toggle("active", c.dataset.category === "all");
+          });
+          loadCareerFeed();
+        });
+        return;
+      }
+
+      feedContainer.innerHTML = "";
+      res.candidates.forEach((cand) => {
+        const card = renderCareerCard(cand);
+        feedContainer.appendChild(card);
+      });
+    } catch (e) {
+      console.error("[SocialMate] Career feed error:", e);
+      feedContainer.innerHTML = `
+        <div class="career-empty-state">
+          <div class="career-empty-icon">⚠️</div>
+          <h3 class="career-empty-title">Ошибка загрузки ленты</h3>
+          <p class="career-empty-desc">Не удалось связаться с сервером. Попробуйте еще раз.</p>
+          <button class="btn-primary" id="retryCareerFeedBtn" style="background:#2563EB;margin-top:10px;width:auto;padding:10px 20px;">
+            🔄 Повторить
+          </button>
+        </div>
+      `;
+      document.getElementById("retryCareerFeedBtn")?.addEventListener("click", () => loadCareerFeed());
+    }
+  }
+
+  function renderCareerCard(cand) {
+    const card = document.createElement("div");
+    card.className = "career-card";
+    card.dataset.userId = cand.user_id;
+
+    const bannerUrl = cand.photos && cand.photos.length > 1 ? cand.photos[1] : (cand.avatar_url || cand.photos[0]);
+    const skillsHtml = (cand.career_skills || []).map((s) => 
+      `<span class="career-skill-chip">#${escapeHtml(s)}</span>`
+    ).join("");
+
+    const portfolioHtml = cand.career_portfolio_url ? `
+      <a href="${escapeHtml(cand.career_portfolio_url)}" target="_blank" rel="noopener noreferrer" class="career-portfolio-link">
+        🔗 Резюме / Портфолио →
+      </a>
+    ` : "";
+
+    let connectBtnHtml = "";
+    if (cand.is_connected) {
+      connectBtnHtml = `
+        <button class="btn-career-connect connected" disabled>
+          🤝 Взаимный контакт ✓
+        </button>
+      `;
+    } else if (cand.is_pending) {
+      connectBtnHtml = `
+        <button class="btn-career-connect pending" disabled>
+          💼 Запрос отправлен ✓
+        </button>
+      `;
+    } else {
+      connectBtnHtml = `
+        <button class="btn-career-connect" data-user-id="${cand.user_id}">
+          💼 Предложить проект
+        </button>
+      `;
+    }
+
+    card.innerHTML = `
+      <div class="career-card-header">
+        <div class="career-card-author">
+          <img src="${escapeHtml(cand.avatar_url)}" class="career-card-avatar" alt="${escapeHtml(cand.name)}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'" />
+          <div>
+            <div class="career-card-name">
+              ${escapeHtml(cand.name)}
+              ${cand.is_verified ? '<span class="career-badge-verified" title="Верифицирован">🎓</span>' : ''}
+              ${cand.is_premium ? '<span title="Premium">💎</span>' : ''}
+            </div>
+            <div class="career-card-meta">
+              ${escapeHtml(cand.university || "Студент")} ${cand.year ? `• ${cand.year} курс` : ''}
+            </div>
+          </div>
+        </div>
+        <span class="career-badge-format">${escapeHtml(cand.career_work_format || "Удалённо")}</span>
+      </div>
+
+      ${bannerUrl ? `<img src="${escapeHtml(bannerUrl)}" class="career-card-banner" alt="Portfolio" loading="lazy" />` : ''}
+
+      <div class="career-card-body">
+        <div class="career-card-goal">${escapeHtml(cand.career_goal)}</div>
+        ${skillsHtml ? `<div class="career-skills-chips">${skillsHtml}</div>` : ''}
+        ${portfolioHtml}
+      </div>
+
+      <div class="career-card-actions">
+        ${connectBtnHtml}
+        <button class="btn-career-details" data-user-id="${cand.user_id}">
+          📄 Анкета
+        </button>
+      </div>
+    `;
+
+    // Connect button click handler
+    const connectBtn = card.querySelector(".btn-career-connect:not(.connected):not(.pending)");
+    connectBtn?.addEventListener("click", () => sendCareerConnect(cand.user_id, connectBtn));
+
+    // Full profile modal click handlers
+    const detailsBtn = card.querySelector(".btn-career-details");
+    detailsBtn?.addEventListener("click", () => {
+      openMatchFullProfile(cand.user_id);
+    });
+
+    const bannerImg = card.querySelector(".career-card-banner");
+    bannerImg?.addEventListener("click", () => {
+      openMatchFullProfile(cand.user_id);
+    });
+
+    return card;
+  }
+
+  async function sendCareerConnect(targetUserId, btn) {
+    triggerHaptic("medium");
+    if (!btn) return;
+
+    btn.disabled = true;
+    btn.innerHTML = `⏳ Отправка...`;
+
+    try {
+      const res = await apiFetch("/api/webapp/swipe", {
+        method: "POST",
+        body: JSON.stringify({
+          target_id: targetUserId,
+          action: "like",
+          comment: "Предложил проект в Social Mate 💼",
+        }),
+      });
+
+      if (res && res.status === "ok") {
+        triggerHaptic("success");
+        if (res.match) {
+          btn.className = "btn-career-connect connected";
+          btn.innerHTML = "🤝 Взаимный контакт! Написать";
+          btn.disabled = false;
+          btn.onclick = () => openChatWith(res.match);
+          showMatchModal(res.match);
+        } else {
+          btn.className = "btn-career-connect pending";
+          btn.innerHTML = "💼 Запрос отправлен ✓";
+        }
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = "💼 Предложить проект";
+      }
+    } catch (e) {
+      console.error("[SocialMate] Connect error:", e);
+      btn.disabled = false;
+      btn.innerHTML = "💼 Предложить проект";
+    }
+  }
+
+  function setupCareerListeners() {
+    // 1. Category chips
+    document.querySelectorAll(".career-category-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        triggerHaptic("light");
+        document.querySelectorAll(".career-category-chip").forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+        careerActiveCategory = chip.dataset.category || "all";
+        loadCareerFeed();
+      });
+    });
+
+    // 2. Search input with debounce
+    const searchInput = document.getElementById("careerSearchInput");
+    const clearBtn = document.getElementById("careerSearchClearBtn");
+
+    searchInput?.addEventListener("input", (e) => {
+      const val = e.target.value;
+      if (clearBtn) clearBtn.style.display = val ? "block" : "none";
+      if (careerSearchTimeout) clearTimeout(careerSearchTimeout);
+      careerSearchTimeout = setTimeout(() => {
+        careerSearchQuery = val;
+        loadCareerFeed();
+      }, 350);
+    });
+
+    clearBtn?.addEventListener("click", () => {
+      if (searchInput) searchInput.value = "";
+      clearBtn.style.display = "none";
+      careerSearchQuery = "";
+      loadCareerFeed();
+    });
+
+    // 3. Filter button
+    document.getElementById("careerFilterBtn")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      openFiltersModal();
+    });
+
+    // 4. Composer card tap -> open career profile edit modal
+    document.getElementById("careerComposerCard")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      openCareerEditModal();
+    });
+
+    // 5. Career edit modal close and save
+    document.getElementById("careerEditCloseBtn")?.addEventListener("click", () => {
+      document.getElementById("careerEditModal")?.classList.remove("active");
+    });
+
+    document.getElementById("careerSaveBtn")?.addEventListener("click", saveCareerProfile);
+  }
+
+  function openCareerEditModal() {
+    const modal = document.getElementById("careerEditModal");
+    if (!modal) return;
+
+    const u = state.currentUser;
+    const goalInput = document.getElementById("careerInputGoal");
+    const skillsInput = document.getElementById("careerInputSkills");
+    const formatInput = document.getElementById("careerInputFormat");
+    const portfolioInput = document.getElementById("careerInputPortfolio");
+
+    if (goalInput && u?.career_goal) goalInput.value = u.career_goal;
+    if (skillsInput && u?.career_custom_skills) skillsInput.value = u.career_custom_skills;
+    if (formatInput && u?.career_work_format) formatInput.value = u.career_work_format;
+    if (portfolioInput && u?.career_portfolio_url) portfolioInput.value = u.career_portfolio_url;
+
+    modal.classList.add("active");
+  }
+
+  async function saveCareerProfile() {
+    const saveBtn = document.getElementById("careerSaveBtn");
+    const goal = document.getElementById("careerInputGoal")?.value || "";
+    const skills = document.getElementById("careerInputSkills")?.value || "";
+    const format = document.getElementById("careerInputFormat")?.value || "Удалённо";
+    const portfolio = document.getElementById("careerInputPortfolio")?.value || "";
+
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = "⏳ Сохранение...";
+    }
+
+    try {
+      const res = await apiFetch("/api/webapp/profile/career", {
+        method: "POST",
+        body: JSON.stringify({
+          career_goal: goal,
+          career_custom_skills: skills,
+          career_work_format: format,
+          career_portfolio_url: portfolio,
+        }),
+      });
+
+      if (res && res.status === "ok") {
+        triggerHaptic("success");
+        if (state.currentUser) {
+          state.currentUser.career_goal = goal;
+          state.currentUser.career_custom_skills = skills;
+          state.currentUser.career_work_format = format;
+          state.currentUser.career_portfolio_url = portfolio;
+          state.currentUser.career_is_complete = true;
+        }
+        document.getElementById("careerEditModal")?.classList.remove("active");
+        loadCareerFeed();
+      }
+    } catch (e) {
+      console.error("[SocialMate] Save career error:", e);
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = "💾 Сохранить в Social Mate";
+      }
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();
+    setupCareerListeners();
     authenticateUser();
   });
 })();

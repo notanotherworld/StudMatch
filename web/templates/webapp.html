@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_22" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260902_23" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -90,6 +90,60 @@
                 🎯 Настроить фильтры
               </button>
             </div>
+          </div>
+        </div>
+
+        <!-- SOCIAL MATE: Career Networking Feed View -->
+        <div class="career-feed-view" id="careerFeedView" style="display: none;">
+          <!-- Search & Filter Bar -->
+          <div class="career-search-bar">
+            <div class="career-search-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="careerSearchInput" class="career-search-input" placeholder="Поиск по стеку, вузу, роли..." />
+              <button class="career-search-clear-btn" id="careerSearchClearBtn" style="display:none;">✕</button>
+            </div>
+            <button class="career-filter-btn" id="careerFilterBtn" title="Фильтры">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="4" y1="21" x2="4" y2="14"></line>
+                <line x1="4" y1="10" x2="4" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12" y2="3"></line>
+                <line x1="20" y1="21" x2="20" y2="16"></line>
+                <line x1="20" y1="12" x2="20" y2="3"></line>
+                <line x1="1" y1="14" x2="7" y2="14"></line>
+                <line x1="9" y1="8" x2="15" y2="8"></line>
+                <line x1="17" y1="16" x2="23" y2="16"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Quick Category Chips -->
+          <div class="career-categories-bar" id="careerCategoriesBar">
+            <button class="career-category-chip active" data-category="all">🔥 Все</button>
+            <button class="career-category-chip" data-category="it">💻 IT & Код</button>
+            <button class="career-category-chip" data-category="design">🎨 Дизайн & UX</button>
+            <button class="career-category-chip" data-category="marketing">📈 Маркетинг</button>
+            <button class="career-category-chip" data-category="management">💼 Менеджмент</button>
+            <button class="career-category-chip" data-category="data">📊 Data & AI</button>
+          </div>
+
+          <!-- Interactive Status Composer Card ("What's on your mind?") -->
+          <div class="career-composer-card" id="careerComposerCard">
+            <div class="composer-avatar-wrap">
+              <img id="composerUserAvatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" class="composer-avatar" alt="Вы" />
+            </div>
+            <div class="composer-prompt">
+              <span class="composer-prompt-title">Ищешь работу, проект или команду?</span>
+              <span class="composer-prompt-sub">Опубликовать статус и стек в Social Mate ✏️</span>
+            </div>
+          </div>
+
+          <!-- Candidate Feed List -->
+          <div class="career-feed-list" id="careerFeedList">
+            <!-- Rendered by JS -->
           </div>
         </div>
       </section>
@@ -351,6 +405,55 @@
     </div>
   </div>
 
+  <!-- SOCIAL MATE: Career Profile Quick Edit Modal -->
+  <div class="modal-overlay" id="careerEditModal">
+    <div class="modal-card career-edit-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-title-icon">💼</span>
+          <h3 class="modal-title">Карьерный профиль Social Mate</h3>
+        </div>
+        <button class="modal-close-btn" id="careerEditCloseBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="career-modal-subtitle">
+          Заполните информацию о ваших навыках и целях, чтобы компании и другие студенты находили вас в ленте нетворкинга.
+        </p>
+
+        <div class="filter-group">
+          <label class="filter-label">🎯 Карьерная цель / О себе:</label>
+          <textarea id="careerInputGoal" class="career-textarea" rows="3" placeholder="Например: Ищу стажировку Backend разработчиком в Финтех, участвую в кейс-чемпионатах и хакатонах 🚀"></textarea>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">💻 Стек и навыки (через запятую):</label>
+          <input type="text" id="careerInputSkills" class="filter-input" placeholder="Python, FastAPI, Docker, SQL, Git, React" />
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">🏢 Предпочтительный формат работы:</label>
+          <select id="careerInputFormat" class="filter-select">
+            <option value="Удалённо">🟢 Удалённо</option>
+            <option value="Гибрид">🟡 Гибридный формат</option>
+            <option value="Офис">🏢 Только офис</option>
+            <option value="Стажировка">🎓 Летняя/осенняя стажировка</option>
+            <option value="Проект / Хакатон">🚀 Проектная работа / Хакатоны</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">🔗 Ссылка на резюме / GitHub / Behance:</label>
+          <input type="url" id="careerInputPortfolio" class="filter-input" placeholder="https://github.com/username или https://hh.ru/resume/..." />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="careerSaveBtn" style="background: linear-gradient(135deg, #2563EB, #1D4ED8);">
+          💾 Сохранить в Social Mate
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Figma Onboarding Screen -->
   <div class="onboarding-overlay" id="onboardingScreen">
     <div class="onboarding-top-bar">
@@ -404,6 +507,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260902_22"></script>
+  <script src="/static/webapp/webapp.js?v=20260902_23"></script>
 </body>
 </html>

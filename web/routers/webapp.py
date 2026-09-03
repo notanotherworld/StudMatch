@@ -627,6 +627,222 @@ async def webapp_toggle_mode(
     return {"status": "ok", "mode": new_mode.value}
 
 
+# ─── API: Social Mate Career Networking ───────────────────────
+class CareerProfileUpdateRequest(BaseModel):
+    career_goal: Optional[str] = None
+    career_custom_skills: Optional[str] = None
+    career_portfolio_url: Optional[str] = None
+    career_work_format: Optional[str] = None
+
+
+@router.post("/api/webapp/profile/career")
+async def webapp_update_career_profile(
+    payload: CareerProfileUpdateRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Быстрое сохранение карьерных данных студента (Social Mate)."""
+    p_res = await db.execute(select(Profile).where(Profile.user_id == student.id))
+    p = p_res.scalar_one_or_none()
+    if not p:
+        p = Profile(user_id=student.id, name=student.tg_username or "Студент")
+        db.add(p)
+
+    if payload.career_goal is not None:
+        p.career_goal = payload.career_goal.strip()
+    if payload.career_custom_skills is not None:
+        p.career_custom_skills = payload.career_custom_skills.strip()
+    if payload.career_portfolio_url is not None:
+        p.career_portfolio_url = payload.career_portfolio_url.strip()
+    if payload.career_work_format is not None:
+        p.career_work_format = payload.career_work_format.strip()
+
+    p.career_is_complete = True
+    await db.commit()
+    await db.refresh(p)
+
+    return {
+        "status": "ok",
+        "message": "Карьерный профиль Social Mate обновлен!",
+        "profile": {
+            "career_goal": p.career_goal,
+            "career_custom_skills": p.career_custom_skills,
+            "career_portfolio_url": p.career_portfolio_url,
+            "career_work_format": p.career_work_format,
+            "career_is_complete": p.career_is_complete,
+        },
+    }
+
+
+@router.get("/api/webapp/career/feed")
+async def webapp_career_feed(
+    q: Optional[str] = None,
+    category: Optional[str] = "all",
+    work_format: Optional[str] = "all",
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Профессиональная лента нетворкинга Social Mate:
+    Возвращает карточки специалистов/студентов с навыками, целями и портфолио.
+    """
+    query = (
+        select(User)
+        .options(selectinload(User.profile), selectinload(User.university))
+        .join(Profile, Profile.user_id == User.id)
+        .where(
+            and_(
+                User.id != student.id,
+                User.is_active.is_(True),
+                or_(
+                    Profile.career_is_complete.is_(True),
+                    Profile.career_custom_skills.isnot(None),
+                    Profile.career_goal.isnot(None),
+                    Profile.is_complete.is_(True),
+                ),
+            )
+        )
+    )
+
+    # 1. Текстовый поиск по q (имя, вуз, навыки, цель)
+    if q and q.strip():
+        q_clean = q.strip()
+        query = query.where(
+            or_(
+                Profile.name.ilike(f"%{q_clean}%"),
+                Profile.career_custom_skills.ilike(f"%{q_clean}%"),
+                Profile.career_goal.ilike(f"%{q_clean}%"),
+                User.university.has(University.name.ilike(f"%{q_clean}%")),
+                User.university.has(University.short_name.ilike(f"%{q_clean}%")),
+            )
+        )
+
+    # 2. Фильтрация по категориям
+    category_keywords = {
+        "it": ["python", "java", "c++", "c#", "frontend", "backend", "fullstack", "react", "vue", "docker", "devops", "sql", "код", "разраб", "web dev", "web-dev", "flutter", "ios", "android", "разработ"],
+        "design": ["дизайн", "design", "ux", "ui", "figma", "иллюстра", "3d", "blender", "photoshop", "графич", "моушн"],
+        "marketing": ["маркетинг", "marketing", "smm", "target", "реклама", "pr", "контент", "копирайт", "трафик", "seo", "бренд"],
+        "management": ["менеджмент", "management", "pm", "управлен", "продакт", "проджект", "лидер", "бизнес", "стартап", "sales", "продаж"],
+        "data": ["data", "данн", "аналит", "ml", "ai", "machine learning", "datascience", "sql", "pandas", "bi", "нейросет"],
+    }
+
+    if category and category.lower() in category_keywords:
+        kw_list = category_keywords[category.lower()]
+        conds = [
+            or_(
+                Profile.career_custom_skills.ilike(f"%{kw}%"),
+                Profile.career_goal.ilike(f"%{kw}%"),
+                Profile.major.ilike(f"%{kw}%"),
+            )
+            for kw in kw_list
+        ]
+        query = query.where(or_(*conds))
+
+    # 3. Фильтрация по формату работы
+    if work_format and work_format != "all":
+        query = query.where(Profile.career_work_format.ilike(f"%{work_format}%"))
+
+    # Сортировка: сначала премиум, затем буст, затем рейтинг
+    query = query.order_by(
+        User.premium_until.desc().nullslast(),
+        User.boost_until.desc().nullslast(),
+        Profile.rating_score.desc().nullslast(),
+        User.created_at.desc(),
+    ).limit(35)
+
+    res = await db.execute(query)
+    candidates = list(res.scalars().all())
+
+    cand_ids = [c.id for c in candidates]
+    connected_ids = set()
+    pending_ids = set()
+
+    if cand_ids:
+        # Взаимные мэтчи (уже подключены)
+        m_stmt = select(Match).where(
+            or_(
+                and_(Match.user1_id == student.id, Match.user2_id.in_(cand_ids)),
+                and_(Match.user2_id == student.id, Match.user1_id.in_(cand_ids)),
+            )
+        )
+        m_res = await db.execute(m_stmt)
+        for m in m_res.scalars().all():
+            other_id = m.user2_id if m.user1_id == student.id else m.user1_id
+            connected_ids.add(other_id)
+
+        # Отправленные свайпы / запросы
+        s_stmt = select(Swipe.to_user_id).where(
+            and_(
+                Swipe.from_user_id == student.id,
+                Swipe.to_user_id.in_(cand_ids),
+                Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+            )
+        )
+        s_res = await db.execute(s_stmt)
+        for sid in s_res.scalars().all():
+            if sid not in connected_ids:
+                pending_ids.add(sid)
+
+    cards = []
+    for u in candidates:
+        p = u.profile
+        if not p:
+            continue
+
+        photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
+        if p.career_avatar_file_id and p.career_avatar_file_id not in photos:
+            photos = [p.career_avatar_file_id] + photos
+
+        photo_urls = [resolve_photo_url(pid) for pid in photos if resolve_photo_url(pid)]
+        if not photo_urls:
+            photo_urls = [DEFAULT_FALLBACK_AVATAR]
+
+        # Парсим навыки
+        skills = []
+        if p.career_custom_skills:
+            for s in p.career_custom_skills.replace(";", ",").split(","):
+                s_clean = s.strip()
+                if s_clean and len(s_clean) < 30:
+                    skills.append(s_clean)
+        elif p.career_skills:
+            skills = [f"Навык #{sid}" for sid in list(p.career_skills)[:6]]
+
+        # Если явных карьерных навыков нет — берем интересы
+        if not skills and p.interest_ids:
+            tag_res = await db.execute(select(InterestTag.name).where(InterestTag.id.in_(p.interest_ids[:5])))
+            skills = list(tag_res.scalars().all())
+
+        is_connected = u.id in connected_ids
+        is_pending = u.id in pending_ids
+
+        cards.append({
+            "user_id": u.id,
+            "name": p.name or "Студент",
+            "age": p.age,
+            "year": p.year,
+            "major": p.major or "",
+            "university": (u.university.short_name or u.university.name) if u.university else "",
+            "photos": photo_urls,
+            "avatar_url": photo_urls[0],
+            "career_goal": p.career_goal or "Открыт к предложениям и новым проектам 🚀",
+            "career_skills": skills[:8],
+            "career_work_format": p.career_work_format or "Удалённо / Проекты",
+            "career_portfolio_url": p.career_portfolio_url,
+            "rating_score": round(p.rating_score or 0.0, 1),
+            "is_verified": bool(u.is_verified),
+            "is_premium": bool(u.is_premium),
+            "is_connected": is_connected,
+            "is_pending": is_pending,
+            "tg_username": u.tg_username if is_connected else None,
+        })
+
+    return {
+        "status": "ok",
+        "count": len(cards),
+        "candidates": cards,
+    }
+
+
 # ─── API: Поисковые фильтры (Возраст, Курс, Факультет, Пол) ───
 class WebAppFiltersRequest(BaseModel):
     min_age: int = 16
