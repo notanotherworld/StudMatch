@@ -1,6 +1,7 @@
 """
 Загрузка достижений студентом: тип → название → документ → MinIO.
 """
+import html
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
