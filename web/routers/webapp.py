@@ -373,6 +373,7 @@ async def webapp_swipe(
         partner = await get_user(db, payload.target_id)
         if partner:
             p_profile = partner.profile
+            p_name = p_profile.name if (p_profile and p_profile.name) else "Студент"
             p_photos = list(p_profile.photos) if (p_profile and p_profile.photos) else ([p_profile.avatar_file_id] if (p_profile and p_profile.avatar_file_id) else [])
             first_p = p_photos[0] if p_photos else None
             match_data = {
