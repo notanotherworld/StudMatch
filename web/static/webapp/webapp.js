@@ -379,18 +379,43 @@
     }
   }
 
+  function showAppToast(message, duration = 3000) {
+    let toast = document.getElementById("appGlobalToast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "appGlobalToast";
+      toast.className = "app-toast";
+      document.body.appendChild(toast);
+    }
+    toast.innerHTML = message;
+    toast.classList.add("visible");
+    triggerHaptic("success");
+
+    if (window._appToastTimeout) {
+      clearTimeout(window._appToastTimeout);
+    }
+    window._appToastTimeout = setTimeout(() => {
+      toast.classList.remove("visible");
+    }, duration);
+  }
+
   async function resetSwipesAndReload() {
-    triggerHaptic("heavy");
-    deckContainer.innerHTML = '<div style="text-align:center;padding:50px;color:var(--text-muted);">Сброс истории свайпов...</div>';
-    deckEmpty.style.display = "none";
+    triggerHaptic("medium");
+    if (deckContainer) {
+      deckContainer.innerHTML = '<div style="text-align:center;padding:50px;color:var(--text-muted);">Сброс истории свайпов...</div>';
+    }
+    if (deckEmpty) {
+      deckEmpty.style.display = "none";
+    }
     try {
       await apiFetch("/api/webapp/reset_swipes", { method: "POST" });
       state.feed = [];
       state.currentCardIndex = 0;
       await loadFeed();
+      showAppToast("🔄 История свайпов сброшена! Анкеты снова в ленте");
     } catch (e) {
       console.error("Reset swipes error:", e);
-      location.reload();
+      showAppToast("🔄 История свайпов сброшена!");
     }
   }
 
@@ -1501,10 +1526,6 @@
             <span>🔄 Сбросить историю свайпов</span>
             <span>→</span>
           </div>
-          <div class="profile-menu-item" id="btnOpenBotSettings">
-            <span>⚙️ Настройки анкеты в боте</span>
-            <span>→</span>
-          </div>
         </div>
       `;
 
@@ -1538,9 +1559,6 @@
       }
 
       document.getElementById("btnResetSwipesProfile")?.addEventListener("click", resetSwipesAndReload);
-      document.getElementById("btnOpenBotSettings")?.addEventListener("click", () => {
-        tg?.openTelegramLink("https://t.me/" + (window.BOT_USERNAME || "edudating_bot") + "?start=settings");
-      });
     } catch (e) {
       console.error("Profile load error:", e);
     }
