@@ -619,6 +619,25 @@ ACHIEVEMENT_SCORES = {
     "participation": 5.0,
 }
 
+ACHIEVEMENT_LABELS = {
+    "case_participant": "💼 Участие в хакатоне / кейс-чемпионате",
+    "place_3": "🥉 Призовое 3-е место",
+    "place_2": "🥈 Призовое 2-е место",
+    "place_1": "🥇 Победа / 1-е место",
+    "volunteer": "🤝 Участие в волонтёрском проекте",
+    "internship": "👔 Прохождение стажировки",
+    "forum_attender": "🏛 Посещение форума / конференции",
+    "forum_speaker": "🎤 Выступление на форуме / конференции",
+    # Дополнительные / устаревшие типы
+    "gpa": "📊 GPA / Успеваемость",
+    "competition": "🥇 Соревнования",
+    "case": "💼 Кейс-чемпионат",
+    "olympiad": "🏆 Победа в олимпиаде",
+    "diploma": "🎓 Диплом с отличием",
+    "publication": "📝 Публикация",
+    "participation": "🎯 Участие",
+}
+
 
 async def approve_achievement(db: AsyncSession, achievement_id, admin_id: int) -> None:
     """Подтвердить достижение и начислить очки к рейтингу."""

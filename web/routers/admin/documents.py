@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from web.dependencies import get_db, get_current_admin, require_superadmin, check_csrf
 from bot.utils.minio_client import get_object_data
 from database.models import Achievement, VerifiedStatus
-from database.crud import approve_achievement, reject_achievement
+from database.crud import approve_achievement, reject_achievement, ACHIEVEMENT_LABELS
 from web.utils.audit import log_admin_action
 
 router = APIRouter()
@@ -225,7 +225,7 @@ async def approve_by_type(
                 await bot.send_message(
                     uid,
                     f"✅ <b>Достижение подтверждено!</b>\n\n"
-                    f"Тип: {ach_type}\nРейтинг обновлён.",
+                    f"Тип: {ACHIEVEMENT_LABELS.get(ach_type, ach_type)}\nРейтинг обновлён.",
                     parse_mode="HTML",
                 )
             except Exception:

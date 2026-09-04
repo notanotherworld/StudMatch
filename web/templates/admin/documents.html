@@ -38,11 +38,22 @@
     <form method="POST" action="/admin/documents/approve-type">
       <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token or '' }}">
       <div style="display:flex;gap:6px;align-items:center;">
-        <select name="ach_type" style="width:170px;padding:8px 12px;font-size:13px;">
+        <select name="ach_type" style="width:230px;padding:8px 12px;font-size:13px;">
+          <option value="internship">👔 Стажировка (все)</option>
+          <option value="case_participant">💼 Кейс / хакатон (все)</option>
+          <option value="place_1">🥇 1-е место (все)</option>
+          <option value="place_2">🥈 2-е место (все)</option>
+          <option value="place_3">🥉 3-е место (все)</option>
+          <option value="volunteer">🤝 Волонтёрство (все)</option>
+          <option value="forum_attender">🏛 Посещение форума (все)</option>
+          <option value="forum_speaker">🎤 Выступление (все)</option>
           <option value="gpa">📊 GPA (все)</option>
           <option value="olympiad">🏆 Олимпиады (все)</option>
-          <option value="participation">🎯 Участие (все)</option>
           <option value="competition">🥇 Соревнования (все)</option>
+          <option value="case">💼 Кейсы (все)</option>
+          <option value="diploma">🎓 Дипломы (все)</option>
+          <option value="publication">📝 Публикации (все)</option>
+          <option value="participation">🎯 Участие (все)</option>
         </select>
         <button type="submit" class="btn btn-success btn-sm"
                 onclick="return confirm('Одобрить все достижения этого типа?')">

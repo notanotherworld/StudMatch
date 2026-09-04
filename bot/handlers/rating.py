@@ -12,10 +12,7 @@ from bot.states.fsm import AchievementState
 from bot.keyboards.swipe import achievement_type_keyboard
 from bot.utils.minio_client import upload_document
 from database.models import User, Achievement, AchievementType
-from database.crud import ACHIEVEMENT_SCORES
-
-import html
-from database.crud import set_user_mode
+from database.crud import ACHIEVEMENT_SCORES, ACHIEVEMENT_LABELS, set_user_mode
 from database.models import User, Achievement, AchievementType, Profile
 
 router = Router()
@@ -238,18 +235,35 @@ async def process_document(message: Message, state: FSMContext, user: User, db: 
         return
 
     data = await state.get_data()
-    ach_type = AchievementType(data["ach_type"])
+    if "ach_type" not in data or "title" not in data:
+        await state.clear()
+        await message.answer("⚠️ Данные сессии устарели. Пожалуйста, начните добавление достижения заново.")
+        return
+
+    try:
+        ach_type = AchievementType(data["ach_type"])
+    except ValueError:
+        await state.clear()
+        await message.answer("⚠️ Неизвестный тип достижения. Пожалуйста, начните добавление заново.")
+        return
+
     score = ACHIEVEMENT_SCORES.get(data["ach_type"], 5.0)
 
-    achievement = Achievement(
-        user_id=user.id,
-        type=ach_type,
-        title=data["title"],
-        document_url=doc_url,
-        score=score,
-    )
-    db.add(achievement)
-    await db.commit()
+    try:
+        achievement = Achievement(
+            user_id=user.id,
+            type=ach_type,
+            title=data["title"],
+            document_url=doc_url,
+            score=score,
+        )
+        db.add(achievement)
+        await db.commit()
+    except Exception as e:
+        logger.error(f"Error saving achievement for user {user.id}: {e}", exc_info=True)
+        await db.rollback()
+        await message.answer("⚠️ Произошла ошибка при сохранении достижения. Пожалуйста, попробуйте позже.")
+        return
 
     await state.clear()
 

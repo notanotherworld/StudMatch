@@ -106,15 +106,27 @@ MIGRATION_STATEMENTS = [
         updated_at TIMESTAMP WITH TIME ZONE
     );
     """,
+    # 024_add_enum_values (добавление новых типов достижений и тарифов в enum-типы PostgreSQL)
+    "ALTER TYPE achievementtype ADD VALUE IF NOT EXISTS 'case_participant';",
+    "ALTER TYPE achievementtype ADD VALUE IF NOT EXISTS 'place_3';",
+    "ALTER TYPE achievementtype ADD VALUE IF NOT EXISTS 'place_2';",
+    "ALTER TYPE achievementtype ADD VALUE IF NOT EXISTS 'place_1';",
+    "ALTER TYPE achievementtype ADD VALUE IF NOT EXISTS 'volunteer';",
+    "ALTER TYPE achievementtype ADD VALUE IF NOT EXISTS 'internship';",
+    "ALTER TYPE achievementtype ADD VALUE IF NOT EXISTS 'forum_attender';",
+    "ALTER TYPE achievementtype ADD VALUE IF NOT EXISTS 'forum_speaker';",
+    "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'superlike_1';",
+    "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'superlike_5';",
+    "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'premium_1m';",
     # Установка версии alembic
     """
     DO $$
     BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version') THEN
-            UPDATE alembic_version SET version_num = '019_add_premium_until';
+            UPDATE alembic_version SET version_num = '022_add_enum_values';
         ELSE
             CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));
-            INSERT INTO alembic_version (version_num) VALUES ('019_add_premium_until');
+            INSERT INTO alembic_version (version_num) VALUES ('022_add_enum_values');
         END IF;
     END $$;
     """
@@ -125,8 +137,13 @@ async def ensure_database_schema(engine: AsyncEngine) -> None:
     """Выполняет DDL-скрипты добавления новых колонок при старте без остановки приложения."""
     for stmt in MIGRATION_STATEMENTS:
         try:
-            async with engine.begin() as conn:
+            async with engine.connect() as conn:
+                await conn.execution_options(isolation_level="AUTOCOMMIT")
                 await conn.execute(text(stmt))
-        except Exception as e:
-            logger.warning(f"⚠️ Ошибка выполнения миграции '{stmt[:40]}...': {e}")
+        except Exception:
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(text(stmt))
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка выполнения миграции '{stmt[:40]}...': {e}")
     logger.info("✅ Схема базы данных успешно проверена и синхронизирована!")
