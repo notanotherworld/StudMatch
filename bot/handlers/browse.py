@@ -30,7 +30,7 @@ router = Router()
 async def _build_profile_caption(
     profile: Profile, tags_map: dict[int, InterestTag], user: Optional[User] = None, mode: Optional[ModeEnum] = None
 ) -> str:
-    """Формируем текст карточки студента в зависимости от режима."""
+    """Формируем лаконичный и минималистичный текст карточки студента."""
     user_obj = user or (profile.__dict__.get("user") if hasattr(profile, "__dict__") else None)
     card_mode = mode or getattr(user_obj, "mode", ModeEnum.dating)
 
@@ -38,7 +38,7 @@ async def _build_profile_caption(
     major = html.escape(profile.major or "")
     year_str = f"{profile.year} курс" if profile.year else "Студент"
     raw_rating = getattr(profile, "rating_score", 0.0) or 0.0
-    rating = f"⭐ {raw_rating:.0f} б." if raw_rating > 0 else ""
+    rating_str = f"Рейтинг: <b>{raw_rating:.0f} б.</b>"
 
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
@@ -51,73 +51,111 @@ async def _build_profile_caption(
         if p_until > now:
             is_prem = True
 
-    boost_badge = ""
+    is_boost = False
     if user_obj and getattr(user_obj, "boost_until", None):
         b_until = user_obj.boost_until
         if b_until.tzinfo is None:
             b_until = b_until.replace(tzinfo=timezone.utc)
         if b_until > now:
-            boost_badge = " 🌪 [В топе]"
+            is_boost = True
 
-    header_badges = []
-    if is_prem:
-        header_badges.append("💎✨ <b>PREMIUM ПРОФИЛЬ</b> ✨💎")
+    univ_str = "РУДН"
+    if user_obj and getattr(user_obj, "university", None) and getattr(user_obj.university, "short_name", None):
+        univ_str = user_obj.university.short_name
 
-    if user_obj and getattr(user_obj, "email_verified", False):
-        univ_str = ""
-        if hasattr(user_obj, "university") and user_obj.university and getattr(user_obj.university, "short_name", None):
-            univ_str = f": {user_obj.university.short_name}"
-        header_badges.append(f"🎓 <b>ВЕРИФИЦИРОВАН{univ_str}</b>")
-
-    badges_header = ("\n".join(header_badges) + "\n\n") if header_badges else ""
-    title_name = f"💎 <b>{name}</b>" if is_prem else f"<b>{name}</b>"
-
-    age_str = ""
-    if getattr(profile, "age", None):
-        a_val = profile.age
-        if 11 <= (a_val % 100) <= 19:
+    age_val = getattr(profile, "age", None)
+    if age_val:
+        if 11 <= (age_val % 100) <= 19:
             suf = "лет"
-        elif a_val % 10 == 1:
+        elif age_val % 10 == 1:
             suf = "год"
-        elif a_val % 10 in (2, 3, 4):
+        elif age_val % 10 in (2, 3, 4):
             suf = "года"
         else:
             suf = "лет"
-        age_str = f", {a_val} {suf}"
+        age_formatted = f"{age_val} {suf}"
+    else:
+        age_formatted = None
+
+    # Строка идентификации: Имя, 19 лет, РУДН, 2 курс
+    identity_parts = [f"<b>{name}</b>"]
+    if age_formatted:
+        identity_parts.append(age_formatted)
+    if univ_str:
+        identity_parts.append(univ_str)
+    if year_str:
+        identity_parts.append(year_str)
+    identity_line = ", ".join(identity_parts)
+
+    # Верхняя плашка статуса (только если есть активный премиум или буст)
+    top_badges = []
+    if is_prem:
+        top_badges.append("Premium 💎")
+    if is_boost:
+        top_badges.append("В топе 🌪")
+    top_line = (" · ".join(top_badges) + "\n") if top_badges else ""
+
+    # Статус верификации
+    if user_obj and getattr(user_obj, "email_verified", False):
+        verification_line = "Верификация: подтверждена ✅"
+    else:
+        verification_line = "Верификация: не подтверждена"
 
     if card_mode == ModeEnum.career:
+        mode_line = "🎯 Карьера"
+        work_fmt = html.escape(profile.career_work_format or "Не указан")
         skills_text = html.escape(profile.career_custom_skills or "Не указаны")
         goal_text = html.escape(profile.career_goal or "Ищет интересные проекты и стажировки")
-        work_fmt = html.escape(profile.career_work_format or "Любой формат")
+
+        portfolio_block = ""
+        if profile.career_portfolio_url:
+            portfolio_block = f"\n\nПортфолио / Резюме:\n{html.escape(profile.career_portfolio_url)}"
+
+        major_block = f"{major}\n" if major else ""
 
         return (
-            f"{badges_header}"
-            f"{title_name}{age_str}, {year_str} 🎯 <b>[Карьера]</b>{boost_badge}\n\n"
-            f"📚 {major}\n"
-            f"💼 Формат: <b>{work_fmt}</b>\n"
-            f"⭐ Рейтинг: <b>{rating}</b>\n\n"
-            f"🛠 <b>Навыки и стек:</b>\n{skills_text}\n\n"
-            f"🎯 <b>Цель / Опыт:</b>\n<i>{goal_text}</i>"
+            f"{top_line}"
+            f"{identity_line}\n"
+            f"{mode_line}\n\n"
+            f"{verification_line}\n\n"
+            f"{major_block}"
+            f"Формат: {work_fmt}\n"
+            f"{rating_str}\n\n"
+            f"Навыки и стек:\n{skills_text}\n\n"
+            f"Цель / Опыт:\n{goal_text}"
+            f"{portfolio_block}"
         )
     else:
+        mode_line = "❤️ Знакомства"
+        g_str = "Парень" if profile.gender == "male" else ("Девушка" if profile.gender == "female" else None)
+        tg_str = "Девушек" if profile.target_gender == "female" else ("Парней" if profile.target_gender == "male" else ("Всех" if profile.target_gender == "all" else None))
+        gender_block = f"Пол: {g_str} · Ищу: {tg_str}\n" if (g_str and tg_str) else (f"Пол: {g_str}\n" if g_str else "")
+
+        goal_text = html.escape(getattr(profile, "goal", "") or "Не заполнено")
+
         tags_text = ""
         if profile.interest_ids:
             tags = [tags_map[tid] for tid in profile.interest_ids if tid in tags_map]
             tags_text = " ".join(f"#{html.escape(t.name)}" for t in tags)
 
+        interests_parts = []
+        if tags_text:
+            interests_parts.append(tags_text)
         if profile.custom_interests:
-            custom = html.escape(profile.custom_interests)
-            tags_text += f"\n✍️ {custom}" if tags_text else f"✍️ {custom}"
-
-        goal = html.escape(getattr(profile, "goal", "") or "")
+            interests_parts.append(f"Свои: {html.escape(profile.custom_interests)}")
+        interests_block = ("\n\nИнтересы:\n" + "\n".join(interests_parts)) if interests_parts else ""
+        major_block = f"{major}\n" if major else ""
 
         return (
-            f"{badges_header}"
-            f"{title_name}{age_str}, {year_str} ❤️ <b>[Знакомства]</b>{boost_badge}\n\n"
-            f"📚 {major}\n\n"
-            f"❤️ Знакомства  {rating}\n\n"
-            f"💬 <i>{goal}</i>\n\n"
-            f"{tags_text}"
+            f"{top_line}"
+            f"{identity_line}\n"
+            f"{mode_line}\n\n"
+            f"{verification_line}\n\n"
+            f"{major_block}"
+            f"{gender_block}"
+            f"{rating_str}\n\n"
+            f"О себе:\n{goal_text}"
+            f"{interests_block}"
         )
 
 
@@ -195,9 +233,9 @@ async def send_next_card(
     )
     badge = ""
     if incoming_swipe == SwipeAction.superlike:
-        badge = "⭐ <b>ТЕБЯ СУПЕРЛАЙКНУЛИ!</b> ⭐\n<i>Пользователь очень хочет познакомиться с тобой:</i>\n\n"
+        badge = "⭐️ <b>Пользователь поставил(а) тебе суперлайк!</b>\n\n"
     elif incoming_swipe == SwipeAction.like:
-        badge = "❤️ <b>ПОЛЬЗОВАТЕЛЬ ЛАЙКНУЛ ТЕБЯ!</b>\n\n"
+        badge = "❤️ <b>Пользователь поставил(а) тебе лайк!</b>\n\n"
 
     base_caption = await _build_profile_caption(profile, tags_map, mode=user.mode)
     caption = f"{badge}{base_caption}"
@@ -647,10 +685,10 @@ async def show_incoming_likes_entry(event: Message | CallbackQuery, user: User, 
             pass
 
     card_text = await _build_profile_caption(cand_profile, tags_map, user=candidate, mode=candidate.mode)
-    action_label = "⭐ <b>СУПЕРЛАЙКНУЛ(А) ТЕБЯ!</b>" if like.action == SwipeAction.superlike else "❤️ <b>ПОСТАВИЛ(А) ТЕБЕ ЛАЙК!</b>"
+    action_label = "⭐️ <b>Поставил(а) суперлайк</b>" if like.action == SwipeAction.superlike else "❤️ <b>Поставил(а) лайк</b>"
     comment_block = f"\n\n💌 <i>«{html.escape(like.comment)}»</i>" if like.comment else ""
 
-    header = f"💌 <b>Входящая симпатия (всего {pending_count}):</b>\n{action_label}{comment_block}\n\n"
+    header = f"<b>Входящая симпатия (всего {pending_count}):</b>\n{action_label}{comment_block}\n\n"
     full_text = header + card_text
     media_full_text = _safe_media_caption(full_text)
 

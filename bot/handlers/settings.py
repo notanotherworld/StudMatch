@@ -596,28 +596,43 @@ async def show_my_profile(
     major = html.escape(profile.major or "")
     email_str = html.escape(user.email or "не указан")
 
-    # Определяем какой режим показывать
+    univ_str = user.university.short_name if user.university else "РУДН"
+
+    age_formatted = None
+    if profile.age:
+        age_formatted = format_age(profile.age).lstrip(", ")
+
+    # Строка идентификации: Имя, 19 лет, РУДН, 2 курс
+    identity_parts = [f"<b>{name}</b>"]
+    if age_formatted:
+        identity_parts.append(age_formatted)
+    if univ_str:
+        identity_parts.append(univ_str)
+    if year_str:
+        identity_parts.append(year_str)
+    identity_line = ", ".join(identity_parts)
+
     is_career_view = (view_mode == "career") or (view_mode == "current" and user.mode == ModeEnum.career)
 
-    # Статусы аккаунта (Премиум & Верификация)
-    is_prem = user.is_premium
-    if is_prem and user.premium_until:
-        prem_date = user.premium_until.strftime("%d.%m.%Y")
-        premium_str = f"💎 <b>Премиум:</b> Активен до {prem_date} ✅"
-        title_name = f"💎 <b>{name}</b> 💎"
-        premium_label = " 💎 [Премиум]"
-    else:
-        premium_str = "💎 <b>Премиум:</b> Не активен"
-        title_name = f"<b>{name}</b>"
-        premium_label = ""
+    # Верхняя строка премиума
+    top_line = "Premium 💎\n" if user.is_premium else ""
 
+    # Статус верификации
     if user.email_verified:
-        u_name = user.university.short_name if user.university else "РУДН"
-        verified_str = f"🎓 <b>Верификация:</b> ✅ Подтверждена ({u_name})"
-        verified_badge = f" 🎓 [{u_name}]"
+        verified_str = f"Верификация: подтверждена ✅ ({univ_str})"
     else:
-        verified_str = "🎓 <b>Верификация:</b> ⏳ Не подтверждена (+100⭐)"
-        verified_badge = ""
+        verified_str = "Верификация: не подтверждена (+100⭐)"
+
+    # Служебный блок внизу
+    if user.is_premium and user.premium_until:
+        prem_date = user.premium_until.strftime("%d.%m.%Y")
+        prem_info = f"Премиум: активен до {prem_date} ✅"
+    else:
+        prem_info = "Премиум: не активен"
+
+    superlikes_info = f"Суперлайков: {user.superlike_balance}"
+    email_info = f"Почта: {email_str}"
+    major_block = f"{major}\n" if major else ""
 
     if is_career_view:
         # Карьерная анкета
@@ -625,54 +640,62 @@ async def show_my_profile(
         skills_text = html.escape(profile.career_custom_skills or "Не указаны")
         goal_text = html.escape(profile.career_goal or "Не указана")
         work_fmt = html.escape(profile.career_work_format or "Не указан")
-        portfolio_str = f"\n🔗 <b>Портфолио/Резюме:</b> {html.escape(profile.career_portfolio_url)}" if profile.career_portfolio_url else ""
-        status_str = "✅ Заполнена" if profile.career_is_complete else "⚠️ Не заполнена (нажми кнопку ниже)"
+        portfolio_block = f"\n\nПортфолио / Резюме:\n{html.escape(profile.career_portfolio_url)}" if profile.career_portfolio_url else ""
+        status_line = "Статус анкеты: заполнена ✅" if profile.career_is_complete else "Статус анкеты: не заполнена ⚠️"
 
         text = (
-            f"{title_name}{format_age(profile.age)}{verified_badge}{premium_label}, {year_str} 🎯 <b>[Карьера]</b>\n"
-            f"<i>Статус: {status_str}</i>\n\n"
-            f"📚 {major}\n"
-            f"💼 Формат: {work_fmt}\n"
-            f"⭐ Рейтинг: <b>{score_val:.0f} б.</b>\n\n"
-            f"🛠 <b>Навыки и стек:</b>\n{skills_text}\n\n"
-            f"🎯 <b>Цель / Опыт:</b>\n<i>{goal_text}</i>"
-            f"{portfolio_str}\n\n"
-            f"{premium_str}\n"
-            f"{verified_str}\n"
-            f"⭐️ Суперлайков: <b>{user.superlike_balance}</b>\n"
-            f"📧 {email_str}"
+            f"{top_line}"
+            f"{identity_line}\n"
+            f"🎯 Карьера\n\n"
+            f"{status_line}\n"
+            f"{verified_str}\n\n"
+            f"{major_block}"
+            f"Формат: {work_fmt}\n"
+            f"Рейтинг: {score_val:.0f} б.\n\n"
+            f"Навыки и стек:\n{skills_text}\n\n"
+            f"Цель / Опыт:\n{goal_text}"
+            f"{portfolio_block}\n\n"
+            f"{prem_info}\n"
+            f"{superlikes_info}\n"
+            f"{email_info}"
         )
         current_view_param = "career"
     else:
         # Анкета Знакомств
         photo_file_id = profile.avatar_file_id
-        g_str = "👨 Парень" if profile.gender == "male" else ("👩 Девушка" if profile.gender == "female" else "")
-        tg_str = "👩 Ищу девушек" if profile.target_gender == "female" else ("👨 Ищу парней" if profile.target_gender == "male" else "✨ Ищу всех")
-        gender_info = f"\n{g_str} · {tg_str}" if g_str else ""
+        g_str = "Парень" if profile.gender == "male" else ("Девушка" if profile.gender == "female" else None)
+        tg_str = "Девушек" if profile.target_gender == "female" else ("Парней" if profile.target_gender == "male" else ("Всех" if profile.target_gender == "all" else None))
+        gender_block = f"Пол: {g_str} · Ищу: {tg_str}\n" if (g_str and tg_str) else (f"Пол: {g_str}\n" if g_str else "")
+
+        goal_text = html.escape(getattr(profile, "goal", "") or "Не заполнено")
+        status_line = "Статус анкеты: заполнена ✅" if profile.is_complete else "Статус анкеты: не заполнена ⚠️"
 
         tags_text = ""
         if profile.interest_ids:
             res = await db.execute(select(InterestTag).where(InterestTag.id.in_(profile.interest_ids)))
             tags = res.scalars().all()
             tags_text = " ".join(f"#{html.escape(t.name)}" for t in tags)
+        interests_parts = []
+        if tags_text:
+            interests_parts.append(tags_text)
         if profile.custom_interests:
-            tags_text += f"\n✍️ Свои: {html.escape(profile.custom_interests)}"
-
-        goal_text = html.escape(getattr(profile, "goal", "") or "")
-        status_str = "✅ Заполнена" if profile.is_complete else "⚠️ Не заполнена"
+            interests_parts.append(f"Свои: {html.escape(profile.custom_interests)}")
+        interests_block = ("\n\nИнтересы:\n" + "\n".join(interests_parts)) if interests_parts else ""
 
         text = (
-            f"{title_name}{format_age(profile.age)}{verified_badge}{premium_label}, {year_str} ❤️ <b>[Знакомства]</b>\n"
-            f"<i>Статус: {status_str}</i>\n\n"
-            f"📚 {major}\n"
-            f"⭐ Рейтинг: <b>{score_val:.0f} б.</b>"
-            f"{gender_info}\n\n"
-            f"💬 <b>О себе:</b>\n<i>{goal_text}</i>\n\n"
-            f"{tags_text}\n\n"
-            f"{premium_str}\n"
-            f"{verified_str}\n"
-            f"⭐️ Суперлайков: <b>{user.superlike_balance}</b>\n"
-            f"📧 {email_str}"
+            f"{top_line}"
+            f"{identity_line}\n"
+            f"❤️ Знакомства\n\n"
+            f"{status_line}\n"
+            f"{verified_str}\n\n"
+            f"{major_block}"
+            f"{gender_block}"
+            f"Рейтинг: {score_val:.0f} б.\n\n"
+            f"О себе:\n{goal_text}"
+            f"{interests_block}\n\n"
+            f"{prem_info}\n"
+            f"{superlikes_info}\n"
+            f"{email_info}"
         )
         current_view_param = "dating"
 
