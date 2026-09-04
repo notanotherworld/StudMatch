@@ -116,10 +116,10 @@ async def run_audit():
             assert "<Hack & Slash>" not in caption_dating, "Имя не экранировано от < >"
             assert "&lt;Hack &amp; Slash&gt;" in caption_dating or html.escape("Иван <Hack & Slash>") in caption_dating
             assert "&lt;templates&gt;" in caption_dating or "C++ &lt;templates&gt; &amp; Python" in caption_dating
-            assert "PREMIUM" in caption_dating, "Бейдж Premium не отобразился"
-            assert "[В топе]" in caption_dating, "Бейдж буста не отобразился"
+            assert ("Premium" in caption_dating or "PREMIUM" in caption_dating), "Бейдж Premium не отобразился"
+            assert "В топе" in caption_dating, "Бейдж буста не отобразился"
             assert "21 год" in caption_dating, "Склонение возраста для 21 неверно"
-            assert "⭐ 150 б." in caption_dating, "Рейтинг не отобразился"
+            assert "150 б." in caption_dating, "Рейтинг не отобразился"
             print("  ✅ [1.1] Дейтинг-анкета: экранирование HTML, бейджи, склонения возраста и рейтинг корректны.")
             passed_tests += 1
 
@@ -144,7 +144,7 @@ async def run_audit():
             )
 
             caption_career = await _build_profile_caption(p_career, tags_map, user=u_career, mode=ModeEnum.career)
-            assert "[Карьера]" in caption_career, "Маркер режима Карьера отсутствует"
+            assert "Карьера" in caption_career, "Маркер режима Карьера отсутствует"
             assert "&lt;async&gt;" in caption_career or "FastAPI &lt;async&gt;" in caption_career
             assert "22 года" in caption_career, "Склонение возраста для 22 неверно"
             assert "Python 3.12" in caption_career

@@ -863,7 +863,7 @@
       state.isSwiping = false;
 
       renderCardStack();
-      sendSwipe(profile.user_id, action, comment);
+      sendSwipe(profile.user_id, action, comment, profile);
     }, 300);
   }
 
@@ -881,14 +881,14 @@
     }
   }
 
-  async function sendSwipe(targetId, action, comment = null) {
+  async function sendSwipe(targetId, action, comment = null, candidate = null) {
     try {
       const res = await apiFetch("/api/webapp/swipe", {
         method: "POST",
         body: JSON.stringify({ target_id: targetId, action: action, comment: comment }),
       });
-      if (res && res.is_match && res.match) {
-        showMatchPopup(res.match);
+      if (res && res.is_match) {
+        showMatchPopup(res.match || { user_id: targetId }, candidate);
       }
       if (res && res.superlike_balance !== undefined && state.currentUser) {
         state.currentUser.superlike_balance = res.superlike_balance;
@@ -1222,22 +1222,47 @@
   }
 
   // 8. Всплывающее окно взаимного мэтча с Figma-сердцем (Match Celebration)
-  function showMatchPopup(partner) {
+  function showMatchPopup(partner, candidate = null) {
     triggerHaptic("success");
     const pNameEl = document.getElementById("matchPartnerName");
     const pAvatarEl = document.getElementById("matchPartnerAvatar");
+    const myAvatarEl = document.getElementById("matchMyAvatar");
     const chatBtn = document.getElementById("matchChatBtn");
 
-    if (pNameEl) pNameEl.textContent = partner.name || "Студент";
-    if (pAvatarEl && partner.photo_url) pAvatarEl.src = partner.photo_url;
+    const partnerName = partner?.name || candidate?.name || "Студент";
+    if (pNameEl) pNameEl.textContent = partnerName;
+
+    const fallbackAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80";
+    const partnerPhoto = partner?.photo_url || (partner?.photos && partner.photos[0]) || (candidate?.photos && candidate.photos[0]) || fallbackAvatar;
+    if (pAvatarEl) {
+      pAvatarEl.src = partnerPhoto;
+      pAvatarEl.alt = partnerName;
+      pAvatarEl.onerror = function () {
+        this.onerror = null;
+        this.src = fallbackAvatar;
+      };
+    }
+
+    const myPhoto = (state.currentUser?.photos && state.currentUser.photos[0]) || state.currentUser?.avatar_url || state.currentUser?.photo_url || fallbackAvatar;
+    if (myAvatarEl) {
+      myAvatarEl.src = myPhoto;
+      myAvatarEl.onerror = function () {
+        this.onerror = null;
+        this.src = fallbackAvatar;
+      };
+    }
+
     if (chatBtn) {
-      chatBtn.href = partner.tg_username
-        ? `https://t.me/${partner.tg_username.replace("@", "")}`
+      const tgUsername = partner?.tg_username || candidate?.tg_username;
+      chatBtn.href = tgUsername
+        ? `https://t.me/${tgUsername.replace("@", "")}`
         : "https://t.me/";
     }
 
     matchModal.classList.add("active");
   }
+  window.showMatchModal = showMatchPopup;
+  window.showMatchPopup = showMatchPopup;
 
   // 9. Раздел «Мэтчи» с возможностью открыть полную анкету мэтча
   async function loadMatches() {
@@ -2025,7 +2050,7 @@
           btn.innerHTML = "🤝 Взаимный контакт! Написать";
           btn.disabled = false;
           btn.onclick = () => openChatWith(res.match);
-          showMatchModal(res.match);
+          showMatchPopup(res.match);
         } else {
           btn.className = "btn-career-connect pending";
           btn.innerHTML = "💼 Запрос отправлен ✓";

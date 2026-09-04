@@ -224,12 +224,23 @@ async def webapp_auth(
     )
 
     profile = user.profile
+    photo_urls = []
+    if profile:
+        if user.mode == ModeEnum.career and profile.career_avatar_file_id:
+            c_photos = [profile.career_avatar_file_id]
+        else:
+            c_photos = list(profile.photos) if profile.photos else ([profile.avatar_file_id] if profile.avatar_file_id else [])
+        photo_urls = [resolve_photo_url(pid) for pid in c_photos if resolve_photo_url(pid)]
+
     return {
         "status": "ok",
         "token": token,
         "user": {
             "id": user.id,
+            "name": profile.name if profile else "Студент",
             "username": user.tg_username,
+            "photos": photo_urls,
+            "avatar_url": photo_urls[0] if photo_urls else DEFAULT_FALLBACK_AVATAR,
             "is_premium": user.is_premium,
             "is_verified": user.is_verified,
             "superlike_balance": user.superlike_balance,
@@ -378,13 +389,19 @@ async def webapp_swipe(
         if partner:
             p_profile = partner.profile
             p_name = p_profile.name if (p_profile and p_profile.name) else "Студент"
-            p_photos = list(p_profile.photos) if (p_profile and p_profile.photos) else ([p_profile.avatar_file_id] if (p_profile and p_profile.avatar_file_id) else [])
-            first_p = p_photos[0] if p_photos else None
+            if student.mode == ModeEnum.career and p_profile and p_profile.career_avatar_file_id:
+                first_p = p_profile.career_avatar_file_id
+            else:
+                p_photos = list(p_profile.photos) if (p_profile and p_profile.photos) else ([p_profile.avatar_file_id] if (p_profile and p_profile.avatar_file_id) else [])
+                first_p = p_photos[0] if p_photos else None
+
+            p_photo_url = resolve_photo_url(first_p) or DEFAULT_FALLBACK_AVATAR
             match_data = {
                 "user_id": partner.id,
                 "name": p_name,
                 "tg_username": partner.tg_username,
-                "photo_url": resolve_photo_url(first_p) or DEFAULT_FALLBACK_AVATAR,
+                "photo_url": p_photo_url,
+                "photos": [p_photo_url],
             }
 
             # Отправка Telegram-уведомления партнеру в фоновом режиме
