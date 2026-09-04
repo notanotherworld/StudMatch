@@ -216,14 +216,18 @@ async def send_next_card(
     from aiogram.types import InputMediaPhoto, InputMediaVideo
 
     # Формируем список медиа (до 3 фото и 1 видео)
-    photos = list(profile.photos) if profile.photos else ([profile.avatar_file_id] if profile.avatar_file_id else [])
-    if user.mode == ModeEnum.career and profile.career_avatar_file_id:
-        if profile.career_avatar_file_id not in photos:
-            photos = [profile.career_avatar_file_id] + photos
+    if user.mode == ModeEnum.career:
+        if profile.career_avatar_file_id:
+            photos = [profile.career_avatar_file_id]
+        else:
+            photos = list(profile.photos) if profile.photos else ([profile.avatar_file_id] if profile.avatar_file_id else [])
+        video_id = None
+    else:
+        photos = list(profile.photos) if profile.photos else ([profile.avatar_file_id] if profile.avatar_file_id else [])
+        video_id = profile.video_file_id
 
     # Ограничиваем до 3 фото
     photos = photos[:3]
-    video_id = profile.video_file_id
 
     # Если медиа больше одного — отправляем медиагруппу (альбом)
     total_media_count = len(photos) + (1 if video_id else 0)
@@ -538,9 +542,13 @@ async def view_match_profile(callback: CallbackQuery, user: User, db: AsyncSessi
             pass
 
         # Отправляем фото, если есть
-        photos = list(partner.profile.photos) if partner.profile.photos else ([partner.profile.avatar_file_id] if partner.profile.avatar_file_id else [])
-        if partner.mode == ModeEnum.career and partner.profile.career_avatar_file_id and partner.profile.career_avatar_file_id not in photos:
-            photos = [partner.profile.career_avatar_file_id] + photos
+        if partner.mode == ModeEnum.career:
+            if partner.profile.career_avatar_file_id:
+                photos = [partner.profile.career_avatar_file_id]
+            else:
+                photos = list(partner.profile.photos) if partner.profile.photos else ([partner.profile.avatar_file_id] if partner.profile.avatar_file_id else [])
+        else:
+            photos = list(partner.profile.photos) if partner.profile.photos else ([partner.profile.avatar_file_id] if partner.profile.avatar_file_id else [])
         photos = photos[:3]
 
         photo_input = _get_photo_input(photos[0]) if photos else None
@@ -653,9 +661,13 @@ async def show_incoming_likes_entry(event: Message | CallbackQuery, user: User, 
     if isinstance(event, CallbackQuery):
         await event.answer()
 
-    photos = list(cand_profile.photos) if cand_profile.photos else ([cand_profile.avatar_file_id] if cand_profile.avatar_file_id else [])
-    if candidate.mode == ModeEnum.career and cand_profile.career_avatar_file_id and cand_profile.career_avatar_file_id not in photos:
-        photos = [cand_profile.career_avatar_file_id] + photos
+    if candidate.mode == ModeEnum.career:
+        if cand_profile.career_avatar_file_id:
+            photos = [cand_profile.career_avatar_file_id]
+        else:
+            photos = list(cand_profile.photos) if cand_profile.photos else ([cand_profile.avatar_file_id] if cand_profile.avatar_file_id else [])
+    else:
+        photos = list(cand_profile.photos) if cand_profile.photos else ([cand_profile.avatar_file_id] if cand_profile.avatar_file_id else [])
     photos = photos[:3]
 
     photo_input = _get_photo_input(photos[0]) if photos else None

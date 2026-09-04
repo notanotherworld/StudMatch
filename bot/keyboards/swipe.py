@@ -301,6 +301,8 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
     """
     Клавиатура управления профилем:
     - Знакомства / Карьера (переключение вкладок)
+    - Кнопки смены фото и редактирования для активной вкладки
+    - Кто меня лайкнул
     - Подтвердить статус студента (если не верифицирован)
     - Режим: [Знакомства / Карьера]
     - Мои достижения
@@ -311,6 +313,7 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
     dating_ok = "✅" if (p and p.is_complete) else "⚠️"
     career_ok = "✅" if (p and p.career_is_complete) else "⚠️"
 
+    is_career = (current_view == "career") or (current_view == "current" and user.mode == ModeEnum.career)
     mode_label = "🎯 Карьера" if user.mode == ModeEnum.career else "❤️ Знакомства"
     builder = InlineKeyboardBuilder()
 
@@ -318,28 +321,36 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
     builder.button(text=f"❤️ Знакомства {dating_ok}", callback_data="profile:view_dating")
     builder.button(text=f"🎯 Карьера {career_ok}", callback_data="profile:view_career")
 
-    # 2. Кто меня лайкнул
+    # 2. Кнопки смены фото и редактирования анкеты в зависимости от открытой вкладки
+    if is_career:
+        builder.button(text="💼 Изменить фото для Карьеры", callback_data="settings:edit_career_photo")
+        builder.button(text="✏️ Редактировать Карьеру", callback_data="settings:edit_career_profile")
+    else:
+        builder.button(text="📸 Изменить фото для Знакомств", callback_data="settings:edit_dating_media")
+        builder.button(text="✏️ Редактировать анкету", callback_data="settings:edit_profile")
+
+    # 3. Кто меня лайкнул
     builder.button(text="💌 Кто меня лайкнул", callback_data="profile:incoming_likes")
 
-    # 3. Подтвердить статус студента (если еще не подтвержден)
+    # 4. Подтвердить статус студента (если еще не подтвержден)
     if not user.email_verified:
         builder.button(text="🎓 Подтвердить статус (+100⭐)", callback_data="auth:start_verification")
 
-    # 4. Режим
+    # 5. Режим
     builder.button(text=f"Режим: {mode_label} 🔄", callback_data="settings:change_mode")
-    # 5. Мои достижения
+    # 6. Мои достижения
     builder.button(text="🏆 Мои достижения", callback_data="settings:achievements")
-    # 6. Премиум и суперлайки
+    # 7. Премиум и суперлайки
     is_prem = getattr(user, "is_premium", False)
     prem_label = "💎 Премиум активен (Продлить)" if is_prem else "💎 Получить Премиум"
     builder.button(text=prem_label, callback_data="settings:buy")
-    # 7. Пригласить друзей
+    # 8. Пригласить друзей
     builder.button(text="🪢 Пригласить друзей (+3 ⭐️)", callback_data="settings:ref_link")
 
     if not user.email_verified:
-        builder.adjust(2, 1, 1, 1, 1, 1, 1)
+        builder.adjust(2, 2, 1, 1, 1, 1, 1, 1)
     else:
-        builder.adjust(2, 1, 1, 1, 1, 1)
+        builder.adjust(2, 2, 1, 1, 1, 1, 1)
     return builder.as_markup()
 
 
@@ -351,7 +362,7 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
     - Фильтры поиска (Возраст, Курс, Факультет)
     - Сбросить историю свайпов
     - Изменить интересы
-    - Изменить фото и видео
+    - Изменить фото (Знакомства / Карьера)
     - Пол и предпочтения
     - Промокод
     - Редактировать анкету
@@ -365,11 +376,31 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
     builder.button(text=vis_label, callback_data="settings:toggle_visibility")
     builder.button(text="🎯 Фильтры поиска", callback_data="settings:filters")
     builder.button(text="🏷 Изменить интересы", callback_data="settings:edit_interests")
-    builder.button(text="📸 Изменить фото и видео", callback_data="settings:edit_media")
+    builder.button(text="📸 Фото: Знакомства / Карьера", callback_data="settings:choose_photo_mode")
     builder.button(text="👫 Пол и предпочтения", callback_data="settings:edit_gender")
     builder.button(text="🎁 Промокод", callback_data="settings:enter_promo")
     builder.button(text="✏️ Редактировать анкету", callback_data="settings:choose_edit_profile")
 
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def choose_photo_mode_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура выбора анкеты для смены фото (Знакомства / Карьера)."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="❤️ Фото для Знакомств (до 3 фото + видео)", callback_data="settings:edit_dating_media")
+    builder.button(text="💼 Деловое фото для Карьеры", callback_data="settings:edit_career_photo")
+    builder.button(text="🔙 Назад в настройки", callback_data="settings:back_to_settings")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def career_photo_upload_keyboard(has_dating_photo: bool = False) -> InlineKeyboardMarkup:
+    """Клавиатура при загрузке делового фото для Карьеры."""
+    builder = InlineKeyboardBuilder()
+    if has_dating_photo:
+        builder.button(text="📸 Использовать фото из Знакомств", callback_data="career_photo:use_dating")
+    builder.button(text="❌ Отмена", callback_data="profile:cancel")
     builder.adjust(1)
     return builder.as_markup()
 

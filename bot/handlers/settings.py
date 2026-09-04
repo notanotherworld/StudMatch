@@ -160,19 +160,53 @@ async def edit_gender_prompt(callback: CallbackQuery, state: FSMContext):
     )
 
 
-@router.callback_query(F.data == "settings:edit_media")
-async def edit_media_prompt(callback: CallbackQuery, state: FSMContext, user: User):
+@router.callback_query(F.data.in_({"settings:choose_photo_mode", "settings:edit_media"}))
+async def choose_photo_mode_callback(callback: CallbackQuery):
+    await callback.answer()
+    from bot.keyboards.swipe import choose_photo_mode_keyboard
+    await callback.message.answer(
+        "📸 <b>В каком разделе ты хочешь изменить фото?</b>\n\n"
+        "• <b>❤️ Знакомства:</b> личные фото и видеовизитка (до 3 фото + 1 видео)\n"
+        "• <b>💼 Карьера:</b> деловой портрет для HR, работодателей и поиска проектов\n\n"
+        "<i>Фото в этих разделах настраиваются и хранятся полностью раздельно!</i>",
+        parse_mode="HTML",
+        reply_markup=choose_photo_mode_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "settings:edit_dating_media")
+async def edit_dating_media_prompt(callback: CallbackQuery, state: FSMContext, user: User):
     await callback.answer()
     from bot.keyboards.swipe import media_upload_keyboard
     await state.set_state(ProfileState.waiting_photo)
     await state.update_data(photos=[], video_file_id=None, editing_media_from_settings=True)
     await callback.message.answer(
-        "📸 <b>Обновление фото и видео в анкете:</b>\n\n"
+        "📸 <b>Обновление фото и видео для «❤️ Знакомства»:</b>\n\n"
         "• Можно отправить <b>сразу альбомом</b> или по одному: <b>до 3 фото</b> и <b>1 видео</b> (до 10 МБ 🎥).\n"
-        "• Первое отправленное фото станет твоей главной аватаркой.\n\n"
-        "<i>Выбери в галерее и отправь сразу 3 фото + видео, затем нажми <b>✔️ Завершить загрузку</b></i>",
+        "• Первое отправленное фото станет твоей главной аватаркой в знакомствах.\n"
+        "<i>Деловое фото для Карьеры при этом останется прежним.</i>\n\n"
+        "<i>Выбери в галерее и отправь фото/видео, затем нажми <b>✔️ Завершить загрузку</b></i>",
         parse_mode="HTML",
         reply_markup=media_upload_keyboard(0, False),
+    )
+
+
+@router.callback_query(F.data == "settings:edit_career_photo")
+async def edit_career_photo_prompt(callback: CallbackQuery, state: FSMContext, user: User):
+    await callback.answer()
+    from bot.states.fsm import CareerProfileState
+    from bot.keyboards.swipe import career_photo_upload_keyboard
+    await state.set_state(CareerProfileState.waiting_career_photo)
+    await state.update_data(editing_career_photo_only=True)
+
+    has_dating_photo = bool(user.profile and user.profile.avatar_file_id)
+    await callback.message.answer(
+        "💼 <b>Обновление делового фото для «🎯 Карьера»:</b>\n\n"
+        "Загрузи портретное/деловое фото для профессиональной анкеты.\n"
+        "Оно будет отображаться работодателям (HR) и студентам в карьерном поиске.\n"
+        "<i>Фото в разделе «Знакомства» при этом останется прежним.</i>",
+        parse_mode="HTML",
+        reply_markup=career_photo_upload_keyboard(has_dating_photo=has_dating_photo),
     )
 
 

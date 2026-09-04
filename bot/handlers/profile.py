@@ -511,12 +511,13 @@ async def _save_media_and_complete(
         )
         await state.clear()
         await message.answer(
-            "✅ <b>Фото и видео в твоей анкете успешно обновлены!</b>",
+            "✅ <b>Фото и видео для «❤️ Знакомства» успешно обновлены!</b>\n\n"
+            "Деловое фото для Карьеры осталось прежним.",
             parse_mode="HTML",
             reply_markup=main_menu_keyboard(),
         )
         from bot.handlers.settings import show_my_profile
-        await show_my_profile(message, user, db)
+        await show_my_profile(message, user, db, view_mode="dating")
         return
 
     name = data.get("name") or (prof.name if prof else "Студент")
@@ -855,6 +856,31 @@ async def _save_career_profile_and_complete(
     file_id: Optional[str], message: Message, state: FSMContext, user: User, db: AsyncSession
 ):
     data = await state.get_data()
+    is_photo_only = data.get("editing_career_photo_only", False)
+
+    if is_photo_only:
+        photo_id = file_id or (
+            user.profile.career_avatar_file_id
+            if (user.profile and user.profile.career_avatar_file_id)
+            else (user.profile.avatar_file_id if user.profile else None)
+        )
+        await update_career_profile(
+            db,
+            user.id,
+            career_avatar_file_id=photo_id,
+            career_is_complete=True,
+        )
+        await state.clear()
+        await message.answer(
+            "✅ <b>Деловое фото для «🎯 Карьера» успешно обновлено!</b>\n\n"
+            "Фото для Знакомств осталось прежним.",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard(),
+        )
+        from bot.handlers.settings import show_my_profile
+        await show_my_profile(message, user, db, view_mode="career")
+        return
+
     selected_skills = data.get("selected_career_skills", [])
     custom_skills = data.get("custom_skills", "")
     
@@ -868,7 +894,11 @@ async def _save_career_profile_and_complete(
     career_portfolio_url = data.get("career_portfolio_url")
     career_work_format = data.get("career_work_format")
 
-    photo_id = file_id or (user.profile.avatar_file_id if user.profile else None)
+    photo_id = file_id or (
+        user.profile.career_avatar_file_id
+        if (user.profile and user.profile.career_avatar_file_id)
+        else (user.profile.avatar_file_id if user.profile else None)
+    )
 
     await update_career_profile(
         db,
@@ -913,3 +943,11 @@ async def process_career_photo_document(message: Message, state: FSMContext, use
         await _save_career_profile_and_complete(message.document.file_id, message, state, user, db)
     else:
         await message.answer("Пожалуйста, отправь фото как изображение (JPG/PNG).")
+
+
+@router.message(CareerProfileState.waiting_career_photo)
+async def process_career_photo_fallback(message: Message):
+    await message.answer(
+        "📷 Пожалуйста, отправь деловое фото (изображением) или нажми <b>❌ Отмена</b>.",
+        parse_mode="HTML",
+    )

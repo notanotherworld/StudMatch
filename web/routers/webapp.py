@@ -290,9 +290,13 @@ async def webapp_feed(
     result = []
     for p in candidates:
         u = p.user
-        photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
-        if mode == ModeEnum.career and p.career_avatar_file_id and p.career_avatar_file_id not in photos:
-            photos = [p.career_avatar_file_id] + photos
+        if mode == ModeEnum.career:
+            if p.career_avatar_file_id:
+                photos = [p.career_avatar_file_id]
+            else:
+                photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
+        else:
+            photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
 
         # Преобразуем фото в URL медиа-прокси или прямые ссылки
         photo_urls = [resolve_photo_url(pid) for pid in photos if resolve_photo_url(pid)]
@@ -574,6 +578,8 @@ async def webapp_profile(
     if not photo_urls:
         photo_urls = [DEFAULT_FALLBACK_AVATAR]
 
+    career_avatar_url = resolve_photo_url(p.career_avatar_file_id) if (p and p.career_avatar_file_id) else None
+
     tags = []
     if p and p.interest_ids:
         tag_res = await db.execute(select(InterestTag).where(InterestTag.id.in_(p.interest_ids)))
@@ -604,6 +610,12 @@ async def webapp_profile(
             "custom_interests": p.custom_interests if p else "",
             "tags": tags,
             "photos": photo_urls,
+            "career_avatar_url": career_avatar_url,
+            "career_goal": p.career_goal if p else "",
+            "career_custom_skills": p.career_custom_skills if p else "",
+            "career_work_format": p.career_work_format if p else "",
+            "career_portfolio_url": p.career_portfolio_url if p else "",
+            "career_is_complete": p.career_is_complete if p else False,
             "rating_score": round(p.rating_score or 0.0, 1) if p else 0.0,
             "is_superadmin": is_superadmin,
         }
@@ -634,6 +646,7 @@ class CareerProfileUpdateRequest(BaseModel):
     career_custom_skills: Optional[str] = None
     career_portfolio_url: Optional[str] = None
     career_work_format: Optional[str] = None
+    career_avatar_file_id: Optional[str] = None
 
 
 @router.post("/api/webapp/profile/career")
@@ -657,6 +670,8 @@ async def webapp_update_career_profile(
         p.career_portfolio_url = payload.career_portfolio_url.strip()
     if payload.career_work_format is not None:
         p.career_work_format = payload.career_work_format.strip()
+    if payload.career_avatar_file_id is not None:
+        p.career_avatar_file_id = payload.career_avatar_file_id.strip() if payload.career_avatar_file_id else None
 
     p.career_is_complete = True
     await db.commit()
@@ -670,6 +685,8 @@ async def webapp_update_career_profile(
             "career_custom_skills": p.career_custom_skills,
             "career_portfolio_url": p.career_portfolio_url,
             "career_work_format": p.career_work_format,
+            "career_avatar_file_id": p.career_avatar_file_id,
+            "career_avatar_url": resolve_photo_url(p.career_avatar_file_id) if p.career_avatar_file_id else None,
             "career_is_complete": p.career_is_complete,
         },
     }
@@ -790,9 +807,10 @@ async def webapp_career_feed(
         if not p:
             continue
 
-        photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
-        if p.career_avatar_file_id and p.career_avatar_file_id not in photos:
-            photos = [p.career_avatar_file_id] + photos
+        if p.career_avatar_file_id:
+            photos = [p.career_avatar_file_id]
+        else:
+            photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
 
         photo_urls = [resolve_photo_url(pid) for pid in photos if resolve_photo_url(pid)]
         if not photo_urls:
@@ -942,12 +960,12 @@ async def webapp_get_user_details(
 
     p = target.profile
     photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
-    if p and p.career_avatar_file_id and p.career_avatar_file_id not in photos:
-        photos.append(p.career_avatar_file_id)
-
     photo_urls = [resolve_photo_url(pid) for pid in photos if resolve_photo_url(pid)]
     if not photo_urls:
         photo_urls = [DEFAULT_FALLBACK_AVATAR]
+
+    career_avatar_url = resolve_photo_url(p.career_avatar_file_id) if (p and p.career_avatar_file_id) else None
+    career_photos = [career_avatar_url] if career_avatar_url else photo_urls
 
     tags = []
     if p and p.interest_ids:
@@ -969,6 +987,8 @@ async def webapp_get_user_details(
             "custom_interests": p.custom_interests if p else "",
             "tags": tags,
             "photos": photo_urls,
+            "career_avatar_url": career_avatar_url,
+            "career_photos": career_photos,
             "rating_score": round(p.rating_score or 0.0, 1) if p else 0.0,
             "is_verified": getattr(target, "email_verified", False),
             "is_premium": getattr(target, "is_premium", False),
