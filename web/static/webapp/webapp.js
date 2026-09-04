@@ -707,8 +707,8 @@
           </button>
           <button class="action-btn like" data-action="like" title="${isCareer ? 'Предложить проект' : 'Нравится'}">
             ${isCareer 
-              ? '<span style="font-size:22px;">💼</span>' 
-              : '<img src="/static/webapp/assets/reaction-circle-2.svg" class="action-svg" alt="Like" />'}
+              ? '<img src="/static/webapp/assets/icon_career.svg" class="action-svg" style="border-radius:50%;" alt="Connect" />' 
+              : '<img src="/static/webapp/assets/icon_dating.svg" class="action-svg" style="border-radius:50%;" alt="Like" />'}
           </button>
         </div>
       </div>

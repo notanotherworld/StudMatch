@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260904_27" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260904_28" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -34,10 +34,12 @@
       <!-- Mode Switcher Pills (Header Segmented Control) -->
       <div class="header-mode-toggle">
         <button class="mode-pill-btn active" id="pillDating" data-mode="dating">
-          💘 Знакомства
+          <img src="/static/webapp/assets/icon_dating.svg" class="mode-pill-icon" alt="" />
+          <span>Знакомства</span>
         </button>
         <button class="mode-pill-btn" id="pillCareer" data-mode="career">
-          💼 Карьера
+          <img src="/static/webapp/assets/icon_career.svg" class="mode-pill-icon" alt="" />
+          <span>Карьера</span>
         </button>
       </div>
 
@@ -91,7 +93,9 @@
 
           <!-- Empty State -->
           <div class="deck-empty" id="deckEmpty">
-            <div class="deck-empty-icon">✨</div>
+            <div class="deck-empty-mascot-wrap">
+              <img src="/static/webapp/assets/mascot_hero_3d.jpg" class="deck-empty-mascot-img" alt="StudMatch Mascots" />
+            </div>
             <h2 class="deck-empty-title">Все анкеты просмотрены!</h2>
             <p class="deck-empty-desc">Вы просмотрели всех кандидатов по текущим фильтрам.</p>
             <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:260px;margin:0 auto;">
@@ -519,6 +523,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260904_26"></script>
+  <script src="/static/webapp/webapp.js?v=20260904_28"></script>
 </body>
 </html>
