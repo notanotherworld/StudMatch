@@ -1,62 +1,63 @@
-<svg width="340" height="74" viewBox="0 0 340 74" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="220" height="56" viewBox="0 0 220 56" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="full_lavender" x1="10" y1="20" x2="45" y2="65" gradientUnits="userSpaceOnUse">
+    <linearGradient id="hl_lavender" x1="10" y1="10" x2="45" y2="55" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#A78BFA" />
       <stop offset="100%" stop-color="#7C3AED" />
     </linearGradient>
-    <linearGradient id="full_peach" x1="45" y1="20" x2="80" y2="65" gradientUnits="userSpaceOnUse">
+    <linearGradient id="hl_peach" x1="45" y1="10" x2="80" y2="55" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#FCA5A5" />
       <stop offset="60%" stop-color="#FB923C" />
       <stop offset="100%" stop-color="#EA580C" />
     </linearGradient>
-    <linearGradient id="full_briefcase" x1="12" y1="4" x2="26" y2="18" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#60A5FA" /><stop offset="100%" stop-color="#2563EB" />
+    <linearGradient id="hl_briefcase" x1="12" y1="2" x2="26" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#60A5FA" />
+      <stop offset="100%" stop-color="#2563EB" />
     </linearGradient>
-    <linearGradient id="full_heart" x1="36" y1="4" x2="48" y2="16" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FB7185" /><stop offset="100%" stop-color="#E11D48" />
+    <linearGradient id="hl_heart" x1="36" y1="2" x2="48" y2="14" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FB7185" />
+      <stop offset="100%" stop-color="#E11D48" />
     </linearGradient>
-    <linearGradient id="full_bulb" x1="58" y1="3" x2="70" y2="16" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FDE047" /><stop offset="100%" stop-color="#F59E0B" />
+    <linearGradient id="hl_bulb" x1="58" y1="1" x2="70" y2="14" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="100%" stop-color="#F59E0B" />
     </linearGradient>
   </defs>
 
-  <!-- Mascot Symbol (Scaled & Centered on Left) -->
-  <g transform="translate(4, 2) scale(0.72)">
-    <!-- Top Symbols -->
+  <!-- Mascots Group -->
+  <g transform="translate(0, -3) scale(0.68)">
+    <!-- Briefcase (Career) -->
     <g transform="translate(25, 6)">
-      <rect x="2" y="4.5" width="16" height="11.5" rx="3" fill="url(#full_briefcase)" />
+      <rect x="2" y="4.5" width="16" height="11.5" rx="3" fill="url(#hl_briefcase)" />
       <path d="M6 4.5V3C6 2.2 6.7 1.5 7.5 1.5H12.5C13.3 1.5 14 2.2 14 3V4.5" stroke="white" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.9" />
       <rect x="8.5" y="8" width="3" height="2.5" rx="0.6" fill="white" />
     </g>
+    <!-- Heart (Dating) -->
     <g transform="translate(51, 5.5)">
-      <path d="M9 15.5L7.8 14.4C3.5 10.5 0.5 7.9 0.5 4.8C0.5 2.2 2.5 0.2 5.1 0.2C6.6 0.2 8 0.9 9 2C10 0.9 11.4 0.2 12.9 0.2C15.5 0.2 17.5 2.2 17.5 4.8C17.5 7.9 14.5 10.5 10.2 14.4L9 15.5Z" fill="url(#full_heart)" />
+      <path d="M9 15.5L7.8 14.4C3.5 10.5 0.5 7.9 0.5 4.8C0.5 2.2 2.5 0.2 5.1 0.2C6.6 0.2 8 0.9 9 2C10 0.9 11.4 0.2 12.9 0.2C15.5 0.2 17.5 2.2 17.5 4.8C17.5 7.9 14.5 10.5 10.2 14.4L9 15.5Z" fill="url(#hl_heart)" />
     </g>
+    <!-- Lightbulb (Projects) -->
     <g transform="translate(77, 4.5)">
-      <path d="M9 1C5.7 1 3 3.7 3 7C3 9.1 4.1 10.9 5.7 11.9V13.5C5.7 13.8 5.9 14 6.2 14H11.8C12.1 14 12.3 13.8 12.3 13.5V11.9C13.9 10.9 15 9.1 15 7C15 3.7 12.3 1 9 1Z" fill="url(#full_bulb)" />
+      <path d="M9 1C5.7 1 3 3.7 3 7C3 9.1 4.1 10.9 5.7 11.9V13.5C5.7 13.8 5.9 14 6.2 14H11.8C12.1 14 12.3 13.8 12.3 13.5V11.9C13.9 10.9 15 9.1 15 7C15 3.7 12.3 1 9 1Z" fill="url(#hl_bulb)" />
       <rect x="6.5" y="14.5" width="5" height="1.5" rx="0.7" fill="#D97706" />
     </g>
 
-    <!-- Mascots -->
-    <path d="M 27 50 C 27 45 30 43 35 43 H 39 C 37 37 41 32 46 32 C 51 32 55 37 53 43 H 57 C 62 43 65 46 65 51 V 56 C 70 54 75 58 75 63 C 75 68 70 72 65 70 V 75 C 65 80 62 83 57 83 H 52 C 54 89 50 94 45 94 C 40 94 37 89 39 83 H 35 C 30 83 27 80 27 75 V 70 C 22 72 17 68 17 63 C 17 58 22 54 27 56 Z" fill="url(#full_lavender)" />
-    <path d="M 65 51 C 65 46 68 43 73 43 H 77 C 75 37 79 32 84 32 C 89 32 93 37 91 43 H 95 C 100 43 103 46 103 51 V 57 C 108 55 113 59 113 64 C 113 69 108 73 103 71 V 76 C 103 81 100 84 95 84 H 90 C 92 90 88 95 83 95 C 78 95 75 90 77 84 H 73 C 68 84 65 81 65 76 V 71 C 70 73 75 69 75 64 C 75 59 70 55 65 57 Z" fill="url(#full_peach)" />
+    <!-- Mascots Body -->
+    <path d="M 27 50 C 27 45 30 43 35 43 H 39 C 37 37 41 32 46 32 C 51 32 55 37 53 43 H 57 C 62 43 65 46 65 51 V 56 C 70 54 75 58 75 63 C 75 68 70 72 65 70 V 75 C 65 80 62 83 57 83 H 52 C 54 89 50 94 45 94 C 40 94 37 89 39 83 H 35 C 30 83 27 80 27 75 V 70 C 22 72 17 68 17 63 C 17 58 22 54 27 56 Z" fill="url(#hl_lavender)" />
+    <path d="M 65 51 C 65 46 68 43 73 43 H 77 C 75 37 79 32 84 32 C 89 32 93 37 91 43 H 95 C 100 43 103 46 103 51 V 57 C 108 55 113 59 113 64 C 113 69 108 73 103 71 V 76 C 103 81 100 84 95 84 H 90 C 92 90 88 95 83 95 C 78 95 75 90 77 84 H 73 C 68 84 65 81 65 76 V 71 C 70 73 75 69 75 64 C 75 59 70 55 65 57 Z" fill="url(#hl_peach)" />
     <!-- Faces -->
     <circle cx="39" cy="62" r="2.8" fill="#231F40" /><circle cx="53" cy="62" r="2.8" fill="#231F40" />
     <path d="M 43 67 C 44.5 69.5 47.5 69.5 49 67" stroke="#231F40" stroke-width="1.8" stroke-linecap="round" fill="none" />
     <path d="M 75 62 Q 78 59 81 62" stroke="#231F40" stroke-width="2.2" stroke-linecap="round" fill="none" />
     <circle cx="89" cy="62" r="2.8" fill="#231F40" />
     <path d="M 80 67 C 81.5 69.5 84.5 69.5 86 67" stroke="#231F40" stroke-width="1.8" stroke-linecap="round" fill="none" />
-    <!-- Arms -->
+    <!-- Hands Clasping -->
     <path d="M 33 73 C 33 83 55 83 61 76" stroke="#231F40" stroke-width="2.6" stroke-linecap="round" fill="none" />
     <path d="M 96 73 C 96 83 74 83 68 76" stroke="#231F40" stroke-width="2.6" stroke-linecap="round" fill="none" />
     <circle cx="61.5" cy="76" r="3.2" fill="#231F40" /><circle cx="67.5" cy="76" r="3.2" fill="#231F40" />
   </g>
 
   <!-- Typography: studmatch -->
-  <g transform="translate(98, 44)">
-    <text font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="34" font-weight="900" fill="#231F40" letter-spacing="-0.9">studmatch</text>
-  </g>
-  <!-- Subtitle Badges -->
-  <g transform="translate(100, 62)">
-    <text font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="10.5" font-weight="700" fill="#64748B" letter-spacing="0.2">КАРЬЕРА  •  ДЕЙТИНГ  •  ПРОЕКТЫ</text>
+  <g transform="translate(86, 39)">
+    <text font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="30" font-weight="900" fill="#231F40" letter-spacing="-0.8">studmatch</text>
   </g>
 </svg>
