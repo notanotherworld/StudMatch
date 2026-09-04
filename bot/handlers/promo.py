@@ -61,6 +61,9 @@ async def cb_promo_cancel(callback: CallbackQuery, state: FSMContext):
 
 @router.message(PromoState.waiting_promo_code)
 async def process_promo_input(message: Message, state: FSMContext, db: AsyncSession):
+    if not message.text:
+        await message.answer("⚠️ Пожалуйста, отправь промокод текстом.")
+        return
     code_text = message.text.strip()
     if code_text.startswith("/"):
         await state.clear()

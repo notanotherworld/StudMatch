@@ -357,6 +357,9 @@ async def filter_set_age_callback(callback: CallbackQuery, user: User, state: FS
 
 @router.message(FilterState.waiting_custom_age_range)
 async def process_custom_age_range(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    if not message.text:
+        await message.answer("⚠️ Пожалуйста, укажи диапазон в формате <code>18-24</code>:", parse_mode="HTML")
+        return
     text_val = message.text.strip().replace(" ", "")
     import re
     match = re.match(r"^(\d{2})[-–—](\d{2})$", text_val)

@@ -33,6 +33,9 @@ def _get_redis() -> aioredis.Redis:
 
 @router.message(AuthState.waiting_email)
 async def process_email(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    if not message.text:
+        await message.answer("⚠️ Пожалуйста, отправь свой email текстом (например: <code>ivanov@rudn.ru</code>).", parse_mode="HTML")
+        return
     email = message.text.strip().lower()
 
     # Базовая проверка формата
@@ -100,6 +103,9 @@ async def process_email(message: Message, state: FSMContext, user: User, db: Asy
 
 @router.message(AuthState.waiting_code)
 async def process_code(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    if not message.text:
+        await message.answer("⚠️ Пожалуйста, введи 6-значный код из письма.")
+        return
     code = message.text.strip()
 
     if not code.isdigit() or len(code) != 6:

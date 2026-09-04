@@ -29,8 +29,8 @@ def upgrade() -> None:
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
     """))
-    conn.execute(sa.text("ALTER TABLE employer_profile_accesses ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'active';"))
-    conn.execute(sa.text("ALTER TABLE employer_profile_accesses ADD COLUMN IF NOT EXISTS hr_comment TEXT;"))
+    conn.execute(sa.text("ALTER TABLE employer_profile_access ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'active';"))
+    conn.execute(sa.text("ALTER TABLE employer_profile_access ADD COLUMN IF NOT EXISTS hr_comment TEXT;"))
 
 
 def downgrade() -> None:

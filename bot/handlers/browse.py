@@ -1019,7 +1019,10 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
         await message.answer("Ошибка отправки письма.")
         return
 
-    text = message.text.strip()[:500]
+    raw_msg = message.text or message.caption or ""
+    text = raw_msg.strip()[:500]
+    if not text:
+        text = "👋 Привет!"
     target = await get_user(db, target_id)
     if not target:
         await message.answer("Пользователь не найден.")

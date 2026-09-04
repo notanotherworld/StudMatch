@@ -178,9 +178,18 @@ async def process_type(callback: CallbackQuery, state: FSMContext):
 
 @router.message(AchievementState.waiting_title)
 async def process_title(message: Message, state: FSMContext):
-    title = message.text.strip()
+    raw_text = message.text or message.caption
+    if not raw_text:
+        await message.answer(
+            "⚠️ Пожалуйста, введи текстовое название достижения (от 5 до 300 символов).\n"
+            "<i>(Например: Победа в олимпиаде по программированию ИТМО 2024)</i>",
+            parse_mode="HTML",
+        )
+        return
+
+    title = raw_text.strip()
     if len(title) < 5 or len(title) > 300:
-        await message.answer("Название должно быть от 5 до 300 символов.")
+        await message.answer("Название должно быть от 5 до 300 символов. Попробуй ещё раз.")
         return
 
     await state.update_data(title=title)
@@ -275,3 +284,13 @@ async def process_document(message: Message, state: FSMContext, user: User, db: 
         "После подтверждения очки будут начислены в рейтинг автоматически.",
         parse_mode="HTML",
     )
+
+
+@router.message(AchievementState.waiting_document)
+async def process_document_fallback(message: Message):
+    await message.answer(
+        "📎 Пожалуйста, отправь подтверждающий документ как файл (<b>PDF</b>) или как изображение (<b>JPG, PNG</b>).\n\n"
+        "<i>Если хочешь начать сначала или отменить, отправь команду /start</i>",
+        parse_mode="HTML",
+    )
+

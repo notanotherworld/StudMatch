@@ -170,6 +170,10 @@ async def cancel_or_route_menu_during_profile(message: Message, state: FSMContex
 # ─── Вопрос 1: Имя ────────────────────────────────────────────
 @router.message(ProfileState.waiting_name)
 async def process_name(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    if not message.text:
+        await message.answer("⚠️ Пожалуйста, отправь своё имя текстом (от 2 до 50 символов).")
+        return
+
     raw_name = message.text.strip()
     if len(raw_name) < 2 or len(raw_name) > 50:
         await message.answer("Имя должно быть от 2 до 50 символов. Попробуй ещё раз.")
@@ -215,6 +219,9 @@ async def process_age_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ProfileState.waiting_age)
 async def process_age_message(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("⚠️ Пожалуйста, введи корректный возраст числом от 16 до 35 (или выбери кнопку выше).")
+        return
     text_val = message.text.strip()
     if not text_val.isdigit() or not (15 <= int(text_val) <= 60):
         await message.answer("Пожалуйста, введи корректный возраст числом от 16 до 35 (или выбери кнопку выше).")
@@ -273,6 +280,9 @@ async def process_major_callback(callback: CallbackQuery, state: FSMContext, db:
 
 @router.message(ProfileState.waiting_major)
 async def process_major(message: Message, state: FSMContext, db: AsyncSession):
+    if not message.text:
+        await message.answer("⚠️ Пожалуйста, напиши своё направление обучения текстом.")
+        return
     raw_major = message.text.strip()
     if len(raw_major) < 2 or len(raw_major) > 100:
         await message.answer("Направление должно быть от 2 до 100 символов.")
@@ -398,6 +408,9 @@ async def process_custom_interest(message: Message, state: FSMContext, user: Use
 # ─── Вопрос 5: Цель ───────────────────────────────────────────
 @router.message(ProfileState.waiting_goal)
 async def process_goal(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("⚠️ Пожалуйста, напиши свою цель текстом (от 10 до 300 символов).")
+        return
     raw_goal = message.text.strip()
     if len(raw_goal) < 10 or len(raw_goal) > 300:
         await message.answer("Цель должна быть от 10 до 300 символов.")
