@@ -1,4 +1,4 @@
-<svg width="220" height="56" viewBox="0 0 220 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="300" height="56" viewBox="0 0 300 56" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="hl_lavender" x1="10" y1="10" x2="45" y2="55" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#A78BFA" />
@@ -24,7 +24,7 @@
   </defs>
 
   <!-- Mascots Group -->
-  <g transform="translate(0, -3) scale(0.68)">
+  <g transform="translate(2, -3) scale(0.68)">
     <!-- Briefcase (Career) -->
     <g transform="translate(25, 6)">
       <rect x="2" y="4.5" width="16" height="11.5" rx="3" fill="url(#hl_briefcase)" />
@@ -56,8 +56,8 @@
     <circle cx="61.5" cy="76" r="3.2" fill="#231F40" /><circle cx="67.5" cy="76" r="3.2" fill="#231F40" />
   </g>
 
-  <!-- Typography: studmatch -->
-  <g transform="translate(86, 39)">
-    <text font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="30" font-weight="900" fill="#231F40" letter-spacing="-0.8">studmatch</text>
+  <!-- Typography: studmatch with full clearance -->
+  <g transform="translate(84, 38)">
+    <text font-family="'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="29" font-weight="900" fill="#231F40" letter-spacing="-0.5">studmatch</text>
   </g>
 </svg>
