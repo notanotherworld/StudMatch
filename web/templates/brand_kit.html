@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StudMatch Brand Kit — Фирменный стиль, логотипы и ассеты</title>
+  <link rel="icon" type="image/svg+xml" href="/static/webapp/assets/favicon.svg" />
+  <link rel="alternate icon" href="/static/img/favicon.ico" />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --text: #0F172A;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --indigo: #231F40;
+      --lavender: #8B5CF6;
+      --peach: #FB923C;
+      --career-blue: #2563EB;
+      --dating-rose: #E11D48;
+      --projects-amber: #F59E0B;
+      --radius-lg: 20px;
+      --radius-md: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding-bottom: 80px;
+    }
+
+    header.brand-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand-nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .brand-nav-logo img {
+      height: 38px;
+    }
+
+    .nav-actions {
+      display: flex;
+      gap: 12px;
+    }
+    .btn-nav {
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 13.5px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-nav-outline {
+      border: 1px solid var(--border);
+      color: var(--text);
+      background: #FFFFFF;
+    }
+    .btn-nav-outline:hover {
+      background: #F1F5F9;
+    }
+    .btn-nav-primary {
+      background: var(--indigo);
+      color: #FFFFFF;
+    }
+    .btn-nav-primary:hover {
+      opacity: 0.9;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 24px 0;
+    }
+
+    .hero-banner {
+      background: linear-gradient(135deg, #231F40 0%, #17122E 100%);
+      border-radius: 28px;
+      padding: 48px;
+      color: #FFFFFF;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 36px;
+      align-items: center;
+      box-shadow: 0 20px 40px rgba(35, 31, 64, 0.2);
+      margin-bottom: 48px;
+    }
+
+    @media (max-width: 860px) {
+      .hero-banner {
+        grid-template-columns: 1fr;
+        padding: 32px 24px;
+      }
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+      color: #DDD6FE;
+    }
+
+    .hero-title {
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 900;
+      line-height: 1.15;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+    .hero-desc {
+      font-size: 16px;
+      color: #CBD5E1;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+
+    .hero-render-card {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 24px;
+      padding: 20px;
+      text-align: center;
+      position: relative;
+    }
+    .hero-render-card img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 18px;
+      box-shadow: 0 16px 32px rgba(0,0,0,0.35);
+    }
+    .hero-render-caption {
+      margin-top: 14px;
+      font-size: 13px;
+      color: #E2E8F0;
+      font-weight: 600;
+    }
+
+    .section-title {
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .section-subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    /* Grid cards */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      margin-bottom: 48px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 48px;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 48px;
+    }
+
+    .brand-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.03);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .brand-card.dark-theme {
+      background: #18142A;
+      color: #FFFFFF;
+      border-color: rgba(255,255,255,0.1);
+    }
+
+    .asset-preview-box {
+      height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #F8FAFC;
+      border-radius: var(--radius-md);
+      margin-bottom: 18px;
+      border: 1px dashed var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    .dark-theme .asset-preview-box {
+      background: #110E20;
+      border-color: rgba(255,255,255,0.1);
+    }
+    .asset-preview-box img {
+      max-height: 80px;
+      max-width: 85%;
+      object-fit: contain;
+    }
+
+    .asset-info h4 {
+      font-size: 17px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    .asset-info p {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      margin-bottom: 18px;
+    }
+    .dark-theme .asset-info p {
+      color: #94A3B8;
+    }
+
+    .asset-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn-action {
+      flex: 1;
+      padding: 9px 12px;
+      border-radius: 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      text-align: center;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      background: #FFFFFF;
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-action:hover {
+      background: #F1F5F9;
+    }
+    .dark-theme .btn-action {
+      background: rgba(255,255,255,0.08);
+      color: #FFFFFF;
+      border-color: rgba(255,255,255,0.15);
+    }
+    .dark-theme .btn-action:hover {
+      background: rgba(255,255,255,0.14);
+    }
+
+    /* Color Swatches */
+    .color-swatch {
+      border-radius: 14px;
+      height: 90px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: flex-end;
+      padding: 12px;
+      color: #FFFFFF;
+      font-weight: 800;
+      font-size: 13px;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+    .color-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .color-name {
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .color-hex {
+      font-family: monospace;
+      font-size: 13px;
+      color: var(--text-muted);
+      background: #F1F5F9;
+      padding: 3px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .color-hex:hover {
+      background: #E2E8F0;
+    }
+
+    /* Toast notification */
+    .copy-toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--indigo);
+      color: #FFFFFF;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 13px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      display: none;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="brand-nav">
+    <a href="/landing" class="brand-nav-logo">
+      <img src="/static/webapp/assets/studmatch_logo_full.svg" alt="StudMatch Logo" />
+    </a>
+    <div class="nav-actions">
+      <a href="/landing" class="btn-nav btn-nav-outline">← На лендинг</a>
+      <a href="/app" class="btn-nav btn-nav-primary">Открыть WebApp →</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Hero Banner -->
+    <div class="hero-banner">
+      <div class="hero-text">
+        <div class="hero-badge">✨ BRAND ASSETS &amp; DESIGN SYSTEM</div>
+        <h1 class="hero-title">Айдентика и логотип StudMatch</h1>
+        <p class="hero-desc">
+          Новая визуальная система платформы, созданная на основе двух маскотов-пазлов, 
+          символизирующих соединение студентов по интересам: 💼 Карьера, ❤️ Дейтинг и 💡 Проекты.
+        </p>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <a href="/static/webapp/assets/app_logo.svg" download class="btn-nav btn-nav-outline" style="background: rgba(255,255,255,0.15); color: #fff; border-color: rgba(255,255,255,0.25);">Скачать логотип (SVG)</a>
+          <a href="/static/img/mascot_hero_3d.jpg" download class="btn-nav btn-nav-primary" style="background: #8B5CF6;">Скачать 3D-арт (JPG)</a>
+        </div>
+      </div>
+      <div class="hero-render-card">
+        <img src="/static/img/mascot_hero_3d.jpg" alt="3D Mascots Render" />
+        <div class="hero-render-caption">Фирменные 3D-маскоты StudMatch (Claymorphism 3D)</div>
+      </div>
+    </div>
+
+    <!-- Section: Logo Suite -->
+    <h2 class="section-title">Логотипы и знак платформы</h2>
+    <p class="section-subtitle">Векторные форматы SVG для сайтов, мобильных приложений и печати.</p>
+
+    <div class="grid-2">
+      <!-- Full Logo Light -->
+      <div class="brand-card">
+        <div class="asset-preview-box">
+          <img src="/static/webapp/assets/studmatch_logo_full.svg" alt="StudMatch Full Logo" />
+        </div>
+        <div class="asset-info">
+          <h4>Горизонтальный логотип (Light)</h4>
+          <p>Основная версия для светлой шапки сайта, промо-материалов и презентаций.</p>
+        </div>
+        <div class="asset-actions">
+          <a href="/static/webapp/assets/studmatch_logo_full.svg" download class="btn-action">Скачать SVG</a>
+          <button class="btn-action" onclick="copyAssetUrl('/static/webapp/assets/studmatch_logo_full.svg')">Копировать URL</button>
+        </div>
+      </div>
+
+      <!-- Full Logo Dark -->
+      <div class="brand-card dark-theme">
+        <div class="asset-preview-box">
+          <img src="/static/webapp/assets/studmatch_logo_white.svg" alt="StudMatch Logo Dark" />
+        </div>
+        <div class="asset-info">
+          <h4>Горизонтальный логотип (Dark)</h4>
+          <p>Инвертированная версия для темного фона, мобильных штор и футеров.</p>
+        </div>
+        <div class="asset-actions">
+          <a href="/static/webapp/assets/studmatch_logo_white.svg" download class="btn-action">Скачать SVG</a>
+          <button class="btn-action" onclick="copyAssetUrl('/static/webapp/assets/studmatch_logo_white.svg')">Копировать URL</button>
+        </div>
+      </div>
+
+      <!-- Square Mark Logo -->
+      <div class="brand-card">
+        <div class="asset-preview-box">
+          <img src="/static/webapp/assets/app_logo.svg" alt="StudMatch App Icon" style="max-height: 100px;" />
+        </div>
+        <div class="asset-info">
+          <h4>Знак маскотов (App Logo)</h4>
+          <p>Символ для иконки приложения, аватарки Telegram-бота и шапки WebApp.</p>
+        </div>
+        <div class="asset-actions">
+          <a href="/static/webapp/assets/app_logo.svg" download class="btn-action">Скачать SVG</a>
+          <button class="btn-action" onclick="copyAssetUrl('/static/webapp/assets/app_logo.svg')">Копировать URL</button>
+        </div>
+      </div>
+
+      <!-- Favicon -->
+      <div class="brand-card">
+        <div class="asset-preview-box">
+          <img src="/static/webapp/assets/favicon.svg" alt="Favicon" style="width: 54px; height: 54px;" />
+        </div>
+        <div class="asset-info">
+          <h4>Фавиконка браузера (Favicon)</h4>
+          <p>Высококонтрастная версия для вкладок браузера (доступна в SVG и multi-res ICO).</p>
+        </div>
+        <div class="asset-actions">
+          <a href="/static/webapp/assets/favicon.svg" download class="btn-action">SVG Фавикон</a>
+          <a href="/static/img/favicon.ico" download class="btn-action">ICO Фавикон</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Direction Markers -->
+    <h2 class="section-title">Иконки ключевых направлений</h2>
+    <p class="section-subtitle">Стилизованные пиктограммы для переключения режимов и категорий анкет.</p>
+
+    <div class="grid-3">
+      <!-- Career -->
+      <div class="brand-card">
+        <div class="asset-preview-box" style="background: #EFF6FF;">
+          <img src="/static/webapp/assets/icon_career.svg" alt="Карьера" style="width: 64px; height: 64px;" />
+        </div>
+        <div class="asset-info">
+          <h4>💼 Направление «Карьера»</h4>
+          <p>Поиск стажировок, менторов, резюме выпускников и вакансий от работодателей.</p>
+        </div>
+        <div class="asset-actions">
+          <a href="/static/webapp/assets/icon_career.svg" download class="btn-action">Скачать SVG</a>
+          <button class="btn-action" onclick="copyAssetUrl('/static/webapp/assets/icon_career.svg')">Копировать URL</button>
+        </div>
+      </div>
+
+      <!-- Dating -->
+      <div class="brand-card">
+        <div class="asset-preview-box" style="background: #FFF1F2;">
+          <img src="/static/webapp/assets/icon_dating.svg" alt="Знакомства" style="width: 64px; height: 64px;" />
+        </div>
+        <div class="asset-info">
+          <h4>❤️ Направление «Знакомства»</h4>
+          <p>Общение, свидания, дружба и совместный досуг между студентами вузов.</p>
+        </div>
+        <div class="asset-actions">
+          <a href="/static/webapp/assets/icon_dating.svg" download class="btn-action">Скачать SVG</a>
+          <button class="btn-action" onclick="copyAssetUrl('/static/webapp/assets/icon_dating.svg')">Копировать URL</button>
+        </div>
+      </div>
+
+      <!-- Projects -->
+      <div class="brand-card">
+        <div class="asset-preview-box" style="background: #FFFBEB;">
+          <img src="/static/webapp/assets/icon_projects.svg" alt="Проекты" style="width: 64px; height: 64px;" />
+        </div>
+        <div class="asset-info">
+          <h4>💡 Направление «Проекты»</h4>
+          <p>Поиск кофаундеров, хакатоны, олимпиады, стартапы и студенческие инициативы.</p>
+        </div>
+        <div class="asset-actions">
+          <a href="/static/webapp/assets/icon_projects.svg" download class="btn-action">Скачать SVG</a>
+          <button class="btn-action" onclick="copyAssetUrl('/static/webapp/assets/icon_projects.svg')">Копировать URL</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Color Palette -->
+    <h2 class="section-title">Фирменная цветовая палитра</h2>
+    <p class="section-subtitle">Кликните по HEX-коду для мгновенного копирования в буфер обмена.</p>
+
+    <div class="grid-4">
+      <div class="brand-card">
+        <div class="color-swatch" style="background: linear-gradient(135deg, #A78BFA, #7C3AED);">Маскот Лаванда</div>
+        <div class="color-info">
+          <span class="color-name">Lavender</span>
+          <span class="color-hex" onclick="copyText('#8B5CF6')">#8B5CF6</span>
+        </div>
+      </div>
+
+      <div class="brand-card">
+        <div class="color-swatch" style="background: linear-gradient(135deg, #FCA5A5, #EA580C);">Маскот Персик</div>
+        <div class="color-info">
+          <span class="color-name">Peach Coral</span>
+          <span class="color-hex" onclick="copyText('#FB923C')">#FB923C</span>
+        </div>
+      </div>
+
+      <div class="brand-card">
+        <div class="color-swatch" style="background: #231F40;">Текст &amp; Контур</div>
+        <div class="color-info">
+          <span class="color-name">Deep Indigo</span>
+          <span class="color-hex" onclick="copyText('#231F40')">#231F40</span>
+        </div>
+      </div>
+
+      <div class="brand-card">
+        <div class="color-swatch" style="background: linear-gradient(135deg, #3B82F6, #1D4ED8);">Карьера</div>
+        <div class="color-info">
+          <span class="color-name">Career Blue</span>
+          <span class="color-hex" onclick="copyText('#2563EB')">#2563EB</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: 3D Mascot Gallery -->
+    <h2 class="section-title">3D-иллюстрации и графика для сайта</h2>
+    <p class="section-subtitle">Рендеры в стиле пластилиновой глины (Claymorphism) для Hero-секции и онбординга.</p>
+
+    <div class="grid-2">
+      <div class="brand-card">
+        <div class="asset-preview-box" style="height: 320px;">
+          <img src="/static/img/mascot_hero_3d.jpg" alt="3D Mascots" style="max-height: 280px; border-radius: 12px;" />
+        </div>
+        <div class="asset-info">
+          <h4>3D Clay Mascots (Hero Art)</h4>
+          <p>Основной арт персонажей-пазлов со светящейся лампочкой, сердцем и портфелем.</p>
+        </div>
+        <div class="asset-actions">
+          <a href="/static/img/mascot_hero_3d.jpg" download class="btn-action">Скачать JPG (1024x1024)</a>
+        </div>
+      </div>
+
+      <div class="brand-card">
+        <div class="asset-preview-box" style="height: 320px;">
+          <img src="/static/img/avatar_source.jpg" alt="Source Avatar" style="max-height: 280px; border-radius: 12px;" />
+        </div>
+        <div class="asset-info">
+          <h4>Оригинальный аватар StudMatch</h4>
+          <p>Исходная концептуальная композиция с учебными блокнотами и чашкой кофе.</p>
+        </div>
+        <div class="asset-actions">
+          <a href="/static/img/avatar_source.jpg" download class="btn-action">Скачать оригинал</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="copyToast" class="copy-toast">Скопировано в буфер!</div>
+
+  <script>
+    function copyText(text) {
+      navigator.clipboard.writeText(text);
+      showToast('Скопировано: ' + text);
+    }
+    function copyAssetUrl(path) {
+      const fullUrl = window.location.origin + path;
+      navigator.clipboard.writeText(fullUrl);
+      showToast('URL скопирован в буфер!');
+    }
+    function showToast(msg) {
+      const t = document.getElementById('copyToast');
+      t.textContent = msg;
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 2500);
+    }
+  </script>
+</body>
+</html>

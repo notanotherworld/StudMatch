@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>СтудМэч — Платформа найма студентов и выпускников ведущих вузов</title>
 <meta name="description" content="Прямой найм проверенных студентов и выпускников РУДН и ведущих вузов России на основе реальных достижений, GPA и олимпиад без резюме-пустышек.">
-<link rel="icon" type="image/jpeg" href="/static/img/logo.jpg">
+<link rel="icon" type="image/svg+xml" href="/static/webapp/assets/favicon.svg">
+<link rel="alternate icon" href="/static/img/favicon.ico">
 
 <!-- Google Fonts: Plus Jakarta Sans & Inter -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -898,8 +899,8 @@
 <header class="navbar">
   <div class="container navbar-inner">
     <a href="/" class="brand-logo">
-      <div class="brand-icon">🎓</div>
-      <div class="brand-text">СтудМэч <span class="brand-tag">HR</span></div>
+      <img src="/static/webapp/assets/app_logo.svg" alt="StudMatch Logo" style="width: 40px; height: 40px; object-fit: contain;" />
+      <div class="brand-text">studmatch <span class="brand-tag">HR &amp; CAMPUS</span></div>
     </a>
 
     <ul class="nav-links">
@@ -907,6 +908,7 @@
       <li><a href="#talents" class="nav-link">Кандидаты</a></li>
       <li><a href="#comparison" class="nav-link">Преимущества</a></li>
       <li><a href="#faq" class="nav-link">FAQ</a></li>
+      <li><a href="/brand" class="nav-link" style="color: #7C3AED; font-weight: 700;">✨ Бренд-кит</a></li>
     </ul>
 
     <div class="nav-actions">
@@ -1041,6 +1043,57 @@
     </div>
   </div>
 </div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- НАПРАВЛЕНИЯ STUDMATCH: МАСКОТЫ И ЭКОСИСТЕМА   -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section section-slate" style="background: linear-gradient(180deg, #F8FAFC 0%, #EFF6FF 100%);">
+  <div class="container">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 40px; align-items: center;">
+      <div>
+        <span class="section-tag" style="background: rgba(124, 58, 237, 0.1); color: #7C3AED; padding: 4px 12px; border-radius: 999px;">Экосистема StudMatch</span>
+        <h2 class="section-title" style="margin-top: 12px;">Единая платформа для студентов и работодателей</h2>
+        <p class="section-desc" style="margin-bottom: 28px;">
+          StudMatch объединяет ключевые сферы студенческой жизни. Наши маскоты-пазлы соединяют людей по общим целям и навыкам:
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div style="display: flex; gap: 16px; align-items: center; background: #FFFFFF; padding: 16px 20px; border-radius: 16px; border: 1px solid var(--border); box-shadow: var(--shadow-sm);">
+            <img src="/static/webapp/assets/icon_career.svg" style="width: 48px; height: 48px; flex-shrink: 0;" alt="Карьера" />
+            <div>
+              <div style="font-weight: 800; font-size: 16px; color: var(--text);">💼 Карьера и найм</div>
+              <div style="font-size: 13.5px; color: var(--text-secondary);">Прямой контакт со стажерами и выпускниками, подтвержденный GPA и верификация через вузы.</div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 16px; align-items: center; background: #FFFFFF; padding: 16px 20px; border-radius: 16px; border: 1px solid var(--border); box-shadow: var(--shadow-sm);">
+            <img src="/static/webapp/assets/icon_dating.svg" style="width: 48px; height: 48px; flex-shrink: 0;" alt="Дейтинг" />
+            <div>
+              <div style="font-weight: 800; font-size: 16px; color: var(--text);">❤️ Знакомства и общение</div>
+              <div style="font-size: 13.5px; color: var(--text-secondary);">Безопасный кампусный дейтинг и поиск друзей среди студентов своего и соседних университетов.</div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 16px; align-items: center; background: #FFFFFF; padding: 16px 20px; border-radius: 16px; border: 1px solid var(--border); box-shadow: var(--shadow-sm);">
+            <img src="/static/webapp/assets/icon_projects.svg" style="width: 48px; height: 48px; flex-shrink: 0;" alt="Проекты" />
+            <div>
+              <div style="font-weight: 800; font-size: 16px; color: var(--text);">💡 Проекты и хакатоны</div>
+              <div style="font-size: 13.5px; color: var(--text-secondary);">Поиск кофаундеров, разработчиков и дизайнеров в студенческие стартапы и олимпиады.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align: center;">
+        <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 28px; padding: 24px; box-shadow: var(--shadow-lg); display: inline-block; max-width: 440px;">
+          <img src="/static/img/mascot_hero_3d.jpg" alt="StudMatch 3D Mascots" style="width: 100%; border-radius: 20px; display: block;" />
+          <div style="margin-top: 16px; font-weight: 800; font-size: 15px; color: var(--text);">Маскоты StudMatch: Лаванда и Персик</div>
+          <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 4px;">Символ доверия, созидания и надежного партнерства</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- ══════════════════════════════════════════════ -->
 <!-- 4. HOW IT WORKS (4 ШАГА ОТ АНКЕТЫ ДО НАЙМА)   -->

@@ -48,3 +48,10 @@ async def landing_page(request: Request, db: AsyncSession = Depends(get_db)):
             "bot_username": bot_username,
         },
     )
+
+
+@router.get("/brand", response_class=HTMLResponse)
+async def brand_kit_page(request: Request):
+    """Интерактивная страница Brand Kit и ассетов StudMatch."""
+    return templates.TemplateResponse("brand_kit.html", {"request": request})
+

@@ -88,11 +88,10 @@ body {
 }
 
 .brand-figma-logo {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
-  border-radius: 9px;
-  box-shadow: 0 3px 10px rgba(255, 101, 132, 0.25);
+  border-radius: 8px;
 }
 
 .brand-title {

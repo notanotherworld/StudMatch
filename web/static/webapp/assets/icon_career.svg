@@ -1,0 +1,18 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ic_car" x1="8" y1="12" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+    <filter id="glow_car" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#2563EB" flood-opacity="0.3" />
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="#EFF6FF" />
+  <g filter="url(#glow_car)" transform="translate(10, 13)">
+    <rect x="4" y="11" width="36" height="25" rx="6" fill="url(#ic_car)" />
+    <path d="M14 11V7C14 5.34 15.34 4 17 4H27C28.66 4 30 5.34 30 7V11" stroke="white" stroke-width="2.8" stroke-linecap="round" fill="none" opacity="0.95" />
+    <line x1="4" y1="21" x2="40" y2="21" stroke="white" stroke-width="1.6" opacity="0.4" />
+    <rect x="18" y="19" width="8" height="5" rx="1.5" fill="white" />
+  </g>
+</svg>
