@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260904_31" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260907_01" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -297,6 +297,9 @@
             <span>Баланс: <b id="superlikeBalanceLabel">0</b> ⭐</span>
             <span id="commentCharCount">0/200</span>
           </div>
+          <div id="superlikeZeroAlert" style="display:none;background:rgba(251,146,60,0.12);border-radius:12px;padding:10px 12px;margin-top:10px;font-size:12px;color:#FB923C;line-height:1.4;">
+            💡 <b>Закончились суперлайки?</b> Они пополняются бесплатно каждый день! Или пригласите друга в боте и получите <b>+3 ⭐</b> прямо сейчас.
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn-primary" id="sendSuperlikeWithCommentBtn">⭐ Отправить суперлайк</button>
@@ -525,6 +528,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260904_31"></script>
+  <script src="/static/webapp/webapp.js?v=20260907_01"></script>
 </body>
 </html>

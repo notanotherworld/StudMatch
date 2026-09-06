@@ -1156,12 +1156,26 @@
 
     document.getElementById("closeSuperlikeBtn")?.addEventListener("click", () => superlikeModal.classList.remove("active"));
     document.getElementById("sendSuperlikeWithCommentBtn")?.addEventListener("click", () => {
+      const balance = state.currentUser?.superlike_balance || 0;
+      if (balance <= 0) {
+        const msg = "⭐ У вас пока нет суперлайков. Пригласите однокурсника по ссылке в боте, чтобы получить +3 ⭐ бесплатно!";
+        if (tg && tg.showAlert) tg.showAlert(msg);
+        else alert(msg);
+        return;
+      }
       const candidate = state.selectedCandidateForSuperlike;
       const comment = commentInput.value.trim();
       superlikeModal.classList.remove("active");
       if (candidate) handleSwipeAction(candidate, "superlike", comment);
     });
     document.getElementById("sendSuperlikeQuickBtn")?.addEventListener("click", () => {
+      const balance = state.currentUser?.superlike_balance || 0;
+      if (balance <= 0) {
+        const msg = "⭐ У вас пока нет суперлайков. Пригласите однокурсника по ссылке в боте, чтобы получить +3 ⭐ бесплатно!";
+        if (tg && tg.showAlert) tg.showAlert(msg);
+        else alert(msg);
+        return;
+      }
       const candidate = state.selectedCandidateForSuperlike;
       superlikeModal.classList.remove("active");
       if (candidate) handleSwipeAction(candidate, "superlike", null);
@@ -1205,9 +1219,14 @@
 
   function openSuperlikeModal(profile) {
     state.selectedCandidateForSuperlike = profile;
+    const balance = state.currentUser?.superlike_balance || 0;
     const balanceLabel = document.getElementById("superlikeBalanceLabel");
-    if (balanceLabel && state.currentUser) {
-      balanceLabel.textContent = state.currentUser.superlike_balance || "0";
+    if (balanceLabel) {
+      balanceLabel.textContent = balance;
+    }
+    const zeroAlert = document.getElementById("superlikeZeroAlert");
+    if (zeroAlert) {
+      zeroAlert.style.display = balance <= 0 ? "block" : "none";
     }
     const input = document.getElementById("superlikeComment");
     if (input) input.value = "";
@@ -1551,6 +1570,14 @@
             <span>🔄 Сбросить историю свайпов</span>
             <span>→</span>
           </div>
+          <div class="profile-menu-item" id="btnOpenSupport">
+            <span>💬 Поддержка и обратная связь</span>
+            <span>→</span>
+          </div>
+          <div class="profile-menu-item" id="btnOpenPrivacyPolicy">
+            <span>📜 Политика конфиденциальности (152-ФЗ)</span>
+            <span>→</span>
+          </div>
         </div>
       `;
 
@@ -1584,6 +1611,27 @@
       }
 
       document.getElementById("btnResetSwipesProfile")?.addEventListener("click", resetSwipesAndReload);
+
+      document.getElementById("btnOpenSupport")?.addEventListener("click", () => {
+        triggerHaptic("light");
+        const botUser = window.BOT_USERNAME || "edudating_bot";
+        const supportUrl = `https://t.me/${botUser}`;
+        if (tg && tg.openTelegramLink) {
+          tg.openTelegramLink(supportUrl);
+        } else {
+          window.open(supportUrl, "_blank");
+        }
+      });
+
+      document.getElementById("btnOpenPrivacyPolicy")?.addEventListener("click", () => {
+        triggerHaptic("light");
+        const url = window.location.origin + "/privacy";
+        if (tg && tg.openLink) {
+          tg.openLink(url);
+        } else {
+          window.open(url, "_blank");
+        }
+      });
     } catch (e) {
       console.error("Profile load error:", e);
     }

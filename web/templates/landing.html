@@ -1416,15 +1416,23 @@
         <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">
           Поддержка студентов и компаний:
         </p>
-        <a href="https://t.me/{{ bot_username }}" target="_blank" class="btn btn-outline btn-sm" style="width:100%;">
+        <a href="https://t.me/{{ bot_username }}" target="_blank" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:12px;">
           💬 Написать в Telegram
         </a>
+        <ul class="footer-links">
+          <li><a href="/privacy" class="footer-link">📜 Политика 152-ФЗ</a></li>
+          <li><a href="/terms" class="footer-link">⚖️ Пользовательское соглашение</a></li>
+          <li><a href="/brand" class="footer-link">🎨 Бренд-кит и логотипы</a></li>
+        </ul>
       </div>
     </div>
 
-    <div class="footer-bottom">
-      <div>© 2026 СтудМэч. Все права защищены.</div>
-      <div>Сделано для студентов и рекрутеров ведущих вузов</div>
+    <div class="footer-bottom" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div>© 2026 StudMatch. Все права защищены.</div>
+      <div style="display:flex;gap:18px;font-size:12px;">
+        <a href="/privacy" style="color:var(--text-muted);text-decoration:none;">Политика конфиденциальности (152-ФЗ)</a>
+        <a href="/terms" style="color:var(--text-muted);text-decoration:none;">Оферта</a>
+      </div>
     </div>
   </div>
 </footer>

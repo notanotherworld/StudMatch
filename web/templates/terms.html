@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Пользовательское соглашение — StudMatch</title>
+  <link rel="icon" type="image/svg+xml" href="/static/webapp/assets/favicon.svg" />
+  <link rel="alternate icon" href="/static/img/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg: #0F0F14;
+      --surface: #181820;
+      --surface-border: rgba(255, 255, 255, 0.08);
+      --text: #F4F4F8;
+      --text-muted: #94A3B8;
+      --primary: #8B5CF6;
+      --primary-hover: #7C3AED;
+      --accent: #FB923C;
+      --radius-lg: 20px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.65;
+      padding: 0 16px 60px;
+    }
+
+    .header-nav {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 24px 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--surface-border);
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: #fff;
+      font-weight: 800;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 20px;
+    }
+
+    .brand-logo img {
+      height: 32px;
+      width: auto;
+    }
+
+    .back-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+    .back-link:hover { color: #fff; }
+
+    .doc-container {
+      max-width: 860px;
+      margin: 36px auto 0;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-lg);
+      padding: 36px 32px;
+    }
+
+    @media (max-width: 640px) {
+      .doc-container { padding: 24px 18px; }
+    }
+
+    .doc-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: rgba(251, 146, 60, 0.15);
+      color: #FB923C;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 9999px;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    h1 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 12px;
+      line-height: 1.25;
+    }
+
+    .doc-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--surface-border);
+    }
+
+    h2 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 19px;
+      font-weight: 700;
+      color: #fff;
+      margin: 28px 0 12px;
+    }
+
+    p, ul, ol {
+      margin-bottom: 14px;
+      color: #D1D5DB;
+      font-size: 14.5px;
+    }
+
+    ul, ol {
+      padding-left: 24px;
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    strong {
+      color: #fff;
+    }
+
+    .alert-box {
+      background: rgba(251, 146, 60, 0.08);
+      border-left: 4px solid var(--accent);
+      padding: 14px 18px;
+      border-radius: 8px;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+
+    a {
+      color: #A78BFA;
+      text-decoration: underline;
+    }
+    a:hover {
+      color: #C4B5FD;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header-nav">
+    <a href="/" class="brand-logo">
+      <img src="/static/webapp/assets/studmatch_logo_full.svg" alt="StudMatch" />
+    </a>
+    <a href="/" class="back-link">← На главную</a>
+  </header>
+
+  <main class="doc-container">
+    <span class="doc-badge">Официальная Оферта</span>
+    <h1>Пользовательское соглашение сервиса StudMatch</h1>
+    <div class="doc-meta">
+      Редакция от 01 сентября 2026 года • г. Москва • Платформа StudMatch
+    </div>
+
+    <div class="alert-box">
+      Настоящее Пользовательское соглашение (далее — «Соглашение») регулирует отношения между Администрацией сервиса StudMatch и физическим лицом (Пользователем), использующим Telegram-бота @edudating_bot, веб-приложение Telegram Mini App StudMatch и веб-сайт stud-match.ru.
+    </div>
+
+    <h2>1. Предмет соглашения</h2>
+    <p>
+      1.1. Сервис StudMatch предоставляет Пользователю доступ к студенческой платформе для поиска академических и карьерных партнеров, совместных проектов и межличностного общения (дейтинга).
+    </p>
+    <p>
+      1.2. Настоящее Соглашение является публичной офертой. Начало использования Сервиса (нажатие кнопки «Запустить» / команду <code>/start</code> в боте или открытие Mini App) означает полное и безоговорочное принятие условий настоящего Соглашения.
+    </p>
+
+    <h2>2. Требования к пользователям и правила сервиса</h2>
+    <p>2.1. Использовать сервис имеют право студенты, аспиранты и выпускники высших учебных заведений, достигшие возраста 18 лет.</p>
+    <p>2.2. При заполнении анкеты Пользователь обязуется предоставлять достоверные сведения о себе и использовать собственные реальные фотографии.</p>
+    <p>2.3. В Сервисе <strong>категорически запрещается</strong>:</p>
+    <ul>
+      <li>Публикация контента эротического, порнографического или интимного характера (18+);</li>
+      <li>Проявление дискриминации, ненависти, оскорблений, травли или угроз в адрес других студентов;</li>
+      <li>Распространение спама, рекламы товаров, платных услуг, финансовых пирамид и наркотических веществ;</li>
+      <li>Использование чужих персональных данных, фотоматериалов или создание фейковых профилей;</li>
+      <li>Попытки взлома, парсинга данных или нарушения работы инфраструктуры Сервиса.</li>
+    </ul>
+
+    <h2>3. Модерация, жалобы и блокировка аккаунтов</h2>
+    <p>
+      3.1. Сервис использует многоуровневую систему защиты: премодерацию, систему пользовательских жалоб (Reports) и автоматическое отслеживание нарушений.
+    </p>
+    <p>
+      3.2. В случае выявления нарушений Администрация имеет право немедленно скрыть анкету из поиска, применить временную блокировку или навсегда заблокировать Telegram ID нарушителя без права восстановления.
+    </p>
+
+    <h2>4. Статус пилотного запуска (Beta Testing)</h2>
+    <p>
+      4.1. В период пилотного запуска функционал платформы предоставляется на безвозмездной основе («как есть»). Сервис оставляет за собой право вносить изменения в алгоритмы подбора, баланс суперлайков и интерфейс в целях улучшения пользовательского опыта.
+    </p>
+    <p>
+      4.2. Администрация не несет ответственности за действия пользователей за пределами платформы (в личных переписках Telegram, на личных встречах или внешних сайтах). Пожалуйста, соблюдайте базовые правила личной безопасности при онлайн-знакомствах.
+    </p>
+
+    <h2>5. Прекращение использования и удаление аккаунта</h2>
+    <p>
+      5.1. Пользователь вправе в любой момент прекратить использование сервиса и полностью удалить свой профиль и все связанные данные через команду «Удалить анкету» в боте.
+    </p>
+
+    <h2>6. Заключительные положения</h2>
+    <p>
+      6.1. Соглашение регулируется действующим законодательством Российской Федерации. Все споры разрешаются путем переговоров через официальную службу поддержки: <a href="mailto:support@stud-match.ru">support@stud-match.ru</a>.
+    </p>
+  </main>
+
+</body>
+</html>

@@ -55,3 +55,16 @@ async def brand_kit_page(request: Request):
     """Интерактивная страница Brand Kit и ассетов StudMatch."""
     return templates.TemplateResponse("brand_kit.html", {"request": request})
 
+
+@router.get("/privacy", response_class=HTMLResponse)
+async def privacy_policy_page(request: Request):
+    """Официальная Политика конфиденциальности (152-ФЗ РФ)."""
+    return templates.TemplateResponse("privacy.html", {"request": request})
+
+
+@router.get("/terms", response_class=HTMLResponse)
+async def terms_of_service_page(request: Request):
+    """Пользовательское соглашение и правила сервиса StudMatch."""
+    return templates.TemplateResponse("terms.html", {"request": request})
+
+

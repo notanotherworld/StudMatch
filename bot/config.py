@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     BOT_TOKEN: str
     BOT_USERNAME: str = "edudating_bot"
     ADMIN_TG_IDS: str = ""  # "123,456"
+    MASTER_VERIFY_CODE: str = ""  # Резервный мастер-код для саппорта (например: "777888")
 
     # Database
     DATABASE_URL: str
