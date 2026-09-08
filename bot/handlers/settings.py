@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.config import settings
 from bot.keyboards.swipe import (
     settings_keyboard, my_profile_keyboard, mode_keyboard,
     buy_superlike_keyboard, main_menu_keyboard, interests_keyboard, gender_keyboard,
@@ -304,8 +305,7 @@ async def toggle_visibility(callback: CallbackQuery, user: User, db: AsyncSessio
 @router.callback_query(F.data == "settings:reset_swipes")
 @router.message(F.text == "/reset_swipes")
 async def reset_user_swipes(event, user: User, db: AsyncSession):
-    from bot.config import settings
-    admin_ids = [int(x.strip()) for x in str(settings.ADMIN_IDS).split(",") if x.strip().isdigit()]
+    admin_ids = settings.admin_ids
     is_admin = user.id in admin_ids or getattr(user, "is_fake", False)
 
     if not is_admin:

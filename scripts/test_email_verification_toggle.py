@@ -6,6 +6,7 @@
 """
 import os
 import sys
+import pytest
 
 # Настраиваем UTF-8 для вывода в консоль Windows
 if hasattr(sys.stdout, "reconfigure"):
@@ -66,3 +67,56 @@ def test_keyboards_show_verify_button_when_enabled(monkeypatch):
     kb_settings = settings_keyboard(current_mode="dating", email_verified=False)
     settings_buttons = [btn.text for row in kb_settings.inline_keyboard for btn in row]
     assert any("Подтвердить статус" in text for text in settings_buttons), "Кнопка в настройках должна появиться при включении"
+
+
+@pytest.mark.asyncio
+async def test_show_my_profile_does_not_raise_name_error_when_disabled():
+    """Проверяем, что show_my_profile не падает с NameError и не показывает блок верификации при отключении."""
+    from unittest.mock import AsyncMock
+    from bot.handlers.settings import show_my_profile
+    from database.models import Profile
+
+    user = User(id=2001, email_verified=False, mode=ModeEnum.dating, superlike_balance=5)
+    user.profile = Profile(name="Тест", age=20, year=2, is_complete=True)
+    msg = AsyncMock()
+    db = AsyncMock()
+
+    await show_my_profile(msg, user, db)
+    assert msg.answer.called or msg.answer_photo.called
+    sent_text = msg.answer.call_args[0][0] if msg.answer.called else msg.answer_photo.call_args[1].get("caption", "")
+    assert "Верификация: не подтверждена" not in sent_text
+
+
+@pytest.mark.asyncio
+async def test_show_my_profile_includes_verification_status_when_enabled(monkeypatch):
+    """Проверяем, что show_my_profile корректно работает при включённой верификации."""
+    from unittest.mock import AsyncMock
+    from bot.handlers.settings import show_my_profile
+    from database.models import Profile
+
+    monkeypatch.setattr(settings, "EMAIL_VERIFICATION_ENABLED", True)
+    user = User(id=2002, email_verified=False, mode=ModeEnum.dating, superlike_balance=5)
+    user.profile = Profile(name="Тест", age=20, year=2, is_complete=True)
+    msg = AsyncMock()
+    db = AsyncMock()
+
+    await show_my_profile(msg, user, db)
+    assert msg.answer.called or msg.answer_photo.called
+    sent_text = msg.answer.call_args[0][0] if msg.answer.called else msg.answer_photo.call_args[1].get("caption", "")
+    assert "Верификация: не подтверждена (+100⭐)" in sent_text
+
+
+@pytest.mark.asyncio
+async def test_start_verification_callback_when_disabled():
+    """Проверяем, что callback запуска верификации сообщает об отключении без NameError."""
+    from unittest.mock import AsyncMock
+    from bot.handlers.settings import start_verification_callback
+
+    cb = AsyncMock()
+    cb.message = AsyncMock()
+    state = AsyncMock()
+    user = User(id=2003, email_verified=False)
+
+    await start_verification_callback(cb, state, user)
+    assert cb.message.answer.called
+    assert "временно отключена" in cb.message.answer.call_args[0][0]
