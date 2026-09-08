@@ -158,11 +158,22 @@ async def get_current_student(
 @router.api_route("/webapp", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def webapp_page(request: Request):
     """Отдача основного HTML5 SPA приложения для Telegram WebApp."""
+    from bot.utils.dynamic_settings import get_system_setting
+
+    mm_val = await get_system_setting("maintenance_mode", "false")
+    is_maintenance = mm_val.lower() in ("true", "1", "yes", "on")
+    default_msg = "Некоторые функции могут быть временно недоступны на время обновления. Спасибо за понимание! ❤️"
+    maintenance_message = await get_system_setting("maintenance_message", default_msg)
+    if not maintenance_message or not maintenance_message.strip():
+        maintenance_message = default_msg
+
     return templates.TemplateResponse(
         "webapp.html",
         {
             "request": request,
             "bot_username": settings.BOT_USERNAME,
+            "is_maintenance": is_maintenance,
+            "maintenance_message": maintenance_message,
         }
     )
 
@@ -232,9 +243,21 @@ async def webapp_auth(
             c_photos = list(profile.photos) if profile.photos else ([profile.avatar_file_id] if profile.avatar_file_id else [])
         photo_urls = [resolve_photo_url(pid) for pid in c_photos if resolve_photo_url(pid)]
 
+    from bot.utils.dynamic_settings import get_system_setting
+    mm_val = await get_system_setting("maintenance_mode", "false")
+    is_maintenance = mm_val.lower() in ("true", "1", "yes", "on")
+    default_msg = "Некоторые функции могут быть временно недоступны на время обновления. Спасибо за понимание! ❤️"
+    maintenance_message = await get_system_setting("maintenance_message", default_msg)
+    if not maintenance_message or not maintenance_message.strip():
+        maintenance_message = default_msg
+
     return {
         "status": "ok",
         "token": token,
+        "maintenance": {
+            "is_active": is_maintenance,
+            "message": maintenance_message,
+        },
         "user": {
             "id": user.id,
             "name": profile.name if profile else "Студент",
@@ -610,8 +633,20 @@ async def webapp_profile(
         student.superlike_balance = max(student.superlike_balance or 0, 9999)
         await db.commit()
 
+    from bot.utils.dynamic_settings import get_system_setting
+    mm_val = await get_system_setting("maintenance_mode", "false")
+    is_maintenance = mm_val.lower() in ("true", "1", "yes", "on")
+    default_msg = "Некоторые функции могут быть временно недоступны на время обновления. Спасибо за понимание! ❤️"
+    maintenance_message = await get_system_setting("maintenance_message", default_msg)
+    if not maintenance_message or not maintenance_message.strip():
+        maintenance_message = default_msg
+
     return {
         "status": "ok",
+        "maintenance": {
+            "is_active": is_maintenance,
+            "message": maintenance_message,
+        },
         "user": {
             "id": student.id,
             "username": student.tg_username,

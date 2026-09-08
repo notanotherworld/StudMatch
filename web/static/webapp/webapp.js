@@ -38,6 +38,57 @@
   const adminHubModal = document.getElementById("adminHubModal");
   const navButtons = document.querySelectorAll(".nav-tab-btn");
 
+  // Maintenance DOM Elements
+  const maintenanceBanner = document.getElementById("maintenanceBanner");
+  const maintenanceBannerText = document.getElementById("maintenanceBannerText");
+  const maintenanceModal = document.getElementById("maintenanceModal");
+  const openMaintenanceModalBtn = document.getElementById("openMaintenanceModalBtn");
+  const closeMaintenanceModalBtn = document.getElementById("closeMaintenanceModalBtn");
+  const maintenanceModalCustomMsg = document.getElementById("maintenanceModalCustomMsg");
+
+  function openMaintenanceModal() {
+    if (maintenanceModal) {
+      maintenanceModal.style.display = "flex";
+      triggerHaptic("medium");
+    }
+  }
+
+  function closeMaintenanceModal() {
+    if (maintenanceModal) {
+      maintenanceModal.style.display = "none";
+      sessionStorage.setItem("maintenance_modal_seen", "true");
+      triggerHaptic("light");
+    }
+  }
+
+  function updateMaintenanceUI(maintenanceData) {
+    if (!maintenanceBanner) return;
+    const isActive = Boolean(maintenanceData?.is_active ?? maintenanceData?.isActive);
+    const msg = maintenanceData?.message || "Некоторые функции могут быть временно недоступны на время обновления. Спасибо за понимание! ❤️";
+
+    if (isActive) {
+      maintenanceBanner.style.display = "flex";
+      if (maintenanceBannerText) maintenanceBannerText.textContent = msg;
+      if (maintenanceModalCustomMsg) maintenanceModalCustomMsg.textContent = msg;
+      if (!sessionStorage.getItem("maintenance_modal_seen")) {
+        openMaintenanceModal();
+      }
+    } else {
+      maintenanceBanner.style.display = "none";
+      if (maintenanceModal) maintenanceModal.style.display = "none";
+    }
+  }
+
+  function setupMaintenanceListeners() {
+    openMaintenanceModalBtn?.addEventListener("click", openMaintenanceModal);
+    closeMaintenanceModalBtn?.addEventListener("click", closeMaintenanceModal);
+    maintenanceModal?.addEventListener("click", (e) => {
+      if (e.target === maintenanceModal) {
+        closeMaintenanceModal();
+      }
+    });
+  }
+
   // Haptic feedback helper
   function triggerHaptic(type = "light") {
     try {
@@ -101,25 +152,30 @@
           });
           if (profRes.ok) {
             const profData = await profRes.json();
-            if (profData && profData.status === "ok" && profData.user) {
-              console.log("[StudMatch] Re-used valid saved session token");
-              state.token = savedToken;
-              state.currentUser = profData.user;
-              localStorage.setItem("studmatch_token", savedToken);
-              updateHeaderUser();
-              retryCount = 0;
-              if (state.currentUser?.mode === "career") {
-                await setMode("career");
-              } else if (state.feed.length === 0) {
-                await loadFeed();
+            if (profData && profData.status === "ok") {
+              if (profData.maintenance) {
+                updateMaintenanceUI(profData.maintenance);
               }
-              const composerAvatar = document.getElementById("composerUserAvatar");
-              if (composerAvatar && state.currentUser?.avatar_url) {
-                composerAvatar.src = state.currentUser.avatar_url;
+              if (profData.user) {
+                console.log("[StudMatch] Re-used valid saved session token");
+                state.token = savedToken;
+                state.currentUser = profData.user;
+                localStorage.setItem("studmatch_token", savedToken);
+                updateHeaderUser();
+                retryCount = 0;
+                if (state.currentUser?.mode === "career") {
+                  await setMode("career");
+                } else if (state.feed.length === 0) {
+                  await loadFeed();
+                }
+                const composerAvatar = document.getElementById("composerUserAvatar");
+                if (composerAvatar && state.currentUser?.avatar_url) {
+                  composerAvatar.src = state.currentUser.avatar_url;
+                }
+                await loadStories();
+                openOnboarding(false);
+                return;
               }
-              await loadStories();
-              openOnboarding(false);
-              return;
             }
           }
         } catch (e) {
@@ -190,6 +246,9 @@
 
       const data = await res.json();
       if (data.status === "ok") {
+        if (data.maintenance) {
+          updateMaintenanceUI(data.maintenance);
+        }
         retryCount = 0;
         state.token = data.token;
         state.currentUser = data.user;
@@ -1502,7 +1561,11 @@
 
     try {
       const data = await apiFetch("/api/webapp/profile");
-      if (!data || !data.user) return;
+      if (!data) return;
+      if (data.maintenance) {
+        updateMaintenanceUI(data.maintenance);
+      }
+      if (!data.user) return;
       const u = data.user;
       state.currentUser = u;
 
@@ -2241,6 +2304,10 @@
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();
     setupCareerListeners();
+    setupMaintenanceListeners();
+    if (window.MAINTENANCE_DATA) {
+      updateMaintenanceUI(window.MAINTENANCE_DATA);
+    }
     authenticateUser();
   });
 })();

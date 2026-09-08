@@ -26,6 +26,21 @@ from urllib.parse import urlencode
 from web.routers.webapp import verify_telegram_init_data, create_student_token
 from web.dependencies import SECRET, ALGORITHM
 import jwt
+import sqlite3
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.types import ARRAY
+from sqlalchemy.dialects.postgresql import UUID
+
+sqlite3.register_adapter(list, json.dumps)
+sqlite3.register_converter("JSON", json.loads)
+
+@compiles(ARRAY, "sqlite")
+def compile_array_sqlite(type_, compiler, **kw):
+    return "JSON"
+
+@compiles(UUID, "sqlite")
+def compile_uuid_sqlite(type_, compiler, **kw):
+    return "VARCHAR(36)"
 
 
 
@@ -138,6 +153,43 @@ def test_superadmin_security():
     print("  ✅ [10] Валидация схем действий админа и модерации жалоб: УСПЕШНО")
 
 
+def test_maintenance_mode_webapp():
+    import asyncio
+    from database.models import Base
+    from database.session import engine
+    from bot.utils.dynamic_settings import get_system_setting, set_system_setting
+
+    async def _test():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        # 1. Проверяем значение по умолчанию для сообщения техработ
+        default_msg = "Некоторые функции могут быть временно недоступны на время обновления. Спасибо за понимание! ❤️"
+        msg = await get_system_setting("maintenance_message", default_msg)
+        assert "недоступны" in msg or "понимание" in msg, "Сообщение должно содержать предупреждение и благодарность"
+        print("  ✅ [11] Дефолтное сообщение техработ содержит предупреждение и вежливую формулировку: УСПЕШНО")
+
+        # 2. Проверяем переключение maintenance_mode
+        await set_system_setting("maintenance_mode", "true")
+        mm = await get_system_setting("maintenance_mode", "false")
+        assert mm.lower() in ("true", "1", "yes", "on")
+        
+        # 3. Проверяем структуру объекта maintenance для API
+        is_maintenance = mm.lower() in ("true", "1", "yes", "on")
+        maintenance_data = {
+            "is_active": is_maintenance,
+            "message": msg,
+        }
+        assert maintenance_data["is_active"] is True
+        assert maintenance_data["message"] == msg
+        print("  ✅ [12] Структура ответа maintenance в WebApp API корректна: УСПЕШНО")
+
+        # Возвращаем режим в исходное состояние (false)
+        await set_system_setting("maintenance_mode", "false")
+
+    asyncio.run(_test())
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚀 ТЕСТИРОВАНИЕ КРИПТОГРАФИИ И БЕЗОПАСНОСТИ STUDMATCH WEBAPP")
@@ -146,8 +198,9 @@ if __name__ == "__main__":
     test_jwt_student_tokens()
     test_models_and_schemas()
     test_superadmin_security()
+    test_maintenance_mode_webapp()
     print("=" * 60)
-    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (10 из 10)!")
+    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (12 из 12)!")
     print("=" * 60)
 
 

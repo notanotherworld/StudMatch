@@ -2520,3 +2520,173 @@ body.career-theme.feed-view-active .app-content {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* ─── Maintenance Mode Warning Banner & Modal ──────────────────────── */
+.maintenance-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.35);
+  padding: 10px 16px;
+  position: relative;
+  z-index: 95;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.12);
+  animation: slideDownBanner 0.3s ease-out;
+  flex-shrink: 0;
+}
+
+@keyframes slideDownBanner {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.maintenance-banner-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.maintenance-banner-icon {
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.2);
+  flex-shrink: 0;
+}
+
+.maintenance-banner-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.maintenance-banner-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #92400E;
+  line-height: 1.2;
+}
+
+.maintenance-banner-text {
+  font-size: 11.5px;
+  color: #B45309;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.maintenance-banner-action {
+  background: #D97706;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.maintenance-banner-action:active {
+  transform: scale(0.95);
+  background: #B45309;
+}
+
+/* Maintenance Modal Specifics */
+.maintenance-modal-sheet {
+  max-width: 400px;
+  text-align: center;
+}
+
+.maintenance-modal-hero {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.maintenance-modal-icon-wrap {
+  width: 72px;
+  height: 72px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  box-shadow: 0 10px 25px rgba(245, 158, 11, 0.25);
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.maintenance-modal-icon {
+  font-size: 36px;
+}
+
+.maintenance-modal-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.maintenance-modal-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.maintenance-modal-content {
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.maintenance-info-card {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.maintenance-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: #78350F;
+  line-height: 1.45;
+}
+
+.maintenance-info-dot {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}

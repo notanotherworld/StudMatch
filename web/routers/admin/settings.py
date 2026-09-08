@@ -75,7 +75,7 @@ async def save_settings(
 
     updates = {
         "maintenance_mode": "true" if maintenance_mode == "true" else "false",
-        "maintenance_message": maintenance_message.strip(),
+        "maintenance_message": maintenance_message.strip() or "🛠 Ведутся технические работы. Некоторые функции могут быть временно недоступны на время обновления. Спасибо за понимание! ❤️",
         "emergency_mode": "true" if emergency_mode == "true" else "false",
         "freeze_registrations": "true" if freeze_registrations == "true" else "false",
         "anti_flood_strict": "true" if anti_flood_strict == "true" else "false",

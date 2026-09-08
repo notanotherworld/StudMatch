@@ -14,6 +14,7 @@ from bot.middlewares.auth import AuthMiddleware
 from bot.middlewares.throttling import ThrottlingMiddleware, CallbackThrottlingMiddleware
 from bot.middlewares.maintenance import MaintenanceMiddleware
 from bot.middlewares.media_group import MediaGroupMiddleware
+from bot.middlewares.retry import create_resilient_bot_session
 from bot.handlers import start, auth, profile, browse, settings as settings_handler, rating, payments, reports as reports_handler, promo as promo_handler
 
 logging.basicConfig(
@@ -32,8 +33,10 @@ async def main() -> None:
     # FSM хранилище в Redis
     storage = RedisStorage.from_url(settings.REDIS_URL)
 
+    session = create_resilient_bot_session(timeout=30.0, max_retries=3)
     bot = Bot(
         token=settings.BOT_TOKEN,
+        session=session,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher(storage=storage)
@@ -59,10 +62,27 @@ async def main() -> None:
     dp.include_router(reports_handler.router)
 
     from aiogram.types import ErrorEvent
+    from aiogram.exceptions import TelegramNetworkError, TelegramForbiddenError, TelegramBadRequest
 
     # Глобальный обработчик ошибок
     @dp.error()
     async def global_error_handler(event: ErrorEvent):
+        # 1. Сетевые таймауты и сбои соединения с Telegram API не требуют паники и трейсбеков
+        if isinstance(event.exception, TelegramNetworkError):
+            logger.warning("Telegram Network Notice (timeout/conn issue): %s", event.exception)
+            return True
+
+        # 2. Пользователь заблокировал бота или чат удален
+        if isinstance(event.exception, TelegramForbiddenError):
+            logger.info("Telegram Delivery Notice (bot blocked or chat unreachable): %s", event.exception)
+            return True
+
+        # 3. Сообщение не изменилось или уже удалено
+        if isinstance(event.exception, TelegramBadRequest):
+            err_str = str(event.exception).lower()
+            if "message is not modified" in err_str or "message to delete not found" in err_str:
+                return True
+
         logger.error(f"Global error handler caught: {event.exception}", exc_info=event.exception)
         try:
             if event.update and event.update.message:

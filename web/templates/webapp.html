@@ -20,6 +20,10 @@
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
+    window.MAINTENANCE_DATA = {
+      isActive: {{ 'true' if is_maintenance else 'false' }},
+      message: {{ maintenance_message|tojson }}
+    };
   </script>
 </head>
 <body>
@@ -58,6 +62,20 @@
         </button>
       </div>
     </header>
+
+    <!-- Maintenance Mode Warning Banner -->
+    <div class="maintenance-banner" id="maintenanceBanner" style="display: {% if is_maintenance %}flex{% else %}none{% endif %};">
+      <div class="maintenance-banner-body">
+        <span class="maintenance-banner-icon">🛠️</span>
+        <div class="maintenance-banner-info">
+          <div class="maintenance-banner-title">Режим технических работ</div>
+          <div class="maintenance-banner-text" id="maintenanceBannerText">
+            {{ maintenance_message or "Некоторые функции могут быть временно недоступны на время обновления. Спасибо за понимание! ❤️" }}
+          </div>
+        </div>
+      </div>
+      <button type="button" class="maintenance-banner-action" id="openMaintenanceModalBtn">Подробнее</button>
+    </div>
 
     <!-- Top Stories Row (Real Premium Profiles from Backend) -->
     <div class="stories-row" id="storiesRow">
@@ -470,6 +488,46 @@
       <div class="modal-footer">
         <button class="btn-primary" id="careerSaveBtn" style="background: linear-gradient(135deg, #2563EB, #1D4ED8);">
           💾 Сохранить в StudMatch
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Maintenance Info Modal / Stub -->
+  <div class="modal-overlay" id="maintenanceModal" style="display: none;">
+    <div class="modal-sheet maintenance-modal-sheet">
+      <div class="modal-drag-handle"></div>
+      
+      <div class="maintenance-modal-hero">
+        <div class="maintenance-modal-icon-wrap">
+          <span class="maintenance-modal-icon">🛠️</span>
+        </div>
+        <h2 class="maintenance-modal-title">Идёт обновление сервиса</h2>
+        <p class="maintenance-modal-subtitle">Плановые технические работы</p>
+      </div>
+
+      <div class="maintenance-modal-content">
+        <div class="maintenance-info-card">
+          <div class="maintenance-info-row">
+            <span class="maintenance-info-dot">⚠️</span>
+            <span>Некоторые функции могут быть временно недоступны или работать с задержкой на время обновления.</span>
+          </div>
+          <div class="maintenance-info-row">
+            <span class="maintenance-info-dot">⚡</span>
+            <span>Мы проводим плановую оптимизацию базы данных и алгоритмов, чтобы StudMatch работал быстрее.</span>
+          </div>
+          <div class="maintenance-info-row">
+            <span class="maintenance-info-dot">❤️</span>
+            <span id="maintenanceModalCustomMsg">
+              {{ maintenance_message or "Спасибо за ваше понимание и терпение!" }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-primary" id="closeMaintenanceModalBtn">
+          👍 Понятно, продолжить
         </button>
       </div>
     </div>

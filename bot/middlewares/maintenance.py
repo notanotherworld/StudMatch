@@ -2,12 +2,15 @@
 Middleware режима технических работ и экстренной защиты (Emergency & Anti-Attack Shield).
 Позволяет моментально блокировать запросы при атаках, замораживать регистрации и включать техработы.
 """
+import logging
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import Message, CallbackQuery, TelegramObject
 
 from bot.utils.dynamic_settings import get_system_setting
 from bot.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class MaintenanceMiddleware(BaseMiddleware):
@@ -40,12 +43,13 @@ class MaintenanceMiddleware(BaseMiddleware):
                 "emergency_message",
                 "🚨 <b>Сервер временно недоступен</b>\n\nВключён экстренный режим защиты от перегрузки. Доступ будет восстановлен в ближайшее время!",
             )
-            if isinstance(event, Message):
-                await event.answer(msg_text, parse_mode="HTML")
-                return
-            elif isinstance(event, CallbackQuery):
-                await event.answer("🚨 Экстренный режим защиты платформы активен.", show_alert=True)
-                return
+            try:
+                if isinstance(event, Message):
+                    await event.answer(msg_text, parse_mode="HTML")
+                elif isinstance(event, CallbackQuery):
+                    await event.answer("🚨 Экстренный режим защиты платформы активен.", show_alert=True)
+            except Exception as e:
+                logger.warning(f"Failed to send emergency notice to user {user_id}: {e}")
             return
 
         # 2. 🛠 Технические работы (Maintenance Mode)
@@ -53,14 +57,15 @@ class MaintenanceMiddleware(BaseMiddleware):
         if is_maintenance.lower() in ("true", "1", "yes", "on"):
             msg_text = await get_system_setting(
                 "maintenance_message",
-                "🛠 <b>Бот на техническом обслуживании</b>\n\nМы проводим плановое обновление. Бот скоро возобновит работу!",
+                "🛠 <b>Бот на техническом обслуживании</b>\n\nМы проводим плановое обновление. Некоторые функции могут быть временно недоступны на время обновления. Спасибо за понимание! ❤️",
             )
-            if isinstance(event, Message):
-                await event.answer(msg_text, parse_mode="HTML")
-                return
-            elif isinstance(event, CallbackQuery):
-                await event.answer("🛠 Технические работы. Пожалуйста, подождите.", show_alert=True)
-                return
+            try:
+                if isinstance(event, Message):
+                    await event.answer(msg_text, parse_mode="HTML")
+                elif isinstance(event, CallbackQuery):
+                    await event.answer("🛠 Технические работы. Пожалуйста, подождите.", show_alert=True)
+            except Exception as e:
+                logger.warning(f"Failed to send maintenance notice to user {user_id}: {e}")
             return
 
         # 3. 🛑 Заморозка новых регистраций (Freeze Registrations)
@@ -68,15 +73,17 @@ class MaintenanceMiddleware(BaseMiddleware):
         if freeze_regs.lower() in ("true", "1", "yes", "on"):
             state = data.get("raw_state") or ""
             if "AuthState:" in state or "ProfileState:" in state:
-                if isinstance(event, Message):
-                    await event.answer(
-                        "🛑 <b>Регистрация новых пользователей временно приостановлена администрацией.</b>\n\n"
-                        "Пожалуйста, повторите попытку позже.",
-                        parse_mode="HTML",
-                    )
-                    return
-                elif isinstance(event, CallbackQuery):
-                    await event.answer("🛑 Регистрация временно приостановлена.", show_alert=True)
-                    return
+                try:
+                    if isinstance(event, Message):
+                        await event.answer(
+                            "🛑 <b>Регистрация новых пользователей временно приостановлена администрацией.</b>\n\n"
+                            "Пожалуйста, повторите попытку позже.",
+                            parse_mode="HTML",
+                        )
+                    elif isinstance(event, CallbackQuery):
+                        await event.answer("🛑 Регистрация временно приостановлена.", show_alert=True)
+                except Exception as e:
+                    logger.warning(f"Failed to send registration freeze notice to user {user_id}: {e}")
+                return
 
         return await handler(event, data)
