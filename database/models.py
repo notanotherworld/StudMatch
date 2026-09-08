@@ -280,14 +280,17 @@ class Achievement(Base):
 class Swipe(Base):
     __tablename__ = "swipes"
     __table_args__ = (
-        UniqueConstraint("from_user_id", "to_user_id", name="uq_swipe_pair"),
+        UniqueConstraint("from_user_id", "to_user_id", "mode", name="uq_swipe_pair_mode"),
         Index("idx_swipes_to_user_action", "to_user_id", "action"),
         Index("idx_swipes_from_user_action", "from_user_id", "action"),
+        Index("idx_swipes_viewer_mode_action_created", "from_user_id", "mode", "action", "created_at"),
+        Index("idx_swipes_target_mode_action", "to_user_id", "mode", "action"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     from_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
     to_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
+    mode: Mapped[ModeEnum] = mapped_column(Enum(ModeEnum), default=ModeEnum.dating, server_default="dating", nullable=False)
     action: Mapped[SwipeAction] = mapped_column(Enum(SwipeAction))
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

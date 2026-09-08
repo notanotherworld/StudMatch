@@ -204,13 +204,17 @@ async def send_next_card(
     profile = await get_next_profile(db, viewer_id=user.id, mode=user.mode)
 
     if not profile:
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        b = InlineKeyboardBuilder()
+        b.button(text="⚙️ Изменить фильтры поиска", callback_data="settings:filters")
+        b.button(text="🏠 Главное меню", callback_data="settings:main_menu")
+        b.adjust(1)
         await bot.send_message(
             chat_id,
-            "🎉 <b>Все анкеты просмотрены!</b>\n\n"
-            "Ты просмотрел всех доступных студентов на данный момент. "
-            "Загляни позже — новые анкеты появляются регулярно! 😉",
+            "🔍 <b>По вашим фильтрам сейчас нет подходящих анкет</b>\n\n"
+            "Попробуй расширить диапазон возраста, курса или факультетов, чтобы увидеть больше студентов! 😉",
             parse_mode="HTML",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=b.as_markup(),
         )
         return
 
@@ -228,6 +232,7 @@ async def send_next_card(
         select(Swipe.action).where(
             Swipe.from_user_id == profile.user_id,
             Swipe.to_user_id == user.id,
+            Swipe.mode == user.mode,
             Swipe.action.in_([SwipeAction.superlike, SwipeAction.like]),
         )
     )
@@ -873,7 +878,7 @@ async def process_incoming_like(callback: CallbackQuery, user: User, db: AsyncSe
         await callback.answer("Анкета больше не найдена.", show_alert=True)
         return
 
-    is_match = await create_swipe(db, from_id=user.id, to_id=target_id, action=SwipeAction.like)
+    is_match = await create_swipe(db, from_id=user.id, to_id=target_id, action=SwipeAction.like, mode=user.mode)
 
     target_name = target.profile.name if target and target.profile else "Студент"
     target_username = f"@{target.tg_username}" if target and target.tg_username else "(нет username)"
@@ -914,7 +919,7 @@ async def process_incoming_like(callback: CallbackQuery, user: User, db: AsyncSe
 async def process_incoming_skip(callback: CallbackQuery, user: User, db: AsyncSession):
     """Пропуск входящего лайка."""
     target_id = int(callback.data.split(":")[2])
-    await create_swipe(db, from_id=user.id, to_id=target_id, action=SwipeAction.skip)
+    await create_swipe(db, from_id=user.id, to_id=target_id, action=SwipeAction.skip, mode=user.mode)
 
     try:
         await callback.message.edit_reply_markup(reply_markup=None)
@@ -957,7 +962,7 @@ async def swipe_callback(callback: CallbackQuery, state: FSMContext, user: User,
     else:
         action = SwipeAction.skip
 
-    is_match = await create_swipe(db, from_id=user.id, to_id=target_id, action=action)
+    is_match = await create_swipe(db, from_id=user.id, to_id=target_id, action=action, mode=user.mode)
 
     if is_match:
         target = await get_user(db, target_id)
@@ -1083,10 +1088,14 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
     my_name = user.profile.name if user.profile else "Студент"
     my_username = f"@{user.tg_username}" if user.tg_username else "(нет username)"
 
-    # Проверяем, есть ли уже свайп
+    # Проверяем, есть ли уже свайп в этом режиме
     existing_swipe = await db.execute(
         select(Swipe).where(
-            and_(Swipe.from_user_id == user.id, Swipe.to_user_id == target_id)
+            and_(
+                Swipe.from_user_id == user.id,
+                Swipe.to_user_id == target_id,
+                Swipe.mode == user.mode,
+            )
         )
     )
     has_existing_swipe = existing_swipe.scalar_one_or_none() is not None
@@ -1094,7 +1103,7 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
     is_match = False
     if not has_existing_swipe:
         is_match = await create_swipe(
-            db, from_id=user.id, to_id=target_id, action=SwipeAction.like, comment=text
+            db, from_id=user.id, to_id=target_id, action=SwipeAction.like, mode=user.mode, comment=text
         )
 
     if is_match:

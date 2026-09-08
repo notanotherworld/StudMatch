@@ -252,43 +252,32 @@ async def get_next_profile(
     exclude_ids: Optional[Collection[int]] = None,
 ) -> Optional[Profile]:
     """
-    Получить следующую не свайпнутую анкету для поочерёдного свайпа (1 за раз).
-    Исключаем: самого пользователя, уже свайпнутых, тех на кого отправлена жалоба, забаненных.
-    Сортировка: буст → рейтинг. Оптимизировано через SQL subquery NOT EXISTS.
+    Умный бесконечный алгоритм выдачи анкет:
+    1. Исключаем: самого пользователя, жалобы (Report), положительные свайпы (like/superlike),
+       активные мэтчи в этом режиме, а также скользящий буфер недавно свайпнутых анкет.
+    2. Приоритеты (4-уровневый водопад):
+       - Tier 1: Входящий суперлайк (приоритет 4) и входящий лайк (приоритет 3).
+         Если пропущенный кандидат лайкнул пользователя — сразу всплывает на 1-е место!
+       - Tier 2: Свежие непросмотренные анкеты (приоритет 2).
+       - Tier 3: Ресайкл пропусков старше 48 часов (приоритет 1).
+       - Tier 4: Fallback ресайкл самых давних пропусков (FIFO) для бесконечной ленты (приоритет 0).
+    3. Сортировка: Приоритет → Буст → Премиум → Верификация → (FIFO для ресайкла / Рейтинг для свежих).
     """
     now = datetime.now(timezone.utc)
+    current_mode = mode or ModeEnum.dating
+    cooldown_threshold = now - timedelta(hours=48)
 
-    # Подзапросы исключения уже свайпнутых анкет и отправленных жалоб
-    swiped_subq = exists(
-        select(1).where(
-            and_(
-                Swipe.from_user_id == viewer_id,
-                Swipe.to_user_id == Profile.user_id,
-            )
-        )
-    )
-    reported_subq = exists(
-        select(1).where(
-            and_(
-                Report.reporter_id == viewer_id,
-                Report.reported_id == Profile.user_id,
-            )
-        )
-    )
-
-    # Загружаем профиль смотрящего для фильтрации
+    # 1. Загружаем профиль смотрящего для фильтрации
     viewer_profile = await get_profile(db, viewer_id)
 
     # Фильтры для режима Знакомств (гендер)
     gender_filters = []
-    if mode == ModeEnum.dating and viewer_profile:
-        # 1. Пол кандидата должен совпадать с тем, кого ищет viewer
+    if current_mode == ModeEnum.dating and viewer_profile:
         if viewer_profile.target_gender == "female":
             gender_filters.append(or_(Profile.gender == "female", Profile.gender.is_(None)))
         elif viewer_profile.target_gender == "male":
             gender_filters.append(or_(Profile.gender == "male", Profile.gender.is_(None)))
 
-        # 2. Кандидат должен быть согласен на пол viewer'а (или искать Всех/любого)
         if viewer_profile.gender == "male":
             gender_filters.append(
                 or_(
@@ -309,89 +298,206 @@ async def get_next_profile(
     # Фильтры поиска (возраст, курс, факультет)
     search_filters = []
     if viewer_profile:
-        # 1. Фильтр по возрасту (если возраст указан)
         min_a = viewer_profile.filter_min_age
         max_a = viewer_profile.filter_max_age
         if min_a and max_a:
             search_filters.append(
                 or_(
                     Profile.age.is_(None),
-                    and_(Profile.age >= min_a, Profile.age <= max_a)
+                    and_(Profile.age >= min_a, Profile.age <= max_a),
                 )
             )
 
-        # 2. Фильтр по курсу
         min_y = viewer_profile.filter_min_year
         max_y = viewer_profile.filter_max_year
         if min_y and max_y:
             search_filters.append(
                 or_(
                     Profile.year.is_(None),
-                    and_(Profile.year >= min_y, Profile.year <= max_y)
+                    and_(Profile.year >= min_y, Profile.year <= max_y),
                 )
             )
 
-        # 3. Фильтр по специальности / факультету
         f_major = viewer_profile.filter_major
         if f_major and f_major != "all":
             search_filters.append(
                 or_(
                     Profile.major.is_(None),
-                    Profile.major.ilike(f"%{f_major}%")
+                    Profile.major.ilike(f"%{f_major}%"),
                 )
             )
 
     is_complete_cond = (
         Profile.career_is_complete == True
-        if mode == ModeEnum.career
+        if current_mode == ModeEnum.career
         else Profile.is_complete == True
     )
 
+    # Исключение жалоб
+    reported_subq = exists(
+        select(1).where(
+            and_(
+                Report.reporter_id == viewer_id,
+                Report.reported_id == Profile.user_id,
+            )
+        )
+    )
+
+    # Исключение положительных свайпов (like / superlike) от смотрящего в этом режиме
+    liked_subq = exists(
+        select(1).where(
+            and_(
+                Swipe.from_user_id == viewer_id,
+                Swipe.to_user_id == Profile.user_id,
+                Swipe.mode == current_mode,
+                Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+            )
+        )
+    )
+
+    # Исключение уже существующих взаимных мэтчей в этом режиме
+    matched_subq = exists(
+        select(1).where(
+            and_(
+                Match.mode == current_mode,
+                or_(
+                    and_(Match.user1_id == viewer_id, Match.user2_id == Profile.user_id),
+                    and_(Match.user1_id == Profile.user_id, Match.user2_id == viewer_id),
+                ),
+            )
+        )
+    )
+
+    # Подзапрос входящих симпатий кандидата к смотрящему
     incoming_action = (
         select(Swipe.action)
         .where(
             Swipe.from_user_id == Profile.user_id,
             Swipe.to_user_id == viewer_id,
+            Swipe.mode == current_mode,
             Swipe.action.in_([SwipeAction.superlike, SwipeAction.like]),
         )
         .correlate(Profile)
         .scalar_subquery()
     )
 
-    priority_incoming = case(
-        (incoming_action == SwipeAction.superlike, 2),
-        (incoming_action == SwipeAction.like, 1),
+    # Подзапрос действия и времени свайпа смотрящего к кандидату
+    viewer_swipe_action = (
+        select(Swipe.action)
+        .where(
+            Swipe.from_user_id == viewer_id,
+            Swipe.to_user_id == Profile.user_id,
+            Swipe.mode == current_mode,
+        )
+        .correlate(Profile)
+        .scalar_subquery()
+    )
+    viewer_swipe_time = (
+        select(Swipe.created_at)
+        .where(
+            Swipe.from_user_id == viewer_id,
+            Swipe.to_user_id == Profile.user_id,
+            Swipe.mode == current_mode,
+        )
+        .correlate(Profile)
+        .scalar_subquery()
+    )
+
+    # Вычисление уровней приоритета (Priority Tiers):
+    # Tier 1: Входящий superlike (4) / like (3)
+    # Tier 2: Свежие анкеты (2)
+    # Tier 3: Ресайкл пропусков старше 48ч (1)
+    # Tier 4: Fallback ресайкл недавних пропусков (0)
+    priority = case(
+        (incoming_action == SwipeAction.superlike, 4),
+        (incoming_action == SwipeAction.like, 3),
+        (viewer_swipe_action.is_(None), 2),
+        (
+            and_(
+                viewer_swipe_action == SwipeAction.skip,
+                viewer_swipe_time < cooldown_threshold,
+            ),
+            1,
+        ),
         else_=0,
     )
 
-    result = await db.execute(
+    # Получаем последние 15 свайпов пользователя для скользящего буфера
+    recent_swipes_res = await db.execute(
+        select(Swipe.to_user_id)
+        .where(
+            Swipe.from_user_id == viewer_id,
+            Swipe.mode == current_mode,
+        )
+        .order_by(Swipe.created_at.desc())
+        .limit(15)
+    )
+    recent_swiped_ids = list(recent_swipes_res.scalars().all())
+
+    # Базовые условия выборки
+    base_conditions = [
+        Profile.is_visible == True,
+        is_complete_cond,
+        User.is_active == True,
+        Profile.user_id != viewer_id,
+        ~reported_subq,
+        ~liked_subq,
+        ~matched_subq,
+        *gender_filters,
+        *search_filters,
+    ]
+
+    base_query = (
         select(Profile)
         .options(selectinload(Profile.user).selectinload(User.university))
         .join(User, Profile.user_id == User.id)
-        .where(
-            and_(
-                Profile.is_visible == True,
-                is_complete_cond,
-                User.is_active == True,
-                Profile.user_id != viewer_id,
-                *([Profile.user_id.not_in(exclude_ids)] if exclude_ids else []),
-                ~swiped_subq,
-                ~reported_subq,
-                *gender_filters,
-                *search_filters,
-            )
-        )
-
         .order_by(
-            priority_incoming.desc(),
-            (User.premium_until > now).desc(),
+            priority.desc(),
             (User.boost_until > now).desc(),
+            (User.premium_until > now).desc(),
             User.email_verified.desc(),
+            case((priority <= 1, viewer_swipe_time), else_=None).asc().nulls_last(),
             Profile.rating_score.desc(),
         )
         .limit(1)
     )
-    return result.scalar_one_or_none()
+
+    # Проход 1: Со скользящим буфером (исключаем последние 10 свайпов, кроме входящих лайков)
+    client_exclude: Set[int] = set(exclude_ids or ())
+    recent_buffer: Set[int] = set(recent_swiped_ids[:10])
+
+    q1_conds = list(base_conditions)
+    if client_exclude:
+        q1_conds.append(Profile.user_id.not_in(client_exclude))
+    if recent_buffer:
+        q1_conds.append(
+            or_(
+                incoming_action.in_([SwipeAction.like, SwipeAction.superlike]),
+                Profile.user_id.not_in(recent_buffer),
+            )
+        )
+
+    q1 = base_query.where(and_(*q1_conds))
+    result = await db.execute(q1)
+    candidate = result.scalar_one_or_none()
+    if candidate:
+        return candidate
+
+    # Проход 2: Fallback при маленьком пуле анкет (без жесткого буфера, но исключая самую последнюю карточку)
+    q2_conds = list(base_conditions)
+    if client_exclude:
+        q2_conds.append(Profile.user_id.not_in(client_exclude))
+    if recent_swiped_ids:
+        q2_conds.append(
+            or_(
+                incoming_action.in_([SwipeAction.like, SwipeAction.superlike]),
+                Profile.user_id != recent_swiped_ids[0],
+            )
+        )
+
+    q2 = base_query.where(and_(*q2_conds))
+    result2 = await db.execute(q2)
+    return result2.scalar_one_or_none()
 
 
 async def update_career_profile(
@@ -413,83 +519,112 @@ async def update_career_profile(
 # Swipes & Matches
 # ─────────────────────────────────────────────────────────────
 async def create_swipe(
-    db: AsyncSession, from_id: int, to_id: int, action: SwipeAction, comment: Optional[str] = None
+    db: AsyncSession,
+    from_id: int,
+    to_id: int,
+    action: SwipeAction,
+    mode: ModeEnum = ModeEnum.dating,
+    comment: Optional[str] = None,
 ) -> bool:
     """
-    Сохранить свайп. Возвращает True если это взаимный лайк (мэтч).
-    Защищён от дубликатов, состояний гонки и конфликтов авто-мэтчей.
+    Сохранить свайп с учётом режима (Dating / Career).
+    Возвращает True если это взаимный лайк (мэтч).
+    При повторном свайпе (даже skip) обновляет created_at для корректной работы кулдауна.
     """
     try:
-        # Проверяем, не было ли уже свайпа
+        now = datetime.now(timezone.utc)
+        # Проверяем, не было ли уже свайпа в этом режиме
         existing = await db.execute(
-            select(Swipe).where(and_(Swipe.from_user_id == from_id, Swipe.to_user_id == to_id))
+            select(Swipe).where(
+                and_(
+                    Swipe.from_user_id == from_id,
+                    Swipe.to_user_id == to_id,
+                    Swipe.mode == mode,
+                )
+            )
         )
         existing_swipe = existing.scalar_one_or_none()
         if existing_swipe:
-            if existing_swipe.action == action:
+            if existing_swipe.action == action and action in (SwipeAction.like, SwipeAction.superlike):
                 return False
-            # Обновляем действие (например, если был skip, а пользователь ответил взаимностью на лайк)
             existing_swipe.action = action
-            if comment:
+            existing_swipe.created_at = now
+            if comment is not None:
                 existing_swipe.comment = comment
         else:
-            db.add(Swipe(from_user_id=from_id, to_user_id=to_id, action=action, comment=comment))
+            db.add(
+                Swipe(
+                    from_user_id=from_id,
+                    to_user_id=to_id,
+                    mode=mode,
+                    action=action,
+                    comment=comment,
+                    created_at=now,
+                )
+            )
         await db.commit()
 
-        # Проверяем взаимный лайк
+        # Проверяем взаимный лайк в этом же режиме
         if action in (SwipeAction.like, SwipeAction.superlike):
             # Если партнер — тестовый профиль со включенным авто-мэтчем
             target_user = await get_user(db, to_id)
             if target_user and getattr(target_user, "is_fake", False) and getattr(target_user, "auto_match_mode", "instant") == "instant":
-                # Добавляем обратный свайп только если его ещё нет
                 rev_fake = await db.execute(
-                    select(Swipe).where(and_(Swipe.from_user_id == to_id, Swipe.to_user_id == from_id))
+                    select(Swipe).where(
+                        and_(
+                            Swipe.from_user_id == to_id,
+                            Swipe.to_user_id == from_id,
+                            Swipe.mode == mode,
+                        )
+                    )
                 )
                 if not rev_fake.scalar_one_or_none():
-                    db.add(Swipe(from_user_id=to_id, to_user_id=from_id, action=SwipeAction.like))
-                
-                # Добавляем Match только если его ещё нет
+                    db.add(Swipe(from_user_id=to_id, to_user_id=from_id, mode=mode, action=SwipeAction.like, created_at=now))
+
                 exist_match = await db.execute(
                     select(Match).where(
-                        or_(
-                            and_(Match.user1_id == from_id, Match.user2_id == to_id),
-                            and_(Match.user1_id == to_id, Match.user2_id == from_id),
+                        and_(
+                            Match.mode == mode,
+                            or_(
+                                and_(Match.user1_id == from_id, Match.user2_id == to_id),
+                                and_(Match.user1_id == to_id, Match.user2_id == from_id),
+                            ),
                         )
                     )
                 )
                 if not exist_match.scalar_one_or_none():
-                    from_user = await get_user(db, from_id)
-                    user_mode = from_user.mode if from_user and from_user.mode else ModeEnum.dating
-                    db.add(Match(user1_id=from_id, user2_id=to_id, mode=user_mode))
-                
-                await db.commit()
-                return True
+                    db.add(Match(user1_id=from_id, user2_id=to_id, mode=mode))
+                    await db.commit()
+                    return True
+                return False
 
             reverse = await db.execute(
                 select(Swipe).where(
                     and_(
                         Swipe.from_user_id == to_id,
                         Swipe.to_user_id == from_id,
+                        Swipe.mode == mode,
                         Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
                     )
                 )
             )
             if reverse.scalar_one_or_none():
-                # Добавляем Match только если его ещё нет
                 exist_match = await db.execute(
                     select(Match).where(
-                        or_(
-                            and_(Match.user1_id == from_id, Match.user2_id == to_id),
-                            and_(Match.user1_id == to_id, Match.user2_id == from_id),
+                        and_(
+                            Match.mode == mode,
+                            or_(
+                                and_(Match.user1_id == from_id, Match.user2_id == to_id),
+                                and_(Match.user1_id == to_id, Match.user2_id == from_id),
+                            ),
                         )
                     )
                 )
                 if not exist_match.scalar_one_or_none():
-                    from_user = await get_user(db, from_id)
-                    user_mode = from_user.mode if from_user and from_user.mode else ModeEnum.dating
-                    db.add(Match(user1_id=from_id, user2_id=to_id, mode=user_mode))
+                    db.add(Match(user1_id=from_id, user2_id=to_id, mode=mode))
                     await db.commit()
-                return True
+                    return True
+                return False
         return False
     except Exception as e:
         await db.rollback()
@@ -801,13 +936,33 @@ async def revoke_user_premium(db: AsyncSession, user_id: int) -> bool:
 
 
 async def get_incoming_likes(
-    db: AsyncSession, user_id: int, limit: int = 30
+    db: AsyncSession,
+    user_id: int,
+    limit: int = 30,
+    mode: Optional[ModeEnum] = None,
 ) -> List[Swipe]:
     """
     Возвращает список входящих лайков/суперлайков для user_id от пользователей,
-    которым user_id ещё не поставил ответный свайп.
+    которым user_id ещё не поставил ответный положительный свайп (like/superlike).
     """
-    swiped_subq = select(Swipe.to_user_id).where(Swipe.from_user_id == user_id)
+    swiped_conds = [
+        Swipe.from_user_id == user_id,
+        Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+    ]
+    if mode:
+        swiped_conds.append(Swipe.mode == mode)
+
+    swiped_subq = select(Swipe.to_user_id).where(and_(*swiped_conds))
+
+    query_conds = [
+        Swipe.to_user_id == user_id,
+        Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+        User.is_active == True,
+        Profile.is_visible == True,
+        ~Swipe.from_user_id.in_(swiped_subq),
+    ]
+    if mode:
+        query_conds.append(Swipe.mode == mode)
 
     result = await db.execute(
         select(Swipe)
@@ -817,13 +972,7 @@ async def get_incoming_likes(
         )
         .join(User, Swipe.from_user_id == User.id)
         .join(Profile, Profile.user_id == User.id)
-        .where(
-            Swipe.to_user_id == user_id,
-            Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
-            User.is_active == True,
-            Profile.is_visible == True,
-            ~Swipe.from_user_id.in_(swiped_subq),
-        )
+        .where(and_(*query_conds))
         .order_by(
             case((Swipe.action == SwipeAction.superlike, 1), else_=0).desc(),
             Swipe.created_at.desc(),
@@ -833,18 +982,34 @@ async def get_incoming_likes(
     return list(result.scalars().all())
 
 
-async def get_incoming_likes_count(db: AsyncSession, user_id: int) -> int:
+async def get_incoming_likes_count(
+    db: AsyncSession,
+    user_id: int,
+    mode: Optional[ModeEnum] = None,
+) -> int:
     """Количество непросмотренных входящих лайков."""
-    swiped_subq = select(Swipe.to_user_id).where(Swipe.from_user_id == user_id)
+    swiped_conds = [
+        Swipe.from_user_id == user_id,
+        Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+    ]
+    if mode:
+        swiped_conds.append(Swipe.mode == mode)
+
+    swiped_subq = select(Swipe.to_user_id).where(and_(*swiped_conds))
+
+    query_conds = [
+        Swipe.to_user_id == user_id,
+        Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+        User.is_active == True,
+        ~Swipe.from_user_id.in_(swiped_subq),
+    ]
+    if mode:
+        query_conds.append(Swipe.mode == mode)
+
     result = await db.scalar(
         select(func.count(Swipe.id))
         .join(User, Swipe.from_user_id == User.id)
-        .where(
-            Swipe.to_user_id == user_id,
-            Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
-            User.is_active == True,
-            ~Swipe.from_user_id.in_(swiped_subq),
-        )
+        .where(and_(*query_conds))
     )
     return result or 0
 

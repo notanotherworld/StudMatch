@@ -380,6 +380,7 @@ async def webapp_swipe(
         from_id=student.id,
         to_id=payload.target_id,
         action=action,
+        mode=student.mode,
         comment=payload.comment,
     )
 
@@ -1025,11 +1026,19 @@ async def webapp_reset_swipes(
     student: User = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    """Сбросить историю свайпов для повторного просмотра анкет."""
+    """Сбросить пропущенные анкеты (skip) в текущем режиме для повторного просмотра."""
     from sqlalchemy import delete
-    await db.execute(delete(Swipe).where(Swipe.from_user_id == student.id))
+    await db.execute(
+        delete(Swipe).where(
+            and_(
+                Swipe.from_user_id == student.id,
+                Swipe.mode == student.mode,
+                Swipe.action == SwipeAction.skip,
+            )
+        )
+    )
     await db.commit()
-    logger.info(f"User {student.id} reset their swipes in WebApp")
+    logger.info(f"User {student.id} reset their skipped swipes in mode {student.mode}")
     return {"status": "ok"}
 
 
