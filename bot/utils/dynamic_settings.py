@@ -49,6 +49,18 @@ async def get_system_setting(key: str, default: str = "") -> str:
     return val
 
 
+async def is_email_verification_enabled() -> bool:
+    """
+    Проверяет, активна ли верификация по email.
+    Если settings.EMAIL_VERIFICATION_ENABLED выключен в конфиге/env, возвращает False.
+    Если включен в конфиге, проверяет также системную настройку require_email_verification в Redis/БД.
+    """
+    if not getattr(settings, "EMAIL_VERIFICATION_ENABLED", False):
+        return False
+    val = await get_system_setting("require_email_verification", default="false")
+    return str(val).strip().lower() in ("true", "1", "yes")
+
+
 async def set_system_setting(key: str, value: str, description: Optional[str] = None) -> None:
     """
     Сохранить системную настройку в БД и мгновенно обновить/сбросить Redis cache.

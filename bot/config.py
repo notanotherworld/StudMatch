@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     BOT_USERNAME: str = "edudating_bot"
     ADMIN_TG_IDS: str = ""  # "123,456"
     MASTER_VERIFY_CODE: str = ""  # Резервный мастер-код для саппорта (например: "777888")
+    EMAIL_VERIFICATION_ENABLED: bool = False  # Временное отключение email-верификации (True для включения)
 
     # Database
     DATABASE_URL: str

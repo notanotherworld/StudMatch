@@ -14,6 +14,7 @@ from sqlalchemy.orm import selectinload
 
 from database.session import AsyncSessionLocal
 from database.models import User, Profile
+from bot.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -104,9 +105,10 @@ async def run_weekly_rank_notifications(bot: Bot) -> dict:
 async def run_weekly_challenge_notifications(bot: Bot) -> dict:
     """Неделя B: 📢 Карьерный челлендж недели."""
     async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(User.id).where(User.is_active == True, User.email_verified == True)
-        )
+        conditions = [User.is_active == True]
+        if getattr(settings, "EMAIL_VERIFICATION_ENABLED", False):
+            conditions.append(User.email_verified == True)
+        result = await db.execute(select(User.id).where(*conditions))
         user_ids = [row[0] for row in result.all()]
 
     text = (

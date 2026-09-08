@@ -21,6 +21,7 @@ from sqlalchemy.orm import selectinload
 
 from database.session import AsyncSessionLocal
 from database.models import User, Profile, BroadcastLog, ModeEnum
+from bot.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,8 @@ def build_recipients_query(filters: dict):
     )
 
     # 1. Верификация
-    if filters.get("verified_only", True):
+    is_ver_enabled = getattr(settings, "EMAIL_VERIFICATION_ENABLED", False)
+    if is_ver_enabled and filters.get("verified_only", False):
         query = query.where(User.email_verified == True)
 
     # 2. Режим

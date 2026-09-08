@@ -14,6 +14,7 @@ from sqlalchemy import select
 
 from database.session import AsyncSessionLocal
 from database.models import User
+from bot.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +38,13 @@ def get_update_keyboard():
 async def send_update_announcement(bot: Bot, custom_text: Optional[str] = None) -> dict:
     """Отправляет уведомление об обновлении всем реальным активным пользователям."""
     async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(User.id).where(
-                User.is_active == True,
-                User.email_verified == True,
-                User.is_fake == False,
-            )
-        )
+        conditions = [
+            User.is_active == True,
+            User.is_fake == False,
+        ]
+        if getattr(settings, "EMAIL_VERIFICATION_ENABLED", False):
+            conditions.append(User.email_verified == True)
+        result = await db.execute(select(User.id).where(*conditions))
         user_ids = [row[0] for row in result.all()]
 
     if not user_ids:

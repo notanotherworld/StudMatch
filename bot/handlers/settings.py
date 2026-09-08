@@ -54,6 +54,14 @@ async def show_settings(message: Message, user: User, state: FSMContext = None):
 async def start_verification_callback(callback: CallbackQuery, state: FSMContext, user: User):
     """Запуск процесса верификации студента из настроек или профиля."""
     await callback.answer()
+    if not getattr(settings, "EMAIL_VERIFICATION_ENABLED", False):
+        await callback.message.answer(
+            "ℹ️ <b>Верификация по корпоративной почте временно отключена.</b>\n\n"
+            "Все функции поиска, свайпов и общения полностью доступны без подтверждения email! Приятного пользования 🎉",
+            parse_mode="HTML",
+        )
+        return
+
     if user.email_verified:
         await callback.message.answer("✅ <b>Твой студенческий статус уже верифицирован!</b>", parse_mode="HTML")
         return
@@ -619,9 +627,11 @@ async def show_my_profile(
 
     # Статус верификации
     if user.email_verified:
-        verified_str = f"Верификация: подтверждена ✅ ({univ_str})"
+        verified_block = f"Верификация: подтверждена ✅ ({univ_str})\n\n"
+    elif getattr(settings, "EMAIL_VERIFICATION_ENABLED", False):
+        verified_block = "Верификация: не подтверждена (+100⭐)\n\n"
     else:
-        verified_str = "Верификация: не подтверждена (+100⭐)"
+        verified_block = ""
 
     # Служебный блок внизу
     if user.is_premium and user.premium_until:
@@ -631,7 +641,10 @@ async def show_my_profile(
         prem_info = "Премиум: не активен"
 
     superlikes_info = f"Суперлайков: {user.superlike_balance}"
-    email_info = f"Почта: {email_str}"
+    if user.email or getattr(settings, "EMAIL_VERIFICATION_ENABLED", False):
+        email_info = f"\nПочта: {email_str}"
+    else:
+        email_info = ""
     major_block = f"{major}\n" if major else ""
 
     if is_career_view:
@@ -648,7 +661,7 @@ async def show_my_profile(
             f"{identity_line}\n"
             f"🎯 Карьера\n\n"
             f"{status_line}\n"
-            f"{verified_str}\n\n"
+            f"{verified_block}"
             f"{major_block}"
             f"Формат: {work_fmt}\n"
             f"Рейтинг: {score_val:.0f} б.\n\n"
@@ -656,7 +669,7 @@ async def show_my_profile(
             f"Цель / Опыт:\n{goal_text}"
             f"{portfolio_block}\n\n"
             f"{prem_info}\n"
-            f"{superlikes_info}\n"
+            f"{superlikes_info}"
             f"{email_info}"
         )
         current_view_param = "career"
@@ -687,14 +700,14 @@ async def show_my_profile(
             f"{identity_line}\n"
             f"❤️ Знакомства\n\n"
             f"{status_line}\n"
-            f"{verified_str}\n\n"
+            f"{verified_block}"
             f"{major_block}"
             f"{gender_block}"
             f"Рейтинг: {score_val:.0f} б.\n\n"
             f"О себе:\n{goal_text}"
             f"{interests_block}\n\n"
             f"{prem_info}\n"
-            f"{superlikes_info}\n"
+            f"{superlikes_info}"
             f"{email_info}"
         )
         current_view_param = "dating"

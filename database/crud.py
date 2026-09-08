@@ -36,13 +36,20 @@ async def get_user(db: AsyncSession, user_id: int) -> Optional[User]:
 async def get_or_create_user(db: AsyncSession, user_id: int, tg_username: Optional[str] = None) -> User:
     user = await get_user(db, user_id)
     if not user:
-        user = User(id=user_id, tg_username=tg_username)
+        user = User(id=user_id, tg_username=tg_username, university_id=1)
         db.add(user)
         await db.commit()
         await db.refresh(user)
-    elif tg_username and user.tg_username != tg_username:
-        user.tg_username = tg_username
-        await db.commit()
+    else:
+        updated = False
+        if tg_username and user.tg_username != tg_username:
+            user.tg_username = tg_username
+            updated = True
+        if user.university_id is None:
+            user.university_id = 1
+            updated = True
+        if updated:
+            await db.commit()
     return user
 
 
@@ -224,7 +231,6 @@ async def get_top_profiles(
                 Profile.is_visible == True,
                 is_complete_cond,
                 User.is_active == True,
-                User.email_verified == True,
                 ~Profile.user_id.in_(swiped_ids),
             )
         )

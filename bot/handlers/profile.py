@@ -566,7 +566,8 @@ async def _save_media_and_complete(
         return
 
     verify_tip = ""
-    if not user.email_verified:
+    from bot.config import settings
+    if not user.email_verified and getattr(settings, "EMAIL_VERIFICATION_ENABLED", False):
         verify_tip = (
             "\n\n💡 <i>Совет: подтверди свой студенческий статус в Настройках, "
             "чтобы получить бейдж <b>[ 🎓 Верифицирован ]</b>, <b>+100 баллов</b> к рейтингу и <b>+3 ⭐️ Суперлайка</b>!</i>"

@@ -6,6 +6,7 @@ from aiogram.types import (
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from typing import List, Optional, Dict, Any, Set
 from database.models import InterestTag, User, ModeEnum
+from bot.config import settings
 
 
 def consent_keyboard() -> InlineKeyboardMarkup:
@@ -332,8 +333,9 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
     # 3. Кто меня лайкнул
     builder.button(text="💌 Кто меня лайкнул", callback_data="profile:incoming_likes")
 
-    # 4. Подтвердить статус студента (если еще не подтвержден)
-    if not user.email_verified:
+    # 4. Подтвердить статус студента (если еще не подтвержден и верификация включена)
+    show_verify = (not user.email_verified) and getattr(settings, "EMAIL_VERIFICATION_ENABLED", False)
+    if show_verify:
         builder.button(text="🎓 Подтвердить статус (+100⭐)", callback_data="auth:start_verification")
 
     # 5. Режим
@@ -347,7 +349,7 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
     # 8. Пригласить друзей
     builder.button(text="🪢 Пригласить друзей (+3 ⭐️)", callback_data="settings:ref_link")
 
-    if not user.email_verified:
+    if show_verify:
         builder.adjust(2, 2, 1, 1, 1, 1, 1, 1)
     else:
         builder.adjust(2, 2, 1, 1, 1, 1, 1)
@@ -369,7 +371,8 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
     """
     builder = InlineKeyboardBuilder()
 
-    if not email_verified:
+    show_verify = (not email_verified) and getattr(settings, "EMAIL_VERIFICATION_ENABLED", False)
+    if show_verify:
         builder.button(text="🎓 Подтвердить статус студента (+100⭐)", callback_data="auth:start_verification")
 
     vis_label = "🔒 Скрыть из поиска" if is_visible else "👁 Показать в поиске"

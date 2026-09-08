@@ -24,6 +24,7 @@ from web.utils.audit import log_admin_action
 from web.utils.uploads import save_avatar_upload
 from database.models import User, Profile, University, BroadcastLog
 from bot.services.scheduler import build_recipients_query, execute_broadcast_delivery
+from bot.config import settings
 
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
@@ -51,9 +52,10 @@ async def broadcast_page(
     history = result.scalars().all()
 
     # Общее количество активных студентов
-    total_users_res = await db.execute(
-        select(func.count(User.id)).where(User.is_active == True, User.is_fake == False, User.email_verified == True)
-    )
+    conditions = [User.is_active == True, User.is_fake == False]
+    if getattr(settings, "EMAIL_VERIFICATION_ENABLED", False):
+        conditions.append(User.email_verified == True)
+    total_users_res = await db.execute(select(func.count(User.id)).where(*conditions))
     total_verified_users = total_users_res.scalar() or 0
 
     return templates.TemplateResponse(
@@ -129,7 +131,7 @@ async def send_broadcast_action(
         "skills_query": skills_query.strip() if skills_query else "",
         "min_rating": float(min_rating) if (min_rating and min_rating.strip()) else None,
         "max_rating": float(max_rating) if (max_rating and max_rating.strip()) else None,
-        "verified_only": (verified_only == "on" or verified_only == "true"),
+        "verified_only": (verified_only == "on" or verified_only == "true") if getattr(settings, "EMAIL_VERIFICATION_ENABLED", False) else False,
     }
     filters_json = json.dumps(filters, ensure_ascii=False)
 
