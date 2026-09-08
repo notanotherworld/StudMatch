@@ -117,16 +117,32 @@ MIGRATION_STATEMENTS = [
     "ALTER TYPE achievementtype ADD VALUE IF NOT EXISTS 'forum_speaker';",
     "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'superlike_1';",
     "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'superlike_5';",
-    "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'premium_1m';",
+    # 025_swipe_modes_and_recycling (режимы свайпов и умный ресайклинг анкет)
+    """
+    DO $$ 
+    BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='swipes' AND column_name='mode') THEN 
+            ALTER TABLE swipes ADD COLUMN mode modeenum NOT NULL DEFAULT 'dating'; 
+        END IF; 
+        
+        ALTER TABLE swipes DROP CONSTRAINT IF EXISTS uq_swipe_pair;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_swipe_pair_mode') THEN 
+            ALTER TABLE swipes ADD CONSTRAINT uq_swipe_pair_mode UNIQUE (from_user_id, to_user_id, mode); 
+        END IF; 
+    END $$;
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_swipes_viewer_mode_action_created ON swipes (from_user_id, mode, action, created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_swipes_target_mode_action ON swipes (to_user_id, mode, action);",
     # Установка версии alembic
     """
     DO $$
     BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version') THEN
-            UPDATE alembic_version SET version_num = '022_add_enum_values';
+            UPDATE alembic_version SET version_num = '023_swipe_modes_and_recycling';
         ELSE
             CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));
-            INSERT INTO alembic_version (version_num) VALUES ('022_add_enum_values');
+            INSERT INTO alembic_version (version_num) VALUES ('023_swipe_modes_and_recycling');
         END IF;
     END $$;
     """

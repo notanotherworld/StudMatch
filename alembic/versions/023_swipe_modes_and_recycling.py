@@ -14,35 +14,51 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 1. Add mode column to swipes using existing modeenum
-    mode_enum = postgresql.ENUM("career", "dating", name="modeenum", create_type=False)
-    op.add_column(
-        "swipes",
-        sa.Column("mode", mode_enum, nullable=False, server_default="dating"),
-    )
+    conn = op.get_bind()
+    if conn.dialect.name == "postgresql":
+        op.execute("""
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'swipes' AND column_name = 'mode'
+                ) THEN 
+                    ALTER TABLE swipes ADD COLUMN mode modeenum NOT NULL DEFAULT 'dating'; 
+                END IF; 
+                
+                ALTER TABLE swipes DROP CONSTRAINT IF EXISTS uq_swipe_pair;
 
-    # 2. Update unique constraint: drop uq_swipe_pair, add uq_swipe_pair_mode
-    op.drop_constraint("uq_swipe_pair", "swipes", type_="unique")
-    op.create_unique_constraint(
-        "uq_swipe_pair_mode", "swipes", ["from_user_id", "to_user_id", "mode"]
-    )
-
-    # 3. Create performance indexes for smart recycling & incoming likes
-    op.create_index(
-        "idx_swipes_viewer_mode_action_created",
-        "swipes",
-        ["from_user_id", "mode", "action", "created_at"],
-    )
-    op.create_index(
-        "idx_swipes_target_mode_action",
-        "swipes",
-        ["to_user_id", "mode", "action"],
-    )
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'uq_swipe_pair_mode'
+                ) THEN 
+                    ALTER TABLE swipes ADD CONSTRAINT uq_swipe_pair_mode UNIQUE (from_user_id, to_user_id, mode); 
+                END IF; 
+            END $$;
+        """)
+        op.execute("CREATE INDEX IF NOT EXISTS idx_swipes_viewer_mode_action_created ON swipes (from_user_id, mode, action, created_at);")
+        op.execute("CREATE INDEX IF NOT EXISTS idx_swipes_target_mode_action ON swipes (to_user_id, mode, action);")
+    else:
+        try:
+            mode_enum = sa.Enum("career", "dating", name="modeenum")
+            op.add_column("swipes", sa.Column("mode", mode_enum, nullable=False, server_default="dating"))
+        except Exception:
+            pass
 
 
 def downgrade() -> None:
-    op.drop_index("idx_swipes_target_mode_action", table_name="swipes")
-    op.drop_index("idx_swipes_viewer_mode_action_created", table_name="swipes")
-    op.drop_constraint("uq_swipe_pair_mode", "swipes", type_="unique")
-    op.create_unique_constraint("uq_swipe_pair", "swipes", ["from_user_id", "to_user_id"])
-    op.drop_column("swipes", "mode")
+    conn = op.get_bind()
+    if conn.dialect.name == "postgresql":
+        op.execute("DROP INDEX IF EXISTS idx_swipes_target_mode_action;")
+        op.execute("DROP INDEX IF EXISTS idx_swipes_viewer_mode_action_created;")
+        op.execute("ALTER TABLE swipes DROP CONSTRAINT IF EXISTS uq_swipe_pair_mode;")
+        op.execute("""
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_swipe_pair') THEN 
+                    ALTER TABLE swipes ADD CONSTRAINT uq_swipe_pair UNIQUE (from_user_id, to_user_id); 
+                END IF; 
+            END $$;
+        """)
+        op.execute("ALTER TABLE swipes DROP COLUMN IF EXISTS mode;")
+    else:
+        pass
