@@ -245,13 +245,17 @@ async def run_audit():
             print("  ✅ [2.2] Исключение свайпнутых: ранее свайпнутая анкета не повторилась, выбрана следующая.")
             passed_tests += 1
 
-            # 2.3 Свайпаем Алису (скип)
+            # 2.3 Свайпаем Алису (скип) -> в умном бесконечном алгоритме пропущенная анкета ресайклится!
             await create_swipe(db, from_id=888001, to_id=888002, action=SwipeAction.skip)
+            recycled = await get_next_profile(db, viewer_id=888001, mode=ModeEnum.dating)
+            assert recycled is not None and recycled.user_id == 888002, "Пропущенная анкета должна ресайклиться при исчерпании свежих!"
+            print("  ✅ [2.3] Пропущенная анкета успешно ресайклится при отсутствии других кандидатов.")
 
-            # Теперь не должно остаться ни одной доступной анкеты
+            # Теперь лайкаем Алису: положительные свайпы (like) исключаются навсегда
+            await create_swipe(db, from_id=888001, to_id=888002, action=SwipeAction.like)
             third = await get_next_profile(db, viewer_id=888001, mode=ModeEnum.dating)
-            assert third is None, f"Ожидалось None (все анкеты просмотрены), но вернулось {third.name if third else ''}"
-            print("  ✅ [2.3] Гендерная фильтрация и фильтры видимости/банов исключили всех несовместимых кандидатов.")
+            assert third is None, f"Ожидалось None (все анкеты лайкнуты), но вернулось {third.name if third else ''}"
+            print("  ✅ [2.4] Положительные свайпы (лайки) навсегда исключают анкеты из выдачи.")
             passed_tests += 1
 
             # ─────────────────────────────────────────────────────────────

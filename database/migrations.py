@@ -124,6 +124,7 @@ MIGRATION_STATEMENTS = [
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='swipes' AND column_name='mode') THEN 
             ALTER TABLE swipes ADD COLUMN mode modeenum NOT NULL DEFAULT 'dating'; 
         END IF; 
+        UPDATE swipes SET mode = 'dating' WHERE mode IS NULL;
         
         ALTER TABLE swipes DROP CONSTRAINT IF EXISTS uq_swipe_pair;
 

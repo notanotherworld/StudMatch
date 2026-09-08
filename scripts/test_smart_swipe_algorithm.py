@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, or_
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.types import ARRAY
 from sqlalchemy.dialects.postgresql import UUID
@@ -240,7 +240,97 @@ async def main():
 
         await db.refresh(swipe_record)
         assert swipe_record.created_at >= old_time, "Время свайпа должно было обновиться!"
-        print("  ✓ [5.1] Время created_at успешно обновляется на текущее при повторном skip.")
+        # ─────────────────────────────────────────────────────────────
+        # 6. ТЕСТ: КАРЛИКОВЫЙ ПУЛ (ВСЕГО 1 КАНДИДАТ В БАЗЕ)
+        # ─────────────────────────────────────────────────────────────
+        print("\n▶ [ТЕСТ 6] Бесконечная лента при пуле всего из 1 кандидата (Pass 3 Ultimate Fallback)...")
+        await db.execute(delete(Swipe))
+        await db.execute(delete(Match))
+        await db.execute(delete(Profile))
+        await db.execute(delete(User))
+        await db.commit()
+
+        u_solo = User(id=700, tg_username="solo_viewer", is_active=True, mode=ModeEnum.dating)
+        p_solo = Profile(
+            user_id=700, name="Solo Viewer", gender="male", target_gender="female",
+            is_complete=True, is_visible=True
+        )
+
+        girl_solo = User(id=701, is_active=True, mode=ModeEnum.dating)
+        p_girl_solo = Profile(
+            user_id=701, name="Единственная Девушка", gender="female", target_gender="male",
+            is_complete=True, is_visible=True
+        )
+
+        db.add_all([u_solo, p_solo, girl_solo, p_girl_solo])
+        await db.commit()
+
+        for step in range(3):
+            card = await get_next_profile(db, viewer_id=700, mode=ModeEnum.dating)
+            assert card is not None, f"Шаг {step+1}: анкета пропала при пуле из 1 человека!"
+            assert card.user_id == 701, f"Шаг {step+1}: ожидалась анкета 701, получено {card.user_id}"
+            await create_swipe(db, from_id=700, to_id=701, action=SwipeAction.skip, mode=ModeEnum.dating)
+
+        print("  ✓ [6.1] При пуле из 1 анкеты лента никогда не прерывается и не падает в None.")
+        passed += 1
+
+        # ─────────────────────────────────────────────────────────────
+        # 7. ТЕСТ: МАЛЕНЬКИЙ ПУЛ ИЗ 2 КАНДИДАТОВ (ЧЕРЕДОВАНИЕ A -> B -> A -> B)
+        # ─────────────────────────────────────────────────────────────
+        print("\n▶ [ТЕСТ 7] Чередование двух кандидатов без дублей подряд (A -> B -> A -> B)...")
+        await db.execute(delete(Swipe))
+        await db.execute(delete(Match))
+        await db.execute(delete(Profile))
+        await db.execute(delete(User))
+        await db.commit()
+
+        u_duo = User(id=800, tg_username="duo_viewer", is_active=True, mode=ModeEnum.dating)
+        p_duo = Profile(user_id=800, name="Duo Viewer", gender="male", target_gender="female", is_complete=True, is_visible=True)
+
+        g_A = User(id=801, is_active=True, mode=ModeEnum.dating)
+        p_g_A = Profile(user_id=801, name="Девушка A", gender="female", target_gender="male", is_complete=True, is_visible=True)
+
+        g_B = User(id=802, is_active=True, mode=ModeEnum.dating)
+        p_g_B = Profile(user_id=802, name="Девушка B", gender="female", target_gender="male", is_complete=True, is_visible=True)
+
+        db.add_all([u_duo, p_duo, g_A, p_g_A, g_B, p_g_B])
+        await db.commit()
+
+        duo_seq = []
+        for step in range(4):
+            card = await get_next_profile(db, viewer_id=800, mode=ModeEnum.dating)
+            assert card is not None, f"Шаг {step+1}: лента неожиданно прервалась!"
+            duo_seq.append(card.user_id)
+            await create_swipe(db, from_id=800, to_id=card.user_id, action=SwipeAction.skip, mode=ModeEnum.dating)
+
+        assert duo_seq[0] != duo_seq[1], "Анкеты 1 и 2 должны быть разными!"
+        assert duo_seq[1] != duo_seq[2], "Анкеты 2 и 3 не должны повторяться подряд!"
+        assert duo_seq[2] != duo_seq[3], "Анкеты 3 и 4 не должны повторяться подряд!"
+        print(f"  ✓ [7.1] Корректное бесконечное чередование 2 анкет: {duo_seq}")
+        passed += 1
+
+        # ─────────────────────────────────────────────────────────────
+        # 8. ТЕСТ: СБРОС ИСТОРИИ СВАЙПОВ И МЭТЧЕЙ
+        # ─────────────────────────────────────────────────────────────
+        print("\n▶ [ТЕСТ 8] Сброс истории свайпов и мэтчей в режиме...")
+        # Ставим лайк и создаем мэтч между 800 и 801
+        await create_swipe(db, from_id=800, to_id=801, action=SwipeAction.like, mode=ModeEnum.dating)
+        db.add(Match(user1_id=800, user2_id=801, mode=ModeEnum.dating))
+        await db.commit()
+
+        # Проверяем, что 801 теперь исключена из выдачи
+        card_before_reset = await get_next_profile(db, viewer_id=800, mode=ModeEnum.dating)
+        assert card_before_reset.user_id == 802, "801 должна быть скрыта из-за лайка/мэтча!"
+
+        # Сбрасываем свайпы и мэтчи для 800
+        await db.execute(delete(Swipe).where(Swipe.from_user_id == 800, Swipe.mode == ModeEnum.dating))
+        await db.execute(delete(Match).where(or_(Match.user1_id == 800, Match.user2_id == 800), Match.mode == ModeEnum.dating))
+        await db.commit()
+
+        # Проверяем, что 801 снова доступна в выдаче
+        card_after_reset = await get_next_profile(db, viewer_id=800, mode=ModeEnum.dating)
+        assert card_after_reset is not None, "После сброса выдача должна вернуть анкету!"
+        print("  ✓ [8.1] Сброс свайпов и мэтчей успешно возвращает профили в выдачу.")
         passed += 1
 
     print("\n" + "=" * 75)

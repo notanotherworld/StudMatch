@@ -1061,19 +1061,30 @@ async def webapp_reset_swipes(
     student: User = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    """Сбросить пропущенные анкеты (skip) в текущем режиме для повторного просмотра."""
+    """Сбросить историю свайпов и мэтчей в текущем режиме для повторного просмотра анкет."""
     from sqlalchemy import delete
+    mode = student.mode or ModeEnum.dating
+
+    # Удаляем свайпы пользователя в этом режиме
     await db.execute(
         delete(Swipe).where(
             and_(
                 Swipe.from_user_id == student.id,
-                Swipe.mode == student.mode,
-                Swipe.action == SwipeAction.skip,
+                or_(Swipe.mode == mode, Swipe.mode.is_(None)),
+            )
+        )
+    )
+    # Удаляем мэтчи этого пользователя в этом режиме, чтобы они снова появились в ленте свайпов
+    await db.execute(
+        delete(Match).where(
+            and_(
+                Match.mode == mode,
+                or_(Match.user1_id == student.id, Match.user2_id == student.id),
             )
         )
     )
     await db.commit()
-    logger.info(f"User {student.id} reset their skipped swipes in mode {student.mode}")
+    logger.info(f"User {student.id} reset their swipes and matches in mode {mode}")
     return {"status": "ok"}
 
 

@@ -349,7 +349,7 @@ async def get_next_profile(
             and_(
                 Swipe.from_user_id == viewer_id,
                 Swipe.to_user_id == Profile.user_id,
-                Swipe.mode == current_mode,
+                or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
                 Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
             )
         )
@@ -374,9 +374,11 @@ async def get_next_profile(
         .where(
             Swipe.from_user_id == Profile.user_id,
             Swipe.to_user_id == viewer_id,
-            Swipe.mode == current_mode,
+            or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
             Swipe.action.in_([SwipeAction.superlike, SwipeAction.like]),
         )
+        .order_by(Swipe.created_at.desc())
+        .limit(1)
         .correlate(Profile)
         .scalar_subquery()
     )
@@ -387,8 +389,10 @@ async def get_next_profile(
         .where(
             Swipe.from_user_id == viewer_id,
             Swipe.to_user_id == Profile.user_id,
-            Swipe.mode == current_mode,
+            or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
         )
+        .order_by(Swipe.created_at.desc())
+        .limit(1)
         .correlate(Profile)
         .scalar_subquery()
     )
@@ -397,8 +401,10 @@ async def get_next_profile(
         .where(
             Swipe.from_user_id == viewer_id,
             Swipe.to_user_id == Profile.user_id,
-            Swipe.mode == current_mode,
+            or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
         )
+        .order_by(Swipe.created_at.desc())
+        .limit(1)
         .correlate(Profile)
         .scalar_subquery()
     )
@@ -427,7 +433,7 @@ async def get_next_profile(
         select(Swipe.to_user_id)
         .where(
             Swipe.from_user_id == viewer_id,
-            Swipe.mode == current_mode,
+            or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
         )
         .order_by(Swipe.created_at.desc())
         .limit(15)
@@ -497,7 +503,19 @@ async def get_next_profile(
 
     q2 = base_query.where(and_(*q2_conds))
     result2 = await db.execute(q2)
-    return result2.scalar_one_or_none()
+    candidate2 = result2.scalar_one_or_none()
+    if candidate2:
+        return candidate2
+
+    # Проход 3: Ultimate Fallback (если пул <= 1 или все доступные анкеты в recent_swiped_ids[0])
+    # Убираем ограничение на recent_swiped_ids[0], сохраняя только client_exclude
+    q3_conds = list(base_conditions)
+    if client_exclude:
+        q3_conds.append(Profile.user_id.not_in(client_exclude))
+
+    q3 = base_query.where(and_(*q3_conds))
+    result3 = await db.execute(q3)
+    return result3.scalar_one_or_none()
 
 
 async def update_career_profile(
@@ -533,18 +551,20 @@ async def create_swipe(
     """
     try:
         now = datetime.now(timezone.utc)
-        # Проверяем, не было ли уже свайпа в этом режиме
+        current_mode = mode or ModeEnum.dating
+        # Проверяем, не было ли уже свайпа в этом режиме (или legacy без режима)
         existing = await db.execute(
             select(Swipe).where(
                 and_(
                     Swipe.from_user_id == from_id,
                     Swipe.to_user_id == to_id,
-                    Swipe.mode == mode,
+                    or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
                 )
-            )
+            ).order_by(Swipe.created_at.desc()).limit(1)
         )
         existing_swipe = existing.scalar_one_or_none()
         if existing_swipe:
+            existing_swipe.mode = current_mode
             if existing_swipe.action == action and action in (SwipeAction.like, SwipeAction.superlike):
                 return False
             existing_swipe.action = action
@@ -556,7 +576,7 @@ async def create_swipe(
                 Swipe(
                     from_user_id=from_id,
                     to_user_id=to_id,
-                    mode=mode,
+                    mode=current_mode,
                     action=action,
                     comment=comment,
                     created_at=now,

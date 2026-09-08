@@ -315,9 +315,14 @@ async def reset_user_swipes(event, user: User, db: AsyncSession):
             await event.answer("⚠️ Команда доступна только администраторам и тестировщикам.")
         return
 
-    from sqlalchemy import delete
-    from database.models import Swipe
+    from sqlalchemy import delete, or_
+    from database.models import Swipe, Match
     await db.execute(delete(Swipe).where(Swipe.from_user_id == user.id))
+    await db.execute(
+        delete(Match).where(
+            or_(Match.user1_id == user.id, Match.user2_id == user.id)
+        )
+    )
     await db.commit()
 
     msg_text = (

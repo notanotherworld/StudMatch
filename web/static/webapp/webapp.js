@@ -604,6 +604,8 @@
     await setMode(nextMode);
   }
 
+  let isFetchingMore = false;
+
   // 3. Загрузка ленты свайпов (Feed)
   async function loadFeed() {
     try {
@@ -613,7 +615,11 @@
       if (data && data.profiles) {
         state.feed = data.profiles;
         state.currentCardIndex = 0;
-        renderCardStack();
+        if (state.feed.length === 0) {
+          deckEmpty.style.display = "flex";
+        } else {
+          renderCardStack();
+        }
       }
     } catch (err) {
       console.error("[StudMatch] Feed error:", err);
@@ -630,12 +636,51 @@
     }
   }
 
+  async function fetchMoreCards() {
+    if (isFetchingMore) return;
+    isFetchingMore = true;
+    try {
+      console.log("[StudMatch] Prefetching more cards for infinite swipe stream...");
+      const data = await apiFetch("/api/webapp/feed");
+      if (data && Array.isArray(data.profiles) && data.profiles.length > 0) {
+        // Отрезаем уже свайпнутые карточки для экономии памяти
+        const remaining = state.feed.slice(state.currentCardIndex);
+        const remainingIds = new Set(remaining.map((p) => p.user_id));
+
+        // Добавляем только новые карточки, которых еще нет в остатке колоды
+        const freshProfiles = data.profiles.filter((p) => !remainingIds.has(p.user_id));
+
+        if (freshProfiles.length > 0) {
+          state.feed = remaining.concat(freshProfiles);
+          state.currentCardIndex = 0;
+          renderCardStack();
+        } else if (remaining.length === 0) {
+          // Если колода была пуста (например, при малом пуле анкет 1-2 человека)
+          state.feed = data.profiles;
+          state.currentCardIndex = 0;
+          renderCardStack();
+        }
+      } else if (state.feed.slice(state.currentCardIndex).length === 0) {
+        deckEmpty.style.display = "flex";
+      }
+    } catch (err) {
+      console.warn("[StudMatch] Error prefetching feed cards:", err);
+      if (state.feed.slice(state.currentCardIndex).length === 0) {
+        deckEmpty.style.display = "flex";
+      }
+    } finally {
+      isFetchingMore = false;
+    }
+  }
+
   function renderCardStack() {
     deckContainer.innerHTML = "";
 
     const remaining = state.feed.slice(state.currentCardIndex);
     if (remaining.length === 0) {
-      deckEmpty.style.display = "flex";
+      if (!isFetchingMore) {
+        fetchMoreCards();
+      }
       return;
     }
     deckEmpty.style.display = "none";
@@ -923,6 +968,12 @@
 
       renderCardStack();
       sendSwipe(profile.user_id, action, comment, profile);
+
+      // Фоновая подгрузка следующих анкет, когда в стеке осталось мало карточек
+      const remainingCount = state.feed.length - state.currentCardIndex;
+      if (remainingCount <= 3 && !isFetchingMore) {
+        fetchMoreCards();
+      }
     }, 300);
   }
 
