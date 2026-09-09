@@ -4,7 +4,7 @@ import io
 import csv
 import re
 from typing import Optional, List, Dict, Any, Set
-from fastapi import APIRouter, Request, Depends, Form, Query, Response
+from fastapi import APIRouter, Request, Depends, Form, Query, Response, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -214,6 +214,8 @@ async def user_detail(
         .where(User.id == user_id)
     )
     user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
 
     from bot.middlewares.throttling import get_redis, format_ban_ttl
     ban_ttl = 0

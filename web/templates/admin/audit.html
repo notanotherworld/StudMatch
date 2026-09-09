@@ -2,6 +2,69 @@
 {% block title %}Журнал аудита — СтудМэч{% endblock %}
 
 {% block content %}
+<style>
+  .audit-target-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+  }
+  .audit-target-link:hover {
+    background: var(--surface3);
+    border-color: var(--border-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+  }
+  .audit-target-user {
+    border-color: rgba(99, 102, 241, 0.3);
+  }
+  .audit-target-employer {
+    border-color: rgba(16, 185, 129, 0.3);
+  }
+  .audit-target-employer:hover {
+    border-color: rgba(16, 185, 129, 0.5);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+  }
+  .audit-target-icon {
+    font-size: 13px;
+    line-height: 1;
+  }
+  .audit-target-type {
+    text-transform: uppercase;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+  .audit-target-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent2);
+  }
+  .audit-target-employer .audit-target-id {
+    color: var(--success);
+  }
+  .audit-target-arrow {
+    font-size: 12px;
+    color: var(--muted);
+    transition: transform 0.15s ease, color 0.15s ease;
+  }
+  .audit-target-link:hover .audit-target-arrow {
+    color: var(--accent2);
+    transform: translate(1px, -1px);
+  }
+  .audit-target-employer:hover .audit-target-arrow {
+    color: var(--success);
+  }
+</style>
+
 <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
   <div>
     <h1>📜 Журнал действий администраторов</h1>
@@ -51,8 +114,28 @@
         </td>
         <td style="padding:12px 16px;color:var(--muted);">
           {% if log.target_type %}
-            <span style="text-transform:uppercase;font-size:11px;letter-spacing:0.5px;color:var(--muted);">{{ log.target_type }}:</span> 
-            <b>{{ log.target_id or '—' }}</b>
+            {% if log.target_type|lower == 'user' and log.target_id %}
+              <a href="/admin/users/{{ log.target_id }}" target="_blank" rel="noopener noreferrer" 
+                 class="audit-target-link audit-target-user" 
+                 title="Открыть карточку студента #{{ log.target_id }} в новой вкладке">
+                <span class="audit-target-icon">👤</span>
+                <span class="audit-target-type">user:</span>
+                <span class="audit-target-id">{{ log.target_id }}</span>
+                <span class="audit-target-arrow">↗</span>
+              </a>
+            {% elif log.target_type|lower == 'employer' and log.target_id %}
+              <a href="/admin/employers/{{ log.target_id }}" target="_blank" rel="noopener noreferrer" 
+                 class="audit-target-link audit-target-employer" 
+                 title="Открыть карточку работодателя #{{ log.target_id }} в новой вкладке">
+                <span class="audit-target-icon">🏢</span>
+                <span class="audit-target-type">employer:</span>
+                <span class="audit-target-id">{{ log.target_id }}</span>
+                <span class="audit-target-arrow">↗</span>
+              </a>
+            {% else %}
+              <span style="text-transform:uppercase;font-size:11px;letter-spacing:0.5px;color:var(--muted);">{{ log.target_type }}:</span> 
+              <b>{{ log.target_id or '—' }}</b>
+            {% endif %}
           {% else %}
             —
           {% endif %}
