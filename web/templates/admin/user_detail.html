@@ -307,6 +307,118 @@
   <!-- Правая колонка -->
   <div style="display:flex;flex-direction:column;gap:16px;">
 
+    {% if request.query_params.get('visibility_changed') %}
+    <div style="background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;padding:12px 16px;border-radius:8px;font-size:14px;font-weight:500;">
+      ✅ Статус видимости анкеты в поиске успешно изменён!
+    </div>
+    {% endif %}
+    {% if request.query_params.get('complete_changed') %}
+    <div style="background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;padding:12px 16px;border-radius:8px;font-size:14px;font-weight:500;">
+      ✅ Статус заполненности анкеты успешно изменён!
+    </div>
+    {% endif %}
+
+    <!-- 🔍 Статус в ленте свайпов & Диагностика -->
+    {% if user.profile %}
+    <div class="card" style="border:1px solid {% if user.is_active and user.profile.is_visible and (user.profile.is_complete or user.profile.career_is_complete) %}rgba(34,197,94,0.3){% else %}rgba(239,68,68,0.3){% endif %};">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">
+          <span>🔍 Статус в ленте свайпов</span>
+        </div>
+        {% if not user.is_active %}
+          <span class="badge badge-danger">🚫 Пользователь заблокирован</span>
+        {% elif not user.profile.is_visible %}
+          <span class="badge badge-danger">🔒 Скрыта из поиска</span>
+        {% elif not user.profile.is_complete and not user.profile.career_is_complete %}
+          <span class="badge badge-warning">⏳ Анкета не заполнена</span>
+        {% else %}
+          <span class="badge badge-success">🟢 Активна в поиске</span>
+        {% endif %}
+      </div>
+
+      <!-- Чеклист условий выдачи -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;background:var(--surface2);padding:14px;border-radius:8px;font-size:13px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          {% if user.is_active %}
+            <span style="color:#22c55e;font-weight:bold;">✔</span>
+            <span>Аккаунт активен: <b style="color:#22c55e;">Да</b></span>
+          {% else %}
+            <span style="color:#ef4444;font-weight:bold;">✖</span>
+            <span style="color:#ef4444;">Аккаунт: <b>Заблокирован</b></span>
+          {% endif %}
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;">
+          {% if user.profile.is_visible %}
+            <span style="color:#22c55e;font-weight:bold;">✔</span>
+            <span>Видимость в поиске: <b style="color:#22c55e;">Включена</b></span>
+          {% else %}
+            <span style="color:#ef4444;font-weight:bold;">✖</span>
+            <span style="color:#ef4444;">Видимость в поиске: <b>Скрыта (is_visible=False)</b></span>
+          {% endif %}
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;">
+          {% if user.profile.is_complete %}
+            <span style="color:#22c55e;font-weight:bold;">✔</span>
+            <span>Знакомства: <b style="color:#22c55e;">Заполнена</b></span>
+          {% else %}
+            <span style="color:#f59e0b;font-weight:bold;">✖</span>
+            <span style="color:#f59e0b;">Знакомства: <b>Не заполнена</b></span>
+          {% endif %}
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;">
+          {% if user.profile.career_is_complete %}
+            <span style="color:#22c55e;font-weight:bold;">✔</span>
+            <span>Карьера: <b style="color:#22c55e;">Заполнена</b></span>
+          {% else %}
+            <span style="color:var(--muted);font-weight:bold;">—</span>
+            <span style="color:var(--muted);">Карьера: Не заполнена</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Примечания алгоритма -->
+      <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;background:rgba(255,255,255,0.02);padding:10px 12px;border-radius:6px;border:1px dashed var(--border);">
+        💡 <b>Почему анкета может не попадаться другому пользователю?</b>
+        <ul style="margin:6px 0 0 16px;padding:0;">
+          <li><b>Взаимный пол:</b> пол кандидата ({{ '👨 Парень' if user.profile.gender == 'male' else ('👩 Девушка' if user.profile.gender == 'female' else 'не указан') }}) должен совпадать с тем, кого ищет смотрящий, и наоборот.</li>
+          <li><b>Фильтры смотрящего:</b> если у другого пользователя стоят фильтры по возрасту/курсу, не совпадающие с этой анкетой.</li>
+          <li><b>Уже просмотрена:</b> если другой пользователь уже отправлял лайк/суперлайк/скип этой анкете, повторно она не выдаётся (нужен сброс свайпов).</li>
+          <li><b>Жалобы:</b> наличие взаимных жалоб блокирует показ анкеты.</li>
+        </ul>
+      </div>
+
+      <!-- Кнопки управления -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <form method="POST" action="/admin/users/{{ user.id }}/toggle-visibility" style="flex:1;min-width:180px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn {% if user.profile.is_visible %}btn-ghost{% else %}btn-primary{% endif %}" style="width:100%;justify-content:center;font-size:13px;{% if user.profile.is_visible %}color:var(--warning);{% endif %}"
+                  onclick="return confirm('{% if user.profile.is_visible %}Скрыть анкету из выдачи свайпов (is_visible=False)?{% else %}Включить показ анкеты в выдаче свайпов (is_visible=True)?{% endif %}')">
+            {% if user.profile.is_visible %}
+              🔒 Скрыть из поиска
+            {% else %}
+              👁 Включить видимость в поиске
+            {% endif %}
+          </button>
+        </form>
+
+        <form method="POST" action="/admin/users/{{ user.id }}/toggle-complete" style="flex:1;min-width:180px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn btn-ghost" style="width:100%;justify-content:center;font-size:13px;"
+                  onclick="return confirm('{% if user.profile.is_complete %}Снять флаг заполненности анкеты знакомств (is_complete=False)?{% else %}Принудительно пометить анкету знакомств заполненной (is_complete=True)?{% endif %}')">
+            {% if user.profile.is_complete %}
+              ⏳ Снять заполненность
+            {% else %}
+              ✅ Пометить заполненной
+            {% endif %}
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Анкета: Знакомства и Карьера -->
     {% if user.profile %}
     <div class="card">

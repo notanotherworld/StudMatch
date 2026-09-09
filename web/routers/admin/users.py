@@ -371,15 +371,70 @@ async def unban_user(
         pass
 
     await db.execute(update(User).where(User.id == user_id).values(is_active=True, is_flagged_spammer=False))
+    await db.execute(update(Profile).where(Profile.user_id == user_id).values(is_visible=True))
     await db.commit()
 
     client_ip = request.client.host if request.client else None
     await log_admin_action(
         db, admin, action="user_unban", target_type="user", target_id=str(user_id),
-        details="Пользователь разблокирован администратором", ip_address=client_ip
+        details="Пользователь разблокирован администратором (видимость анкеты восстановлена)", ip_address=client_ip
     )
 
     return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
+
+
+@router.post("/users/{user_id}/toggle-visibility", dependencies=[Depends(check_csrf)])
+async def toggle_user_visibility(
+    user_id: int,
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Переключение видимости анкеты в поиске (Profile.is_visible)."""
+    result = await db.execute(select(Profile).where(Profile.user_id == user_id))
+    profile = result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Анкета не найдена")
+
+    new_val = not profile.is_visible
+    profile.is_visible = new_val
+    await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db, admin, action="toggle_visibility", target_type="user", target_id=str(user_id),
+        details=f"Видимость анкеты в поиске изменена на: {'Видима' if new_val else 'Скрыта'}",
+        ip_address=client_ip
+    )
+
+    return RedirectResponse(f"/admin/users/{user_id}?visibility_changed=1", status_code=302)
+
+
+@router.post("/users/{user_id}/toggle-complete", dependencies=[Depends(check_csrf)])
+async def toggle_user_complete(
+    user_id: int,
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Переключение флага завершенности анкеты (Profile.is_complete)."""
+    result = await db.execute(select(Profile).where(Profile.user_id == user_id))
+    profile = result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Анкета не найдена")
+
+    new_val = not profile.is_complete
+    profile.is_complete = new_val
+    await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db, admin, action="toggle_complete", target_type="user", target_id=str(user_id),
+        details=f"Статус завершенности анкеты изменен на: {'Заполнена' if new_val else 'Не заполнена'}",
+        ip_address=client_ip
+    )
+
+    return RedirectResponse(f"/admin/users/{user_id}?complete_changed=1", status_code=302)
 
 
 @router.post("/users/{user_id}/verify-manual", dependencies=[Depends(check_csrf)])  # CSRF (#2)
