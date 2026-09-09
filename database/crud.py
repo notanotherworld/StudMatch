@@ -382,6 +382,19 @@ async def get_next_profile(
         .correlate(Profile)
         .scalar_subquery()
     )
+    incoming_time = (
+        select(Swipe.created_at)
+        .where(
+            Swipe.from_user_id == Profile.user_id,
+            Swipe.to_user_id == viewer_id,
+            or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
+            Swipe.action.in_([SwipeAction.superlike, SwipeAction.like]),
+        )
+        .order_by(Swipe.created_at.desc())
+        .limit(1)
+        .correlate(Profile)
+        .scalar_subquery()
+    )
 
     # Подзапрос действия и времени свайпа смотрящего к кандидату
     viewer_swipe_action = (
@@ -409,14 +422,21 @@ async def get_next_profile(
         .scalar_subquery()
     )
 
+    # Входящий лайк считается АКТИВНЫМ, если смотрящий его еще не видел/не скипал
+    # (viewer_swipe_time is NULL) либо если кандидат поставил новый лайк ПОСЛЕ того, как смотрящий скипнул (incoming_time > viewer_swipe_time)
+    is_active_incoming = and_(
+        incoming_action.isnot(None),
+        or_(viewer_swipe_time.is_(None), incoming_time > viewer_swipe_time),
+    )
+
     # Вычисление уровней приоритета (Priority Tiers):
-    # Tier 1: Входящий superlike (4) / like (3)
-    # Tier 2: Свежие анкеты (2)
+    # Tier 1: Активный входящий superlike (4) / like (3)
+    # Tier 2: Свежие непросмотренные анкеты (2)
     # Tier 3: Ресайкл пропусков старше 48ч (1)
     # Tier 4: Fallback ресайкл недавних пропусков (0)
     priority = case(
-        (incoming_action == SwipeAction.superlike, 4),
-        (incoming_action == SwipeAction.like, 3),
+        (and_(is_active_incoming, incoming_action == SwipeAction.superlike), 4),
+        (and_(is_active_incoming, incoming_action == SwipeAction.like), 3),
         (viewer_swipe_action.is_(None), 2),
         (
             and_(
@@ -468,7 +488,7 @@ async def get_next_profile(
         .limit(1)
     )
 
-    # Проход 1: Со скользящим буфером (исключаем последние 10 свайпов, кроме входящих лайков)
+    # Проход 1: Со скользящим буфером (исключаем последние 10 свайпов, кроме активных входящих лайков)
     client_exclude: Set[int] = set(exclude_ids or ())
     recent_buffer: Set[int] = set(recent_swiped_ids[:10])
 
@@ -478,7 +498,7 @@ async def get_next_profile(
     if recent_buffer:
         q1_conds.append(
             or_(
-                incoming_action.in_([SwipeAction.like, SwipeAction.superlike]),
+                is_active_incoming,
                 Profile.user_id.not_in(recent_buffer),
             )
         )
@@ -496,7 +516,7 @@ async def get_next_profile(
     if recent_swiped_ids:
         q2_conds.append(
             or_(
-                incoming_action.in_([SwipeAction.like, SwipeAction.superlike]),
+                is_active_incoming,
                 Profile.user_id != recent_swiped_ids[0],
             )
         )

@@ -10,7 +10,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 
 from bot.keyboards.swipe import (
@@ -227,20 +227,32 @@ async def send_next_card(
         for tag in result.scalars().all():
             tags_map[tag.id] = tag
 
-    # Проверяем, есть ли входящий лайк или суперлайк от этого студента к пользователю
-    incoming_swipe = await db.scalar(
-        select(Swipe.action).where(
+    # Проверяем, есть ли активный входящий лайк или суперлайк от этого студента к пользователю
+    # Показываем бейдж только если входящий лайк еще НЕ был пропущен смотрящим
+    viewer_swipe_time = await db.scalar(
+        select(Swipe.created_at).where(
+            Swipe.from_user_id == user.id,
+            Swipe.to_user_id == profile.user_id,
+            or_(Swipe.mode == user.mode, Swipe.mode.is_(None)),
+        ).order_by(Swipe.created_at.desc()).limit(1)
+    )
+    incoming_row = (await db.execute(
+        select(Swipe.action, Swipe.created_at).where(
             Swipe.from_user_id == profile.user_id,
             Swipe.to_user_id == user.id,
-            Swipe.mode == user.mode,
+            or_(Swipe.mode == user.mode, Swipe.mode.is_(None)),
             Swipe.action.in_([SwipeAction.superlike, SwipeAction.like]),
-        )
-    )
+        ).order_by(Swipe.created_at.desc()).limit(1)
+    )).first()
+
     badge = ""
-    if incoming_swipe == SwipeAction.superlike:
-        badge = "⭐️ <b>Пользователь поставил(а) тебе суперлайк!</b>\n\n"
-    elif incoming_swipe == SwipeAction.like:
-        badge = "❤️ <b>Пользователь поставил(а) тебе лайк!</b>\n\n"
+    if incoming_row:
+        inc_action, inc_time = incoming_row
+        if viewer_swipe_time is None or inc_time > viewer_swipe_time:
+            if inc_action == SwipeAction.superlike:
+                badge = "⭐️ <b>Пользователь поставил(а) тебе суперлайк!</b>\n\n"
+            elif inc_action == SwipeAction.like:
+                badge = "❤️ <b>Пользователь поставил(а) тебе лайк!</b>\n\n"
 
     base_caption = await _build_profile_caption(profile, tags_map, mode=user.mode)
     caption = f"{badge}{base_caption}"

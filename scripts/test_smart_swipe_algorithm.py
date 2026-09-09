@@ -331,6 +331,59 @@ async def main():
         card_after_reset = await get_next_profile(db, viewer_id=800, mode=ModeEnum.dating)
         assert card_after_reset is not None, "После сброса выдача должна вернуть анкету!"
         print("  ✓ [8.1] Сброс свайпов и мэтчей успешно возвращает профили в выдачу.")
+        # ─────────────────────────────────────────────────────────────
+        # 9. ТЕСТ: КОРРЕКТНЫЙ ПРОПУСК ВХОДЯЩЕГО ЛАЙКА (БЕЗ ЗАСТРЕВАНИЯ)
+        # ─────────────────────────────────────────────────────────────
+        print("\n▶ [ТЕСТ 9] Пропуск входящего лайка не застревает и переключает на следующего кандидата...")
+        await db.execute(delete(Swipe))
+        await db.execute(delete(Match))
+        await db.execute(delete(Profile))
+        await db.execute(delete(User))
+        await db.commit()
+
+        u_viewer9 = User(id=900, tg_username="viewer9", is_active=True, mode=ModeEnum.dating)
+        p_viewer9 = Profile(user_id=900, name="Viewer 9", gender="male", target_gender="female", is_complete=True, is_visible=True)
+
+        g_liker = User(id=901, is_active=True, mode=ModeEnum.dating)
+        p_liker = Profile(user_id=901, name="Девушка с лайком", gender="female", target_gender="male", is_complete=True, is_visible=True)
+
+        g_fresh = User(id=902, is_active=True, mode=ModeEnum.dating)
+        p_fresh = Profile(user_id=902, name="Свежая Девушка", gender="female", target_gender="male", is_complete=True, is_visible=True)
+
+        db.add_all([u_viewer9, p_viewer9, g_liker, p_liker, g_fresh, p_fresh])
+        await db.commit()
+
+        # Девушка 901 ставит лайк Viewer'у 900
+        await create_swipe(db, from_id=901, to_id=900, action=SwipeAction.like, mode=ModeEnum.dating)
+
+        # 1. Первой должна выпасть именно девушка с входящим лайком (901)
+        card_1 = await get_next_profile(db, viewer_id=900, mode=ModeEnum.dating)
+        assert card_1 is not None and card_1.user_id == 901, f"Ожидалась 901 (входящий лайк), получена {card_1.user_id if card_1 else None}"
+        print("  ✓ [9.1] Анкета со свежим входящим лайком выпадает первой (Priority 3).")
+
+        # 2. Viewer пропускает (skip) девушку с лайком
+        await asyncio.sleep(0.01)
+        await create_swipe(db, from_id=900, to_id=901, action=SwipeAction.skip, mode=ModeEnum.dating)
+
+        # 3. Следующей ДОЛЖНА выпасть свежая девушка (902), а НЕ пропущенная 901!
+        card_2 = await get_next_profile(db, viewer_id=900, mode=ModeEnum.dating)
+        assert card_2 is not None and card_2.user_id == 902, (
+            f"ОШИБКА: Застревание! Ожидалась следующая анкета 902, но снова вернулась {card_2.user_id if card_2 else None}"
+        )
+        print("  ✓ [9.2] После нажатия Skip анкета с лайком не застревает и успешно уступает место следующей анкете (902).")
+
+        # 4. Пропускаем 902
+        await asyncio.sleep(0.01)
+        await create_swipe(db, from_id=900, to_id=902, action=SwipeAction.skip, mode=ModeEnum.dating)
+
+        # 5. Теперь обе анкеты пропущены -> ресайкл поочередно возвращает 901
+        card_3 = await get_next_profile(db, viewer_id=900, mode=ModeEnum.dating)
+        assert card_3 is not None and card_3.user_id == 901, f"Ожидался ресайкл 901, получено {card_3.user_id if card_3 else None}"
+
+        # 6. Если в ресайкле Viewer лайкнет 901 — должен произойти мгновенный взаимный мэтч!
+        is_match = await create_swipe(db, from_id=900, to_id=901, action=SwipeAction.like, mode=ModeEnum.dating)
+        assert is_match is True, "При ответе лайком на ресайкленную анкету должен сработать взаимный мэтч!"
+        print("  ✓ [9.3] При взаимном лайке из ресайкла мгновенный мэтч успешно срабатывает.")
         passed += 1
 
     print("\n" + "=" * 75)
