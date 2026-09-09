@@ -33,7 +33,11 @@
   --radius-md: 16px;
   --radius-sm: 10px;
   
-  --safe-bottom: env(safe-area-inset-bottom, 20px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --app-height: 100dvh;
 }
 
 * {
@@ -49,11 +53,13 @@ body {
   background: var(--bg-main);
   color: var(--text-main);
   min-height: 100vh;
-  min-height: -webkit-fill-available;
+  min-height: 100dvh;
   overflow: hidden;
   position: fixed;
   width: 100%;
   height: 100%;
+  height: 100dvh;
+  height: var(--tg-viewport-height, 100dvh);
 }
 
 /* ─── App Container ─────────────────────────────────────────── */
@@ -61,8 +67,12 @@ body {
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
-  height: 100vh;
-  height: -webkit-fill-available;
+  height: 100%;
+  height: 100dvh;
+  height: var(--tg-viewport-height, 100dvh);
+  min-height: 100dvh;
+  max-height: 100dvh;
+  max-height: var(--tg-viewport-height, 100dvh);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -71,7 +81,10 @@ body {
 
 /* ─── Top Header ─────────────────────────────────────────────── */
 .app-header {
-  padding: 8px 16px 4px;
+  padding-top: max(8px, var(--safe-top));
+  padding-left: max(16px, var(--safe-left));
+  padding-right: max(16px, var(--safe-right));
+  padding-bottom: 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -114,6 +127,40 @@ body {
 @media (max-width: 375px) {
   .brand-title {
     display: none;
+  }
+  .brand-header-full-logo {
+    max-width: 105px;
+    height: 24px;
+  }
+  .app-header {
+    padding-left: max(10px, var(--safe-left));
+    padding-right: max(10px, var(--safe-right));
+    gap: 4px;
+  }
+  .header-mode-toggle .mode-pill-btn {
+    padding: 4px 7px;
+    font-size: 10.5px;
+    gap: 2px;
+  }
+  .header-actions {
+    gap: 4px;
+  }
+  .header-icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (max-width: 330px) {
+  .brand-header-full-logo {
+    max-width: 78px;
+    height: 20px;
+  }
+  .header-mode-toggle .mode-pill-btn span {
+    display: none;
+  }
+  .header-mode-toggle .mode-pill-btn {
+    padding: 5px 8px;
   }
 }
 
@@ -304,7 +351,7 @@ body {
 #screen-likes,
 #screen-matches,
 #screen-profile {
-  padding-bottom: 84px;
+  padding-bottom: calc(72px + max(var(--safe-bottom), 16px) + 16px);
 }
 
 .app-screen.active {
@@ -513,13 +560,13 @@ body {
 }
 
 .card-name {
-  font-size: 24px;
+  font-size: clamp(19px, 5.2vw, 24px);
   font-weight: 800;
   letter-spacing: -0.5px;
 }
 
 .card-age {
-  font-size: 20px;
+  font-size: clamp(16px, 4.4vw, 20px);
   font-weight: 500;
   opacity: 0.9;
 }
@@ -627,6 +674,106 @@ body {
   color: #fff;
   font-size: 16px;
   border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Responsive Deck & Actions for Compact Height Screens (e.g. iPhone SE, low height Telegram viewport) */
+@media (max-height: 720px) {
+  .stories-row {
+    padding: 2px 14px 4px;
+    gap: 10px;
+  }
+  .story-avatar-wrap {
+    width: 46px;
+    height: 46px;
+    padding: 2px;
+  }
+  .story-name {
+    font-size: 10px;
+    max-width: 50px;
+  }
+  .card-top-bar {
+    padding: 10px 14px;
+  }
+  .card-badge, .card-rating-badge {
+    padding: 4px 9px;
+    font-size: 11px;
+  }
+  .card-info-bottom {
+    padding: 0 14px 10px;
+  }
+  .card-bio {
+    -webkit-line-clamp: 1;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .card-actions-row {
+    gap: 10px;
+  }
+  .action-btn.dislike {
+    width: 50px;
+    height: 50px;
+  }
+  .action-btn.like {
+    width: 56px;
+    height: 56px;
+  }
+  .action-btn.superlike {
+    width: 42px;
+    height: 42px;
+    font-size: 17px;
+  }
+  .action-btn.info {
+    width: 38px;
+    height: 38px;
+    font-size: 14px;
+  }
+}
+
+@media (max-height: 620px) {
+  .stories-row {
+    display: none; /* Hide stories on extreme low height viewports to guarantee swipe actions visibility */
+  }
+  .deck-container {
+    margin: 2px 8px 4px;
+  }
+  .card-top-bar {
+    padding: 6px 10px;
+  }
+  .card-info-bottom {
+    padding: 0 10px 6px;
+  }
+  .card-tags {
+    margin-bottom: 2px;
+  }
+  .card-tag {
+    padding: 2px 6px;
+    font-size: 10.5px;
+  }
+  .card-bio {
+    display: none;
+  }
+  .card-actions-row {
+    gap: 8px;
+    padding-top: 0;
+  }
+  .action-btn.dislike {
+    width: 44px;
+    height: 44px;
+  }
+  .action-btn.like {
+    width: 48px;
+    height: 48px;
+  }
+  .action-btn.superlike {
+    width: 36px;
+    height: 36px;
+    font-size: 15px;
+  }
+  .action-btn.info {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
 }
 
 /* Swipe Stamps (LIKE / NOPE / SUPER) */
@@ -1031,7 +1178,7 @@ body {
 /* ─── FLOATING BOTTOM NAV BAR (Figma Prototype) ─────────────── */
 .bottom-nav-wrap {
   position: fixed;
-  bottom: calc(var(--safe-bottom) + 8px);
+  bottom: calc(max(var(--safe-bottom), 10px) + 6px);
   left: 0;
   width: 100%;
   display: flex;
@@ -1063,6 +1210,23 @@ body {
   align-items: center;
   justify-content: space-around;
   padding: 0 8px;
+}
+
+@media (max-width: 360px) {
+  .floating-nav {
+    width: calc(100% - 16px);
+    height: 56px;
+    padding: 0 4px;
+    border-radius: 30px;
+  }
+  .nav-tab-btn {
+    width: 38px;
+    height: 38px;
+  }
+  .nav-svg-icon {
+    width: 20px;
+    height: 20px;
+  }
 }
 
 .nav-tab-btn {
@@ -1332,10 +1496,12 @@ body {
   width: 100%;
   max-width: 480px;
   max-height: 88vh;
+  max-height: 88dvh;
+  max-height: calc(var(--tg-viewport-height, 100dvh) * 0.88);
   border-radius: 28px 28px 0 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 14px 20px 36px;
+  padding: 14px 20px calc(24px + max(var(--safe-bottom), 16px));
   box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.3);
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -1438,7 +1604,8 @@ body {
   display: none;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) max(16px, var(--safe-bottom)) max(16px, var(--safe-left));
+  box-sizing: border-box;
 }
 
 .modal-overlay.active {
@@ -1451,16 +1618,22 @@ body {
   border-radius: 26px;
   width: 100%;
   max-width: 380px;
-  padding: 24px;
+  max-height: calc(100dvh - 36px);
+  max-height: calc(var(--tg-viewport-height, 100dvh) - 36px);
+  padding: 20px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
   animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+  flex-shrink: 0;
 }
 
 .modal-title {
@@ -1478,7 +1651,12 @@ body {
 }
 
 .modal-body {
-  margin-bottom: 18px;
+  margin-bottom: 14px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  flex: 1;
+  padding-right: 2px;
 }
 
 .filter-group {
@@ -3312,3 +3490,45 @@ body.career-theme.feed-view-active .app-content {
   color: #334155;
   line-height: 1.4;
 }
+
+/* ==============================================================================
+   Mobile Responsiveness & iOS Viewport Safeguards (responsive-design standard)
+   ============================================================================== */
+
+@media screen and (max-width: 768px) {
+  /* Enforce minimum 16px font size on inputs to prevent iOS Safari auto-zoom */
+  input[type="text"],
+  input[type="number"],
+  input[type="search"],
+  input[type="email"],
+  input[type="password"],
+  textarea,
+  select,
+  .filter-input,
+  .filter-textarea,
+  .career-search-input {
+    font-size: 16px !important;
+  }
+}
+
+/* Ensure media elements never trigger horizontal overflow */
+img, video, canvas {
+  max-width: 100%;
+}
+
+/* Responsive Grid for Likes & Matches on narrow screens (<=360px) */
+@media (max-width: 360px) {
+  .screen-padding {
+    padding: 12px 14px;
+  }
+  .likes-grid {
+    gap: 8px;
+  }
+  .like-card-overlay {
+    padding: 8px 6px;
+  }
+  .like-card-name {
+    font-size: 13px;
+  }
+}
+

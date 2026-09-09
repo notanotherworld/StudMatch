@@ -7,10 +7,31 @@
 
 (function () {
   const tg = window.Telegram?.WebApp;
+
+  function syncViewportHeight() {
+    try {
+      const height = tg?.viewportHeight ? `${tg.viewportHeight}px` : `${window.innerHeight}px`;
+      document.documentElement.style.setProperty("--tg-viewport-height", height);
+      if (tg?.viewportStableHeight) {
+        document.documentElement.style.setProperty("--tg-viewport-stable-height", `${tg.viewportStableHeight}px`);
+      }
+    } catch (e) {
+      console.warn("Viewport sync error:", e);
+    }
+  }
+
   if (tg) {
     tg.ready();
     tg.expand();
+    syncViewportHeight();
+    tg.onEvent("viewportChanged", syncViewportHeight);
+  } else {
+    syncViewportHeight();
   }
+  window.addEventListener("resize", syncViewportHeight);
+  window.addEventListener("orientationchange", function () {
+    setTimeout(syncViewportHeight, 150);
+  });
 
   // App State
   const state = {
