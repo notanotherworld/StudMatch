@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260909_01" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260909_02" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -48,13 +48,7 @@
 
       <div class="header-actions">
         <button class="header-icon-btn hall-of-fame-btn" id="openHallOfFameBtn" title="Зал славы">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
-            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
-            <path d="M4 22h16"></path>
-            <path d="M10 14.66V17c0 .55-.45 1-1 1H7v4h10v-4h-2c-.55 0-1-.45-1-1v-2.34"></path>
-            <path d="M6 4h12a2 2 0 0 1 2 2v3a6 6 0 0 1-12 0V6a2 2 0 0 1 2-2Z"></path>
-          </svg>
+          <img src="/static/webapp/assets/trophy_hall_of_fame.webp?v=20260909_02" alt="Зал славы" class="hall-header-trophy-img" />
         </button>
         <button class="header-icon-btn" id="openFiltersBtn" title="Фильтры поиска">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -551,7 +545,7 @@
       <div class="hall-header">
         <div class="hall-title-wrap">
           <div class="hall-badge">
-            <span class="hall-badge-icon">🏆</span>
+            <img src="/static/webapp/assets/trophy_hall_of_fame.webp?v=20260909_02" alt="" class="hall-badge-img" />
             <span class="hall-badge-text">ТОП СТУДЕНТОВ</span>
           </div>
           <h2 class="hall-title">Зал Славы</h2>
@@ -745,6 +739,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260909_01"></script>
+  <script src="/static/webapp/webapp.js?v=20260909_02"></script>
 </body>
 </html>

@@ -2704,6 +2704,13 @@ body.career-theme.feed-view-active .app-content {
   transform: scale(0.92);
 }
 
+.hall-header-trophy-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: block;
+}
+
 .hall-of-fame-content {
   max-height: 90vh;
   display: flex;
@@ -2740,6 +2747,13 @@ body.career-theme.feed-view-active .app-content {
 
 .hall-badge-icon {
   font-size: 13px;
+}
+
+.hall-badge-img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  display: block;
 }
 
 .hall-badge-text {
