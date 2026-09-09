@@ -82,8 +82,8 @@ body {
 /* ─── Top Header ─────────────────────────────────────────────── */
 .app-header {
   padding-top: max(8px, var(--safe-top));
-  padding-left: max(16px, var(--safe-left));
-  padding-right: max(16px, var(--safe-right));
+  padding-left: max(12px, var(--safe-left));
+  padding-right: max(12px, var(--safe-right));
   padding-bottom: 4px;
   display: flex;
   align-items: center;
@@ -91,19 +91,21 @@ body {
   gap: 8px;
   z-index: 20;
   position: relative;
+  width: 100%;
 }
 
 .header-brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .brand-header-full-logo {
-  height: 28px;
+  height: 26px;
   width: auto;
-  max-width: 155px;
+  max-width: clamp(100px, 28vw, 138px);
   object-fit: contain;
   display: block;
 }
@@ -124,47 +126,7 @@ body {
   letter-spacing: -0.4px;
 }
 
-@media (max-width: 375px) {
-  .brand-title {
-    display: none;
-  }
-  .brand-header-full-logo {
-    max-width: 105px;
-    height: 24px;
-  }
-  .app-header {
-    padding-left: max(10px, var(--safe-left));
-    padding-right: max(10px, var(--safe-right));
-    gap: 4px;
-  }
-  .header-mode-toggle .mode-pill-btn {
-    padding: 4px 7px;
-    font-size: 10.5px;
-    gap: 2px;
-  }
-  .header-actions {
-    gap: 4px;
-  }
-  .header-icon-btn {
-    width: 34px;
-    height: 34px;
-  }
-}
-
-@media (max-width: 330px) {
-  .brand-header-full-logo {
-    max-width: 78px;
-    height: 20px;
-  }
-  .header-mode-toggle .mode-pill-btn span {
-    display: none;
-  }
-  .header-mode-toggle .mode-pill-btn {
-    padding: 5px 8px;
-  }
-}
-
-/* ─── Header Mode Segmented Toggle ────────────────────────────── */
+/* ─── Header Mode Segmented Toggle (Dynamic iOS-Style) ───────── */
 .header-mode-toggle {
   display: flex;
   align-items: center;
@@ -174,6 +136,7 @@ body {
   border: 1px solid rgba(0, 0, 0, 0.04);
   gap: 2px;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
 }
 
 .header-mode-toggle .mode-pill-btn {
@@ -182,28 +145,48 @@ body {
   color: var(--text-muted);
   font-size: 11.5px;
   font-weight: 700;
-  padding: 5px 11px;
+  padding: 5px 8px;
   border-radius: 20px;
   cursor: pointer;
   box-shadow: none;
-  transition: all 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 0;
   white-space: nowrap;
   letter-spacing: -0.2px;
+  min-height: 28px;
+}
+
+/* Inactive button: text label is smoothly collapsed */
+.header-mode-toggle .mode-pill-btn span {
+  display: inline-block;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, margin 0.25s ease;
+  margin-left: 0;
 }
 
 .header-mode-toggle .mode-pill-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
 }
 
+/* Active button: smoothly expands with icon + label */
 .header-mode-toggle .mode-pill-btn.active {
   background: linear-gradient(135deg, #FF6584 0%, #6C5CE7 100%);
   color: #ffffff;
   box-shadow: 0 3px 10px rgba(108, 92, 231, 0.3);
   transform: translateY(0);
+  padding: 5px 11px;
+}
+
+.header-mode-toggle .mode-pill-btn.active span {
+  max-width: 85px;
+  opacity: 1;
+  margin-left: 4px;
 }
 
 .mode-pill-icon {
@@ -216,7 +199,7 @@ body {
 }
 
 .header-mode-toggle .mode-pill-btn.active .mode-pill-icon {
-  transform: scale(1.1);
+  transform: scale(1.08);
 }
 
 .header-actions {
@@ -224,6 +207,38 @@ body {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  z-index: 25;
+}
+
+@media (max-width: 375px) {
+  .brand-title {
+    display: none;
+  }
+  .app-header {
+    padding-left: max(8px, var(--safe-left));
+    padding-right: max(8px, var(--safe-right));
+    gap: 4px;
+  }
+  .header-actions {
+    gap: 4px;
+  }
+  .header-icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (max-width: 330px) {
+  .brand-header-full-logo {
+    max-width: 85px;
+    height: 20px;
+  }
+  .header-mode-toggle .mode-pill-btn.active span {
+    display: none; /* Keep icon-only on ultra-narrow 320px screens */
+  }
+  .header-mode-toggle .mode-pill-btn {
+    padding: 5px 7px;
+  }
 }
 
 /* ─── Stories / Top Students Row ────────────────────────────── */
@@ -1411,8 +1426,8 @@ body {
 
 /* ─── Header Icon Buttons ────────────────────────────────────── */
 .header-icon-btn {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: 1px solid var(--border-light);
   background: var(--bg-card);
@@ -1423,6 +1438,7 @@ body {
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: transform 0.15s;
+  flex-shrink: 0;
 }
 
 .header-icon-btn:active {
