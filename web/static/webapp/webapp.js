@@ -2352,10 +2352,292 @@
     }
   }
 
+  // ─── Hall of Fame (Зал Славы) Logic ─────────────────────────
+  let hallOfFameScope = "all"; // 'all' | 'university'
+  let hallOfFameData = null;
+
+  function openHallOfFame() {
+    triggerHaptic("medium");
+    const modal = document.getElementById("hallOfFameModal");
+    if (modal) {
+      modal.classList.add("active");
+      loadHallOfFame(hallOfFameScope);
+    }
+  }
+
+  function closeHallOfFame() {
+    triggerHaptic("light");
+    const modal = document.getElementById("hallOfFameModal");
+    if (modal) {
+      modal.classList.remove("active");
+    }
+  }
+
+  async function loadHallOfFame(scope = "all") {
+    hallOfFameScope = scope;
+    
+    // Update tabs UI
+    const tabAll = document.getElementById("hallTabAll");
+    const tabUniv = document.getElementById("hallTabUniv");
+    if (tabAll && tabUniv) {
+      if (scope === "all") {
+        tabAll.classList.add("active");
+        tabUniv.classList.remove("active");
+      } else {
+        tabUniv.classList.add("active");
+        tabAll.classList.remove("active");
+      }
+    }
+
+    const podium = document.getElementById("hallPodiumContainer");
+    const list = document.getElementById("hallListContainer");
+    const listSection = document.getElementById("hallListSection");
+    const emptyState = document.getElementById("hallEmptyState");
+
+    if (podium) podium.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px;">Загрузка рейтинга...</div>';
+    if (list) list.innerHTML = '';
+    if (listSection) listSection.style.display = "flex";
+    if (emptyState) emptyState.style.display = "none";
+
+    try {
+      const data = await apiFetch(`/api/webapp/hall_of_fame?scope=${scope}`);
+      if (!data || data.status !== "ok") {
+        if (podium) podium.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--text-muted);">Не удалось загрузить Зал Славы</div>';
+        return;
+      }
+
+      hallOfFameData = data;
+
+      // Update university tab label if available
+      const univLabel = document.getElementById("hallTabUnivLabel");
+      if (univLabel && data.university_name) {
+        univLabel.textContent = `🎓 ${data.university_name}`;
+      }
+
+      // Update sticky user position
+      const myRankDisplay = document.getElementById("hallMyRankDisplay");
+      const myScoreDisplay = document.getElementById("hallMyScoreDisplay");
+      if (myRankDisplay) {
+        myRankDisplay.textContent = data.my_rank ? `#${data.my_rank}` : "Вне топа";
+      }
+      if (myScoreDisplay) {
+        myScoreDisplay.textContent = `⭐ ${data.my_score || 0} б.`;
+      }
+
+      renderHallOfFame(data);
+    } catch (err) {
+      console.error("[StudMatch] loadHallOfFame error:", err);
+      if (podium) podium.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--text-muted);">Ошибка подключения к серверу</div>';
+    }
+  }
+
+  function renderHallOfFame(data) {
+    const podium = document.getElementById("hallPodiumContainer");
+    const list = document.getElementById("hallListContainer");
+    const listSection = document.getElementById("hallListSection");
+    const emptyState = document.getElementById("hallEmptyState");
+    const listCount = document.getElementById("hallListCount");
+
+    const items = data.leaderboard || [];
+
+    if (items.length === 0) {
+      if (podium) podium.innerHTML = '';
+      if (list) list.innerHTML = '';
+      if (listSection) listSection.style.display = "none";
+      if (emptyState) {
+        emptyState.style.display = "block";
+        const desc = emptyState.querySelector(".hall-empty-desc");
+        if (desc) {
+          if (!data.has_university) {
+            desc.textContent = "Укажите ваш ВУЗ в профиле, чтобы соревноваться с однокурсниками!";
+          } else {
+            desc.textContent = `В ${data.university_name || 'вашем ВУЗе'} пока нет студентов в рейтинге. Станьте первым!`;
+          }
+        }
+      }
+      return;
+    }
+
+    if (emptyState) emptyState.style.display = "none";
+    if (listSection) listSection.style.display = "flex";
+
+    // Top 3 Podium
+    const top1 = items[0] || null;
+    const top2 = items[1] || null;
+    const top3 = items[2] || null;
+
+    if (podium) {
+      // Podium layout: 2nd place (left), 1st place (center), 3rd place (right)
+      let html = "";
+
+      // Rank 2
+      if (top2) {
+        html += renderPodiumCol(top2, 2, "🥈");
+      } else {
+        html += renderEmptyPodiumCol(2, "🥈");
+      }
+
+      // Rank 1
+      if (top1) {
+        html += renderPodiumCol(top1, 1, "🥇");
+      } else {
+        html += renderEmptyPodiumCol(1, "🥇");
+      }
+
+      // Rank 3
+      if (top3) {
+        html += renderPodiumCol(top3, 3, "🥉");
+      } else {
+        html += renderEmptyPodiumCol(3, "🥉");
+      }
+
+      podium.innerHTML = html;
+
+      // Add click listeners to podium items
+      podium.querySelectorAll(".podium-col[data-user-id]").forEach((el) => {
+        el.addEventListener("click", () => {
+          const uid = parseInt(el.getAttribute("data-user-id"));
+          if (uid) openMatchFullProfile(uid);
+        });
+      });
+    }
+
+    // List for places 4..50
+    const restItems = items.slice(3);
+    if (listCount) {
+      listCount.textContent = `${items.length} студентов`;
+    }
+
+    if (list) {
+      if (restItems.length === 0) {
+        list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">Пока нет других участников в списке</div>';
+      } else {
+        list.innerHTML = restItems.map((u) => {
+          const verified = u.is_verified ? "🎓" : "";
+          const prem = u.is_premium ? "💎" : "";
+          const meTag = u.is_me ? '<span class="hall-me-pill">Вы</span>' : "";
+          const metaParts = [];
+          if (u.university_name) metaParts.push(u.university_name);
+          if (u.faculty) metaParts.push(u.faculty);
+          if (u.course) metaParts.push(`${u.course} курс`);
+          const metaText = metaParts.join(" • ") || "Студент";
+
+          return `
+            <div class="hall-card ${u.is_me ? 'is-me' : ''}" data-user-id="${u.user_id}">
+              <div class="hall-card-rank">#${u.rank}</div>
+              <img src="${escapeHtml(u.avatar_url)}" class="hall-card-avatar" alt="${escapeHtml(u.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
+              <div class="hall-card-info">
+                <div class="hall-card-name-row">
+                  <span class="hall-card-name">${escapeHtml(u.name)}${u.age ? `, ${u.age}` : ''} ${verified} ${prem}</span>
+                  ${meTag}
+                </div>
+                <div class="hall-card-meta">${escapeHtml(metaText)}</div>
+              </div>
+              <div class="hall-card-score">⭐ ${u.rating_score}</div>
+            </div>
+          `;
+        }).join("");
+
+        list.querySelectorAll(".hall-card[data-user-id]").forEach((el) => {
+          el.addEventListener("click", () => {
+            const uid = parseInt(el.getAttribute("data-user-id"));
+            if (uid) openMatchFullProfile(uid);
+          });
+        });
+      }
+    }
+  }
+
+  function renderPodiumCol(u, rank, medalEmoji) {
+    const verified = u.is_verified ? "🎓" : "";
+    const prem = u.is_premium ? "💎" : "";
+    const metaParts = [];
+    if (u.university_name) metaParts.push(u.university_name);
+    else if (u.faculty) metaParts.push(u.faculty);
+    const metaText = metaParts.join(" • ") || (u.course ? `${u.course} курс` : "");
+
+    return `
+      <div class="podium-col rank-${rank}" data-user-id="${u.user_id}">
+        <div class="podium-avatar-wrap">
+          <img src="${escapeHtml(u.avatar_url)}" class="podium-avatar" alt="${escapeHtml(u.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+          <div class="podium-medal">${medalEmoji}</div>
+        </div>
+        <div class="podium-name">${escapeHtml(u.name)} ${verified}${prem}</div>
+        <div class="podium-meta">${escapeHtml(metaText)}</div>
+        <div class="podium-score">⭐ ${u.rating_score} б.</div>
+        <div class="podium-pedestal">${rank}</div>
+      </div>
+    `;
+  }
+
+  function renderEmptyPodiumCol(rank, medalEmoji) {
+    return `
+      <div class="podium-col rank-${rank}" style="opacity: 0.45; pointer-events: none;">
+        <div class="podium-avatar-wrap">
+          <div class="podium-avatar" style="background:#E2E8F0;display:flex;align-items:center;justify-content:center;color:#94A3B8;font-size:20px;">?</div>
+          <div class="podium-medal">${medalEmoji}</div>
+        </div>
+        <div class="podium-name">—</div>
+        <div class="podium-meta">Свободно</div>
+        <div class="podium-score">0 б.</div>
+        <div class="podium-pedestal">${rank}</div>
+      </div>
+    `;
+  }
+
+  function setupHallOfFameListeners() {
+    const openBtn = document.getElementById("openHallOfFameBtn");
+    const closeBtn = document.getElementById("closeHallOfFameBtn");
+    const tabAll = document.getElementById("hallTabAll");
+    const tabUniv = document.getElementById("hallTabUniv");
+    const boostBtn = document.getElementById("openRatingInfoBtn");
+    const ratingModal = document.getElementById("ratingInfoModal");
+    const closeRatingBtn = document.getElementById("closeRatingInfoBtn");
+
+    if (openBtn) {
+      openBtn.addEventListener("click", () => openHallOfFame());
+    }
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => closeHallOfFame());
+    }
+    if (tabAll) {
+      tabAll.addEventListener("click", () => {
+        triggerHaptic("light");
+        loadHallOfFame("all");
+      });
+    }
+    if (tabUniv) {
+      tabUniv.addEventListener("click", () => {
+        triggerHaptic("light");
+        loadHallOfFame("university");
+      });
+    }
+    if (boostBtn) {
+      boostBtn.addEventListener("click", () => {
+        triggerHaptic("medium");
+        if (ratingModal) ratingModal.style.display = "flex";
+      });
+    }
+    if (closeRatingBtn) {
+      closeRatingBtn.addEventListener("click", () => {
+        triggerHaptic("light");
+        if (ratingModal) ratingModal.style.display = "none";
+      });
+    }
+    if (ratingModal) {
+      ratingModal.addEventListener("click", (e) => {
+        if (e.target === ratingModal) {
+          ratingModal.style.display = "none";
+        }
+      });
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();
     setupCareerListeners();
     setupMaintenanceListeners();
+    setupHallOfFameListeners();
     if (window.MAINTENANCE_DATA) {
       updateMaintenanceUI(window.MAINTENANCE_DATA);
     }

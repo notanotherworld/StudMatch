@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260907_01" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260909_01" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -47,6 +47,15 @@
       </div>
 
       <div class="header-actions">
+        <button class="header-icon-btn hall-of-fame-btn" id="openHallOfFameBtn" title="Зал славы">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+            <path d="M4 22h16"></path>
+            <path d="M10 14.66V17c0 .55-.45 1-1 1H7v4h10v-4h-2c-.55 0-1-.45-1-1v-2.34"></path>
+            <path d="M6 4h12a2 2 0 0 1 2 2v3a6 6 0 0 1-12 0V6a2 2 0 0 1 2-2Z"></path>
+          </svg>
+        </button>
         <button class="header-icon-btn" id="openFiltersBtn" title="Фильтры поиска">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="4" y1="21" x2="4" y2="14"></line>
@@ -533,6 +542,156 @@
     </div>
   </div>
 
+  <!-- Hall of Fame Modal (Зал Славы) -->
+  <div class="bottom-sheet-overlay hall-of-fame-overlay" id="hallOfFameModal">
+    <div class="bottom-sheet-content hall-of-fame-content">
+      <div class="sheet-drag-handle"></div>
+      
+      <!-- Header -->
+      <div class="hall-header">
+        <div class="hall-title-wrap">
+          <div class="hall-badge">
+            <span class="hall-badge-icon">🏆</span>
+            <span class="hall-badge-text">ТОП СТУДЕНТОВ</span>
+          </div>
+          <h2 class="hall-title">Зал Славы</h2>
+          <p class="hall-subtitle">Лучшие анкеты и достижения StudMatch</p>
+        </div>
+        <button class="modal-close-btn" id="closeHallOfFameBtn">✕</button>
+      </div>
+
+      <!-- Scope Tabs: All Universities vs My University -->
+      <div class="hall-tabs">
+        <button class="hall-tab-btn active" id="hallTabAll" data-scope="all">
+          <span>🏛 Все ВУЗы</span>
+        </button>
+        <button class="hall-tab-btn" id="hallTabUniv" data-scope="university">
+          <span id="hallTabUnivLabel">🎓 Мой ВУЗ</span>
+        </button>
+      </div>
+
+      <!-- Content Container -->
+      <div class="hall-body" id="hallOfFameBody">
+        <!-- Podium: Top 3 Students -->
+        <div class="hall-podium" id="hallPodiumContainer">
+          <!-- Dynamically filled: 2nd, 1st, 3rd -->
+        </div>
+
+        <!-- Leaderboard List (Places 4-50) -->
+        <div class="hall-list-section" id="hallListSection">
+          <div class="hall-list-header">
+            <span class="hall-list-title">Рейтинговый список</span>
+            <span class="hall-list-count" id="hallListCount">Топ-50</span>
+          </div>
+          <div class="hall-list" id="hallListContainer">
+            <!-- Dynamic rows -->
+          </div>
+        </div>
+
+        <!-- Empty State if no students in university -->
+        <div class="hall-empty-state" id="hallEmptyState" style="display: none;">
+          <div class="hall-empty-icon">🎓</div>
+          <h3 class="hall-empty-title">Пока пусто в вашем ВУЗе</h3>
+          <p class="hall-empty-desc">Будьте первым, кто войдёт в Зал Славы своего университета!</p>
+        </div>
+      </div>
+
+      <!-- Sticky User Ranking Bar -->
+      <div class="hall-sticky-bar" id="hallStickyBar">
+        <div class="hall-sticky-user">
+          <div class="hall-sticky-rank" id="hallMyRankDisplay">#—</div>
+          <div class="hall-sticky-info">
+            <div class="hall-sticky-name">Ваша позиция</div>
+            <div class="hall-sticky-score" id="hallMyScoreDisplay">⭐ 0 б.</div>
+          </div>
+        </div>
+        <button class="hall-boost-btn" id="openRatingInfoBtn">
+          ⚡️ Как поднять?
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Rating Info Modal (Как поднять рейтинг) -->
+  <div class="modal-overlay" id="ratingInfoModal" style="display: none;">
+    <div class="modal-card rating-info-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-title-icon">⚡️</span>
+          <h3 class="modal-title">Как работает рейтинг?</h3>
+        </div>
+        <button class="modal-close-btn" id="closeRatingInfoBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="rating-info-intro">
+          Рейтинг формируется на основе верификации студента, его академических успехов и подтверждённых достижений:
+        </p>
+
+        <div class="rating-points-list">
+          <div class="rating-point-item">
+            <div class="rating-point-icon">🎓</div>
+            <div class="rating-point-details">
+              <div class="rating-point-title">Студенческая почта</div>
+              <div class="rating-point-desc">Верификация домена ВУЗа (@rudn.ru, @hse.ru и др.)</div>
+            </div>
+            <div class="rating-point-val">+100 б.</div>
+          </div>
+
+          <div class="rating-point-item">
+            <div class="rating-point-icon">🏆</div>
+            <div class="rating-point-details">
+              <div class="rating-point-title">Хакатоны и кейс-чемпионаты</div>
+              <div class="rating-point-desc">Победы и призовые места в соревнованиях</div>
+            </div>
+            <div class="rating-point-val">+50 б.</div>
+          </div>
+
+          <div class="rating-point-item">
+            <div class="rating-point-icon">💼</div>
+            <div class="rating-point-details">
+              <div class="rating-point-title">Опыт и стажировки</div>
+              <div class="rating-point-desc">Опыт работы в профильных компаниях</div>
+            </div>
+            <div class="rating-point-val">+30 б.</div>
+          </div>
+
+          <div class="rating-point-item">
+            <div class="rating-point-icon">🤝</div>
+            <div class="rating-point-details">
+              <div class="rating-point-title">Волонтёрство и студсовет</div>
+              <div class="rating-point-desc">Активное участие в жизни университета</div>
+            </div>
+            <div class="rating-point-val">+25 б.</div>
+          </div>
+
+          <div class="rating-point-item">
+            <div class="rating-point-icon">📸</div>
+            <div class="rating-point-details">
+              <div class="rating-point-title">Заполненный профиль</div>
+              <div class="rating-point-desc">Все фото, интересы и подробное био</div>
+            </div>
+            <div class="rating-point-val">+10 б.</div>
+          </div>
+        </div>
+
+        <div class="rating-verification-box">
+          <div class="rating-verification-header">
+            <span>🛡 Верификация достижений</span>
+          </div>
+          <p class="rating-verification-text">
+            Чтобы подтвердить диплом, сертификат или грамоту, отправьте фото документа боту в Telegram. Модераторы проверят его в течение 24 часов.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <a href="https://t.me/{{ bot_username }}?start=achievements" target="_blank" class="btn-primary" id="openBotAchievementsBtn" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:8px;">
+          <span>📨 Отправить диплом боту</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
   <!-- Figma Onboarding Screen -->
   <div class="onboarding-overlay" id="onboardingScreen">
     <div class="onboarding-top-bar">
@@ -586,6 +745,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v=20260907_01"></script>
+  <script src="/static/webapp/webapp.js?v=20260909_01"></script>
 </body>
 </html>

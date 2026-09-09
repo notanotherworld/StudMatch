@@ -12,7 +12,7 @@ from urllib.parse import parse_qsl
 
 import os
 import aiohttp
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, Response
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, Response, Query
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -1053,6 +1053,140 @@ async def webapp_get_user_details(
             "career_portfolio_url": p.career_portfolio_url if p else None,
             "career_work_format": p.career_work_format if p else None,
         }
+    }
+
+
+# ─── API: Зал Славы (Рейтинг / Лидерборд) ──────────────────────
+@router.get("/api/webapp/hall_of_fame")
+async def webapp_get_hall_of_fame(
+    scope: str = Query("all", pattern="^(all|university)$"),
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Возвращает топ-50 студентов в Зале Славы:
+    - scope: 'all' (Все ВУЗы) или 'university' (Мой ВУЗ)
+    - Позицию текущего пользователя (my_rank) и его рейтинг (my_score)
+    """
+    has_univ = bool(student.university_id and student.university)
+    univ_name = (student.university.short_name or student.university.name) if has_univ else None
+
+    # Если запрошен фильтр по ВУЗу, но у студента нет ВУЗа
+    if scope == "university" and not student.university_id:
+        my_score = round(student.profile.rating_score or 0.0, 1) if student.profile else 0.0
+        return {
+            "status": "ok",
+            "scope": "university",
+            "has_university": False,
+            "university_name": None,
+            "my_rank": None,
+            "my_score": my_score,
+            "leaderboard": [],
+        }
+
+    # Запрос топ-50 пользователей
+    query = (
+        select(Profile, User)
+        .join(User, Profile.user_id == User.id)
+        .options(selectinload(User.university))
+        .where(
+            User.is_active.is_(True),
+            Profile.is_complete.is_(True),
+            Profile.is_visible.is_(True),
+        )
+    )
+
+    if scope == "university":
+        query = query.where(User.university_id == student.university_id)
+
+    query = query.order_by(
+        desc(func.coalesce(Profile.rating_score, 0.0)),
+        desc(User.email_verified),
+        User.created_at.asc(),
+    ).limit(50)
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    leaderboard = []
+    my_rank = None
+    my_score = round(student.profile.rating_score or 0.0, 1) if student.profile else 0.0
+
+    for idx, (p, u) in enumerate(rows):
+        rank = idx + 1
+        is_me = (u.id == student.id)
+        if is_me:
+            my_rank = rank
+
+        photo_url = resolve_photo_url(p.avatar_file_id)
+        if not photo_url and p.photos and len(p.photos) > 0:
+            photo_url = resolve_photo_url(p.photos[0])
+        if not photo_url:
+            photo_url = DEFAULT_FALLBACK_AVATAR
+
+        u_univ_name = ""
+        if u.university:
+            u_univ_name = u.university.short_name or u.university.name or ""
+
+        leaderboard.append({
+            "rank": rank,
+            "user_id": u.id,
+            "name": p.name or "Студент",
+            "age": p.age,
+            "university_name": u_univ_name,
+            "faculty": p.major,
+            "course": p.year,
+            "avatar_url": photo_url,
+            "rating_score": round(p.rating_score or 0.0, 1),
+            "is_verified": bool(u.email_verified),
+            "is_premium": bool(u.is_premium),
+            "is_me": is_me,
+        })
+
+    # Если текущий пользователь не попал в топ-50, вычисляем его реальный ранг
+    if my_rank is None and student.profile and student.profile.is_complete and student.profile.is_visible:
+        my_raw_score = float(student.profile.rating_score or 0.0)
+        my_verified = bool(student.email_verified)
+        my_created = student.created_at or datetime.now(timezone.utc)
+
+        rank_query = (
+            select(func.count())
+            .select_from(Profile)
+            .join(User, Profile.user_id == User.id)
+            .where(
+                User.is_active.is_(True),
+                Profile.is_complete.is_(True),
+                Profile.is_visible.is_(True),
+            )
+        )
+        if scope == "university":
+            rank_query = rank_query.where(User.university_id == student.university_id)
+
+        rank_query = rank_query.where(
+            or_(
+                func.coalesce(Profile.rating_score, 0.0) > my_raw_score,
+                and_(
+                    func.coalesce(Profile.rating_score, 0.0) == my_raw_score,
+                    User.email_verified > my_verified,
+                ),
+                and_(
+                    func.coalesce(Profile.rating_score, 0.0) == my_raw_score,
+                    User.email_verified == my_verified,
+                    User.created_at < my_created,
+                ),
+            )
+        )
+        ahead_count = await db.scalar(rank_query)
+        my_rank = (ahead_count or 0) + 1
+
+    return {
+        "status": "ok",
+        "scope": scope,
+        "has_university": has_univ,
+        "university_name": univ_name,
+        "my_rank": my_rank,
+        "my_score": my_score,
+        "leaderboard": leaderboard,
     }
 
 
