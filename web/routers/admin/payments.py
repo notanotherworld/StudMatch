@@ -170,7 +170,7 @@ async def payments_page(
 
 
 @router.get("/payments/export.csv")
-async def export_payments_csv(
+async def export_payments_simple_csv(
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):

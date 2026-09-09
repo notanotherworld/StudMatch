@@ -3,7 +3,7 @@ FastAPI приложение: admin panel + HR cabinet + YooKassa webhook.
 Защиты: CSRF context processor, security headers, OpenAPI отключён в prod.
 """
 from fastapi import FastAPI, Request, Depends
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,8 +46,9 @@ _DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 app = FastAPI(
     title="СтудМэч Admin",
     lifespan=lifespan,
-    docs_url="/docs" if _DEBUG else None,    # /docs только в DEBUG-режиме
-    redoc_url="/redoc" if _DEBUG else None,  # /redoc только в DEBUG-режиме
+    docs_url="/docs" if _DEBUG else None,          # /docs только в DEBUG-режиме
+    redoc_url="/redoc" if _DEBUG else None,        # /redoc только в DEBUG-режиме
+    openapi_url="/openapi.json" if _DEBUG else None,  # Схема OpenAPI только в DEBUG-режиме (#12)
 )
 
 # ─── Security Headers middleware (#15) ───────────────────────
@@ -118,6 +119,25 @@ app.mount("/static", StaticFiles(directory="web/static"), name="static")
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return FileResponse("web/static/img/favicon.ico")
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    content = (
+        "User-agent: *\n"
+        "Disallow: /admin/\n"
+        "Disallow: /employer/\n"
+        "Disallow: /api/\n"
+        "Disallow: /app\n"
+        "Disallow: /webapp\n"
+        "Allow: /\n"
+        "Allow: /landing\n"
+        "Allow: /privacy\n"
+        "Allow: /terms\n"
+        "Allow: /brand\n"
+        "Allow: /static/\n"
+    )
+    return PlainTextResponse(content)
 
 
 @app.get("/", include_in_schema=False)

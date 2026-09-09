@@ -154,8 +154,7 @@ async def get_current_student(
 
 
 # ─── HTML Страница WebApp ─────────────────────────────────────
-@router.api_route("/app", methods=["GET", "HEAD"], response_class=HTMLResponse)
-@router.api_route("/webapp", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@router.get("/app", response_class=HTMLResponse)
 async def webapp_page(request: Request):
     """Отдача основного HTML5 SPA приложения для Telegram WebApp."""
     from bot.utils.dynamic_settings import get_system_setting
@@ -176,6 +175,12 @@ async def webapp_page(request: Request):
             "maintenance_message": maintenance_message,
         }
     )
+
+
+@router.get("/webapp", response_class=HTMLResponse, include_in_schema=False)
+async def webapp_page_alias(request: Request):
+    """Алиас маршрута /app для обратной совместимости."""
+    return await webapp_page(request)
 
 
 # ─── API: Авторизация через initData ─────────────────────────
