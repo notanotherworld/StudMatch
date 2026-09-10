@@ -24,7 +24,7 @@ async def activate_promo_code(
     try:
         normalized_code = code_text.strip().upper()
         if not normalized_code:
-            return False, "⚠️ Укажите промокод."
+            return False, "⚠️ Укажи промокод."
 
         # Ищем промокод
         result = await db.execute(select(PromoCode).where(PromoCode.code == normalized_code))
@@ -52,7 +52,7 @@ async def activate_promo_code(
             )
         )
         if act_res.scalar_one_or_none():
-            return False, "ℹ️ Вы уже активировали этот промокод ранее."
+            return False, "ℹ️ Ты уже активировал этот промокод ранее."
 
         # Загружаем пользователя
         user_res = await db.execute(select(User).where(User.id == user_id))
@@ -108,9 +108,9 @@ async def activate_promo_code(
         )
         await db.commit()
 
-        return True, f"🎉 <b>Промокод «{promo.code}» успешно активирован!</b>\n\nВам начислено: <b>{reward_msg}</b>"
+        return True, f"🎉 <b>Промокод «{promo.code}» успешно активирован!</b>\n\nТебе начислено: <b>{reward_msg}</b>"
 
     except Exception as e:
         logger.error(f"Error activating promo code '{code_text}' for user {user_id}: {e}", exc_info=True)
         await db.rollback()
-        return False, "⚠️ Произошла ошибка при активации промокода. Попробуйте позже."
+        return False, "⚠️ Произошла ошибка при активации промокода. Попробуй позже."

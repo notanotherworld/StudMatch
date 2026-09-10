@@ -137,8 +137,8 @@ async def process_code(message: Message, state: FSMContext, user: User, db: Asyn
 
     if attempts >= 5:
         await message.answer(
-            "❌ Вы превысили лимит попыток ввода (максимум 5).\n"
-            "Код заблокирован. Напишите /start чтобы запросить новый код."
+            "❌ Превышен лимит попыток ввода (максимум 5).\n"
+            "Код заблокирован. Отправь /start, чтобы запросить новый код."
         )
         return
 
@@ -157,7 +157,7 @@ async def process_code(message: Message, state: FSMContext, user: User, db: Asyn
             )
         else:
             await message.answer(
-                "❌ Лимит попыток исчерпан. Напишите /start чтобы заново получить код."
+                "❌ Лимит попыток исчерпан. Отправь /start, чтобы заново получить код."
             )
         return
 

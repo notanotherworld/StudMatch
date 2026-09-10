@@ -148,10 +148,9 @@ class ThrottlingMiddleware(BaseMiddleware):
                     time_str = format_ban_ttl(ban_ttl)
                     try:
                         await event.answer(
-                            f"⏳ <b>Доступ временно ограничен за частые запросы!</b>\n\n"
-                            f"🕒 Разблокировка через: <b>{time_str}</b>\n\n"
-                            f"<i>Пожалуйста, дождитесь окончания таймера. Повторные попытки спама увеличивают срок бана "
-                            f"(2 мин ➔ 5 мин ➔ 15 мин ➔ 30 мин).</i>"
+                            f"⏳ <b>Не так быстро!</b>\n\n"
+                            f"Бот не успевает обрабатывать команды с такой скоростью.\n"
+                            f"🕒 Подожди: <b>{time_str}</b> перед следующим действием."
                         )
                     except Exception:
                         pass
@@ -176,10 +175,9 @@ class ThrottlingMiddleware(BaseMiddleware):
                     time_str = format_ban_ttl(dur_sec)
                     try:
                         await event.answer(
-                            f"🚨 <b>Вы временно заблокированы за флуд!</b>\n\n"
-                            f"🔒 Блокировка #{level} на: <b>{dur_txt}</b>\n"
-                            f"🕒 Разблокировка через: <b>{time_str}</b>\n\n"
-                            f"<i>При повторных нарушениях длительность бана автоматически увеличивается.</i>"
+                            f"🚨 <b>Слишком много быстрых запросов!</b>\n\n"
+                            f"🔒 Доступ приостановлен на: <b>{dur_txt}</b>\n"
+                            f"🕒 Разблокировка через: <b>{time_str}</b>"
                         )
                     except Exception:
                         pass
@@ -218,7 +216,7 @@ class CallbackThrottlingMiddleware(BaseMiddleware):
             ban_ttl = await r.ttl(f"temp_ban:{user_id}")
             if ban_ttl > 0:
                 time_str = format_ban_ttl(ban_ttl)
-                await event.answer(f"⏳ Бан за спам! Разблокировка через: {time_str}", show_alert=True)
+                await event.answer(f"⏳ Слишком частые клики! Подожди: {time_str}", show_alert=True)
                 return
 
             # 2. Проверяем частоту кликов
@@ -237,7 +235,7 @@ class CallbackThrottlingMiddleware(BaseMiddleware):
                     dur_sec, dur_txt, level = await apply_progressive_flood_ban(r, user_id)
                     time_str = format_ban_ttl(dur_sec)
                     await event.answer(
-                        f"🚨 Бан #{level} за спам кликами на {dur_txt}!\nОсталось: {time_str}",
+                        f"🚨 Слишком много кликов!\nПауза на {dur_txt}. Осталось: {time_str}",
                         show_alert=True,
                     )
                     return

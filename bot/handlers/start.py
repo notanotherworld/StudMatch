@@ -16,24 +16,20 @@ from database.models import User
 
 router = Router()
 
-WELCOME_TEXT = """Привет! Это StudMatch 🪢
+WELCOME_TEXT = """👋 <b>Добро пожаловать в StudMatch!</b>
 
 Здесь ты найдёшь:
+🎯 <b>Соратников</b> для кейс-чемпионатов и хакатонов
+🤝 <b>Друзей</b> по интересам и учёбе
+❤️ <b>Любовь</b> (да, здесь такое тоже случается)
 
-🔥 Соратников для кейс-чемпионатов и хакатонов
-🤝 Друзей по интересам
-❤️ Любовь (да, здесь такое тоже случается)
+Набирай баллы в Зале славы, поднимайся в топ и становись заметным для лучших компаний. Или просто покажи миру свою индивидуальность!
 
-Набирай баллы, поднимайся в топ и становись видимым для лучших компаний. Или просто покажи миру свою уникальность!
-
-Всё начинается с одной анкеты.
-Заполни её, это займёт пару минут.
-
-Готов?🧨"""
+Всё начинается с одной анкеты. Заполни её — это займёт буквально пару минут! ✨"""
 
 CONSENT_TEXT = """📋 <b>Соглашение об обработке персональных данных</b>
 
-Для верификации статуса студента и работы сервиса мы обрабатываем:
+Для верификации студенческого статуса и работы сервиса мы обрабатываем:
 — Имя, курс, направление и анкетные данные
 — Корпоративный email университета (@rudn.ru)
 — Фотографии и карьерные интересы
@@ -64,7 +60,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
             pass
 
     # Сообщение #1 — Приветственное вступление
-    await message.answer(WELCOME_TEXT)
+    await message.answer(WELCOME_TEXT, parse_mode="HTML")
 
     # Уже дал согласие?
     if user.consent_given:
@@ -89,7 +85,7 @@ async def consent_accepted(callback: CallbackQuery, state: FSMContext, user: Use
         try:
             await callback.bot.send_message(
                 user.referrer_id,
-                "🎉 <b>Твой друг зарегистрировался в СтудМэч!</b>\n\n"
+                "🎉 <b>Твой друг зарегистрировался в StudMatch!</b>\n\n"
                 "Тебе начислено <b>+3 ⭐️ Суперлайка</b> за приглашение!",
                 parse_mode="HTML",
             )
@@ -106,8 +102,8 @@ async def consent_declined(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.answer()
     await callback.message.answer(
-        "😔 Без принятия соглашения использование СтудМэч невозможно.\n"
-        "Напиши /start чтобы попробовать снова."
+        "😔 Без принятия соглашения использование StudMatch невозможно.\n"
+        "Отправь /start, чтобы попробовать снова."
     )
     await state.clear()
 
@@ -189,7 +185,7 @@ async def cmd_menu(message: Message, user: User, state: FSMContext = None):
             reply_markup=main_menu_keyboard(),
         )
     else:
-        await message.answer("❌ Сначала заполни анкету. Напиши /start")
+        await message.answer("❌ Сначала заполни анкету. Отправь /start")
 
 
 @router.message(F.text.in_({"🚀 Открыть StudMatch App", "🚀 Открыть StudMatch", "📱 Открыть приложение", "/app", "/webapp"}))

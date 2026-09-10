@@ -30,7 +30,7 @@ router = Router()
 async def _build_profile_caption(
     profile: Profile, tags_map: dict[int, InterestTag], user: Optional[User] = None, mode: Optional[ModeEnum] = None
 ) -> str:
-    """Формируем лаконичный и минималистичный текст карточки студента."""
+    """Формируем лаконичный и гармоничный текст карточки студента."""
     user_obj = user or (profile.__dict__.get("user") if hasattr(profile, "__dict__") else None)
     card_mode = mode or getattr(user_obj, "mode", ModeEnum.dating)
 
@@ -77,8 +77,12 @@ async def _build_profile_caption(
     else:
         age_formatted = None
 
-    # Строка идентификации: Имя, 19 лет, РУДН, 2 курс
-    identity_parts = [f"<b>{name}</b>"]
+    # Позитивный бейдж верификации студента
+    is_verified = bool(user_obj and getattr(user_obj, "email_verified", False))
+    ver_badge = " 🎓" if is_verified else ""
+
+    # Строка идентификации: Имя 🎓, 19 лет, РУДН, 2 курс
+    identity_parts = [f"<b>{name}</b>{ver_badge}"]
     if age_formatted:
         identity_parts.append(age_formatted)
     if univ_str:
@@ -95,41 +99,30 @@ async def _build_profile_caption(
         top_badges.append("В топе 🌪")
     top_line = (" · ".join(top_badges) + "\n") if top_badges else ""
 
-    # Статус верификации
-    if user_obj and getattr(user_obj, "email_verified", False):
-        verification_line = "Верификация: подтверждена ✅"
-    else:
-        verification_line = "Верификация: не подтверждена"
-
     if card_mode == ModeEnum.career:
-        mode_line = "🎯 Карьера"
         work_fmt = html.escape(profile.career_work_format or "Не указан")
         skills_text = html.escape(profile.career_custom_skills or "Не указаны")
         goal_text = html.escape(profile.career_goal or "Ищет интересные проекты и стажировки")
 
-        portfolio_block = ""
+        parts = []
+        if top_line:
+            parts.append(top_line.strip())
+        parts.append(identity_line)
+        parts.append("🎯 <b>Карьера</b>")
+        if major:
+            parts.append(f"🏛 {major}")
+        parts.append(f"💼 Формат: {work_fmt}")
+        parts.append(f"⭐ {rating_str}")
+        parts.append(f"\n💻 <b>Навыки и стек:</b>\n{skills_text}")
+        parts.append(f"\n🎯 <b>Цель и опыт:</b>\n{goal_text}")
         if profile.career_portfolio_url:
-            portfolio_block = f"\n\nПортфолио / Резюме:\n{html.escape(profile.career_portfolio_url)}"
+            parts.append(f"\n🔗 <b>Портфолио / Резюме:</b>\n{html.escape(profile.career_portfolio_url)}")
 
-        major_block = f"{major}\n" if major else ""
-
-        return (
-            f"{top_line}"
-            f"{identity_line}\n"
-            f"{mode_line}\n\n"
-            f"{verification_line}\n\n"
-            f"{major_block}"
-            f"Формат: {work_fmt}\n"
-            f"{rating_str}\n\n"
-            f"Навыки и стек:\n{skills_text}\n\n"
-            f"Цель / Опыт:\n{goal_text}"
-            f"{portfolio_block}"
-        )
+        return "\n".join(parts)
     else:
-        mode_line = "❤️ Знакомства"
         g_str = "Парень" if profile.gender == "male" else ("Девушка" if profile.gender == "female" else None)
         tg_str = "Девушек" if profile.target_gender == "female" else ("Парней" if profile.target_gender == "male" else ("Всех" if profile.target_gender == "all" else None))
-        gender_block = f"Пол: {g_str} · Ищу: {tg_str}\n" if (g_str and tg_str) else (f"Пол: {g_str}\n" if g_str else "")
+        gender_line = f"Пол: {g_str} · Ищу: {tg_str}" if (g_str and tg_str) else (f"Пол: {g_str}" if g_str else "")
 
         goal_text = html.escape(getattr(profile, "goal", "") or "Не заполнено")
 
@@ -143,20 +136,22 @@ async def _build_profile_caption(
             interests_parts.append(tags_text)
         if profile.custom_interests:
             interests_parts.append(f"Свои: {html.escape(profile.custom_interests)}")
-        interests_block = ("\n\nИнтересы:\n" + "\n".join(interests_parts)) if interests_parts else ""
-        major_block = f"{major}\n" if major else ""
+        interests_block = "\n".join(interests_parts) if interests_parts else ""
 
-        return (
-            f"{top_line}"
-            f"{identity_line}\n"
-            f"{mode_line}\n\n"
-            f"{verification_line}\n\n"
-            f"{major_block}"
-            f"{gender_block}"
-            f"{rating_str}\n\n"
-            f"О себе:\n{goal_text}"
-            f"{interests_block}"
-        )
+        parts = []
+        if top_line:
+            parts.append(top_line.strip())
+        parts.append(identity_line)
+        if major:
+            parts.append(f"🏛 {major}")
+        if gender_line:
+            parts.append(f"👫 {gender_line}")
+        parts.append(f"⭐ {rating_str}")
+        parts.append(f"\n💬 <b>О себе:</b>\n{goal_text}")
+        if interests_block:
+            parts.append(f"\n🏷 <b>Интересы:</b>\n{interests_block}")
+
+        return "\n".join(parts)
 
 
 import os
@@ -211,7 +206,7 @@ async def send_next_card(
         b.adjust(1)
         await bot.send_message(
             chat_id,
-            "🔍 <b>По вашим фильтрам сейчас нет подходящих анкет</b>\n\n"
+            "🔍 <b>По твоим фильтрам сейчас нет подходящих анкет</b>\n\n"
             "Попробуй расширить диапазон возраста, курса или факультетов, чтобы увидеть больше студентов! 😉",
             parse_mode="HTML",
             reply_markup=b.as_markup(),
@@ -736,7 +731,7 @@ async def show_incoming_likes_entry(event: Message | CallbackQuery, user: User, 
     await event.bot.send_message(chat_id=target_chat_id, text=full_text, parse_mode="HTML", reply_markup=kb)
 
 
-HOW_TO_TOP_TEXT = """<b>КАК ПОПАСТЬ В ТОП 🏆</b>
+HOW_TO_TOP_TEXT = """🏆 <b>Как попасть в топ Зала славы</b>
 
 1) 💼 Участие в кейс-чемпионате / хакатоне — <b>+25 баллов</b>
 2) 🥉 Призовое место (3-е место) — <b>+50 баллов</b>
@@ -790,13 +785,13 @@ async def send_like_notification(
 
     if action == SwipeAction.superlike:
         header = (
-            "⭐ <b>ТЕБЯ СУПЕРЛАЙКНУЛИ!</b> ⭐\n"
+            "⭐ <b>Тебе отправили суперлайк!</b>\n"
             "<i>Пользователь очень хочет познакомиться с тобой:</i>\n\n"
         )
     else:
         header = (
-            "❤️ <b>КОМУ-ТО ПОНРАВИЛАСЬ ТВОЯ АНКЕТА!</b>\n"
-            "<i>Пользователь проявил к тебе интерес:</i>\n\n"
+            "✨ <b>У тебя новая симпатия!</b>\n"
+            "<i>Пользователь оценил твою анкету:</i>\n\n"
         )
 
     letter_block = ""
@@ -904,8 +899,8 @@ async def process_incoming_like(callback: CallbackQuery, user: User, db: AsyncSe
 
     # Уведомляем текущего пользователя
     await callback.message.answer(
-        f"🎉 <b>МЭТЧ!</b>\n\n"
-        f"Вы с <b>{html.escape(target_name)}</b> понравились друг другу!\n"
+        f"🎉 <b>Это взаимно!</b>\n\n"
+        f"Ты и <b>{html.escape(target_name)}</b> понравились друг другу!\n"
         f"Telegram: <b>{target_username}</b>",
         parse_mode="HTML",
         reply_markup=match_keyboard(target_username),
@@ -915,7 +910,7 @@ async def process_incoming_like(callback: CallbackQuery, user: User, db: AsyncSe
     try:
         await callback.bot.send_message(
             target_id,
-            f"🎉 <b>МЭТЧ!</b>\n\n"
+            f"🎉 <b>Это взаимно!</b>\n\n"
             f"<b>{html.escape(my_name)}</b> ответил(а) взаимностью на твой лайк!\n"
             f"Telegram: <b>{my_username}</b>",
             parse_mode="HTML",
@@ -924,7 +919,7 @@ async def process_incoming_like(callback: CallbackQuery, user: User, db: AsyncSe
     except Exception:
         pass
 
-    await callback.answer("🎉 Мэтч!")
+    await callback.answer("🎉 Это взаимно!")
 
 
 @router.callback_query(F.data.startswith("incoming:skip:"))
@@ -986,8 +981,8 @@ async def swipe_callback(callback: CallbackQuery, state: FSMContext, user: User,
 
         # Уведомляем инициатора
         await callback.message.answer(
-            f"🎉 <b>МЭТЧ!</b>\n\n"
-            f"<b>{html.escape(target_name)}</b> тоже хочет познакомиться с тобой!\n"
+            f"🎉 <b>Это взаимно!</b>\n\n"
+            f"Ты и <b>{html.escape(target_name)}</b> понравились друг другу!\n"
             f"Telegram: <b>{target_username}</b>",
             parse_mode="HTML",
             reply_markup=match_keyboard(target_username),
@@ -997,8 +992,8 @@ async def swipe_callback(callback: CallbackQuery, state: FSMContext, user: User,
         try:
             await callback.bot.send_message(
                 target_id,
-                f"🎉 <b>МЭТЧ!</b>\n\n"
-                f"<b>{html.escape(my_name)}</b> тоже хочет познакомиться с тобой!\n"
+                f"🎉 <b>Это взаимно!</b>\n\n"
+                f"Ты и <b>{html.escape(my_name)}</b> понравились друг другу!\n"
                 f"Telegram: <b>{my_username}</b>",
                 parse_mode="HTML",
                 reply_markup=match_keyboard(my_username),
@@ -1006,7 +1001,7 @@ async def swipe_callback(callback: CallbackQuery, state: FSMContext, user: User,
         except Exception:
             pass
 
-        await callback.answer("🎉 Мэтч!")
+        await callback.answer("🎉 Это взаимно!")
     else:
         # Если лайк или суперлайк (не скип) — отправляем красивое уведомление с анкетой
         if action in (SwipeAction.like, SwipeAction.superlike):
@@ -1120,18 +1115,18 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
 
     if is_match:
         await message.answer(
-            f"🎉 <b>Мэтч!</b>\n\n"
-            f"<b>{html.escape(target_name)}</b> тоже заинтересован(а) в тебе!\n"
-            f"Его/её Telegram: <b>{target_username}</b>",
+            f"🎉 <b>Это взаимно!</b>\n\n"
+            f"Ты и <b>{html.escape(target_name)}</b> понравились друг другу!\n"
+            f"Telegram: <b>{target_username}</b>",
             parse_mode="HTML",
             reply_markup=match_keyboard(target_username),
         )
         try:
             await message.bot.send_message(
                 target_id,
-                f"🎉 <b>Мэтч!</b>\n\n"
-                f"<b>{html.escape(my_name)}</b> тоже заинтересован(а) в тебе!\n"
-                f"Его/её Telegram: <b>{my_username}</b>",
+                f"🎉 <b>Это взаимно!</b>\n\n"
+                f"Ты и <b>{html.escape(my_name)}</b> понравились друг другу!\n"
+                f"Telegram: <b>{my_username}</b>",
                 parse_mode="HTML",
                 reply_markup=match_keyboard(my_username),
             )

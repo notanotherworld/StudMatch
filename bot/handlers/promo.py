@@ -30,7 +30,7 @@ async def cmd_promo(message: Message, state: FSMContext, db: AsyncSession):
     )
     await message.answer(
         "🎁 <b>Ввод промокода</b>\n\n"
-        "Отправьте промокод в ответном сообщении, чтобы получить суперлайки, буст или баллы рейтинга:",
+        "Отправь промокод сообщением в чат, чтобы получить суперлайки, буст или баллы рейтинга:",
         reply_markup=keyboard,
         parse_mode="HTML",
     )
@@ -45,7 +45,7 @@ async def cb_enter_promo(callback: CallbackQuery, state: FSMContext):
     )
     await callback.message.answer(
         "🎁 <b>Ввод промокода</b>\n\n"
-        "Отправьте промокод сообщением в чат:",
+        "Отправь промокод сообщением в чат:",
         reply_markup=keyboard,
         parse_mode="HTML",
     )

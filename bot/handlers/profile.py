@@ -29,8 +29,8 @@ async def start_profile_creation(message: Message, state: FSMContext) -> None:
     await state.set_state(ProfileState.waiting_name)
     await message.answer(
         "📋 <b>Создание анкеты «❤️ Знакомства»</b>\n\n"
-        "<b>Вопрос 1/6: Имя</b>\n"
-        "Как тебя зовут?",
+        "<b>Шаг 1 из 8 — Как тебя зовут?</b>\n"
+        "Напиши своё имя (от 2 до 50 символов):",
         parse_mode="HTML",
         reply_markup=cancel_reply_keyboard(),
     )
@@ -50,8 +50,8 @@ async def start_career_profile_creation(event, state: FSMContext, user: User, db
     await state.update_data(selected_career_skills=[], user_id=user.id)
     
     await message.answer(
-        "🎯 <b>Анкета «Карьера»: Шаг 1/4 — Навыки и стек</b>\n\n"
-        "Выбери ключевые навыки из списка (можно выбрать несколько) или напиши свои.\n"
+        "🎯 <b>Анкета «Карьера»: Шаг 1 из 5 — Навыки и стек</b>\n\n"
+        "Выбери ключевые навыки из списка (можно несколько) или напиши свои.\n"
         "Когда закончишь — нажми <b>✔️ Готово</b>:",
         parse_mode="HTML",
         reply_markup=career_skills_keyboard([]),
@@ -184,7 +184,7 @@ async def process_name(message: Message, state: FSMContext, user: User, db: Asyn
     await state.set_state(ProfileState.waiting_age)
     await message.answer(
         f"👋 Отлично, <b>{name}</b>!\n\n"
-        "<b>Вопрос 2/6: Возраст</b>\n"
+        "<b>Шаг 2 из 8 — Твой возраст</b>\n"
         "Сколько тебе лет? Напиши число (16–35) или выбери кнопку ниже:",
         parse_mode="HTML",
         reply_markup=age_keyboard(),
@@ -210,8 +210,7 @@ async def process_age_callback(callback: CallbackQuery, state: FSMContext):
     await state.set_state(ProfileState.waiting_year)
     await callback.message.answer(
         f"✅ Возраст: <b>{age} лет</b> записан!\n\n"
-        "<b>Вопрос 3/6: Курс</b>\n"
-        "На каком ты курсе?",
+        "<b>Шаг 3 из 8 — На каком ты курсе?</b>",
         parse_mode="HTML",
         reply_markup=year_keyboard(),
     )
@@ -231,8 +230,7 @@ async def process_age_message(message: Message, state: FSMContext):
     await state.set_state(ProfileState.waiting_year)
     await message.answer(
         f"✅ Возраст: <b>{age} лет</b> записан!\n\n"
-        "<b>Вопрос 3/6: Курс</b>\n"
-        "На каком ты курсе?",
+        "<b>Шаг 3 из 8 — На каком ты курсе?</b>",
         parse_mode="HTML",
         reply_markup=year_keyboard(),
     )
@@ -248,8 +246,8 @@ async def process_year(callback: CallbackQuery, state: FSMContext):
     await state.set_state(ProfileState.waiting_major)
     await callback.message.answer(
         f"✅ <b>{year} курс</b> записан!\n\n"
-        "<b>Вопрос 4/6: Факультет</b>\n"
-        "Выбери свой институт / факультет РУДН ниже или введи вручную:",
+        "<b>Шаг 4 из 8 — Институт / Факультет</b>\n"
+        "Выбери свой институт РУДН ниже или введи вручную:",
         parse_mode="HTML",
         reply_markup=rudn_institutes_keyboard(),
     )
@@ -270,9 +268,9 @@ async def process_major_callback(callback: CallbackQuery, state: FSMContext, db:
     await state.set_state(ProfileState.waiting_interests)
     await callback.message.answer(
         f"✅ Институт: <b>{html.escape(major)}</b>\n\n"
-        "<b>Вопрос 5/6: Интересы</b>\n"
+        "<b>Шаг 5 из 8 — Твои интересы</b>\n"
         "Выбери свои интересы (можно несколько).\n"
-        "Нажми <b>«✔️ Готово»</b> когда выберешь всё.",
+        "Нажми <b>«✔️ Готово»</b> когда выберешь всё:",
         parse_mode="HTML",
         reply_markup=interests_keyboard(tags, selected=[]),
     )
@@ -297,9 +295,10 @@ async def process_major(message: Message, state: FSMContext, db: AsyncSession):
 
     await state.set_state(ProfileState.waiting_interests)
     await message.answer(
-        "<b>Вопрос 4/5</b>\n"
+        f"✅ Институт: <b>{html.escape(major)}</b>\n\n"
+        "<b>Шаг 5 из 8 — Твои интересы</b>\n"
         "Выбери свои интересы (можно несколько).\n"
-        "Нажми <b>«✔️ Готово»</b> когда выберешь всё.",
+        "Нажми <b>«✔️ Готово»</b> когда выберешь всё:",
         parse_mode="HTML",
         reply_markup=interests_keyboard(tags, selected=[]),
     )
@@ -343,9 +342,9 @@ async def process_interest(callback: CallbackQuery, state: FSMContext, user: Use
 
         await state.set_state(ProfileState.waiting_goal)
         await callback.message.answer(
-            "<b>Вопрос 5/5</b>\n"
-            "Расскажи о своей цели на платформе.\n"
-            "<i>(Например: ищу партнёра для стартапа, хочу познакомиться с новыми людьми...)</i>",
+            "<b>Шаг 6 из 8 — О себе и цель</b>\n"
+            "Расскажи о себе и кого ты хочешь найти:\n"
+            "<i>(Например: учусь в РУДН, ищу команду на кейс-чемпионат, новых друзей или любовь ❤️)</i>",
             parse_mode="HTML",
         )
         return
@@ -405,15 +404,15 @@ async def process_custom_interest(message: Message, state: FSMContext, user: Use
         )
 
 
-# ─── Вопрос 5: Цель ───────────────────────────────────────────
+# ─── Вопрос 6: Цель / О себе ──────────────────────────────────
 @router.message(ProfileState.waiting_goal)
 async def process_goal(message: Message, state: FSMContext):
     if not message.text:
-        await message.answer("⚠️ Пожалуйста, напиши свою цель текстом (от 10 до 300 символов).")
+        await message.answer("⚠️ Пожалуйста, напиши пару слов о себе и цели текстом (от 10 до 300 символов).")
         return
     raw_goal = message.text.strip()
     if len(raw_goal) < 10 or len(raw_goal) > 300:
-        await message.answer("Цель должна быть от 10 до 300 символов.")
+        await message.answer("Текст о себе должен быть от 10 до 300 символов. Попробуй ещё раз.")
         return
 
     goal = html.escape(raw_goal)
@@ -421,7 +420,8 @@ async def process_goal(message: Message, state: FSMContext):
     await state.set_state(ProfileState.waiting_gender)
     from bot.keyboards.swipe import gender_keyboard
     await message.answer(
-        "👫 <b>Укажи твой пол:</b>",
+        "👫 <b>Шаг 7 из 8 — Твой пол</b>\n"
+        "Укажи свой пол:",
         parse_mode="HTML",
         reply_markup=gender_keyboard(),
     )
@@ -436,7 +436,8 @@ async def process_gender(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_reply_markup(reply_markup=None)
     from bot.keyboards.swipe import target_gender_keyboard
     await callback.message.answer(
-        "❤️ <b>Кого ты ищешь для знакомств?</b>",
+        "❤️ <b>Шаг 7 из 8 — Кого ты ищешь для знакомств?</b>\n"
+        "Выбери, чьи анкеты показывать при поиске:",
         parse_mode="HTML",
         reply_markup=target_gender_keyboard(),
     )
@@ -479,7 +480,7 @@ async def process_target_gender(callback: CallbackQuery, state: FSMContext, user
     keep_hint = "\n<i>Или нажми <b>«📸 Оставить текущие фото/видео»</b>, если не хочешь их менять.</i>" if can_keep else ""
 
     await callback.message.answer(
-        "📸 <b>Медиа для анкеты Знакомств:</b>\n\n"
+        "📸 <b>Шаг 8 из 8 — Фото и видео профиля:</b>\n\n"
         "• Можно отправить <b>сразу альбомом</b> или по одному: <b>до 3 фото</b> и <b>1 видео</b> (до 10 МБ 🎥)\n"
         "• Первое фото станет твоей главной аватаркой.\n\n"
         f"<i>Выбери в галерее и отправь сразу 3 фото + видео, затем нажми <b>✔️ Завершить загрузку</b></i>{keep_hint}",
@@ -722,7 +723,7 @@ async def process_career_skill_callback(callback: CallbackQuery, state: FSMConte
         await callback.answer()
         await state.set_state(CareerProfileState.waiting_career_goal)
         await callback.message.answer(
-            "🎯 <b>Анкета «Карьера»: Шаг 2/4 — Карьерная цель и опыт</b>\n\n"
+            "🎯 <b>Анкета «Карьера»: Шаг 2 из 5 — Карьерная цель и опыт</b>\n\n"
             "Расскажи о своих целях и что ищешь:\n"
             "<i>(Например: Ищу стажировку Python-разработчиком, готовлюсь к хакатонам, ищу команду в стартап или ментора)</i>",
             parse_mode="HTML",
@@ -770,7 +771,7 @@ async def process_career_custom_skills(message: Message, state: FSMContext):
 async def process_career_goal(message: Message, state: FSMContext):
     raw_goal = message.text.strip()
     if len(raw_goal) < 5 or len(raw_goal) > 400:
-        await message.answer("Цель должна быть от 5 до 400 символов.")
+        await message.answer("Карьерная цель должна быть от 5 до 400 символов. Попробуй ещё раз.")
         return
 
     goal = html.escape(raw_goal)
@@ -783,9 +784,9 @@ async def process_career_goal(message: Message, state: FSMContext):
     builder.adjust(1)
 
     await message.answer(
-        "🔗 <b>Анкета «Карьера»: Шаг 3/4 — Портфолио / Резюме / GitHub</b>\n\n"
+        "🔗 <b>Анкета «Карьера»: Шаг 3 из 5 — Портфолио / Резюме / GitHub</b>\n\n"
         "Отправь ссылку на свой GitHub, Behance, Notion, резюме на HeadHunter или LinkedIn:\n"
-        "<i>(Если ссылки нет, нажми «Пропустить»)</i>",
+        "<i>(Если ссылки пока нет, нажми «Пропустить ⏭»)</i>",
         parse_mode="HTML",
         reply_markup=builder.as_markup(),
     )
@@ -798,7 +799,7 @@ async def process_portfolio_skip(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer(
-        "💼 <b>Анкета «Карьера»: Шаг 4/4 — Формат работы</b>\n\n"
+        "💼 <b>Анкета «Карьера»: Шаг 4 из 5 — Формат работы</b>\n\n"
         "Какой формат работы тебе наиболее интересен?",
         parse_mode="HTML",
         reply_markup=career_work_format_keyboard(),
@@ -815,7 +816,7 @@ async def process_portfolio_url(message: Message, state: FSMContext):
     await state.set_state(CareerProfileState.waiting_career_work_format)
 
     await message.answer(
-        "💼 <b>Анкета «Карьера»: Шаг 4/4 — Формат работы</b>\n\n"
+        "💼 <b>Анкета «Карьера»: Шаг 4 из 5 — Формат работы</b>\n\n"
         "Какой формат работы тебе наиболее интересен?",
         parse_mode="HTML",
         reply_markup=career_work_format_keyboard(),
@@ -845,7 +846,7 @@ async def process_career_work_format(callback: CallbackQuery, state: FSMContext,
     builder.adjust(1)
 
     await callback.message.answer(
-        "📸 <b>Деловое фото для Карьеры</b>\n\n"
+        "📸 <b>Анкета «Карьера»: Шаг 5 из 5 — Деловое фото</b>\n\n"
         "Загрузи портретное/деловое фото для профессиональной анкеты.\n"
         "<i>Оно будет отображаться работодателям (HR) и студентам в карьерном поиске.</i>",
         parse_mode="HTML",

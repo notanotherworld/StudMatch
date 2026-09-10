@@ -121,7 +121,7 @@ async def edit_interests_prompt(callback: CallbackQuery, user: User, state: FSMC
 async def choose_edit_profile_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "✏️ <b>Какую анкету вы хотите отредактировать?</b>\n\n"
+        "✏️ <b>Какую анкету ты хочешь отредактировать?</b>\n\n"
         "• <b>Знакомства</b> — анкета для общения, хобби, поиска друзей и отношений\n"
         "• <b>Карьера</b> — профессиональная анкета с навыками, стеком технологий и резюме"
     )
@@ -568,14 +568,14 @@ async def show_referral_link(event, user: User, state: FSMContext = None):
     from urllib.parse import quote
     from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-    share_text = "Привет! Студмэч🌤 - твоя экосистема в вузе: проекты, работа, друзья и любовь в одном боте. Присоединяйся))"
+    share_text = "Привет! StudMatch — комьюнити твоего университета: проекты, стажировки, друзья и любовь в одном боте. Присоединяйся!"
     share_url = f"https://t.me/share/url?url={quote(ref_url)}&text={quote(share_text)}"
 
     builder = InlineKeyboardBuilder()
     builder.button(text="🚀 Поделиться с другом", url=share_url)
 
     text = (
-        f"🔗 <b>Приглашай друзей в СтудМэч!</b>\n\n"
+        f"🔗 <b>Приглашай друзей в StudMatch!</b>\n\n"
         f"Нажми на ссылку ниже или кнопку <b>«🚀 Поделиться с другом»</b>:\n"
         f"👉 <a href=\"{ref_url}\">{ref_url}</a>\n\n"
         f"🎁 За каждого зарегистрировавшегося друга ты получаешь <b>+3 ⭐️ Суперлайка</b>!"
@@ -615,8 +615,11 @@ async def show_my_profile(
     if profile.age:
         age_formatted = format_age(profile.age).lstrip(", ")
 
-    # Строка идентификации: Имя, 19 лет, РУДН, 2 курс
-    identity_parts = [f"<b>{name}</b>"]
+    # Бейдж верификации
+    ver_badge = " 🎓" if user.email_verified else ""
+
+    # Строка идентификации: Имя 🎓, 19 лет, РУДН, 2 курс
+    identity_parts = [f"<b>{name}</b>{ver_badge}"]
     if age_formatted:
         identity_parts.append(age_formatted)
     if univ_str:
@@ -630,27 +633,24 @@ async def show_my_profile(
     # Верхняя строка премиума
     top_line = "Premium 💎\n" if user.is_premium else ""
 
-    # Статус верификации
-    if user.email_verified:
-        verified_block = f"Верификация: подтверждена ✅ ({univ_str})\n\n"
-    elif getattr(settings, "EMAIL_VERIFICATION_ENABLED", False):
-        verified_block = "Верификация: не подтверждена (+100⭐)\n\n"
-    else:
-        verified_block = ""
-
-    # Служебный блок внизу
+    # Блок статуса аккаунта
+    account_info = []
     if user.is_premium and user.premium_until:
         prem_date = user.premium_until.strftime("%d.%m.%Y")
-        prem_info = f"Премиум: активен до {prem_date} ✅"
+        account_info.append(f"• Премиум: <b>активен до {prem_date}</b> ✅")
     else:
-        prem_info = "Премиум: не активен"
+        account_info.append("• Премиум: <b>не активен</b>")
 
-    superlikes_info = f"Суперлайков: {user.superlike_balance}"
-    if user.email or getattr(settings, "EMAIL_VERIFICATION_ENABLED", False):
-        email_info = f"\nПочта: {email_str}"
-    else:
-        email_info = ""
-    major_block = f"{major}\n" if major else ""
+    account_info.append(f"• Суперлайки: <b>{user.superlike_balance} ⭐️</b>")
+    if user.email_verified:
+        account_info.append(f"• Верификация: <b>подтверждена</b> ({univ_str}) 🎓")
+    elif getattr(settings, "EMAIL_VERIFICATION_ENABLED", False):
+        account_info.append("• Верификация: <b>не подтверждена</b> (нажми кнопку ниже)")
+
+    if user.email:
+        account_info.append(f"• Почта: <code>{email_str}</code>")
+
+    status_block = "\n".join(account_info)
 
     if is_career_view:
         # Карьерная анкета
@@ -658,35 +658,34 @@ async def show_my_profile(
         skills_text = html.escape(profile.career_custom_skills or "Не указаны")
         goal_text = html.escape(profile.career_goal or "Не указана")
         work_fmt = html.escape(profile.career_work_format or "Не указан")
-        portfolio_block = f"\n\nПортфолио / Резюме:\n{html.escape(profile.career_portfolio_url)}" if profile.career_portfolio_url else ""
-        status_line = "Статус анкеты: заполнена ✅" if profile.career_is_complete else "Статус анкеты: не заполнена ⚠️"
+        status_line = "✅ Заполнена" if profile.career_is_complete else "⚠️ Не заполнена"
 
-        text = (
-            f"{top_line}"
-            f"{identity_line}\n"
-            f"🎯 Карьера\n\n"
-            f"{status_line}\n"
-            f"{verified_block}"
-            f"{major_block}"
-            f"Формат: {work_fmt}\n"
-            f"Рейтинг: {score_val:.0f} б.\n\n"
-            f"Навыки и стек:\n{skills_text}\n\n"
-            f"Цель / Опыт:\n{goal_text}"
-            f"{portfolio_block}\n\n"
-            f"{prem_info}\n"
-            f"{superlikes_info}"
-            f"{email_info}"
-        )
+        parts = []
+        if top_line:
+            parts.append(top_line.strip())
+        parts.append(identity_line)
+        parts.append(f"🎯 <b>Карьера</b> ({status_line})")
+        if major:
+            parts.append(f"🏛 {major}")
+        parts.append(f"💼 Формат: {work_fmt}")
+        parts.append(f"⭐ Рейтинг: <b>{score_val:.0f} б.</b>")
+        parts.append(f"\n💻 <b>Навыки и стек:</b>\n{skills_text}")
+        parts.append(f"\n🎯 <b>Цель / Опыт:</b>\n{goal_text}")
+        if profile.career_portfolio_url:
+            parts.append(f"\n🔗 <b>Портфолио / Резюме:</b>\n{html.escape(profile.career_portfolio_url)}")
+        parts.append(f"\n📊 <b>Твой аккаунт:</b>\n{status_block}")
+
+        text = "\n".join(parts)
         current_view_param = "career"
     else:
         # Анкета Знакомств
         photo_file_id = profile.avatar_file_id
         g_str = "Парень" if profile.gender == "male" else ("Девушка" if profile.gender == "female" else None)
         tg_str = "Девушек" if profile.target_gender == "female" else ("Парней" if profile.target_gender == "male" else ("Всех" if profile.target_gender == "all" else None))
-        gender_block = f"Пол: {g_str} · Ищу: {tg_str}\n" if (g_str and tg_str) else (f"Пол: {g_str}\n" if g_str else "")
+        gender_line = f"Пол: {g_str} · Ищу: {tg_str}" if (g_str and tg_str) else (f"Пол: {g_str}" if g_str else "")
 
         goal_text = html.escape(getattr(profile, "goal", "") or "Не заполнено")
-        status_line = "Статус анкеты: заполнена ✅" if profile.is_complete else "Статус анкеты: не заполнена ⚠️"
+        status_line = "✅ Заполнена" if profile.is_complete else "⚠️ Не заполнена"
 
         tags_text = ""
         if profile.interest_ids:
@@ -698,23 +697,24 @@ async def show_my_profile(
             interests_parts.append(tags_text)
         if profile.custom_interests:
             interests_parts.append(f"Свои: {html.escape(profile.custom_interests)}")
-        interests_block = ("\n\nИнтересы:\n" + "\n".join(interests_parts)) if interests_parts else ""
+        interests_block = "\n".join(interests_parts) if interests_parts else ""
 
-        text = (
-            f"{top_line}"
-            f"{identity_line}\n"
-            f"❤️ Знакомства\n\n"
-            f"{status_line}\n"
-            f"{verified_block}"
-            f"{major_block}"
-            f"{gender_block}"
-            f"Рейтинг: {score_val:.0f} б.\n\n"
-            f"О себе:\n{goal_text}"
-            f"{interests_block}\n\n"
-            f"{prem_info}\n"
-            f"{superlikes_info}"
-            f"{email_info}"
-        )
+        parts = []
+        if top_line:
+            parts.append(top_line.strip())
+        parts.append(identity_line)
+        parts.append(f"❤️ <b>Знакомства</b> ({status_line})")
+        if major:
+            parts.append(f"🏛 {major}")
+        if gender_line:
+            parts.append(f"👫 {gender_line}")
+        parts.append(f"⭐ Рейтинг: <b>{score_val:.0f} б.</b>")
+        parts.append(f"\n💬 <b>О себе:</b>\n{goal_text}")
+        if interests_block:
+            parts.append(f"\n🏷 <b>Интересы:</b>\n{interests_block}")
+        parts.append(f"\n📊 <b>Твой аккаунт:</b>\n{status_block}")
+
+        text = "\n".join(parts)
         current_view_param = "dating"
 
     reply_kb = my_profile_keyboard(user, current_view=current_view_param)
