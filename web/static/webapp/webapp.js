@@ -1569,6 +1569,16 @@
     if (e.target === matchProfileModal) matchProfileModal.classList.remove("active");
   });
 
+  document.getElementById("closeMatchProfileBtn")?.addEventListener("click", () => {
+    matchProfileModal?.classList.remove("active");
+    triggerHaptic("light");
+  });
+
+  document.getElementById("closeDetailsSheetBtn")?.addEventListener("click", () => {
+    closeDetailsSheet();
+    triggerHaptic("light");
+  });
+
   // 10. Раздел «Симпатии» (Incoming Likes)
   async function loadIncomingLikes() {
     const container = document.getElementById("likesContainer");

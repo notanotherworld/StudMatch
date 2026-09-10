@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260910_02" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v=20260910_03" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -245,7 +245,10 @@
     <!-- Candidate Details Bottom Sheet -->
     <div class="bottom-sheet-overlay" id="detailsSheetOverlay">
       <div class="bottom-sheet-content">
-        <div class="sheet-drag-handle"></div>
+        <div class="sheet-top-header">
+          <div class="sheet-drag-handle"></div>
+          <button class="sheet-close-circle-btn" id="closeDetailsSheetBtn" aria-label="Закрыть анкету">✕</button>
+        </div>
         <div class="sheet-body" id="detailsSheetBody">
           <!-- Dynamic Candidate Content -->
         </div>
@@ -356,9 +359,12 @@
     </div>
 
     <!-- Match Full Profile Modal -->
-    <div class="bottom-sheet-overlay" id="matchProfileModal">
+    <div class="bottom-sheet-overlay match-profile-overlay" id="matchProfileModal">
       <div class="bottom-sheet-content">
-        <div class="sheet-drag-handle"></div>
+        <div class="sheet-top-header">
+          <div class="sheet-drag-handle"></div>
+          <button class="sheet-close-circle-btn" id="closeMatchProfileBtn" aria-label="Закрыть анкету">✕</button>
+        </div>
         <div class="sheet-body" id="matchProfileBody">
           <!-- Dynamic Match Content -->
         </div>

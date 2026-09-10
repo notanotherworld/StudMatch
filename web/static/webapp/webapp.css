@@ -1522,6 +1522,61 @@ body {
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* ─── Bottom Sheets Stacking Hierarchy ───────────────────────── */
+.hall-of-fame-overlay {
+  z-index: 180;
+}
+
+.match-profile-overlay,
+#matchProfileModal,
+#detailsSheetOverlay {
+  z-index: 260;
+  background: rgba(12, 12, 22, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.sheet-top-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 12px;
+  min-height: 28px;
+}
+
+.sheet-top-header .sheet-drag-handle {
+  margin: 0 auto;
+}
+
+.sheet-close-circle-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
+}
+
+.sheet-close-circle-btn:active {
+  transform: translateY(-50%) scale(0.88);
+  background: rgba(0, 0, 0, 0.14);
+  color: var(--text-main);
+}
+
 .sheet-drag-handle {
   width: 44px;
   height: 5px;
