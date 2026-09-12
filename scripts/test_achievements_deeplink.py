@@ -107,7 +107,7 @@ def test_webapp_html_and_js_contain_button_handlers():
 
     assert 'id="openBotAchievementsBtn"' in html_content
     assert 'Отправить диплом боту' in html_content
-    assert '20260912_14' in html_content
+    assert '20260912_15' in html_content
     # Persistent nav checks
     assert 'id="bottomNavWrap"' in html_content
     assert 'bottom-nav-wrap collapsed' not in html_content

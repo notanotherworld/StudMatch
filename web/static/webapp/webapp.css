@@ -4177,3 +4177,65 @@ img, video, canvas {
   color: var(--primary);
 }
 
+/* Sheet Rating Badge */
+.sheet-rating-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: linear-gradient(135deg, rgba(255, 184, 0, 0.16), rgba(255, 101, 132, 0.16));
+  border: 1px solid rgba(255, 184, 0, 0.4);
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #D97706;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+/* Button to send rating from superlikes */
+.btn-send-rating {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 18px;
+  background: linear-gradient(135deg, #FF9F43 0%, #FFB800 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 16px;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(255, 159, 67, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  user-select: none;
+  margin-top: 8px;
+  margin-bottom: 6px;
+}
+
+.btn-send-rating:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(255, 159, 67, 0.45);
+}
+
+.btn-send-rating:active {
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px rgba(255, 159, 67, 0.25);
+}
+
+.btn-send-rating .btn-rating-icon {
+  font-size: 16px;
+}
+
+.btn-send-rating .btn-rating-balance {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 800;
+  background: rgba(0, 0, 0, 0.16);
+  padding: 3px 8px;
+  border-radius: 10px;
+  color: #fff;
+}
+

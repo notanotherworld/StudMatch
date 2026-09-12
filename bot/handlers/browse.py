@@ -19,7 +19,7 @@ from bot.keyboards.swipe import (
     letter_received_keyboard, match_keyboard, incoming_like_keyboard,
 )
 from bot.states.fsm import LetterState
-from database.crud import get_next_profile, create_swipe, get_user, deduct_superlike, get_match_between_users
+from database.crud import get_next_profile, create_swipe, get_user, deduct_superlike, get_match_between_users, transfer_superlike_rating
 from database.models import User, Profile, InterestTag, SwipeAction, ModeEnum, Swipe
 
 import logging
@@ -603,6 +603,10 @@ async def view_match_profile(callback: CallbackQuery, user: User, db: AsyncSessi
         if partner.mode == ModeEnum.career and partner.profile.career_portfolio_url:
             builder.button(text="💼 Портфолио / Резюме", url=partner.profile.career_portfolio_url)
 
+        builder.button(
+            text=f"⭐ Подарить +1 к рейтингу ({user.superlike_balance} ⭐️)",
+            callback_data=f"gift:rating:{partner.id}",
+        )
         builder.button(text="🔙 Назад к списку мэтчей", callback_data="match:list")
         builder.adjust(1)
         reply_kb = builder.as_markup()
@@ -645,6 +649,100 @@ async def view_match_profile(callback: CallbackQuery, user: User, db: AsyncSessi
     except Exception as e:
         logger.error(f"Error viewing match profile {partner_id}: {e}", exc_info=True)
         await callback.answer("Ошибка при загрузке анкеты.", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("gift:rating:"))
+async def handle_gift_rating(callback: CallbackQuery, user: User, db: AsyncSession):
+    """Отправка 1 балла рейтинга из суперлайков пользователю."""
+    try:
+        target_id = int(callback.data.split(":")[2])
+    except (IndexError, ValueError):
+        await callback.answer("Ошибка отправки рейтинга.", show_alert=True)
+        return
+
+    if target_id == user.id:
+        await callback.answer("Нельзя отправить рейтинг самому себе.", show_alert=True)
+        return
+
+    from bot.keyboards.swipe import buy_superlike_keyboard
+    from bot.utils.dynamic_settings import get_payment_products_catalog, get_dynamic_pricing
+
+    # Проверяем баланс суперлайков
+    if (user.superlike_balance or 0) <= 0:
+        await callback.answer("У тебя закончились суперлайки ⭐️", show_alert=True)
+        catalog = await get_payment_products_catalog()
+        pricing = await get_dynamic_pricing()
+        await callback.message.answer(
+            "💡 <b>Закончились суперлайки?</b>\n\n"
+            "Суперлайки пополняются ежедневно, либо ты можешь приобрести дополнительный пакет:",
+            parse_mode="HTML",
+            reply_markup=buy_superlike_keyboard(catalog=catalog, pricing=pricing),
+        )
+        return
+
+    result = await transfer_superlike_rating(db, user.id, target_id)
+    if not result.get("success"):
+        error = result.get("error")
+        if error == "insufficient_balance":
+            await callback.answer("У тебя закончились суперлайки ⭐️", show_alert=True)
+            catalog = await get_payment_products_catalog()
+            pricing = await get_dynamic_pricing()
+            await callback.message.answer(
+                "💡 <b>Закончились суперлайки?</b>\n\n"
+                "Суперлайки пополняются ежедневно, либо ты можешь приобрести дополнительный пакет:",
+                parse_mode="HTML",
+                reply_markup=buy_superlike_keyboard(catalog=catalog, pricing=pricing),
+            )
+        else:
+            await callback.answer("Не удалось отправить рейтинг.", show_alert=True)
+        return
+
+    target_name = result.get("target_name") or "пользователю"
+    rem_balance = result.get("remaining_superlikes", 0)
+    new_rating = result.get("new_target_rating", 0.0)
+
+    # Всплывающий алерт для отправителя
+    await callback.answer(
+        f"⭐ Ты подарил 1 балл рейтинга {target_name}!\n"
+        f"Рейтинг стал: {new_rating:.0f} б.\n"
+        f"Твой баланс: {rem_balance} ⭐️",
+        show_alert=True,
+    )
+
+    # Отправляем уведомление получателю в боте
+    sender_name = user.profile.name if (user.profile and user.profile.name) else "Студент"
+    try:
+        await callback.bot.send_message(
+            chat_id=target_id,
+            text=f"⭐ <b>{html.escape(sender_name)}</b> отправил(а) тебе суперлайк (+1 к рейтингу)!",
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to notify target user {target_id} of rating gift: {e}")
+
+    # Обновляем кнопку с новым балансом суперлайков на текущем сообщении
+    try:
+        partner = await get_user(db, target_id)
+        if partner:
+            m = await get_match_between_users(db, user.id, partner.id)
+            builder = InlineKeyboardBuilder()
+            if m and m.is_tg_unlocked and partner.tg_username:
+                clean_username = partner.tg_username.lstrip("@")
+                builder.button(text=f"✈️ Написать в Telegram (@{clean_username})", url=f"https://t.me/{clean_username}")
+            else:
+                chat_url = f"{settings.webapp_url}?startapp=chat_{m.id}" if m else settings.webapp_url
+                builder.button(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=chat_url))
+            if partner.mode == ModeEnum.career and partner.profile.career_portfolio_url:
+                builder.button(text="💼 Портфолио / Резюме", url=partner.profile.career_portfolio_url)
+            builder.button(
+                text=f"⭐ Подарить +1 к рейтингу ({rem_balance} ⭐️)",
+                callback_data=f"gift:rating:{partner.id}",
+            )
+            builder.button(text="🔙 Назад к списку мэтчей", callback_data="match:list")
+            builder.adjust(1)
+            await callback.message.edit_reply_markup(reply_markup=builder.as_markup())
+    except Exception as e:
+        logger.debug(f"Failed to edit markup after gifting rating: {e}")
 
 
 @router.callback_query(F.data == "profile:incoming_likes")

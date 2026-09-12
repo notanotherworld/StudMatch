@@ -86,6 +86,50 @@ async def add_superlikes(db: AsyncSession, user_id: int, amount: int) -> None:
     await db.commit()
 
 
+async def transfer_superlike_rating(db: AsyncSession, from_user_id: int, to_user_id: int) -> dict:
+    """
+    Передать 1 суперлайк от from_user_id пользователю to_user_id в виде +1 к его Profile.rating_score.
+    Атомарная операция: списывает 1 суперлайк с баланса и начисляет +1.0 к рейтингу.
+    """
+    if from_user_id == to_user_id:
+        return {"success": False, "error": "self_transfer_forbidden"}
+
+    target_user = await get_user(db, to_user_id)
+    if not target_user or not target_user.profile:
+        return {"success": False, "error": "target_not_found"}
+
+    deducted = await deduct_superlike(db, from_user_id)
+    if not deducted:
+        sender = await get_user(db, from_user_id)
+        remaining = sender.superlike_balance if sender else 0
+        return {
+            "success": False,
+            "error": "insufficient_balance",
+            "remaining_superlikes": remaining,
+        }
+
+    await db.execute(
+        update(Profile)
+        .where(Profile.id == target_user.profile.id)
+        .values(rating_score=func.coalesce(Profile.rating_score, 0.0) + 1.0)
+    )
+    await db.commit()
+
+    sender = await get_user(db, from_user_id)
+    refreshed_target = await get_user(db, to_user_id)
+
+    new_target_rating = round(refreshed_target.profile.rating_score or 0.0, 1) if (refreshed_target and refreshed_target.profile) else 0.0
+    remaining_superlikes = sender.superlike_balance if sender else 0
+
+    return {
+        "success": True,
+        "new_target_rating": new_target_rating,
+        "remaining_superlikes": remaining_superlikes,
+        "target_name": (refreshed_target.profile.name if refreshed_target and refreshed_target.profile else "Студент"),
+        "sender_name": (sender.profile.name if sender and sender.profile else "Студент"),
+    }
+
+
 # ─────────────────────────────────────────────────────────────
 # Universities
 # ─────────────────────────────────────────────────────────────

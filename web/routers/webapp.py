@@ -37,6 +37,7 @@ from database.crud import (
     deduct_superlike, get_match_by_id, get_chat_messages, create_chat_message,
     mark_chat_messages_as_read, get_unread_messages_count, get_last_chat_message,
     approve_match_telegram, delete_match_by_id, get_match_between_users,
+    transfer_superlike_rating,
 )
 
 logger = logging.getLogger(__name__)
@@ -205,9 +206,9 @@ async def webapp_auth(
     Если пользователь новый — создает учетную запись.
     """
     tg_user = verify_telegram_init_data(payload.init_data, settings.BOT_TOKEN)
-    
-    # Для локальной разработки в режиме отладки
-    if not tg_user and settings.BOT_TOKEN.startswith("test_") and payload.init_data == "dev_mock":
+
+    # Мок только в явном DEBUG-режиме (не в production — BOT_TOKEN.startswith("test_") убран)
+    if not tg_user and _DEBUG and payload.init_data == "dev_mock":
         tg_user = {"id": 100001, "username": "test_student", "first_name": "Тестовый"}
 
     if not tg_user:
@@ -1219,6 +1220,59 @@ async def webapp_toggle_mode(
     student.mode = new_mode
     await db.commit()
     return {"status": "ok", "mode": new_mode.value}
+
+
+# ─── API: Отправка рейтинга из суперлайков ────────────────────
+class SendRatingRequest(BaseModel):
+    target_user_id: int
+
+
+@router.post("/api/webapp/profile/send_rating")
+async def webapp_send_rating(
+    payload: SendRatingRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Отправить 1 балл рейтинга из имеющихся суперлайков студента другому пользователю.
+    Списывает 1 суперлайк у student, прибавляет +1.0 к Profile.rating_score получателя
+    и отправляет ему уведомление в Telegram.
+    """
+    if payload.target_user_id == student.id:
+        raise HTTPException(status_code=400, detail="Нельзя отправить рейтинг самому себе")
+
+    result = await transfer_superlike_rating(db, student.id, payload.target_user_id)
+    if not result.get("success"):
+        error = result.get("error")
+        if error == "insufficient_balance":
+            raise HTTPException(status_code=400, detail="Недостаточно суперлайков на балансе")
+        elif error == "target_not_found":
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+        elif error == "self_transfer_forbidden":
+            raise HTTPException(status_code=400, detail="Нельзя отправить рейтинг самому себе")
+        else:
+            raise HTTPException(status_code=400, detail="Не удалось отправить рейтинг")
+
+    # Отправляем уведомление получателю в Telegram
+    try:
+        from aiogram import Bot
+        bot = Bot(token=settings.BOT_TOKEN)
+        sender_name = html.escape(result.get("sender_name") or "Студент")
+        await bot.send_message(
+            chat_id=payload.target_user_id,
+            text=f"⭐ <b>{sender_name}</b> отправил(а) тебе суперлайк (+1 к рейтингу)!",
+            parse_mode="HTML",
+        )
+        await bot.session.close()
+    except Exception as e:
+        logger.warning(f"Failed to notify recipient of superlike rating gift: {e}")
+
+    return {
+        "status": "ok",
+        "new_target_rating": result.get("new_target_rating"),
+        "remaining_superlikes": result.get("remaining_superlikes"),
+        "target_name": result.get("target_name"),
+    }
 
 
 # ─── API: StudMatch Career Networking ───────────────────────

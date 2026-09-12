@@ -1073,6 +1073,52 @@
     }
   }
 
+  // 5.5 Отправка рейтинга из имеющихся суперлайков
+  async function handleSendRatingToUser(targetUserId, onRatingUpdated) {
+    const currentBalance = state.currentUser?.superlike_balance || 0;
+    if (currentBalance <= 0) {
+      triggerHaptic("warning");
+      openSuperlikeModal({ id: targetUserId, user_id: targetUserId });
+      return;
+    }
+
+    try {
+      triggerHaptic("medium");
+      const resp = await apiFetch("/api/webapp/profile/send_rating", {
+        method: "POST",
+        body: JSON.stringify({ target_user_id: targetUserId }),
+      });
+
+      if (!resp) return;
+
+      if (resp.status === "ok") {
+        triggerHaptic("success");
+        if (state.currentUser) {
+          state.currentUser.superlike_balance = resp.remaining_superlikes;
+        }
+        if (typeof onRatingUpdated === "function") {
+          onRatingUpdated(resp.new_target_rating, resp.remaining_superlikes);
+        }
+        const balLabel = document.getElementById("superlikeBalanceLabel");
+        if (balLabel) balLabel.textContent = resp.remaining_superlikes;
+        if (tg && tg.showAlert) {
+          tg.showAlert(`⭐ Вы отправили 1 суперлайк! Рейтинг пользователя увеличен на +1. Осталось суперлайков: ${resp.remaining_superlikes} ⭐`);
+        }
+      } else {
+        triggerHaptic("warning");
+        if (tg && tg.showAlert) {
+          tg.showAlert(resp.detail || "Не удалось отправить рейтинг.");
+        }
+      }
+    } catch (e) {
+      console.error("Error sending rating:", e);
+      triggerHaptic("warning");
+      if (tg && tg.showAlert) {
+        tg.showAlert("Ошибка при отправке рейтинга. Проверьте баланс.");
+      }
+    }
+  }
+
   // 6. Детальный Bottom Sheet анкеты (ℹ️)
   function openDetailsSheet(profile) {
     triggerHaptic("medium");
@@ -1109,10 +1155,13 @@
       <div class="sheet-gallery">${galleryHtml}</div>
 
       <div>
-        <h2 style="font-size: 24px; font-weight: 800; margin-bottom: 4px;">
-          ${escapeHtml(profile.name)}, ${profile.age || ""}
-          ${profile.is_verified ? "🎓" : ""} ${profile.is_premium ? "💎" : ""}
-        </h2>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">
+          <h2 style="font-size: 24px; font-weight: 800; margin: 0;">
+            ${escapeHtml(profile.name)}, ${profile.age || ""}
+            ${profile.is_verified ? "🎓" : ""} ${profile.is_premium ? "💎" : ""}
+          </h2>
+          <span class="sheet-rating-badge" id="sheetRatingBadge">⭐ <span id="sheetRatingVal">${profile.rating_score || 0}</span></span>
+        </div>
         <p style="font-size: 14px; color: var(--text-muted);">
           🏛 ${profile.university || "ВУЗ"} ${profile.major ? `• ${profile.major}` : ""} ${profile.year ? `• ${profile.year} курс` : ""}
         </p>
@@ -1134,6 +1183,12 @@
       ` : ""}
 
       ${careerSection}
+
+      <button type="button" class="btn-send-rating" id="sheetSendRatingBtn">
+        <span class="btn-rating-icon">⭐</span>
+        <span class="btn-rating-text">Отправить рейтинг (+1 б.)</span>
+        <span class="btn-rating-balance" id="sheetRatingBalance">${state.currentUser?.superlike_balance || 0} ⭐</span>
+      </button>
 
       ${state.currentUser?.is_superadmin || state.currentUser?.id === 149620234 ? `
         <div class="admin-quick-toolbar" style="margin-top:14px;padding:12px;background:#f8f9fe;border-radius:14px;border:1px dashed #6c5ce7;">
@@ -1192,6 +1247,20 @@
         await loadStories();
       });
     }
+
+    document.getElementById("sheetSendRatingBtn")?.addEventListener("click", () => {
+      const targetUserId = profile.user_id || profile.id;
+      handleSendRatingToUser(targetUserId, (newRating, remainingBalance) => {
+        profile.rating_score = newRating;
+        const rVal = document.getElementById("sheetRatingVal");
+        if (rVal) rVal.textContent = newRating;
+        const bTag = document.getElementById("sheetRatingBalance");
+        if (bTag) bTag.textContent = `${remainingBalance} ⭐`;
+        // Обновляем бейдж на карточке свайпа, если карточка сейчас активна
+        const topCardRating = document.querySelector(".card.top-card .card-rating-badge span");
+        if (topCardRating) topCardRating.textContent = newRating;
+      });
+    });
 
     document.getElementById("sheetDislikeBtn")?.addEventListener("click", () => {
       closeDetailsSheet();
@@ -1617,12 +1686,25 @@
         `;
       }
 
+      if (!u.is_me) {
+        actionButtonsHtml += `
+          <button type="button" class="btn-send-rating" id="matchSendRatingBtn">
+            <span class="btn-rating-icon">⭐</span>
+            <span class="btn-rating-text">Отправить рейтинг (+1 б.)</span>
+            <span class="btn-rating-balance" id="matchRatingBalance">${state.currentUser?.superlike_balance || 0} ⭐</span>
+          </button>
+        `;
+      }
+
       body.innerHTML = `
         <div class="sheet-gallery">${gallery}</div>
         <div>
-          <h2 style="font-size: 24px; font-weight: 800; margin-bottom: 4px;">
-            ${escapeHtml(u.name)}, ${u.age || ""} ${u.is_verified ? "🎓" : ""} ${u.is_premium ? "💎" : ""}
-          </h2>
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">
+            <h2 style="font-size: 24px; font-weight: 800; margin: 0;">
+              ${escapeHtml(u.name)}, ${u.age || ""} ${u.is_verified ? "🎓" : ""} ${u.is_premium ? "💎" : ""}
+            </h2>
+            <span class="sheet-rating-badge" id="matchRatingBadge">⭐ <span id="matchRatingVal">${u.rating_score || 0}</span></span>
+          </div>
           <p style="font-size: 14px; color: var(--text-muted);">
             🏛 ${u.university || "ВУЗ"} ${u.major ? `• ${u.major}` : ""} ${u.year ? `• ${u.year} курс` : ""}
           </p>
@@ -1662,6 +1744,17 @@
           ${actionButtonsHtml}
         </div>
       `;
+
+      document.getElementById("matchSendRatingBtn")?.addEventListener("click", () => {
+        const targetUserId = u.id || u.user_id || partnerId;
+        handleSendRatingToUser(targetUserId, (newRating, remainingBalance) => {
+          u.rating_score = newRating;
+          const rVal = document.getElementById("matchRatingVal");
+          if (rVal) rVal.textContent = newRating;
+          const bTag = document.getElementById("matchRatingBalance");
+          if (bTag) bTag.textContent = `${remainingBalance} ⭐`;
+        });
+      });
 
       document.getElementById("btnOpenTelegramDirect")?.addEventListener("click", () => {
         triggerHaptic("medium");
