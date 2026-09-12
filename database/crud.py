@@ -602,6 +602,14 @@ async def create_swipe(
                     created_at=now,
                 )
             )
+        # Если отправлен суперлайк — начисляем получателю +1 балл к рейтингу
+        if action == SwipeAction.superlike:
+            await db.execute(
+                update(Profile)
+                .where(Profile.user_id == to_id)
+                .values(rating_score=func.coalesce(Profile.rating_score, 0.0) + 1.0)
+            )
+
         await db.commit()
 
         # Проверяем взаимный лайк в этом же режиме

@@ -806,7 +806,7 @@ async def send_like_notification(
 
     if action == SwipeAction.superlike:
         header = (
-            "⭐ <b>Тебе отправили суперлайк!</b>\n"
+            "⭐ <b>Тебе отправили суперлайк (+1 к рейтингу)!</b>\n"
             "<i>Пользователь очень хочет познакомиться с тобой:</i>\n\n"
         )
     else:
