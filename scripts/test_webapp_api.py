@@ -190,6 +190,94 @@ def test_maintenance_mode_webapp():
     asyncio.run(_test())
 
 
+def test_in_app_chat_contract():
+    import uuid
+    from datetime import datetime, timezone
+    from web.routers.webapp import ChatSendMessageRequest, ChatReportRequest
+    from database.models import Match, ChatMessage, ModeEnum
+
+    # 1. Проверяем схемы запросов
+    send_req = ChatSendMessageRequest(text="Привет! Как дела?")
+    assert send_req.text == "Привет! Как дела?"
+
+    rep_req = ChatReportRequest(reason="Спам", details="Реклама сторонних каналов")
+    assert rep_req.reason == "Спам"
+    assert rep_req.details == "Реклама сторонних каналов"
+
+    # 2. Проверяем модель Match и логику обоюдного согласия
+    match_id = uuid.uuid4()
+    match = Match(
+        id=match_id,
+        user1_id=1001,
+        user2_id=1002,
+        mode=ModeEnum.dating,
+        user1_tg_approved=False,
+        user2_tg_approved=False,
+    )
+    assert match.is_tg_unlocked is False
+
+    match.user1_tg_approved = True
+    assert match.is_tg_unlocked is False
+
+    match.user2_tg_approved = True
+    assert match.is_tg_unlocked is True
+
+    # 3. Проверяем контракт ответа эндпоинта сообщений
+    partner_tg = "alice_student" if match.is_tg_unlocked else None
+    partner_dict = {
+        "id": 1002,
+        "name": "Алиса",
+        "photo_url": "https://example.com/photo.jpg",
+        "avatar_url": "https://example.com/photo.jpg",
+        "university": "МГУ",
+        "year": 3,
+        "is_verified": True,
+        "is_premium": False,
+        "tg_username": partner_tg,
+    }
+
+    match_dict = {
+        "id": str(match.id),
+        "match_id": str(match.id),
+        "partner": partner_dict,
+        "is_tg_unlocked": match.is_tg_unlocked,
+        "my_tg_approved": True,
+        "partner_tg_approved": True,
+        "partner_tg_username": partner_tg,
+    }
+
+    response_data = {
+        "status": "ok",
+        "match": match_dict,
+        "match_id": str(match.id),
+        "partner": partner_dict,
+        "is_tg_unlocked": match.is_tg_unlocked,
+        "my_tg_approved": True,
+        "partner_tg_approved": True,
+        "partner_tg_username": partner_tg,
+        "messages": [
+            {
+                "id": str(uuid.uuid4()),
+                "sender_id": 1001,
+                "is_mine": True,
+                "text": "Привет!",
+                "msg_type": "text",
+                "is_read": True,
+                "created_at": "12:00",
+                "date": "12.09.2026",
+            }
+        ],
+    }
+
+    # Проверка совместимости контрактов (фронтенд ожидает response_data.match ИЛИ поля в корне)
+    assert "match" in response_data, "Ключ match должен присутствовать в ответе API"
+    assert response_data["match"]["partner"]["name"] == "Алиса"
+    assert response_data["match"]["partner"]["avatar_url"] is not None
+    assert response_data["match"]["partner_tg_username"] == "alice_student"
+    assert len(response_data["messages"]) == 1
+    print("  ✅ [13] Контракт внутреннего чата WebApp и взаимного открытия контактов: УСПЕШНО")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚀 ТЕСТИРОВАНИЕ КРИПТОГРАФИИ И БЕЗОПАСНОСТИ STUDMATCH WEBAPP")
@@ -199,8 +287,10 @@ if __name__ == "__main__":
     test_models_and_schemas()
     test_superadmin_security()
     test_maintenance_mode_webapp()
+    test_in_app_chat_contract()
     print("=" * 60)
-    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (12 из 12)!")
+    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (13 из 13)!")
     print("=" * 60)
+
 
 

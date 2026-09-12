@@ -528,9 +528,8 @@ async def filter_reset_callback(callback: CallbackQuery, user: User, db: AsyncSe
     await show_search_filters(callback, user)
 
 
-@router.callback_query(F.data == "settings:buy")
-async def show_buy(callback: CallbackQuery, user: User):
-    await callback.answer()
+async def send_buy_menu(target: Message | CallbackQuery, user: User):
+    """Отправляет витрину тарифов, суперлайков и бустов."""
     balance = user.superlike_balance
     from bot.utils.dynamic_settings import get_payment_products_catalog
     catalog = await get_payment_products_catalog()
@@ -549,12 +548,18 @@ async def show_buy(callback: CallbackQuery, user: User):
     lines.append("👉 <i>Выбери тариф для оплаты ниже:</i>")
 
     text = "\n\n".join(lines)
+    kb = buy_superlike_keyboard(catalog=active_products)
 
-    await callback.message.answer(
-        text,
-        parse_mode="HTML",
-        reply_markup=buy_superlike_keyboard(catalog=active_products),
-    )
+    if isinstance(target, CallbackQuery):
+        await target.answer()
+        await target.message.answer(text, parse_mode="HTML", reply_markup=kb)
+    else:
+        await target.answer(text, parse_mode="HTML", reply_markup=kb)
+
+
+@router.callback_query(F.data == "settings:buy")
+async def show_buy(callback: CallbackQuery, user: User):
+    await send_buy_menu(callback, user)
 
 
 @router.message(StateFilter("*"), F.text.func(lambda t: bool(t and ("Пригласить" in t or "ref" in t.lower()))))

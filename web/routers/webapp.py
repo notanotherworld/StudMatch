@@ -695,25 +695,43 @@ async def webapp_get_match_messages(
     my_tg_approved = bool(match.user1_tg_approved if match.user1_id == student.id else match.user2_tg_approved)
     partner_tg_approved = bool(match.user2_tg_approved if match.user1_id == student.id else match.user1_tg_approved)
 
-    return {
-        "status": "ok",
+    partner_tg = partner.tg_username if is_tg_unlocked else None
+
+    partner_dict = {
+        "id": partner.id,
+        "name": p.name if (p and p.name) else "Студент",
+        "photo_url": photo_url,
+        "avatar_url": photo_url,
+        "university": partner.university.short_name if partner.university else "",
+        "year": p.year if p else None,
+        "is_verified": getattr(partner, "email_verified", False),
+        "is_premium": getattr(partner, "is_premium", False),
+        # Скрыт до обоюдного согласия!
+        "tg_username": partner_tg,
+    }
+
+    match_dict = {
+        "id": str(match.id),
         "match_id": str(match.id),
-        "partner": {
-            "id": partner.id,
-            "name": p.name if (p and p.name) else "Студент",
-            "photo_url": photo_url,
-            "university": partner.university.short_name if partner.university else "",
-            "year": p.year if p else None,
-            "is_verified": getattr(partner, "email_verified", False),
-            "is_premium": getattr(partner, "is_premium", False),
-            # Скрыт до обоюдного согласия!
-            "tg_username": partner.tg_username if is_tg_unlocked else None,
-        },
+        "partner": partner_dict,
         "is_tg_unlocked": is_tg_unlocked,
         "my_tg_approved": my_tg_approved,
         "partner_tg_approved": partner_tg_approved,
+        "partner_tg_username": partner_tg,
+    }
+
+    return {
+        "status": "ok",
+        "match": match_dict,
+        "match_id": str(match.id),
+        "partner": partner_dict,
+        "is_tg_unlocked": is_tg_unlocked,
+        "my_tg_approved": my_tg_approved,
+        "partner_tg_approved": partner_tg_approved,
+        "partner_tg_username": partner_tg,
         "messages": messages_data,
     }
+
 
 
 @router.post("/api/webapp/matches/{match_id}/messages")

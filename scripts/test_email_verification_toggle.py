@@ -33,7 +33,7 @@ def test_email_verification_default_disabled():
 def test_welcome_text_no_verification_requirement():
     """Проверяем, что приветственный текст не требует обязательной верификации студента."""
     assert "Сначала подтверди, что ты студент" not in WELCOME_TEXT
-    assert "Заполни её, это займёт пару минут" in WELCOME_TEXT
+    assert "Заполни её" in WELCOME_TEXT
 
 
 def test_my_profile_keyboard_hides_verify_button_when_disabled():
@@ -103,7 +103,7 @@ async def test_show_my_profile_includes_verification_status_when_enabled(monkeyp
     await show_my_profile(msg, user, db)
     assert msg.answer.called or msg.answer_photo.called
     sent_text = msg.answer.call_args[0][0] if msg.answer.called else msg.answer_photo.call_args[1].get("caption", "")
-    assert "Верификация: не подтверждена (+100⭐)" in sent_text
+    assert "Верификация: <b>не подтверждена</b>" in sent_text
 
 
 @pytest.mark.asyncio

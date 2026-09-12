@@ -159,10 +159,10 @@ MIGRATION_STATEMENTS = [
     DO $$
     BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version') THEN
-            UPDATE alembic_version SET version_num = '023_swipe_modes_and_recycling';
+            UPDATE alembic_version SET version_num = '024_in_app_chat_and_telegram_reveal';
         ELSE
             CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));
-            INSERT INTO alembic_version (version_num) VALUES ('023_swipe_modes_and_recycling');
+            INSERT INTO alembic_version (version_num) VALUES ('024_in_app_chat_and_telegram_reveal');
         END IF;
     END $$;
     """

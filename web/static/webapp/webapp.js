@@ -1751,12 +1751,31 @@
 
     try {
       const data = await apiFetch(`/api/webapp/matches/${matchId}/messages`);
-      if (!data || !data.match) {
-        throw new Error("Не удалось загрузить диалог");
+      if (!data) {
+        throw new Error("Не удалось связаться с сервером");
+      }
+      if (data.status === "error" || data.detail) {
+        throw new Error(data.detail || "Не удалось загрузить диалог");
       }
 
-      currentChatMatchData = data.match;
-      currentChatPartner = data.match.partner;
+      // Принимаем данные диалога как из data.match, так и из корневого объекта data
+      const matchData = data.match || {
+        id: data.match_id || matchId,
+        match_id: data.match_id || matchId,
+        partner: data.partner,
+        is_tg_unlocked: Boolean(data.is_tg_unlocked),
+        my_tg_approved: Boolean(data.my_tg_approved),
+        partner_tg_approved: Boolean(data.partner_tg_approved),
+        partner_tg_username: data.partner_tg_username || data.partner?.tg_username,
+      };
+
+      if (!matchData.partner) {
+        throw new Error("Собеседник не найден или диалог недоступен");
+      }
+
+      currentChatMatchData = matchData;
+      currentChatPartner = matchData.partner;
+      currentChatMatchData.partner_tg_username = matchData.partner_tg_username || matchData.partner?.tg_username;
 
       // Обновляем шапку чата
       if (chatPartnerName) {
@@ -1766,7 +1785,8 @@
         chatPartnerPremBadge.style.display = currentChatPartner.is_premium ? "inline" : "none";
       }
       if (chatPartnerAvatar) {
-        chatPartnerAvatar.src = currentChatPartner.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+        const photo = currentChatPartner.photo_url || currentChatPartner.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+        chatPartnerAvatar.src = photo;
         chatPartnerAvatar.onerror = function() {
           this.onerror = null;
           this.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
@@ -1796,10 +1816,11 @@
       console.error("[Chat] Error loading chat:", err);
       if (chatLoadingSpinner) chatLoadingSpinner.style.display = "none";
       if (chatMessagesInner) {
+        const errMsg = (err && err.message) ? escapeHtml(err.message) : "Не удалось загрузить сообщения. Попробуйте позже.";
         chatMessagesInner.innerHTML = `
           <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
             <div style="font-size:36px;margin-bottom:8px;">⚠️</div>
-            <div>Не удалось загрузить сообщения. Попробуйте позже.</div>
+            <div>${errMsg}</div>
           </div>
         `;
       }
@@ -1837,8 +1858,9 @@
   function renderChatTgBanner(matchData) {
     if (!chatTgBanner || !matchData) return;
 
-    if (matchData.is_tg_unlocked && matchData.partner_tg_username) {
-      const cleanTg = matchData.partner_tg_username.replace("@", "").trim();
+    const partnerUsername = matchData.partner_tg_username || matchData.partner?.tg_username;
+    if (matchData.is_tg_unlocked && partnerUsername) {
+      const cleanTg = String(partnerUsername).replace("@", "").trim();
       chatTgBanner.innerHTML = `
         <div class="chat-tg-banner-text">
           <div class="chat-tg-banner-title">🎉 Контакты Telegram открыты!</div>
@@ -1853,6 +1875,13 @@
         triggerHaptic("medium");
         openTelegramContact(cleanTg);
       });
+    } else if (matchData.is_tg_unlocked) {
+      chatTgBanner.innerHTML = `
+        <div class="chat-tg-banner-text">
+          <div class="chat-tg-banner-title">🎉 Контакты открыты!</div>
+          <div class="chat-tg-banner-desc">Вы и собеседник подтвердили переход в Telegram. Напишите в чате, чтобы обменяться контактами напрямую!</div>
+        </div>
+      `;
     } else if (matchData.my_tg_approved) {
       chatTgBanner.innerHTML = `
         <div class="chat-tg-banner-text">
@@ -1996,6 +2025,9 @@
     };
 
     if (chatMessagesInner) {
+      if (!chatMessagesInner.querySelector(".chat-msg-row") && !chatMessagesInner.querySelector(".chat-system-card")) {
+        chatMessagesInner.innerHTML = "";
+      }
       chatMessagesInner.insertAdjacentHTML("beforeend", renderMessageHtml(optimisticMsg));
       scrollChatToBottom(true);
     }
@@ -2088,6 +2120,9 @@
       if (!isMine) {
         triggerHaptic("light");
         if (chatMessagesInner) {
+          if (!chatMessagesInner.querySelector(".chat-msg-row") && !chatMessagesInner.querySelector(".chat-system-card")) {
+            chatMessagesInner.innerHTML = "";
+          }
           chatMessagesInner.insertAdjacentHTML("beforeend", renderMessageHtml({
             id: msg.id,
             text: msg.text,
@@ -2125,10 +2160,21 @@
         currentChatMatchData.is_tg_unlocked = data.is_tg_unlocked;
         if (data.is_tg_unlocked && data.partner_tg_username) {
           currentChatMatchData.partner_tg_username = data.partner_tg_username;
+        } else if (data.is_tg_unlocked && currentChatMatchId && !currentChatMatchData.partner_tg_username) {
+          apiFetch(`/api/webapp/matches/${currentChatMatchId}/messages`).then((freshData) => {
+            if (freshData) {
+              const freshMatch = freshData.match || freshData;
+              currentChatMatchData.partner_tg_username = freshMatch.partner_tg_username || freshMatch.partner?.tg_username;
+              renderChatTgBanner(currentChatMatchData);
+            }
+          }).catch(console.warn);
         }
         renderChatTgBanner(currentChatMatchData);
       }
       if (data.system_message && chatMessagesInner) {
+        if (!chatMessagesInner.querySelector(".chat-msg-row") && !chatMessagesInner.querySelector(".chat-system-card")) {
+          chatMessagesInner.innerHTML = "";
+        }
         chatMessagesInner.insertAdjacentHTML("beforeend", renderMessageHtml({
           id: data.system_message.id,
           text: data.system_message.text,
@@ -2138,6 +2184,7 @@
         }));
         scrollChatToBottom(true);
       }
+
     } else if (data.type === "user_online") {
       if (chatPartnerOnlineDot) chatPartnerOnlineDot.style.display = "block";
       if (chatPartnerStatus) chatPartnerStatus.textContent = "онлайн";
@@ -2321,7 +2368,20 @@
         `;
         document.getElementById("openPremiumBtn")?.addEventListener("click", () => {
           triggerHaptic("medium");
-          tg?.openTelegramLink("https://t.me/" + (window.BOT_USERNAME || "edudating_bot") + "?start=premium");
+          const botUser = window.BOT_USERNAME || "edudating_bot";
+          const link = `https://t.me/${botUser}?start=premium`;
+          if (tg && tg.openTelegramLink) {
+            tg.openTelegramLink(link);
+          } else {
+            window.open(link, "_blank");
+          }
+          if (tg && tg.close) {
+            try {
+              tg.close();
+            } catch (err) {
+              console.warn("Could not close Telegram WebApp:", err);
+            }
+          }
         });
       } else {
         if (data.likes.length === 0) {
@@ -2963,8 +3023,14 @@
         if (res.match) {
           btn.className = "btn-career-connect connected";
           btn.innerHTML = "🤝 Взаимный контакт! Написать";
-          btn.disabled = false;
-          btn.onclick = () => openChatWith(res.match);
+          btn.onclick = () => {
+            const mId = res.match?.match_id || res.match?.id;
+            if (mId) {
+              openChat(mId);
+            } else {
+              switchTab("matches");
+            }
+          };
           showMatchPopup(res.match);
         } else {
           btn.className = "btn-career-connect pending";
@@ -3381,6 +3447,28 @@
       ratingModal.addEventListener("click", (e) => {
         if (e.target === ratingModal) {
           ratingModal.style.display = "none";
+        }
+      });
+    }
+
+    const achBtn = document.getElementById("openBotAchievementsBtn");
+    if (achBtn) {
+      achBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        triggerHaptic("medium");
+        const botUsername = window.BOT_USERNAME || "edudating_bot";
+        const link = `https://t.me/${botUsername}?start=achievements`;
+        if (tg && tg.openTelegramLink) {
+          tg.openTelegramLink(link);
+        } else {
+          window.open(link, "_blank");
+        }
+        if (tg && tg.close) {
+          try {
+            tg.close();
+          } catch (err) {
+            console.warn("Could not close Telegram WebApp:", err);
+          }
         }
       });
     }

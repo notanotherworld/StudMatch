@@ -150,16 +150,24 @@ async def show_achievements(callback: CallbackQuery, user: User, db: AsyncSessio
     await callback.message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
 
 
+async def send_achievement_start(target: Message | CallbackQuery, state: FSMContext):
+    """Отправляет диалог выбора типа достижения и переводит FSM в choosing_type."""
+    await state.set_state(AchievementState.choosing_type)
+    text = (
+        "📋 <b>Добавление достижения</b>\n\n"
+        "Выбери тип достижения:"
+    )
+    kb = achievement_type_keyboard()
+    if isinstance(target, CallbackQuery):
+        await target.answer()
+        await target.message.answer(text, parse_mode="HTML", reply_markup=kb)
+    else:
+        await target.answer(text, parse_mode="HTML", reply_markup=kb)
+
+
 @router.callback_query(F.data == "achievement:add")
 async def start_achievement(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    await state.set_state(AchievementState.choosing_type)
-    await callback.message.answer(
-        "📋 <b>Добавление достижения</b>\n\n"
-        "Выбери тип достижения:",
-        parse_mode="HTML",
-        reply_markup=achievement_type_keyboard(),
-    )
+    await send_achievement_start(callback, state)
 
 
 @router.callback_query(F.data.startswith("ach_type:"), AchievementState.choosing_type)

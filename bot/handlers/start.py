@@ -59,6 +59,29 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
         except Exception:
             pass
 
+    # Обработка целевых deep-link команд из MiniApp
+    if user.consent_given and command.args:
+        raw_arg = command.args.strip().lower()
+        if raw_arg == "achievements":
+            if not user.profile or not user.profile.is_complete:
+                await message.answer(
+                    "⚠️ <b>Сначала заполни анкету!</b>\n\n"
+                    "Чтобы отправлять дипломы и подтверждать достижения, необходимо завершить создание профиля.",
+                    parse_mode="HTML",
+                )
+                from bot.handlers.profile import start_profile_creation
+                await start_profile_creation(message, state)
+                return
+
+            from bot.handlers.rating import send_achievement_start
+            await send_achievement_start(message, state)
+            return
+
+        if raw_arg == "premium":
+            from bot.handlers.settings import send_buy_menu
+            await send_buy_menu(message, user)
+            return
+
     # Сообщение #1 — Приветственное вступление
     await message.answer(WELCOME_TEXT, parse_mode="HTML")
 

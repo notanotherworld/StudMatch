@@ -1,16 +1,23 @@
 """MinIO клиент для загрузки документов (дипломы, справки)."""
+from __future__ import annotations
 import io
 import uuid
-from minio import Minio
-from minio.error import S3Error
+try:
+    from minio import Minio
+    from minio.error import S3Error
+except ImportError:
+    Minio = None
+    S3Error = Exception
 
 from bot.config import settings
 
-_client: Minio | None = None
+_client: Any = None
 
 
 def get_minio_client() -> Minio:
     global _client
+    if Minio is None:
+        raise RuntimeError("Пакет minio не установлен. Установите 'pip install minio'.")
     if _client is None:
         _client = Minio(
             endpoint=settings.MINIO_ENDPOINT,
