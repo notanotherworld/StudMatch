@@ -15,7 +15,7 @@ mkdir -p web/static/uploads/avatars
 chmod -R 777 web/static/uploads 2>/dev/null || true
 
 echo "🐳 Пересобираем и перезапускаем контейнеры..."
-docker compose pull
+docker compose pull || true
 docker compose up -d --build --remove-orphans
 
 echo "⏳ Ожидаем запуск сервисов..."
