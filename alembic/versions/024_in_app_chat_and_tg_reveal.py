@@ -1,13 +1,13 @@
 """Add in-app chat messages and telegram reveal approval columns
 
-Revision ID: 024_in_app_chat_and_telegram_reveal
+Revision ID: 024_in_app_chat_and_tg_reveal
 Revises: 023_swipe_modes_and_recycling
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision = "024_in_app_chat_and_telegram_reveal"
+revision = "024_in_app_chat_and_tg_reveal"
 down_revision = "023_swipe_modes_and_recycling"
 branch_labels = None
 depends_on = None

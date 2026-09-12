@@ -170,7 +170,7 @@ async def start_achievement(callback: CallbackQuery, state: FSMContext):
     await send_achievement_start(callback, state)
 
 
-@router.callback_query(F.data.startswith("ach_type:"), AchievementState.choosing_type)
+@router.callback_query(F.data.startswith("ach_type:"))
 async def process_type(callback: CallbackQuery, state: FSMContext):
     ach_type = callback.data.split(":")[1]
     await state.update_data(ach_type=ach_type)

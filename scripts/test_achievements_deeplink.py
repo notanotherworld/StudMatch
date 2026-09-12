@@ -107,11 +107,76 @@ def test_webapp_html_and_js_contain_button_handlers():
 
     assert 'id="openBotAchievementsBtn"' in html_content
     assert 'Отправить диплом боту' in html_content
+    assert '20260912_13' in html_content
+    # Persistent nav checks
+    assert 'id="bottomNavWrap"' in html_content
+    assert 'bottom-nav-wrap collapsed' not in html_content
+    assert 'closeBottomNavBtn' not in html_content
+    assert 'navLikesBadge' in html_content
+    assert 'navMatchesBadge' in html_content
 
     with open(js_path, "r", encoding="utf-8") as f:
         js_content = f.read()
 
     assert 'openBotAchievementsBtn' in js_content
+    assert 'request-bot-upload' in js_content
     assert 'start=achievements' in js_content
     assert 'openTelegramLink' in js_content
     assert 'tg.close()' in js_content
+    assert 'updateNavBadges' in js_content
+    assert 'fetchInitialBadges' in js_content
+
+
+@pytest.mark.asyncio
+async def test_api_request_bot_achievement_upload_success():
+    from web.routers.webapp import request_bot_achievement_upload
+
+    user = User(id=111, consent_given=True)
+    user.profile = Profile(id=10, user_id=111, name="Студент", is_complete=True)
+    db = AsyncMock()
+
+    mock_bot_instance = AsyncMock()
+    mock_bot_instance.send_message = AsyncMock()
+    mock_bot_instance.session = AsyncMock()
+    mock_bot_instance.session.close = AsyncMock()
+
+    with patch("aiogram.Bot", return_value=mock_bot_instance):
+        res = await request_bot_achievement_upload(student=user, db=db)
+        assert res["status"] == "ok"
+        mock_bot_instance.send_message.assert_awaited_once()
+        call_kwargs = mock_bot_instance.send_message.call_args[1]
+        assert call_kwargs["chat_id"] == 111
+        assert "Добавление достижения" in call_kwargs["text"]
+        assert call_kwargs["reply_markup"] is not None
+        mock_bot_instance.session.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_api_request_bot_achievement_upload_need_profile():
+    from web.routers.webapp import request_bot_achievement_upload
+
+    user = User(id=222, consent_given=True)
+    user.profile = None
+    db = AsyncMock()
+
+    res = await request_bot_achievement_upload(student=user, db=db)
+    assert res["status"] == "need_profile"
+    assert "Сначала заполни анкету" in res["message"]
+
+
+@pytest.mark.asyncio
+async def test_process_type_state_agnostic():
+    from bot.handlers.rating import process_type
+
+    callback = AsyncMock()
+    callback.data = "ach_type:place_1"
+    callback.message = AsyncMock()
+    state = AsyncMock()
+
+    await process_type(callback, state)
+    state.update_data.assert_awaited_once_with(ach_type="place_1")
+    state.set_state.assert_awaited_once_with(AchievementState.waiting_title)
+    callback.answer.assert_awaited_once()
+    callback.message.answer.assert_awaited_once()
+    assert "Победа / 1-е место" in callback.message.answer.call_args[0][0]
+

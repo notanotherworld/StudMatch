@@ -114,8 +114,8 @@
   function triggerHaptic(type = "light") {
     try {
       if (tg && tg.HapticFeedback) {
-        if (type === "success") {
-          tg.HapticFeedback.notificationOccurred("success");
+        if (type === "success" || type === "warning" || type === "error") {
+          tg.HapticFeedback.notificationOccurred(type);
         } else if (type === "medium") {
           tg.HapticFeedback.impactOccurred("medium");
         } else if (type === "heavy") {
@@ -287,6 +287,7 @@
         await loadStories();
         openOnboarding(false);
         checkStartParamDeepLink();
+        fetchInitialBadges();
       } else {
         if (state.feed.length === 0) {
           deckContainer.innerHTML = `
@@ -370,16 +371,6 @@
     document.getElementById("resetSwipesDeckBtn")?.addEventListener("click", resetSwipesAndReload);
     document.getElementById("changeFiltersDeckBtn")?.addEventListener("click", openFiltersModal);
 
-    // Кнопка закрытия плавающей панели навигации
-    document.getElementById("closeBottomNavBtn")?.addEventListener("click", () => {
-      triggerHaptic("light");
-      const navWrap = document.getElementById("bottomNavWrap");
-      if (navWrap) navWrap.classList.add("collapsed");
-      if (state.activeTab !== "explore") {
-        switchTab("explore");
-      }
-    });
-
     setupModalListeners();
     setupAdminListeners();
   }
@@ -437,11 +428,9 @@
 
       row.innerHTML = html;
 
-      // Клик по своей истории (раскрывает меню навигации и открывает профиль)
+      // Клик по своей истории (открывает профиль)
       document.getElementById("myStoryItem")?.addEventListener("click", () => {
         triggerHaptic("medium");
-        const navWrap = document.getElementById("bottomNavWrap");
-        if (navWrap) navWrap.classList.remove("collapsed");
         switchTab("profile");
       });
 
@@ -508,21 +497,60 @@
       state.feed = [];
       state.currentCardIndex = 0;
       await loadFeed();
-      showAppToast("🔄 История свайпов сброшена! Анкеты снова в ленте");
+      showAppToast("🔄 История свайпов сброшена! Ваши мэтчи и чаты сохранены");
     } catch (e) {
       console.error("Reset swipes error:", e);
-      showAppToast("🔄 История свайпов сброшена!");
+      showAppToast("🔄 История свайпов сброшена! Ваши мэтчи и чаты сохранены");
+    }
+  }
+
+  function updateNavBadges(counts = {}) {
+    const likesBadge = document.getElementById("navLikesBadge");
+    const matchesBadge = document.getElementById("navMatchesBadge");
+
+    if (likesBadge && counts.likes !== undefined) {
+      if (counts.likes > 0) {
+        likesBadge.textContent = counts.likes > 99 ? "99+" : counts.likes;
+        likesBadge.style.display = "flex";
+      } else {
+        likesBadge.style.display = "none";
+      }
+    }
+
+    if (matchesBadge && counts.matches !== undefined) {
+      if (counts.matches > 0) {
+        matchesBadge.textContent = counts.matches > 99 ? "99+" : counts.matches;
+        matchesBadge.style.display = "flex";
+      } else {
+        matchesBadge.style.display = "none";
+      }
+    }
+  }
+
+  async function fetchInitialBadges() {
+    try {
+      const [likesData, matchesData] = await Promise.allSettled([
+        apiFetch("/api/webapp/incoming_likes"),
+        apiFetch("/api/webapp/matches"),
+      ]);
+
+      let likesCount = 0;
+      if (likesData.status === "fulfilled" && likesData.value) {
+        likesCount = likesData.value.count || (likesData.value.likes ? likesData.value.likes.length : 0);
+      }
+
+      let matchesCount = 0;
+      if (matchesData.status === "fulfilled" && matchesData.value && matchesData.value.matches) {
+        matchesCount = matchesData.value.matches.reduce((sum, m) => sum + (m.unread_count || 0), 0);
+      }
+
+      updateNavBadges({ likes: likesCount, matches: matchesCount });
+    } catch (e) {
+      console.warn("Could not load initial badges:", e);
     }
   }
 
   function switchTab(tabName) {
-    const navWrap = document.getElementById("bottomNavWrap");
-    if (tabName === "explore") {
-      if (navWrap) navWrap.classList.add("collapsed");
-    } else {
-      if (navWrap) navWrap.classList.remove("collapsed");
-    }
-
     if (state.activeTab === tabName) return;
     state.activeTab = tabName;
     triggerHaptic("light");
@@ -1457,6 +1485,7 @@
       const data = await apiFetch("/api/webapp/matches");
       if (!data || !data.matches || data.matches.length === 0) {
         state.matches = [];
+        updateNavBadges({ matches: 0 });
         container.innerHTML = `
           <div style="text-align:center;padding:40px 20px;">
             <div style="font-size:48px;margin-bottom:12px;">🫂</div>
@@ -1468,6 +1497,8 @@
       }
 
       state.matches = data.matches;
+      const totalUnread = data.matches.reduce((sum, m) => sum + (m.unread_count || 0), 0);
+      updateNavBadges({ matches: totalUnread });
 
       container.innerHTML = data.matches
         .map((m) => {
@@ -1649,8 +1680,6 @@
 
       document.getElementById("btnEditMyProfileFromModal")?.addEventListener("click", () => {
         matchProfileModal.classList.remove("active");
-        const navWrap = document.getElementById("bottomNavWrap");
-        if (navWrap) navWrap.classList.remove("collapsed");
         switchTab("profile");
       });
 
@@ -2356,6 +2385,9 @@
     try {
       const data = await apiFetch("/api/webapp/incoming_likes");
       if (!data) return;
+
+      const likesCount = data.count || (data.likes ? data.likes.length : 0);
+      updateNavBadges({ likes: likesCount });
 
       if (!data.is_premium) {
         container.innerHTML = `
@@ -3453,22 +3485,72 @@
 
     const achBtn = document.getElementById("openBotAchievementsBtn");
     if (achBtn) {
-      achBtn.addEventListener("click", (e) => {
+      achBtn.addEventListener("click", async (e) => {
         e.preventDefault();
         triggerHaptic("medium");
+
+        const originalHtml = achBtn.innerHTML;
+        achBtn.disabled = true;
+        achBtn.innerHTML = `<span>⏳ Отправляем боту...</span>`;
+
         const botUsername = window.BOT_USERNAME || "edudating_bot";
-        const link = `https://t.me/${botUsername}?start=achievements`;
-        if (tg && tg.openTelegramLink) {
-          tg.openTelegramLink(link);
-        } else {
-          window.open(link, "_blank");
-        }
-        if (tg && tg.close) {
-          try {
-            tg.close();
-          } catch (err) {
-            console.warn("Could not close Telegram WebApp:", err);
+        const fallbackLink = `https://t.me/${botUsername}?start=achievements`;
+
+        try {
+          const resp = await apiFetch("/api/webapp/achievements/request-bot-upload", {
+            method: "POST",
+          });
+
+          if (resp && resp.status === "ok") {
+            triggerHaptic("success");
+            achBtn.innerHTML = `<span>✅ Готово! Бот ждёт в чате</span>`;
+            setTimeout(() => {
+              if (tg && tg.close) {
+                try {
+                  tg.close();
+                } catch (closeErr) {
+                  console.warn("Could not close Telegram WebApp:", closeErr);
+                }
+              }
+            }, 500);
+            return;
           }
+
+          if (resp && resp.status === "need_profile") {
+            triggerHaptic("warning");
+            const msg = resp.message || "Сначала заполни анкету в боте!";
+            if (tg && tg.showAlert) {
+              tg.showAlert(msg);
+            } else {
+              alert(msg);
+            }
+            achBtn.disabled = false;
+            achBtn.innerHTML = originalHtml;
+            return;
+          }
+
+          throw new Error(resp?.message || "Server error");
+        } catch (err) {
+          console.warn("Server trigger failed, falling back to openTelegramLink:", err);
+          if (tg && tg.openTelegramLink) {
+            tg.openTelegramLink(fallbackLink);
+          } else {
+            window.open(fallbackLink, "_blank");
+          }
+          setTimeout(() => {
+            if (tg && tg.close) {
+              try {
+                tg.close();
+              } catch (closeErr) {
+                console.warn("Could not close Telegram WebApp:", closeErr);
+              }
+            }
+          }, 500);
+        } finally {
+          setTimeout(() => {
+            achBtn.disabled = false;
+            achBtn.innerHTML = originalHtml;
+          }, 3000);
         }
       });
     }

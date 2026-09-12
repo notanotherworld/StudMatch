@@ -359,7 +359,7 @@ body {
 }
 
 #screen-explore {
-  padding-bottom: 8px;
+  padding-bottom: calc(72px + max(var(--safe-bottom), 12px) + 6px);
   overflow: hidden;
 }
 
@@ -1213,7 +1213,7 @@ body {
 .floating-nav {
   pointer-events: auto;
   width: calc(100% - 32px);
-  max-width: 390px;
+  max-width: 330px;
   height: 64px;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(24px);
@@ -1230,13 +1230,14 @@ body {
 @media (max-width: 360px) {
   .floating-nav {
     width: calc(100% - 16px);
+    max-width: 290px;
     height: 56px;
     padding: 0 4px;
     border-radius: 30px;
   }
   .nav-tab-btn {
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
   }
   .nav-svg-icon {
     width: 20px;
@@ -1248,9 +1249,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 23px;
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -1259,14 +1260,35 @@ body {
   color: #8E92A4;
 }
 
-.nav-close-btn {
-  color: #A0A4B8;
-  background: rgba(0, 0, 0, 0.04);
+.nav-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #FF6584 0%, #FF4757 100%);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(255, 71, 87, 0.45);
+  border: 2px solid #ffffff;
+  pointer-events: none;
+  animation: badgePop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-.nav-close-btn:active {
-  transform: scale(0.9);
-  background: rgba(0, 0, 0, 0.08);
+.nav-tab-btn.active .nav-badge {
+  border-color: #6C5CE7;
+}
+
+@keyframes badgePop {
+  0% { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .nav-svg-icon {

@@ -315,23 +315,37 @@ async def reset_user_swipes(event, user: User, db: AsyncSession):
             await event.answer("⚠️ Команда доступна только администраторам и тестировщикам.")
         return
 
-    from sqlalchemy import delete, or_
+    from sqlalchemy import delete, select, or_, and_, case
     from database.models import Swipe, Match
-    await db.execute(delete(Swipe).where(Swipe.from_user_id == user.id))
+
+    matched_partners_subq = select(
+        case(
+            (Match.user1_id == user.id, Match.user2_id),
+            else_=Match.user1_id,
+        )
+    ).where(
+        or_(Match.user1_id == user.id, Match.user2_id == user.id)
+    )
+
     await db.execute(
-        delete(Match).where(
-            or_(Match.user1_id == user.id, Match.user2_id == user.id)
+        delete(Swipe).where(
+            and_(
+                Swipe.from_user_id == user.id,
+                ~Swipe.to_user_id.in_(matched_partners_subq),
+            )
         )
     )
+    # Match и ChatMessage НЕ удаляем, чтобы не уничтожать пары и чаты
     await db.commit()
 
     msg_text = (
-        "🔄 <b>История свайпов полностью сброшена!</b>\n\n"
-        "Теперь нажми <b>🔍 Смотреть анкеты</b> в меню, чтобы просмотреть анкеты заново."
+        "🔄 <b>История свайпов сброшена!</b>\n\n"
+        "Анкеты снова доступны для просмотра (твои мэтчи и чаты сохранены).\n"
+        "Нажми <b>🔍 Смотреть анкеты</b> в меню, чтобы начать свайпы заново."
     )
 
     if isinstance(event, CallbackQuery):
-        await event.answer("Свайпы сброшены!")
+        await event.answer("Свайпы сброшены! Пары сохранены.")
         await event.message.answer(msg_text, parse_mode="HTML")
     else:
         await event.answer(msg_text, parse_mode="HTML")

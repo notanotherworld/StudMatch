@@ -1740,35 +1740,75 @@ async def webapp_get_hall_of_fame(
     }
 
 
+@router.post("/api/webapp/achievements/request-bot-upload")
+async def request_bot_achievement_upload(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Отправляет студенту в Telegram диалог загрузки диплома/достижения,
+    чтобы обойти блокировки deep-link ссылок внутри Telegram WebView.
+    """
+    if not student.profile or not student.profile.is_complete:
+        return {
+            "status": "need_profile",
+            "message": "Сначала заполни анкету в боте, чтобы прикреплять дипломы и повышать рейтинг!",
+        }
+    try:
+        from aiogram import Bot
+        from bot.keyboards.swipe import achievement_type_keyboard
+
+        bot = Bot(token=settings.BOT_TOKEN)
+        text = (
+            "📋 <b>Добавление достижения и диплома</b>\n\n"
+            "Выбери тип достижения для подтверждения модератором:"
+        )
+        await bot.send_message(
+            chat_id=student.id,
+            text=text,
+            parse_mode="HTML",
+            reply_markup=achievement_type_keyboard(),
+        )
+        await bot.session.close()
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Failed to send achievement prompt to student {student.id}: {e}")
+        return {"status": "error", "message": str(e)}
+
+
 @router.post("/api/webapp/reset_swipes")
 async def webapp_reset_swipes(
     student: User = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    """Сбросить историю свайпов и мэтчей в текущем режиме для повторного просмотра анкет."""
-    from sqlalchemy import delete
+    """Сбросить историю свайпов в текущем режиме для повторного просмотра анкет (пары и чаты сохраняются!)."""
+    from sqlalchemy import delete, select, or_, and_, case
     mode = student.mode or ModeEnum.dating
 
-    # Удаляем свайпы пользователя в этом режиме
+    # Находим ID партнеров, с которыми у пользователя уже есть пара (мэтч)
+    matched_partners_subq = select(
+        case(
+            (Match.user1_id == student.id, Match.user2_id),
+            else_=Match.user1_id,
+        )
+    ).where(
+        or_(Match.user1_id == student.id, Match.user2_id == student.id)
+    )
+
+    # Удаляем только те свайпы, по которым НЕТ активного мэтча,
+    # чтобы вернуть пропущенные анкеты в ленту, но сохранить существующие чаты и взаимные лайки
     await db.execute(
         delete(Swipe).where(
             and_(
                 Swipe.from_user_id == student.id,
                 or_(Swipe.mode == mode, Swipe.mode.is_(None)),
+                ~Swipe.to_user_id.in_(matched_partners_subq),
             )
         )
     )
-    # Удаляем мэтчи этого пользователя в этом режиме, чтобы они снова появились в ленте свайпов
-    await db.execute(
-        delete(Match).where(
-            and_(
-                Match.mode == mode,
-                or_(Match.user1_id == student.id, Match.user2_id == student.id),
-            )
-        )
-    )
+    # Match и ChatMessage НЕ удаляются ни в коем случае, чтобы не уничтожать переписку!
     await db.commit()
-    logger.info(f"User {student.id} reset their swipes and matches in mode {mode}")
+    logger.info(f"User {student.id} reset non-matched swipes in mode {mode} (matches & chats preserved)")
     return {"status": "ok"}
 
 
