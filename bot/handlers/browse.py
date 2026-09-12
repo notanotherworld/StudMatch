@@ -595,7 +595,7 @@ async def view_match_profile(callback: CallbackQuery, user: User, db: AsyncSessi
         builder = InlineKeyboardBuilder()
         if m and m.is_tg_unlocked and partner.tg_username:
             clean_username = partner.tg_username.lstrip("@")
-            builder.button(text="💬 Написать в Telegram", url=f"https://t.me/{clean_username}")
+            builder.button(text=f"✈️ Написать в Telegram (@{clean_username})", url=f"https://t.me/{clean_username}")
         else:
             chat_url = f"{settings.webapp_url}?startapp=chat_{m.id}" if m else settings.webapp_url
             builder.button(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=chat_url))

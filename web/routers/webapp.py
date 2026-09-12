@@ -1539,20 +1539,30 @@ async def webapp_get_user_details(
         for t in tag_res.scalars().all():
             tags.append({"id": t.id, "name": t.name, "emoji": t.emoji})
 
-    # Проверяем обоюдное открытие контактов (если смотрим чужой профиль)
+    # Проверяем обоюдное открытие контактов и наличие мэтча
+    is_me = (student.id == target.id)
+    m = None
+    has_match = False
+    match_id = None
     is_tg_unlocked = False
-    if student.id == target.id:
-        is_tg_unlocked = True
-    else:
+
+    if not is_me:
         m = await get_match_between_users(db, student.id, target.id)
-        if m and m.is_tg_unlocked:
-            is_tg_unlocked = True
+        if m:
+            has_match = True
+            match_id = str(m.id)
+            if m.is_tg_unlocked:
+                is_tg_unlocked = True
 
     return {
         "status": "ok",
         "user": {
             "id": target.id,
             "user_id": target.id,
+            "is_me": is_me,
+            "has_match": has_match,
+            "match_id": match_id,
+            "is_tg_unlocked": is_tg_unlocked,
             "name": p.name if p else "Студент",
             "age": p.age if p else None,
             "year": p.year if p else None,
@@ -1567,7 +1577,7 @@ async def webapp_get_user_details(
             "rating_score": round(p.rating_score or 0.0, 1) if p else 0.0,
             "is_verified": getattr(target, "email_verified", False),
             "is_premium": getattr(target, "is_premium", False),
-            "tg_username": target.tg_username if is_tg_unlocked else None,
+            "tg_username": target.tg_username if (is_tg_unlocked and not is_me) else None,
             # Карьерные параметры
             "career_goal": p.career_goal if p else None,
             "career_skills": p.career_skills if p else None,

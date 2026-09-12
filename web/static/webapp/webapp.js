@@ -480,6 +480,21 @@
     }, duration);
   }
 
+  function openTelegramContact(username) {
+    if (!username) return;
+    const clean = username.replace(/^@/, "").trim();
+    if (!clean) return;
+    const url = `https://t.me/${clean}`;
+    if (tg && tg.openTelegramLink) {
+      tg.openTelegramLink(url);
+    } else if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink(url);
+    } else {
+      window.open(url, "_blank");
+    }
+  }
+  window.openTelegramContact = openTelegramContact;
+
   async function resetSwipesAndReload() {
     triggerHaptic("medium");
     if (deckContainer) {
@@ -1526,13 +1541,50 @@
       const gallery = photos.map((p) => `<img src="${p}" class="sheet-photo" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />`).join("");
       const tags = (u.tags || []).map((t) => `<span class="card-tag">${t.emoji} ${t.name}</span>`).join("");
 
-      const chatButtonHtml = u.tg_username
-        ? `<a href="https://t.me/${u.tg_username.replace("@", "")}" target="_blank" class="btn-primary" style="text-decoration:none;display:block;text-align:center;">
-             💬 Написать в Telegram (@${u.tg_username.replace("@", "")})
-           </a>`
-        : `<button class="btn-primary" id="btnOpenChatFromProfile" style="width:100%;">
-             💬 Открыть чат в приложении
-           </button>`;
+      // Формируем блок действий в зависимости от статуса связи
+      let actionButtonsHtml = "";
+      if (u.is_me) {
+        actionButtonsHtml = `
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="background:var(--surface-subtle, rgba(108,92,231,0.08));color:var(--primary, #6C5CE7);padding:10px 14px;border-radius:12px;font-size:13px;font-weight:600;text-align:center;">
+              👤 Это ваш профиль
+            </div>
+            <button type="button" class="btn-secondary" id="btnEditMyProfileFromModal" style="width:100%;">
+              ⚙️ Редактировать анкету
+            </button>
+          </div>
+        `;
+      } else if (!u.has_match) {
+        actionButtonsHtml = `
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="background:var(--surface-subtle, #f1f5f9);color:var(--text-muted, #64748b);padding:10px 14px;border-radius:12px;font-size:13px;font-weight:500;text-align:center;line-height:1.4;">
+              ✨ Общение станет доступно после взаимного лайка в ленте свайпов
+            </div>
+            <button type="button" class="btn-primary" id="btnGoToExploreFromModal" style="width:100%;">
+              🔍 Искать анкеты в ленте
+            </button>
+          </div>
+        `;
+      } else if (u.is_tg_unlocked && u.tg_username) {
+        const cleanTg = u.tg_username.replace(/^@/, "").trim();
+        actionButtonsHtml = `
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <button type="button" class="btn-primary" id="btnOpenTelegramDirect" style="width:100%;background:linear-gradient(135deg, #229ED9, #0088cc);color:#fff;font-weight:700;">
+              ✈️ Написать в Telegram (@${escapeHtml(cleanTg)})
+            </button>
+            <button type="button" class="btn-secondary" id="btnOpenChatFromProfile" style="width:100%;">
+              💬 Чат в приложении
+            </button>
+          </div>
+        `;
+      } else {
+        // Взаимная пара есть, но Telegram ещё не подтверждён обоюдно: ТОЛЬКО чат внутри приложения
+        actionButtonsHtml = `
+          <button type="button" class="btn-primary" id="btnOpenChatFromProfile" style="width:100%;">
+            💬 Открыть чат в приложении
+          </button>
+        `;
+      }
 
       body.innerHTML = `
         <div class="sheet-gallery">${gallery}</div>
@@ -1575,19 +1627,36 @@
           </div>
         ` : ""}
 
-        <div style="margin-top: 14px;">
-          ${chatButtonHtml}
+        <div style="margin-top: 16px;">
+          ${actionButtonsHtml}
         </div>
       `;
 
+      document.getElementById("btnOpenTelegramDirect")?.addEventListener("click", () => {
+        triggerHaptic("medium");
+        openTelegramContact(u.tg_username);
+      });
+
       document.getElementById("btnOpenChatFromProfile")?.addEventListener("click", () => {
         matchProfileModal.classList.remove("active");
-        const foundMatch = (state.matches || []).find(m => String(m.user_id) === String(partnerId));
-        if (foundMatch && foundMatch.match_id) {
-          openChat(foundMatch.match_id);
+        const matchIdToOpen = u.match_id || (state.matches || []).find(m => String(m.user_id) === String(partnerId))?.match_id;
+        if (matchIdToOpen) {
+          openChat(matchIdToOpen);
         } else {
           switchTab("matches");
         }
+      });
+
+      document.getElementById("btnEditMyProfileFromModal")?.addEventListener("click", () => {
+        matchProfileModal.classList.remove("active");
+        const navWrap = document.getElementById("bottomNavWrap");
+        if (navWrap) navWrap.classList.remove("collapsed");
+        switchTab("profile");
+      });
+
+      document.getElementById("btnGoToExploreFromModal")?.addEventListener("click", () => {
+        matchProfileModal.classList.remove("active");
+        switchTab("explore");
       });
 
       if (state.currentUser?.is_superadmin || state.currentUser?.id === 149620234) {
@@ -1769,16 +1838,21 @@
     if (!chatTgBanner || !matchData) return;
 
     if (matchData.is_tg_unlocked && matchData.partner_tg_username) {
-      const cleanTg = matchData.partner_tg_username.replace("@", "");
+      const cleanTg = matchData.partner_tg_username.replace("@", "").trim();
       chatTgBanner.innerHTML = `
         <div class="chat-tg-banner-text">
           <div class="chat-tg-banner-title">🎉 Контакты Telegram открыты!</div>
           <div class="chat-tg-banner-desc">Вы и собеседник обоюдно подтвердили переход в Telegram.</div>
         </div>
-        <a href="https://t.me/${cleanTg}" target="_blank" class="chat-tg-banner-btn unlocked">
-          <span>💬 @${cleanTg}</span>
-        </a>
+        <button type="button" class="chat-tg-banner-btn unlocked" id="btnChatBannerOpenTg">
+          <span>💬 @${escapeHtml(cleanTg)}</span>
+        </button>
       `;
+
+      document.getElementById("btnChatBannerOpenTg")?.addEventListener("click", () => {
+        triggerHaptic("medium");
+        openTelegramContact(cleanTg);
+      });
     } else if (matchData.my_tg_approved) {
       chatTgBanner.innerHTML = `
         <div class="chat-tg-banner-text">
