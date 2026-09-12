@@ -7,12 +7,12 @@ import hashlib
 import json
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set, Tuple
 from urllib.parse import parse_qsl
 
 import os
 import aiohttp
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, Response, Query
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, Response, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -20,17 +20,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc, func
 from sqlalchemy.orm import selectinload
 
+import html
+import uuid
+
 from bot.config import settings
+from database.session import AsyncSessionLocal
 from web.dependencies import get_db, SECRET, ALGORITHM
 import jwt
 from database.models import (
-    User, Profile, University, Swipe, Match, SwipeAction, ModeEnum, InterestTag,
+    User, Profile, University, Swipe, Match, ChatMessage, SwipeAction, ModeEnum, InterestTag,
     Report, ReportStatus
 )
 from database.crud import (
     get_user, get_profile, get_next_profile, create_swipe,
     get_user_matches, get_incoming_likes, get_incoming_likes_count,
-    deduct_superlike
+    deduct_superlike, get_match_by_id, get_chat_messages, create_chat_message,
+    mark_chat_messages_as_read, get_unread_messages_count, get_last_chat_message,
+    approve_match_telegram, delete_match_by_id, get_match_between_users,
 )
 
 logger = logging.getLogger(__name__)
@@ -425,28 +431,38 @@ async def webapp_swipe(
                 first_p = p_photos[0] if p_photos else None
 
             p_photo_url = resolve_photo_url(first_p) or DEFAULT_FALLBACK_AVATAR
+            match_obj = await get_match_between_users(db, student.id, partner.id, student.mode)
+            match_id_str = str(match_obj.id) if match_obj else ""
+
             match_data = {
+                "match_id": match_id_str,
                 "user_id": partner.id,
                 "name": p_name,
-                "tg_username": partner.tg_username,
+                "tg_username": None,  # Скрыто до обоюдного согласия
+                "is_tg_unlocked": False,
                 "photo_url": p_photo_url,
                 "photos": [p_photo_url],
             }
 
-            # Отправка Telegram-уведомления партнеру в фоновом режиме
+            # Отправка Telegram-уведомления партнеру в фоновом режиме без раскрытия Telegram
             try:
                 from aiogram import Bot
+                from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
                 bot = Bot(token=settings.BOT_TOKEN)
                 my_name = student.profile.name if (student.profile and student.profile.name) else "Студент"
-                my_username = f"@{student.tg_username}" if student.tg_username else "(нет username)"
+                chat_url = f"{settings.webapp_url}?startapp=chat_{match_id_str}" if match_id_str else settings.webapp_url
+                kb = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=chat_url))
+                ]])
                 await bot.send_message(
                     chat_id=partner.id,
                     text=(
-                        f"🎉 <b>МЭТЧ в StudMatch WebApp!</b>\n\n"
-                        f"Вы с <b>{my_name}</b> понравились друг другу!\n"
-                        f"Telegram: <b>{my_username}</b>"
+                        f"🎉 <b>Это взаимно!</b>\n\n"
+                        f"Ты и <b>{html.escape(my_name)}</b> понравились друг другу!\n\n"
+                        f"Начните общение во внутреннем чате приложения 💬"
                     ),
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    reply_markup=kb,
                 )
                 await bot.session.close()
             except Exception as e:
@@ -461,13 +477,107 @@ async def webapp_swipe(
     }
 
 
-# ─── API: Список мэтчей (Matches) ────────────────────────────
+# ─── API: Список мэтчей и диалогов (Matches & Chats) ─────────
+class ChatSendMessageRequest(BaseModel):
+    text: str
+
+
+class ChatReportRequest(BaseModel):
+    reason: str
+    details: Optional[str] = ""
+
+
+class ChatConnectionManager:
+    def __init__(self):
+        # match_id (str) -> dict of (user_id -> set of WebSockets)
+        self.active_rooms: Dict[str, Dict[int, Set[WebSocket]]] = {}
+
+    async def connect(self, websocket: WebSocket, match_id: str, user_id: int):
+        await websocket.accept()
+        if match_id not in self.active_rooms:
+            self.active_rooms[match_id] = {}
+        if user_id not in self.active_rooms[match_id]:
+            self.active_rooms[match_id][user_id] = set()
+        self.active_rooms[match_id][user_id].add(websocket)
+
+    def disconnect(self, websocket: WebSocket, match_id: str, user_id: int):
+        if match_id in self.active_rooms:
+            if user_id in self.active_rooms[match_id]:
+                self.active_rooms[match_id][user_id].discard(websocket)
+                if not self.active_rooms[match_id][user_id]:
+                    del self.active_rooms[match_id][user_id]
+            if not self.active_rooms[match_id]:
+                del self.active_rooms[match_id]
+
+    def is_user_in_chat(self, match_id: str, user_id: int) -> bool:
+        """Проверяет, держит ли пользователь данный чат открытым."""
+        return bool(self.active_rooms.get(match_id, {}).get(user_id))
+
+    async def broadcast_to_match(self, match_id: str, message: dict):
+        """Отправляет событие всем подключенным участникам диалога."""
+        room = self.active_rooms.get(match_id, {})
+        dead_conns = []
+        for uid, ws_set in list(room.items()):
+            for ws in list(ws_set):
+                try:
+                    await ws.send_json(message)
+                except Exception:
+                    dead_conns.append((uid, ws))
+        for uid, ws in dead_conns:
+            self.disconnect(ws, match_id, uid)
+
+
+chat_manager = ChatConnectionManager()
+
+# Кэш времени последнего Telegram-уведомления: (match_id, recipient_id) -> timestamp
+_chat_notify_timestamps: Dict[str, float] = {}
+
+
+async def notify_partner_about_message(
+    recipient_id: int, sender_name: str, message_text: str, match_id: str
+):
+    import time
+    now = time.time()
+    cache_key = f"{match_id}:{recipient_id}"
+    last_notified = _chat_notify_timestamps.get(cache_key, 0)
+
+    # Троттлинг: не чаще 1 раза в 120 секунд
+    if now - last_notified < 120:
+        return
+
+    _chat_notify_timestamps[cache_key] = now
+
+    try:
+        from aiogram import Bot
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+        bot = Bot(token=settings.BOT_TOKEN)
+        clean_name = html.escape(sender_name or "Студент")
+        preview = message_text[:60] + ("…" if len(message_text) > 60 else "")
+        clean_preview = html.escape(preview)
+        chat_url = f"{settings.webapp_url}?startapp=chat_{match_id}"
+        kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="✉️ Ответить в чате", web_app=WebAppInfo(url=chat_url))
+        ]])
+        await bot.send_message(
+            chat_id=recipient_id,
+            text=(
+                f"💬 <b>Новое сообщение от {clean_name}:</b>\n\n"
+                f"<i>«{clean_preview}»</i>"
+            ),
+            parse_mode="HTML",
+            reply_markup=kb,
+        )
+        await bot.session.close()
+    except Exception as e:
+        logger.warning(f"Failed to send chat bot notification to {recipient_id}: {e}")
+
+
 @router.get("/api/webapp/matches")
 async def webapp_matches(
     student: User = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    """Список всех взаимных мэтчей студента."""
+    """Список всех взаимных мэтчей и диалогов студента."""
     matches = await get_user_matches(db, student.id)
     result = []
 
@@ -481,21 +591,416 @@ async def webapp_matches(
         univ_name = partner.university.short_name if partner.university else ""
         date_str = m.created_at.strftime("%d.%m") if m.created_at else ""
 
+        is_tg_unlocked = bool(m.user1_tg_approved and m.user2_tg_approved)
+        my_tg_approved = bool(m.user1_tg_approved if m.user1_id == student.id else m.user2_tg_approved)
+        partner_tg_approved = bool(m.user2_tg_approved if m.user1_id == student.id else m.user1_tg_approved)
+
+        last_msg = await get_last_chat_message(db, m.id)
+        unread_count = await get_unread_messages_count(db, m.id, student.id)
+
+        last_msg_data = None
+        if last_msg:
+            last_msg_data = {
+                "id": str(last_msg.id),
+                "sender_id": last_msg.sender_id,
+                "text": last_msg.text,
+                "msg_type": last_msg.msg_type,
+                "is_read": last_msg.is_read,
+                "created_at": last_msg.created_at.strftime("%H:%M") if last_msg.created_at else "",
+                "timestamp": last_msg.created_at.timestamp() if last_msg.created_at else 0,
+            }
+
         result.append({
+            "match_id": str(m.id),
             "user_id": partner.id,
             "name": raw_name,
-            "tg_username": partner.tg_username,
+            # ПРЯМОЙ TELEGRAM ДОСТУПЕН ТОЛЬКО ПОСЛЕ ОБОЮДНОГО СОГЛАСИЯ!
+            "tg_username": partner.tg_username if is_tg_unlocked else None,
+            "is_tg_unlocked": is_tg_unlocked,
+            "my_tg_approved": my_tg_approved,
+            "partner_tg_approved": partner_tg_approved,
             "photo_url": photo_url,
             "year": p.year if p else None,
+            "age": p.age if p else None,
             "major": p.major if p else None,
             "university": univ_name,
             "goal": p.goal if p else None,
             "created_at": date_str,
             "is_verified": getattr(partner, "email_verified", False),
             "is_premium": getattr(partner, "is_premium", False),
+            "unread_count": unread_count,
+            "last_message": last_msg_data,
+            "_sort_time": last_msg_data["timestamp"] if last_msg_data else (m.created_at.timestamp() if m.created_at else 0),
         })
 
+    # Сортируем: сначала диалоги с самыми свежими сообщениями
+    result.sort(key=lambda x: x["_sort_time"], reverse=True)
+    for r in result:
+        r.pop("_sort_time", None)
+
     return {"status": "ok", "count": len(result), "matches": result}
+
+
+@router.get("/api/webapp/matches/{match_id}/messages")
+async def webapp_get_match_messages(
+    match_id: str,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """История сообщений диалога с автоматической пометкой прочтения."""
+    try:
+        match_uuid = uuid.UUID(match_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Неверный ID матча")
+
+    match = await get_match_by_id(db, match_uuid)
+    if not match:
+        raise HTTPException(status_code=404, detail="Мэтч не найден")
+    if student.id not in (match.user1_id, match.user2_id):
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    partner_id = match.user2_id if match.user1_id == student.id else match.user1_id
+    partner = await get_user(db, partner_id)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Собеседник не найден")
+
+    # Помечаем сообщения как прочитанные
+    read_count = await mark_chat_messages_as_read(db, match_uuid, student.id)
+    if read_count > 0:
+        await chat_manager.broadcast_to_match(str(match_uuid), {
+            "type": "read",
+            "reader_id": student.id,
+        })
+
+    msgs = await get_chat_messages(db, match_uuid, limit=100)
+    messages_data = []
+    for msg in msgs:
+        messages_data.append({
+            "id": str(msg.id),
+            "sender_id": msg.sender_id,
+            "is_mine": bool(msg.sender_id == student.id),
+            "text": msg.text,
+            "msg_type": msg.msg_type,
+            "is_read": msg.is_read,
+            "created_at": msg.created_at.strftime("%H:%M") if msg.created_at else "",
+            "date": msg.created_at.strftime("%d.%m.%Y") if msg.created_at else "",
+        })
+
+    p = partner.profile
+    photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
+    first_p = photos[0] if photos else None
+    photo_url = resolve_photo_url(first_p) or DEFAULT_FALLBACK_AVATAR
+
+    is_tg_unlocked = bool(match.user1_tg_approved and match.user2_tg_approved)
+    my_tg_approved = bool(match.user1_tg_approved if match.user1_id == student.id else match.user2_tg_approved)
+    partner_tg_approved = bool(match.user2_tg_approved if match.user1_id == student.id else match.user1_tg_approved)
+
+    return {
+        "status": "ok",
+        "match_id": str(match.id),
+        "partner": {
+            "id": partner.id,
+            "name": p.name if (p and p.name) else "Студент",
+            "photo_url": photo_url,
+            "university": partner.university.short_name if partner.university else "",
+            "year": p.year if p else None,
+            "is_verified": getattr(partner, "email_verified", False),
+            "is_premium": getattr(partner, "is_premium", False),
+            # Скрыт до обоюдного согласия!
+            "tg_username": partner.tg_username if is_tg_unlocked else None,
+        },
+        "is_tg_unlocked": is_tg_unlocked,
+        "my_tg_approved": my_tg_approved,
+        "partner_tg_approved": partner_tg_approved,
+        "messages": messages_data,
+    }
+
+
+@router.post("/api/webapp/matches/{match_id}/messages")
+async def webapp_send_message(
+    match_id: str,
+    payload: ChatSendMessageRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Отправка текстового сообщения во внутренний чат."""
+    text = payload.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Сообщение не может быть пустым")
+
+    try:
+        match_uuid = uuid.UUID(match_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Неверный ID матча")
+
+    match = await get_match_by_id(db, match_uuid)
+    if not match:
+        raise HTTPException(status_code=404, detail="Мэтч не найден")
+    if student.id not in (match.user1_id, match.user2_id):
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    partner_id = match.user2_id if match.user1_id == student.id else match.user1_id
+    msg = await create_chat_message(db, match_uuid, student.id, text, msg_type="text")
+
+    # Транслируем новое сообщение через WebSocket
+    msg_data = {
+        "id": str(msg.id),
+        "sender_id": msg.sender_id,
+        "text": msg.text,
+        "msg_type": msg.msg_type,
+        "is_read": False,
+        "created_at": msg.created_at.strftime("%H:%M") if msg.created_at else "",
+        "date": msg.created_at.strftime("%d.%m.%Y") if msg.created_at else "",
+    }
+
+    await chat_manager.broadcast_to_match(str(match_uuid), {
+        "type": "new_message",
+        "message": msg_data,
+    })
+
+    # Если получатель не держит данный чат открытым в WebApp прямо сейчас — отправляем уведомление через бота
+    if not chat_manager.is_user_in_chat(str(match_uuid), partner_id):
+        my_name = student.profile.name if (student.profile and student.profile.name) else "Собеседник"
+        await notify_partner_about_message(partner_id, my_name, text, str(match_uuid))
+
+    return {
+        "status": "ok",
+        "message": msg_data,
+    }
+
+
+@router.post("/api/webapp/matches/{match_id}/request_telegram")
+async def webapp_request_telegram(
+    match_id: str,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Пользователь выражает согласие на открытие своего Telegram."""
+    try:
+        match_uuid = uuid.UUID(match_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Неверный ID матча")
+
+    match = await get_match_by_id(db, match_uuid)
+    if not match:
+        raise HTTPException(status_code=404, detail="Мэтч не найден")
+    if student.id not in (match.user1_id, match.user2_id):
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    partner_id = match.user2_id if match.user1_id == student.id else match.user1_id
+    partner = await get_user(db, partner_id)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Собеседник не найден")
+
+    updated_match, is_now_unlocked = await approve_match_telegram(db, match_uuid, student.id)
+    if not updated_match:
+        raise HTTPException(status_code=400, detail="Не удалось обновить статус")
+
+    student_name = student.profile.name if (student.profile and student.profile.name) else "Собеседник"
+    partner_name = partner.profile.name if (partner and partner.profile and partner.profile.name) else "Собеседник"
+
+    if is_now_unlocked:
+        sys_msg = await create_chat_message(
+            db, match_uuid, student.id,
+            "🎉 Взаимное согласие получено! Теперь вы можете перейти в Telegram.",
+            msg_type="tg_approved",
+        )
+        # Уведомляем обоих участников через бота о разблокировке Telegram!
+        try:
+            from aiogram import Bot
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            bot = Bot(token=settings.BOT_TOKEN)
+
+            # Уведомляем собеседника
+            if student.tg_username:
+                clean_my_tg = student.tg_username.lstrip("@")
+                kb_partner = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="💬 Написать в Telegram", url=f"https://t.me/{clean_my_tg}")
+                ]])
+                await bot.send_message(
+                    chat_id=partner.id,
+                    text=(
+                        f"🎉 <b>Взаимное согласие получено!</b>\n\n"
+                        f"Вы с <b>{html.escape(student_name)}</b> открыли контакты в Telegram!\n"
+                        f"Telegram: <b>@{clean_my_tg}</b>"
+                    ),
+                    parse_mode="HTML",
+                    reply_markup=kb_partner,
+                )
+
+            # Уведомляем инициатора
+            if partner.tg_username:
+                clean_partner_tg = partner.tg_username.lstrip("@")
+                kb_me = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="💬 Написать в Telegram", url=f"https://t.me/{clean_partner_tg}")
+                ]])
+                await bot.send_message(
+                    chat_id=student.id,
+                    text=(
+                        f"🎉 <b>Взаимное согласие получено!</b>\n\n"
+                        f"Вы с <b>{html.escape(partner_name)}</b> открыли контакты в Telegram!\n"
+                        f"Telegram: <b>@{clean_partner_tg}</b>"
+                    ),
+                    parse_mode="HTML",
+                    reply_markup=kb_me,
+                )
+            await bot.session.close()
+        except Exception as e:
+            logger.warning(f"Failed to send unlock bot notifications: {e}")
+    else:
+        sys_msg = await create_chat_message(
+            db, match_uuid, student.id,
+            f"✨ {html.escape(student_name)} предлагает перейти в Telegram! Нажми кнопку выше, чтобы открыть контакты взаимно.",
+            msg_type="tg_request",
+        )
+
+    # Транслируем в WebSocket
+    await chat_manager.broadcast_to_match(str(match_uuid), {
+        "type": "tg_approval_update",
+        "is_tg_unlocked": updated_match.is_tg_unlocked,
+        "user1_tg_approved": updated_match.user1_tg_approved,
+        "user2_tg_approved": updated_match.user2_tg_approved,
+        "system_message": {
+            "id": str(sys_msg.id),
+            "text": sys_msg.text,
+            "msg_type": sys_msg.msg_type,
+            "created_at": sys_msg.created_at.strftime("%H:%M") if sys_msg.created_at else "",
+        }
+    })
+
+    my_tg_approved = updated_match.user1_tg_approved if updated_match.user1_id == student.id else updated_match.user2_tg_approved
+    partner_tg_approved = updated_match.user2_tg_approved if updated_match.user1_id == student.id else updated_match.user1_tg_approved
+
+    return {
+        "status": "ok",
+        "is_tg_unlocked": updated_match.is_tg_unlocked,
+        "my_tg_approved": my_tg_approved,
+        "partner_tg_approved": partner_tg_approved,
+        "partner_tg_username": partner.tg_username if updated_match.is_tg_unlocked else None,
+    }
+
+
+@router.post("/api/webapp/matches/{match_id}/unmatch")
+async def webapp_unmatch(
+    match_id: str,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Удаление мэтча и закрытие диалога."""
+    try:
+        match_uuid = uuid.UUID(match_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Неверный ID матча")
+
+    ok = await delete_match_by_id(db, match_uuid, student.id)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Не удалось удалить мэтч")
+
+    await chat_manager.broadcast_to_match(str(match_uuid), {
+        "type": "unmatched",
+    })
+
+    return {"status": "ok"}
+
+
+@router.post("/api/webapp/matches/{match_id}/report")
+async def webapp_report_from_chat(
+    match_id: str,
+    payload: ChatReportRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Отправка жалобы модераторам из чата с последующим удалением пары."""
+    try:
+        match_uuid = uuid.UUID(match_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Неверный ID матча")
+
+    match = await get_match_by_id(db, match_uuid)
+    if not match:
+        raise HTTPException(status_code=404, detail="Мэтч не найден")
+    if student.id not in (match.user1_id, match.user2_id):
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    partner_id = match.user2_id if match.user1_id == student.id else match.user1_id
+
+    # Фиксируем жалобу
+    report_reason = f"[Чат {match_id}] {payload.reason}"
+    if payload.details:
+        report_reason += f": {payload.details}"
+
+    db.add(
+        Report(
+            id=uuid.uuid4(),
+            reporter_id=student.id,
+            reported_id=partner_id,
+            reason=report_reason[:500],
+            status=ReportStatus.pending,
+        )
+    )
+    await db.commit()
+
+    # Удаляем мэтч
+    await delete_match_by_id(db, match_uuid, student.id)
+    await chat_manager.broadcast_to_match(str(match_uuid), {
+        "type": "unmatched",
+    })
+
+    return {"status": "ok"}
+
+
+@router.websocket("/api/webapp/ws/chat/{match_id}")
+async def websocket_chat_endpoint(websocket: WebSocket, match_id: str):
+    """WebSocket для real-time обмена сообщениями и статусами диалога."""
+    token = websocket.query_params.get("token")
+    if not token:
+        token = websocket.cookies.get("student_token")
+    if not token:
+        await websocket.close(code=1008)
+        return
+
+    try:
+        payload = jwt.decode(token, SECRET, algorithms=[ALGORITHM])
+        user_id = int(payload.get("user_id"))
+    except Exception:
+        await websocket.close(code=1008)
+        return
+
+    try:
+        match_uuid = uuid.UUID(match_id)
+    except Exception:
+        await websocket.close(code=1003)
+        return
+
+    async with AsyncSessionLocal() as db:
+        match = await get_match_by_id(db, match_uuid)
+        if not match or user_id not in (match.user1_id, match.user2_id):
+            await websocket.close(code=1008)
+            return
+
+    await chat_manager.connect(websocket, match_id, user_id)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            event_type = data.get("type")
+            if event_type == "ping":
+                await websocket.send_json({"type": "pong"})
+            elif event_type == "typing":
+                await chat_manager.broadcast_to_match(match_id, {
+                    "type": "typing",
+                    "user_id": user_id,
+                })
+            elif event_type == "read":
+                async with AsyncSessionLocal() as db:
+                    await mark_chat_messages_as_read(db, match_uuid, user_id)
+                await chat_manager.broadcast_to_match(match_id, {
+                    "type": "read",
+                    "reader_id": user_id,
+                })
+    except WebSocketDisconnect:
+        chat_manager.disconnect(websocket, match_id, user_id)
+    except Exception:
+        chat_manager.disconnect(websocket, match_id, user_id)
 
 
 # ─── API: Входящие симпатии (Incoming Likes) ─────────────────
@@ -831,6 +1336,7 @@ async def webapp_career_feed(
 
     cand_ids = [c.id for c in candidates]
     connected_ids = set()
+    unlocked_ids = set()
     pending_ids = set()
 
     if cand_ids:
@@ -845,6 +1351,8 @@ async def webapp_career_feed(
         for m in m_res.scalars().all():
             other_id = m.user2_id if m.user1_id == student.id else m.user1_id
             connected_ids.add(other_id)
+            if m.is_tg_unlocked:
+                unlocked_ids.add(other_id)
 
         # Отправленные свайпы / запросы
         s_stmt = select(Swipe.to_user_id).where(
@@ -910,7 +1418,7 @@ async def webapp_career_feed(
             "is_premium": bool(u.is_premium),
             "is_connected": is_connected,
             "is_pending": is_pending,
-            "tg_username": u.tg_username if is_connected else None,
+            "tg_username": u.tg_username if (u.id in unlocked_ids) else None,
         })
 
     return {
@@ -1031,6 +1539,15 @@ async def webapp_get_user_details(
         for t in tag_res.scalars().all():
             tags.append({"id": t.id, "name": t.name, "emoji": t.emoji})
 
+    # Проверяем обоюдное открытие контактов (если смотрим чужой профиль)
+    is_tg_unlocked = False
+    if student.id == target.id:
+        is_tg_unlocked = True
+    else:
+        m = await get_match_between_users(db, student.id, target.id)
+        if m and m.is_tg_unlocked:
+            is_tg_unlocked = True
+
     return {
         "status": "ok",
         "user": {
@@ -1050,7 +1567,7 @@ async def webapp_get_user_details(
             "rating_score": round(p.rating_score or 0.0, 1) if p else 0.0,
             "is_verified": getattr(target, "email_verified", False),
             "is_premium": getattr(target, "is_premium", False),
-            "tg_username": target.tg_username,
+            "tg_username": target.tg_username if is_tg_unlocked else None,
             # Карьерные параметры
             "career_goal": p.career_goal if p else None,
             "career_skills": p.career_skills if p else None,

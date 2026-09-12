@@ -386,12 +386,118 @@
         <h2 class="match-title">Это Мэтч! 🎉</h2>
         <p class="match-desc">Вы и <b id="matchPartnerName">Студент</b> понравились друг другу! Не откладывайте знакомство в долгий ящик.</p>
         <div class="match-modal-buttons">
-          <a href="#" target="_blank" class="btn-primary" id="matchChatBtn" style="text-decoration:none;display:block;">
-            💬 Написать в Telegram
-          </a>
+          <button class="btn-primary" id="matchChatBtn">
+            💬 Открыть чат
+          </button>
           <button class="btn-secondary" id="matchCloseBtn">
             Продолжить поиск
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- In-App Chat Screen Modal (Tinder / Telegram style) -->
+    <div class="chat-screen-overlay" id="chatScreenModal" style="display: none;">
+      <div class="chat-screen-container">
+        <!-- Chat Header -->
+        <header class="chat-header">
+          <button class="chat-back-btn" id="chatBackBtn" aria-label="Назад">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
+
+          <div class="chat-partner-info" id="chatPartnerHeaderProfile">
+            <div class="chat-partner-avatar-wrap">
+              <img src="" id="chatPartnerAvatar" class="chat-partner-avatar" alt="Avatar" />
+              <div class="chat-partner-online-dot" id="chatPartnerOnlineDot" style="display: none;"></div>
+            </div>
+            <div class="chat-partner-text">
+              <div class="chat-partner-name-row">
+                <span class="chat-partner-name" id="chatPartnerName">Собеседник</span>
+                <span class="chat-partner-badge-prem" id="chatPartnerPremBadge" style="display:none;">💎</span>
+              </div>
+              <span class="chat-partner-status" id="chatPartnerStatus">загрузка...</span>
+            </div>
+          </div>
+
+          <div class="chat-header-actions">
+            <button class="chat-menu-btn" id="chatMenuBtn" aria-label="Опции диалога">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="5" r="2" />
+                <circle cx="12" cy="12" r="2" />
+                <circle cx="12" cy="19" r="2" />
+              </svg>
+            </button>
+
+            <!-- Chat Options Dropdown -->
+            <div class="chat-dropdown-menu" id="chatDropdownMenu" style="display: none;">
+              <button class="chat-dropdown-item" id="chatActionViewProfile">
+                <span>👤 Открыть анкету</span>
+              </button>
+              <button class="chat-dropdown-item danger" id="chatActionReport">
+                <span>🚨 Пожаловаться</span>
+              </button>
+              <button class="chat-dropdown-item danger" id="chatActionUnmatch">
+                <span>💔 Удалить пару</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Telegram Mutual Consent Banner -->
+        <div class="chat-tg-banner" id="chatTgBanner">
+          <!-- Populated dynamically: Request button, Pending status, or Open Telegram link -->
+        </div>
+
+        <!-- Chat Messages Container -->
+        <div class="chat-messages-container" id="chatMessagesContainer">
+          <div class="chat-loading-spinner" id="chatLoadingSpinner">
+            <div class="spinner"></div>
+          </div>
+          <div class="chat-messages-inner" id="chatMessagesInner">
+            <!-- Messages rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Typing Indicator -->
+        <div class="chat-typing-row" id="chatTypingIndicator" style="display: none;">
+          <div class="chat-typing-bubble">
+            <span class="chat-typing-name" id="chatTypingName">Собеседник</span> печатает
+            <span class="typing-dots"><span>.</span><span>.</span><span>.</span></span>
+          </div>
+        </div>
+
+        <!-- Chat Input Bar -->
+        <div class="chat-input-bar" id="chatInputBar">
+          <div class="chat-input-wrap">
+            <textarea id="chatInputText" class="chat-input-textarea" rows="1" placeholder="Напишите сообщение..." maxlength="1000"></textarea>
+          </div>
+          <button class="chat-send-btn" id="chatSendBtn" aria-label="Отправить" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat Unmatch Confirmation Modal -->
+    <div class="modal-overlay" id="chatUnmatchModal" style="display:none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">💔 Удалить пару?</h3>
+          <button class="modal-close" id="closeUnmatchModalBtn">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:14px;color:var(--text-muted);line-height:1.5;">
+            Вы уверены, что хотите удалить пару? Диалог исчезнет у обоих собеседников, и связаться снова будет нельзя.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary danger" id="confirmUnmatchBtn">Удалить пару</button>
+          <button class="btn-secondary" id="cancelUnmatchBtn">Отмена</button>
         </div>
       </div>
     </div>

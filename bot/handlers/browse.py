@@ -6,19 +6,20 @@ import html
 from typing import Optional
 from aiogram import Router, F
 from aiogram.filters import StateFilter
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, WebAppInfo
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 
+from bot.config import settings
 from bot.keyboards.swipe import (
     swipe_card_keyboard, career_swipe_card_keyboard, main_menu_keyboard,
     letter_received_keyboard, match_keyboard, incoming_like_keyboard,
 )
 from bot.states.fsm import LetterState
-from database.crud import get_next_profile, create_swipe, get_user, deduct_superlike
+from database.crud import get_next_profile, create_swipe, get_user, deduct_superlike, get_match_between_users
 from database.models import User, Profile, InterestTag, SwipeAction, ModeEnum, Swipe
 
 import logging
@@ -64,18 +65,22 @@ async def _build_profile_caption(
         univ_str = user_obj.university.short_name
 
     age_val = getattr(profile, "age", None)
-    if age_val:
-        if 11 <= (age_val % 100) <= 19:
-            suf = "лет"
-        elif age_val % 10 == 1:
-            suf = "год"
-        elif age_val % 10 in (2, 3, 4):
-            suf = "года"
+    if not age_val:
+        year_num = getattr(profile, "year", None)
+        if year_num and isinstance(year_num, int) and 1 <= year_num <= 6:
+            age_val = 17 + year_num
         else:
-            suf = "лет"
-        age_formatted = f"{age_val} {suf}"
+            age_val = 19
+
+    if 11 <= (age_val % 100) <= 19:
+        suf = "лет"
+    elif age_val % 10 == 1:
+        suf = "год"
+    elif age_val % 10 in (2, 3, 4):
+        suf = "года"
     else:
-        age_formatted = None
+        suf = "лет"
+    age_formatted = f"{age_val} {suf}"
 
     # Позитивный бейдж верификации студента
     is_verified = bool(user_obj and getattr(user_obj, "email_verified", False))
@@ -249,7 +254,9 @@ async def send_next_card(
             elif inc_action == SwipeAction.like:
                 badge = "❤️ <b>Пользователь поставил(а) тебе лайк!</b>\n\n"
 
-    base_caption = await _build_profile_caption(profile, tags_map, mode=user.mode)
+    base_caption = await _build_profile_caption(
+        profile, tags_map, user=getattr(profile, "user", None), mode=user.mode
+    )
     caption = f"{badge}{base_caption}"
 
     if user.mode == ModeEnum.career:
@@ -498,36 +505,46 @@ async def show_my_matches(event: Message | CallbackQuery, user: User, db: AsyncS
         for idx, (m, partner) in enumerate(matches, start=1):
             raw_name = partner.profile.name if (partner.profile and partner.profile.name) else "Студент"
             p_name = html.escape(raw_name)
-            p_username = f"@{partner.tg_username}" if partner.tg_username else "(нет username)"
             p_year = f"{partner.profile.year} курс" if (partner.profile and partner.profile.year) else ""
             date_str = m.created_at.strftime("%d.%m") if m.created_at else ""
 
             ver_badge = " 🎓" if getattr(partner, "email_verified", False) else ""
             prem_badge = " 💎" if getattr(partner, "is_premium", False) else ""
 
-            lines.append(f"{idx}. <b>{p_name}</b>{ver_badge}{prem_badge} ({p_year}) — <b>{p_username}</b> <i>({date_str})</i>")
+            if m.is_tg_unlocked:
+                if partner.tg_username:
+                    clean_username = partner.tg_username.lstrip("@")
+                    p_contact = f"@{clean_username}"
+                else:
+                    clean_username = ""
+                    p_contact = "(нет username)"
+            else:
+                p_contact = "🔒 Telegram скрыт"
+                clean_username = ""
+
+            lines.append(f"{idx}. <b>{p_name}</b>{ver_badge}{prem_badge} ({p_year}) — <b>{p_contact}</b> <i>({date_str})</i>")
 
             # Кнопка просмотра анкеты
             button_label = raw_name if len(raw_name) <= 12 else raw_name[:11] + "…"
             builder.button(text=f"👤 {button_label}", callback_data=f"match:view:{partner.id}")
 
             # Кнопка перехода в диалог
-            if partner.tg_username:
-                clean_username = partner.tg_username.lstrip("@")
-                builder.button(text="💬 Написать", url=f"https://t.me/{clean_username}")
+            if m.is_tg_unlocked and clean_username:
+                builder.button(text="💬 В Telegram", url=f"https://t.me/{clean_username}")
             else:
-                builder.button(text="🔒 Без username", callback_data="none")
+                chat_url = f"{settings.webapp_url}?startapp=chat_{m.id}"
+                builder.button(text="💬 Чат", web_app=WebAppInfo(url=chat_url))
 
         builder.button(text="🔍 Искать новые анкеты", callback_data="top:swipe_next")
         
-        # Распределяем кнопки: по 2 на каждого кандидата (Анкета + Написать), и в конце кнопка поиска
+        # Распределяем кнопки: по 2 на каждого кандидата (Анкета + Написать/Чат), и в конце кнопка поиска
         row_widths = [2] * len(matches) + [1]
         builder.adjust(*row_widths)
 
         text = (
             f"🫂 <b>Твои взаимные мэтчи ({len(matches)}):</b>\n\n" +
             "\n".join(lines) +
-            "\n\nНажми <b>👤 {Имя}</b>, чтобы открыть анкету и фото, или <b>💬 Написать</b>, чтобы перейти в диалог!"
+            "\n\nНажми <b>👤 {Имя}</b>, чтобы открыть анкету, или <b>💬 Чат</b>, чтобы перейти к общению!"
         )
 
         await bot.send_message(chat_id=target_chat_id, text=text, parse_mode="HTML", reply_markup=builder.as_markup())
@@ -574,10 +591,14 @@ async def view_match_profile(callback: CallbackQuery, user: User, db: AsyncSessi
         media_caption = _safe_media_caption(full_caption)
 
         # Клавиатура просмотра анкеты мэтча
+        m = await get_match_between_users(db, user.id, partner.id)
         builder = InlineKeyboardBuilder()
-        if partner.tg_username:
+        if m and m.is_tg_unlocked and partner.tg_username:
             clean_username = partner.tg_username.lstrip("@")
             builder.button(text="💬 Написать в Telegram", url=f"https://t.me/{clean_username}")
+        else:
+            chat_url = f"{settings.webapp_url}?startapp=chat_{m.id}" if m else settings.webapp_url
+            builder.button(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=chat_url))
         
         if partner.mode == ModeEnum.career and partner.profile.career_portfolio_url:
             builder.button(text="💼 Портфолио / Резюме", url=partner.profile.career_portfolio_url)
@@ -887,39 +908,40 @@ async def process_incoming_like(callback: CallbackQuery, user: User, db: AsyncSe
 
     is_match = await create_swipe(db, from_id=user.id, to_id=target_id, action=SwipeAction.like, mode=user.mode)
 
-    target_name = target.profile.name if target and target.profile else "Студент"
-    target_username = f"@{target.tg_username}" if target and target.tg_username else "(нет username)"
-    my_name = user.profile.name if user.profile else "Студент"
-    my_username = f"@{user.tg_username}" if user.tg_username else "(нет username)"
+    if is_match:
+        target_name = target.profile.name if target and target.profile else "Студент"
+        my_name = user.profile.name if user.profile else "Студент"
+        m = await get_match_between_users(db, user.id, target_id)
+        match_id = m.id if m else None
 
-    try:
-        await callback.message.edit_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
 
-    # Уведомляем текущего пользователя
-    await callback.message.answer(
-        f"🎉 <b>Это взаимно!</b>\n\n"
-        f"Ты и <b>{html.escape(target_name)}</b> понравились друг другу!\n"
-        f"Telegram: <b>{target_username}</b>",
-        parse_mode="HTML",
-        reply_markup=match_keyboard(target_username),
-    )
-
-    # Уведомляем инициатора первого лайка
-    try:
-        await callback.bot.send_message(
-            target_id,
+        # Уведомляем текущего пользователя
+        await callback.message.answer(
             f"🎉 <b>Это взаимно!</b>\n\n"
-            f"<b>{html.escape(my_name)}</b> ответил(а) взаимностью на твой лайк!\n"
-            f"Telegram: <b>{my_username}</b>",
+            f"Ты и <b>{html.escape(target_name)}</b> понравились друг другу!\n\n"
+            f"💬 Начните общение во встроенном чате приложения. Прямой контакт в Telegram откроется только по обоюдному согласию.",
             parse_mode="HTML",
-            reply_markup=match_keyboard(my_username),
+            reply_markup=match_keyboard(match_id=match_id),
         )
-    except Exception:
-        pass
 
-    await callback.answer("🎉 Это взаимно!")
+        # Уведомляем инициатора первого лайка
+        try:
+            await callback.bot.send_message(
+                target_id,
+                f"🎉 <b>Это взаимно!</b>\n\n"
+                f"<b>{html.escape(my_name)}</b> ответил(а) взаимностью на твой лайк!\n\n"
+                f"💬 Начните общение во встроенном чате приложения. Прямой контакт в Telegram откроется только по обоюдному согласию.",
+                parse_mode="HTML",
+                reply_markup=match_keyboard(match_id=match_id),
+            )
+        except Exception:
+            pass
+
+        await callback.answer("🎉 Это взаимно!")
 
 
 @router.callback_query(F.data.startswith("incoming:skip:"))
@@ -942,20 +964,29 @@ async def process_incoming_skip(callback: CallbackQuery, user: User, db: AsyncSe
 
 # ─── Обработка свайпов (Callback) ─────────────────────────────
 @router.callback_query(F.data.startswith("swipe:"))
-async def swipe_callback(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
-    parts = callback.data.split(":")
-    action_str = parts[1]
-
-    if action_str == "message":
-        await prompt_letter(callback, state, user, db)
+async def swipe_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    """
+    Обработка нажатия на кнопки действий под анкетой:
+    swipe:like:{target_id}
+    swipe:dislike:{target_id}
+    swipe:superlike:{target_id}
+    """
+    try:
+        _, action_str, target_id_str = callback.data.split(":")
+        target_id = int(target_id_str)
+    except (ValueError, IndexError):
+        await callback.answer("Ошибка запроса.", show_alert=True)
         return
 
-    target_id = int(parts[2])
+    # Защита от свайпа самого себя
+    if user.id == target_id:
+        await callback.answer("Нельзя свайпать свой профиль!", show_alert=True)
+        return
 
     if action_str == "superlike":
-        if user.superlike_balance <= 0:
+        if (user.superlikes_count or 0) <= 0:
             await callback.answer(
-                "У тебя нет суперлайков! Купи их в настройках ⭐",
+                "⭐ У вас закончились суперлайки!\nОформите Премиум или докупите их в магазине.",
                 show_alert=True
             )
             return
@@ -974,18 +1005,17 @@ async def swipe_callback(callback: CallbackQuery, state: FSMContext, user: User,
     if is_match:
         target = await get_user(db, target_id)
         target_name = target.profile.name if target and target.profile else "Студент"
-        target_username = f"@{target.tg_username}" if target and target.tg_username else "(нет username)"
-
         my_name = user.profile.name if user.profile else "Студент"
-        my_username = f"@{user.tg_username}" if user.tg_username else "(нет username)"
+        m = await get_match_between_users(db, user.id, target_id)
+        match_id = m.id if m else None
 
         # Уведомляем инициатора
         await callback.message.answer(
             f"🎉 <b>Это взаимно!</b>\n\n"
-            f"Ты и <b>{html.escape(target_name)}</b> понравились друг другу!\n"
-            f"Telegram: <b>{target_username}</b>",
+            f"Ты и <b>{html.escape(target_name)}</b> понравились друг другу!\n\n"
+            f"💬 Начните общение во встроенном чате приложения. Прямой контакт в Telegram откроется только по обоюдному согласию.",
             parse_mode="HTML",
-            reply_markup=match_keyboard(target_username),
+            reply_markup=match_keyboard(match_id=match_id),
         )
 
         # Уведомляем вторую сторону
@@ -993,10 +1023,10 @@ async def swipe_callback(callback: CallbackQuery, state: FSMContext, user: User,
             await callback.bot.send_message(
                 target_id,
                 f"🎉 <b>Это взаимно!</b>\n\n"
-                f"Ты и <b>{html.escape(my_name)}</b> понравились друг другу!\n"
-                f"Telegram: <b>{my_username}</b>",
+                f"<b>{html.escape(my_name)}</b> и ты понравились друг другу!\n\n"
+                f"💬 Начните общение во встроенном чате приложения. Прямой контакт в Telegram откроется только по обоюдному согласию.",
                 parse_mode="HTML",
-                reply_markup=match_keyboard(my_username),
+                reply_markup=match_keyboard(match_id=match_id),
             )
         except Exception:
             pass
@@ -1091,9 +1121,7 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
         return
 
     target_name = target.profile.name if target.profile else "Студент"
-    target_username = f"@{target.tg_username}" if target.tg_username else "(нет username)"
     my_name = user.profile.name if user.profile else "Студент"
-    my_username = f"@{user.tg_username}" if user.tg_username else "(нет username)"
 
     # Проверяем, есть ли уже свайп в этом режиме
     existing_swipe = await db.execute(
@@ -1114,21 +1142,24 @@ async def send_letter(message: Message, state: FSMContext, user: User, db: Async
         )
 
     if is_match:
+        m = await get_match_between_users(db, user.id, target_id)
+        match_id = m.id if m else None
+
         await message.answer(
             f"🎉 <b>Это взаимно!</b>\n\n"
-            f"Ты и <b>{html.escape(target_name)}</b> понравились друг другу!\n"
-            f"Telegram: <b>{target_username}</b>",
+            f"Ты и <b>{html.escape(target_name)}</b> понравились друг другу!\n\n"
+            f"💬 Начните общение во встроенном чате приложения. Прямой контакт в Telegram откроется только по обоюдному согласию.",
             parse_mode="HTML",
-            reply_markup=match_keyboard(target_username),
+            reply_markup=match_keyboard(match_id=match_id),
         )
         try:
             await message.bot.send_message(
                 target_id,
                 f"🎉 <b>Это взаимно!</b>\n\n"
-                f"Ты и <b>{html.escape(my_name)}</b> понравились друг другу!\n"
-                f"Telegram: <b>{my_username}</b>",
+                f"<b>{html.escape(my_name)}</b> и ты понравились друг другу!\n\n"
+                f"💬 Начните общение во встроенном чате приложения. Прямой контакт в Telegram откроется только по обоюдному согласию.",
                 parse_mode="HTML",
-                reply_markup=match_keyboard(my_username),
+                reply_markup=match_keyboard(match_id=match_id),
             )
         except Exception:
             pass

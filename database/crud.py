@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 from database.models import (
     User, Profile, University, EmailToken, Achievement,
-    Swipe, Match, Admin, Employer, EmployerProfileAccess, Payment, Report,
+    Swipe, Match, ChatMessage, Admin, Employer, EmployerProfileAccess, Payment, Report,
     VerifiedStatus, SwipeAction, ModeEnum, PaymentStatus, PaymentProduct,
 )
 
@@ -775,6 +775,160 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
         await db.rollback()
         logger.error(f"Error querying matches for user {user_id}: {e}", exc_info=True)
         return []
+
+
+# ─────────────────────────────────────────────────────────────
+# Chat & Telegram Reveal
+# ─────────────────────────────────────────────────────────────
+async def get_match_by_id(db: AsyncSession, match_id: uuid.UUID) -> Optional[Match]:
+    """Получить матч по его UUID."""
+    res = await db.execute(select(Match).where(Match.id == match_id))
+    return res.scalar_one_or_none()
+
+
+async def get_match_between_users(
+    db: AsyncSession, user1_id: int, user2_id: int, mode: Optional[ModeEnum] = None
+) -> Optional[Match]:
+    """Найти существующий матч между двумя пользователями."""
+    query = select(Match).where(
+        or_(
+            and_(Match.user1_id == user1_id, Match.user2_id == user2_id),
+            and_(Match.user1_id == user2_id, Match.user2_id == user1_id),
+        )
+    )
+    if mode:
+        query = query.where(Match.mode == mode)
+    res = await db.execute(query.order_by(Match.created_at.desc()).limit(1))
+    return res.scalar_one_or_none()
+
+
+async def get_chat_messages(
+    db: AsyncSession, match_id: uuid.UUID, limit: int = 50, offset: int = 0
+) -> List[ChatMessage]:
+    """Получить историю сообщений для матча, отсортированную по возрастанию времени."""
+    res = await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.match_id == match_id)
+        .order_by(ChatMessage.created_at.asc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(res.scalars().all())
+
+
+async def create_chat_message(
+    db: AsyncSession,
+    match_id: uuid.UUID,
+    sender_id: int,
+    text: str,
+    msg_type: str = "text",
+) -> ChatMessage:
+    """Создать новое сообщение во внутреннем чате."""
+    msg = ChatMessage(
+        id=uuid.uuid4(),
+        match_id=match_id,
+        sender_id=sender_id,
+        text=text.strip()[:2000],
+        msg_type=msg_type,
+        is_read=False,
+    )
+    db.add(msg)
+    await db.commit()
+    await db.refresh(msg)
+    return msg
+
+
+async def mark_chat_messages_as_read(
+    db: AsyncSession, match_id: uuid.UUID, reader_id: int
+) -> int:
+    """Пометить входящие сообщения как прочитанные."""
+    res = await db.execute(
+        update(ChatMessage)
+        .where(
+            and_(
+                ChatMessage.match_id == match_id,
+                ChatMessage.sender_id != reader_id,
+                ChatMessage.is_read == False,
+            )
+        )
+        .values(is_read=True)
+    )
+    await db.commit()
+    return res.rowcount or 0
+
+
+async def get_unread_messages_count(
+    db: AsyncSession, match_id: uuid.UUID, reader_id: int
+) -> int:
+    """Получить количество непрочитанных сообщений в данном чате."""
+    res = await db.scalar(
+        select(func.count(ChatMessage.id)).where(
+            and_(
+                ChatMessage.match_id == match_id,
+                ChatMessage.sender_id != reader_id,
+                ChatMessage.is_read == False,
+            )
+        )
+    )
+    return res or 0
+
+
+async def get_last_chat_message(
+    db: AsyncSession, match_id: uuid.UUID
+) -> Optional[ChatMessage]:
+    """Получить самое последнее сообщение в диалоге."""
+    res = await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.match_id == match_id)
+        .order_by(ChatMessage.created_at.desc())
+        .limit(1)
+    )
+    return res.scalar_one_or_none()
+
+
+async def approve_match_telegram(
+    db: AsyncSession, match_id: uuid.UUID, user_id: int
+) -> Tuple[Optional[Match], bool]:
+    """
+    Дать разрешение на открытие Telegram для указанного участника.
+    Возвращает (match, is_now_unlocked): True если оба теперь одобрили контакт.
+    """
+    res = await db.execute(select(Match).where(Match.id == match_id))
+    match = res.scalar_one_or_none()
+    if not match:
+        return None, False
+
+    if match.user1_id == user_id:
+        match.user1_tg_approved = True
+    elif match.user2_id == user_id:
+        match.user2_tg_approved = True
+    else:
+        return match, False
+
+    was_unlocked = bool(match.tg_unlocked_at is not None)
+    is_now_unlocked = bool(match.user1_tg_approved and match.user2_tg_approved)
+
+    if is_now_unlocked and not was_unlocked:
+        match.tg_unlocked_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(match)
+    return match, (is_now_unlocked and not was_unlocked)
+
+
+async def delete_match_by_id(
+    db: AsyncSession, match_id: uuid.UUID, user_id: int
+) -> bool:
+    """Удалить мэтч и связанный чат (доступно только участнику матча)."""
+    res = await db.execute(select(Match).where(Match.id == match_id))
+    match = res.scalar_one_or_none()
+    if not match:
+        return False
+    if match.user1_id != user_id and match.user2_id != user_id:
+        return False
+    await db.delete(match)
+    await db.commit()
+    return True
 
 
 

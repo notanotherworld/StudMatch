@@ -135,6 +135,25 @@ MIGRATION_STATEMENTS = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_swipes_viewer_mode_action_created ON swipes (from_user_id, mode, action, created_at);",
     "CREATE INDEX IF NOT EXISTS idx_swipes_target_mode_action ON swipes (to_user_id, mode, action);",
+    # Заполнение возраста для анкет без возраста (старые и тестовые анкеты)
+    "UPDATE profiles SET age = LEAST(17 + COALESCE(year, 1), 25) WHERE age IS NULL;",
+    # 026_in_app_chat_and_telegram_reveal
+    "ALTER TABLE matches ADD COLUMN IF NOT EXISTS user1_tg_approved BOOLEAN DEFAULT FALSE;",
+    "ALTER TABLE matches ADD COLUMN IF NOT EXISTS user2_tg_approved BOOLEAN DEFAULT FALSE;",
+    "ALTER TABLE matches ADD COLUMN IF NOT EXISTS tg_unlocked_at TIMESTAMP WITH TIME ZONE;",
+    """
+    CREATE TABLE IF NOT EXISTS chat_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+        sender_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        text TEXT NOT NULL,
+        msg_type VARCHAR(20) NOT NULL DEFAULT 'text',
+        is_read BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_chat_messages_match_created ON chat_messages (match_id, created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_chat_messages_unread ON chat_messages (match_id, sender_id, is_read);",
     # Установка версии alembic
     """
     DO $$

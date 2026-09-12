@@ -2,6 +2,7 @@
 from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
     ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove,
+    WebAppInfo,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from typing import List, Optional, Dict, Any, Set
@@ -139,12 +140,20 @@ def incoming_like_keyboard(from_user_id: int, portfolio_url: Optional[str] = Non
     return builder.as_markup()
 
 
-def match_keyboard(tg_username: str = "") -> InlineKeyboardMarkup:
-    """Кнопка прямого перехода в диалог при мэтче."""
+def match_keyboard(tg_username: str = "", match_id: Optional[Any] = None) -> InlineKeyboardMarkup:
+    """
+    Кнопка перехода в диалог при мэтче:
+    - Если передан tg_username (контакты обоюдно открыты), показываем прямую ссылку в Telegram.
+    - Иначе показываем кнопку открытия встроенного чата в приложении.
+    """
     builder = InlineKeyboardBuilder()
     if tg_username and tg_username != "(нет username)":
         clean_user = tg_username.lstrip("@")
         builder.button(text="💬 Написать в Telegram", url=f"https://t.me/{clean_user}")
+    else:
+        app_url = f"{settings.webapp_url}?startapp=chat_{match_id}" if match_id else settings.webapp_url
+        builder.button(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=app_url))
+
     builder.button(text="🔥 Искать дальше", callback_data="top:swipe_next")
     builder.adjust(1)
     return builder.as_markup()

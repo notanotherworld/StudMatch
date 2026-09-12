@@ -314,7 +314,40 @@ class Match(Base):
     user1_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
     user2_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
     mode: Mapped[ModeEnum] = mapped_column(Enum(ModeEnum))
+    user1_tg_approved: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    user2_tg_approved: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    tg_unlocked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    @property
+    def is_tg_unlocked(self) -> bool:
+        return bool(self.user1_tg_approved and self.user2_tg_approved)
+
+    messages: Mapped[List["ChatMessage"]] = relationship(
+        back_populates="match", cascade="all, delete-orphan", order_by="ChatMessage.created_at"
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Сообщения внутреннего чата (мессенджер мэтчей)
+# ─────────────────────────────────────────────────────────────
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    __table_args__ = (
+        Index("idx_chat_messages_match_created", "match_id", "created_at"),
+        Index("idx_chat_messages_unread", "match_id", "sender_id", "is_read"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    match_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("matches.id", ondelete="CASCADE"), nullable=False)
+    sender_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    msg_type: Mapped[str] = mapped_column(String(20), default="text", server_default="text")  # "text", "system", "tg_request", "tg_approved"
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    match: Mapped["Match"] = relationship(back_populates="messages")
+    sender: Mapped["User"] = relationship()
 
 
 # ─────────────────────────────────────────────────────────────

@@ -39,7 +39,7 @@
           </div>
         </div>
 
-        <div class="grid grid-3">
+        <div class="grid grid-4">
           <div class="form-group">
             <label>Курс</label>
             <select name="year" id="inputYear">
@@ -50,6 +50,11 @@
               <option value="5">5 курс</option>
               <option value="6">6 курс (Магистратура)</option>
             </select>
+          </div>
+
+          <div class="form-group">
+            <label>Возраст</label>
+            <input type="number" name="age" id="inputAge" value="19" min="16" max="35">
           </div>
 
           <div class="form-group">
@@ -376,6 +381,7 @@
   // Inputs
   const inputName = document.getElementById('inputName');
   const inputYear = document.getElementById('inputYear');
+  const inputAge = document.getElementById('inputAge');
   const inputMajor = document.getElementById('inputMajor');
   const inputRating = document.getElementById('inputRating');
   const inputGoal = document.getElementById('inputGoal');
@@ -401,7 +407,8 @@
   function updatePreview() {
     const name = inputName.value.trim() || 'Студент';
     const year = inputYear.value || '1';
-    previewTitle.innerText = `${name}, ${year} курс`;
+    const ageVal = inputAge && inputAge.value ? inputAge.value : (17 + parseInt(year));
+    previewTitle.innerText = `${name}, ${ageVal} лет, ${year} курс`;
     previewMajor.innerText = `📚 ${inputMajor.value.trim() || 'Вуз'}`;
     previewRatingBadge.innerText = `⭐ ${inputRating.value || '0'} б.`;
 
@@ -448,7 +455,7 @@
   });
 
   // Attach live update listeners
-  [inputName, inputYear, inputMajor, inputRating, inputGoal, inputInterests, inputSkills, inputCareerGoal, inputWorkFormat].forEach(el => {
+  [inputName, inputYear, inputAge, inputMajor, inputRating, inputGoal, inputInterests, inputSkills, inputCareerGoal, inputWorkFormat].forEach(el => {
     if (el) el.addEventListener('input', updatePreview);
     if (el) el.addEventListener('change', updatePreview);
   });
@@ -460,6 +467,7 @@
     document.getElementById('inputGender').value = p.gender;
     document.getElementById('inputTargetGender').value = p.target_gender;
     inputYear.value = p.year;
+    if (inputAge) inputAge.value = 17 + parseInt(p.year || 2);
     inputMajor.value = p.major;
     inputRating.value = p.rating;
     document.getElementById('inputUsername').value = p.username;

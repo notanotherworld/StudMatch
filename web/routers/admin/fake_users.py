@@ -61,6 +61,7 @@ async def create_fake_user_action(
     university_id: Optional[int] = Form(None),
     major: Optional[str] = Form(None),
     year: int = Form(1),
+    age: Optional[int] = Form(None),
     rating_score: float = Form(50.0),
     auto_match_mode: str = Form("instant"),
     # Знакомства
@@ -125,6 +126,7 @@ async def create_fake_user_action(
     new_profile = Profile(
         user_id=fake_user_id,
         name=name.strip(),
+        age=age if age else min(17 + year, 25),
         year=year,
         major=major.strip() if major else "Информационные технологии",
         goal=goal.strip() if goal else "Люблю активный отдых, спорт и общение!",

@@ -611,9 +611,14 @@ async def show_my_profile(
 
     univ_str = user.university.short_name if user.university else "РУДН"
 
-    age_formatted = None
-    if profile.age:
-        age_formatted = format_age(profile.age).lstrip(", ")
+    age_val = getattr(profile, "age", None)
+    if not age_val:
+        year_num = getattr(profile, "year", None)
+        if year_num and isinstance(year_num, int) and 1 <= year_num <= 6:
+            age_val = 17 + year_num
+        else:
+            age_val = 19
+    age_formatted = format_age(age_val).lstrip(", ")
 
     # Бейдж верификации
     ver_badge = " 🎓" if user.email_verified else ""
