@@ -278,6 +278,74 @@ def test_in_app_chat_contract():
     print("  ✅ [13] Контракт внутреннего чата WebApp и взаимного открытия контактов: УСПЕШНО")
 
 
+def test_webapp_get_user_details_endpoint():
+    import asyncio
+    from database.session import engine, AsyncSessionLocal
+    from database.models import Base, User, Profile, University
+    from database.crud import update_user_privacy
+    from web.routers.webapp import webapp_get_user_details
+
+    async def _test():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        async with AsyncSessionLocal() as db:
+            # Create university if not exists
+            univ = await db.get(University, 999)
+            if not univ:
+                univ = University(id=999, name="Тестовый Университет", short_name="ТУ", email_domains="@test.ru", city="Москва")
+                db.add(univ)
+                await db.flush()
+
+            # User 1 (current student)
+            u1 = await db.get(User, 848303456)
+            if not u1:
+                u1 = User(id=848303456, tg_username="alex", is_active=True, university_id=999)
+                p1 = Profile(user_id=848303456, name="Алексей", age=20, year=2, photos=["photo_1"])
+                db.add_all([u1, p1])
+            else:
+                u1.is_active = True
+
+            # User 2 (target student)
+            u2 = await db.get(User, 5240488942)
+            if not u2:
+                u2 = User(id=5240488942, tg_username="elena", is_active=True, university_id=999)
+                p2 = Profile(user_id=5240488942, name="Елена", age=21, year=3, photos=["photo_elena_1", "photo_elena_2"])
+                db.add_all([u2, p2])
+            else:
+                u2.is_active = True
+
+            await db.commit()
+
+            # Set privacy on target (hide age, second photo is private)
+            await update_user_privacy(db, 5240488942, hide_age=True, private_photos=["photo_elena_2"])
+
+            # 1. Fetch u2 details as u1 (other user)
+            res = await webapp_get_user_details(user_id=5240488942, student=u1, db=db)
+            assert res["status"] == "ok"
+            user_info = res["user"]
+            assert user_info["id"] == 5240488942
+            assert user_info["name"] == "Елена"
+            assert user_info["is_me"] is False
+            assert user_info["has_match"] is False
+            assert user_info["age"] is None  # hidden by privacy
+            assert user_info["year"] == 3
+            assert len(user_info["photos_meta"]) == 2
+            assert user_info["photos_meta"][0]["is_private"] is False
+            assert user_info["photos_meta"][1]["is_private"] is True
+            assert "university" in user_info
+
+            # 2. Fetch own profile as u1 (is_me = True)
+            res_me = await webapp_get_user_details(user_id=848303456, student=u1, db=db)
+            assert res_me["status"] == "ok"
+            assert res_me["user"]["is_me"] is True
+            assert res_me["user"]["name"] == "Алексей"
+            assert res_me["user"]["age"] == 20
+
+    asyncio.run(_test())
+    print("  ✅ [14] Endpoint /api/webapp/user/{user_id} (детальная карточка и приватность): УСПЕШНО")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚀 ТЕСТИРОВАНИЕ КРИПТОГРАФИИ И БЕЗОПАСНОСТИ STUDMATCH WEBAPP")
@@ -288,8 +356,9 @@ if __name__ == "__main__":
     test_superadmin_security()
     test_maintenance_mode_webapp()
     test_in_app_chat_contract()
+    test_webapp_get_user_details_endpoint()
     print("=" * 60)
-    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (13 из 13)!")
+    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (14 из 14)!")
     print("=" * 60)
 
 

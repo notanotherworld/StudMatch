@@ -1862,6 +1862,40 @@ async def webapp_get_user_details(
     if not target or not target.is_active:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
 
+    p = target.profile
+    if not p:
+        p = await get_profile(db, target.id)
+
+    photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
+    photos = [x for x in photos if x]
+
+    career_avatar_url = resolve_photo_url(p.career_avatar_file_id) if (p and p.career_avatar_file_id) else None
+    career_photos = [career_avatar_url] if career_avatar_url else [resolve_photo_url(x) for x in photos if resolve_photo_url(x)]
+    career_photos = [u for u in career_photos if u]
+    if not career_photos:
+        career_photos = [DEFAULT_FALLBACK_AVATAR]
+
+    tags = []
+    if p and p.interest_ids:
+        tag_res = await db.execute(select(InterestTag).where(InterestTag.id.in_(p.interest_ids)))
+        for t in tag_res.scalars().all():
+            tags.append({"id": t.id, "name": t.name, "emoji": t.emoji})
+
+    # Проверяем обоюдное открытие контактов и наличие мэтча
+    is_me = (student.id == target.id)
+    m = None
+    has_match = False
+    match_id = None
+    is_tg_unlocked = False
+
+    if not is_me:
+        m = await get_match_between_users(db, student.id, target.id)
+        if m:
+            has_match = True
+            match_id = str(m.id)
+            if m.is_tg_unlocked:
+                is_tg_unlocked = True
+
     target_privacy = target.privacy if (target and "privacy" in target.__dict__) else None
     if not target_privacy and target:
         target_privacy = await get_or_create_user_privacy(db, target.id)
@@ -1913,7 +1947,7 @@ async def webapp_get_user_details(
             "is_online": is_user_online_visible_to(student.id, target, is_mutual_match=has_match),
             "online_status_text": get_user_online_status_text_for(student.id, target, is_mutual_match=has_match),
             "major": p.major if p else "",
-            "university": target.university.name if target.university else "",
+            "university": (target.university.short_name or target.university.name) if target.university else "",
             "goal": p.goal if p else "",
             "custom_interests": p.custom_interests if p else "",
             "tags": tags,
