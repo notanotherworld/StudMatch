@@ -204,7 +204,7 @@
 
       <!-- TAB 4: Profile -->
       <section class="app-screen" id="screen-profile">
-        <div class="screen-padding" id="profileContainer">
+        <div id="profileContainer" class="profile-page-container">
           <!-- Injected dynamically by JS -->
         </div>
       </section>
@@ -238,15 +238,32 @@
       </nav>
     </div>
 
-    <!-- Candidate Details Bottom Sheet -->
-    <div class="bottom-sheet-overlay" id="detailsSheetOverlay">
-      <div class="bottom-sheet-content">
-        <div class="sheet-top-header">
-          <div class="sheet-drag-handle"></div>
-          <button class="sheet-close-circle-btn" id="closeDetailsSheetBtn" aria-label="Закрыть анкету">✕</button>
-        </div>
-        <div class="sheet-body" id="detailsSheetBody">
+    <!-- Candidate Details Bottom Sheet / Profile View (Reference 2) -->
+    <div class="bottom-sheet-overlay profile-sheet-overlay" id="detailsSheetOverlay">
+      <div class="bottom-sheet-content profile-sheet-content">
+        <div class="sheet-body profile-sheet-body" id="detailsSheetBody">
           <!-- Dynamic Candidate Content -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Fullscreen Photo Gallery Viewer (Reference 1) -->
+    <div class="fullscreen-gallery-modal" id="fullscreenGalleryModal">
+      <div class="fullscreen-gallery-top">
+        <button class="gallery-back-btn" id="closeGalleryModalBtn" aria-label="Назад">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E53935" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <span class="gallery-counter" id="galleryPhotoCounter">1 / 1</span>
+        <div style="width: 44px;"></div>
+      </div>
+      <div class="fullscreen-gallery-main" id="fullscreenGalleryMain">
+        <img src="" id="fullscreenGalleryImg" class="fullscreen-main-img" alt="Photo" />
+      </div>
+      <div class="fullscreen-gallery-bottom">
+        <div class="gallery-thumbnails-strip" id="galleryThumbnailsStrip">
+          <!-- Thumbnails injected by JS -->
         </div>
       </div>
     </div>

@@ -1177,139 +1177,536 @@
     }
   }
 
-  // 6. Детальный Bottom Sheet анкеты (ℹ️)
+  // ─── Fullscreen Photo Gallery Viewer (Reference 1) ─────────────────
+  let currentGalleryPhotos = [];
+  let currentGalleryIndex = 0;
+
+  function openFullscreenGallery(photos, initialIndex = 0) {
+    triggerHaptic("medium");
+    const modal = document.getElementById("fullscreenGalleryModal");
+    const mainImg = document.getElementById("fullscreenGalleryImg");
+    const counter = document.getElementById("galleryPhotoCounter");
+    const strip = document.getElementById("galleryThumbnailsStrip");
+    const closeBtn = document.getElementById("closeGalleryModalBtn");
+    if (!modal) return;
+
+    if (!photos || photos.length === 0) {
+      photos = ["https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"];
+    }
+
+    currentGalleryPhotos = photos.map((p) => (typeof p === "string" ? p : (p.url || p)));
+    currentGalleryIndex = Math.max(0, Math.min(initialIndex, currentGalleryPhotos.length - 1));
+
+    function renderGalleryView() {
+      if (mainImg) {
+        mainImg.style.opacity = "0.4";
+        mainImg.src = currentGalleryPhotos[currentGalleryIndex];
+        mainImg.onload = () => { mainImg.style.opacity = "1"; };
+        mainImg.onerror = () => {
+          mainImg.style.opacity = "1";
+          mainImg.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80";
+        };
+      }
+      if (counter) {
+        counter.textContent = `${currentGalleryIndex + 1} / ${currentGalleryPhotos.length}`;
+      }
+      if (strip) {
+        strip.innerHTML = currentGalleryPhotos.map((url, idx) => `
+          <div class="gallery-thumb-item ${idx === currentGalleryIndex ? "active" : ""}" data-thumb-idx="${idx}">
+            <img src="${url}" alt="thumb" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+          </div>
+        `).join("");
+
+        strip.querySelectorAll(".gallery-thumb-item").forEach((thumb) => {
+          thumb.addEventListener("click", () => {
+            triggerHaptic("light");
+            currentGalleryIndex = parseInt(thumb.dataset.thumbIdx, 10);
+            renderGalleryView();
+          });
+        });
+      }
+    }
+
+    renderGalleryView();
+    modal.classList.add("active");
+
+    if (closeBtn) {
+      closeBtn.onclick = closeFullscreenGallery;
+    }
+
+    // Touch swipe on main image container
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const mainWrap = document.getElementById("fullscreenGalleryMain");
+    if (mainWrap) {
+      mainWrap.ontouchstart = (e) => {
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+      };
+      mainWrap.ontouchend = (e) => {
+        const diffX = e.changedTouches[0].screenX - touchStartX;
+        const diffY = e.changedTouches[0].screenY - touchStartY;
+        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 40) {
+          if (diffX < 0 && currentGalleryIndex < currentGalleryPhotos.length - 1) {
+            triggerHaptic("light");
+            currentGalleryIndex++;
+            renderGalleryView();
+          } else if (diffX > 0 && currentGalleryIndex > 0) {
+            triggerHaptic("light");
+            currentGalleryIndex--;
+            renderGalleryView();
+          }
+        } else if (diffY > 90 && Math.abs(diffY) > Math.abs(diffX)) {
+          closeFullscreenGallery();
+        }
+      };
+    }
+  }
+
+  function closeFullscreenGallery() {
+    triggerHaptic("light");
+    const modal = document.getElementById("fullscreenGalleryModal");
+    if (modal) modal.classList.remove("active");
+  }
+  window.openFullscreenGallery = openFullscreenGallery;
+  window.closeFullscreenGallery = closeFullscreenGallery;
+
+  // ─── Gallery Grid Builder (2 Top + 3 Bottom) ──────────────────────
+  function buildGalleryGridHtml(photos, photosMeta) {
+    if (!photos || photos.length === 0) return "";
+    const total = photos.length;
+
+    if (total === 1) {
+      const pm = photosMeta && photosMeta[0];
+      const isPrivate = pm && pm.is_private;
+      return `
+        <div class="profile-gallery-grid">
+          <div class="gallery-grid-row-top" style="grid-template-columns: 1fr;">
+            <div class="gallery-grid-cell" data-gallery-index="0" style="aspect-ratio: 16/10;">
+              <img src="${photos[0]}" alt="Photo 1" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+              ${isPrivate ? `
+                <div class="photo-private-overlay">
+                  <div class="photo-private-lock-icon">🔒</div>
+                  <div class="photo-private-text">Фото скрыто</div>
+                  <div class="photo-private-subtext">Откроется после мэтча</div>
+                </div>
+              ` : ""}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    const rowTop = photos.slice(0, 2);
+    const rowBottom = photos.slice(2, 5);
+    const remaining = total > 5 ? total - 5 : 0;
+
+    let topHtml = rowTop.map((url, i) => {
+      const pm = photosMeta && photosMeta[i];
+      const isPrivate = pm && pm.is_private;
+      return `
+        <div class="gallery-grid-cell" data-gallery-index="${i}">
+          <img src="${url}" alt="Photo ${i + 1}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+          ${isPrivate ? `
+            <div class="photo-private-overlay">
+              <div class="photo-private-lock-icon">🔒</div>
+              <div class="photo-private-text">Фото скрыто</div>
+            </div>
+          ` : ""}
+        </div>
+      `;
+    }).join("");
+
+    let bottomHtml = "";
+    if (rowBottom.length > 0) {
+      bottomHtml = `
+        <div class="gallery-grid-row-bottom">
+          ${rowBottom.map((url, idx) => {
+            const actualIdx = idx + 2;
+            const pm = photosMeta && photosMeta[actualIdx];
+            const isPrivate = pm && pm.is_private;
+            const isLastWithMore = (idx === 2 && remaining > 0);
+            return `
+              <div class="gallery-grid-cell" data-gallery-index="${actualIdx}">
+                <img src="${url}" alt="Photo ${actualIdx + 1}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';" />
+                ${isPrivate ? `
+                  <div class="photo-private-overlay">
+                    <div class="photo-private-lock-icon" style="font-size:16px;">🔒</div>
+                  </div>
+                ` : ""}
+                ${isLastWithMore ? `
+                  <div class="gallery-grid-overlay-more">+${remaining}</div>
+                ` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    return `
+      <div class="profile-gallery-grid">
+        <div class="gallery-grid-row-top" style="${rowTop.length === 1 ? 'grid-template-columns: 1fr;' : ''}">
+          ${topHtml}
+        </div>
+        ${bottomHtml}
+      </div>
+    `;
+  }
+
+  // ─── Hero Slider Swipe Handler ────────────────────────────────────
+  function setupHeroSlider(containerEl, photos) {
+    if (!containerEl || !photos || photos.length <= 1) return;
+    const slider = containerEl.querySelector(".profile-hero-slider");
+    const dots = containerEl.querySelectorAll(".profile-hero-dot");
+    if (!slider) return;
+
+    let activeIdx = 0;
+    function updateSlide(newIdx) {
+      activeIdx = Math.max(0, Math.min(newIdx, photos.length - 1));
+      slider.style.transform = `translateX(-${activeIdx * 100}%)`;
+      dots.forEach((d, i) => d.classList.toggle("active", i === activeIdx));
+    }
+
+    let touchStartX = 0;
+    containerEl.addEventListener("touchstart", (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    containerEl.addEventListener("touchend", (e) => {
+      const diffX = e.changedTouches[0].screenX - touchStartX;
+      if (Math.abs(diffX) > 35) {
+        if (diffX < 0 && activeIdx < photos.length - 1) {
+          triggerHaptic("light");
+          updateSlide(activeIdx + 1);
+        } else if (diffX > 0 && activeIdx > 0) {
+          triggerHaptic("light");
+          updateSlide(activeIdx - 1);
+        }
+      }
+    }, { passive: true });
+  }
+
+  // Helper: Open chat or message modal
+  function handleProfileMessageClick(profile) {
+    triggerHaptic("medium");
+    const targetUserId = profile.user_id || profile.id;
+    const existingMatch = (state.matches || []).find(
+      (m) => (m.partner && (m.partner.id === targetUserId || m.partner.user_id === targetUserId)) || m.user_id === targetUserId
+    );
+    if (existingMatch) {
+      closeDetailsSheet();
+      openChat(existingMatch.id || existingMatch.match_id);
+      return;
+    }
+
+    // Not matched yet: check privacy settings
+    const whoCanMessage = profile.privacy?.who_can_message || "matches";
+    if (whoCanMessage === "nobody") {
+      showAppToast("🔒 Пользователь ограничил входящие сообщения");
+    } else if (whoCanMessage === "everyone") {
+      closeDetailsSheet();
+      openSuperlikeModal(profile);
+    } else {
+      showAppToast("🔒 Сообщения доступны после взаимного мэтча. Поставьте лайк или суперлайк!");
+    }
+  }
+
+  // 6. Детальная анкета пользователя (Reference 2)
   function openDetailsSheet(profile) {
     triggerHaptic("medium");
     const body = document.getElementById("detailsSheetBody");
     if (!body) return;
 
-    const photos = profile.photos && profile.photos.length > 0
+    const rawPhotos = profile.photos && profile.photos.length > 0
       ? profile.photos
-      : ["https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80"];
+      : [profile.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"];
 
-    const photosMeta = profile.photos_meta || photos.map((p, i) => ({ url: p, is_private: false, index: i }));
+    const photosMeta = profile.photos_meta || rawPhotos.map((p, i) => ({ url: p, is_private: false, index: i }));
+    const photos = rawPhotos;
 
-    const galleryHtml = photosMeta
-      .map((pm) => {
-        if (pm.is_private) {
-          return `
-            <div class="sheet-photo-wrap" style="position:relative;display:inline-block;overflow:hidden;border-radius:16px;flex-shrink:0;">
-              <img src="${pm.url}" class="sheet-photo photo-private" alt="Photo" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
-              <div class="photo-private-overlay">
-                <div class="photo-private-lock-icon">🔒</div>
-                <div class="photo-private-text">Фото скрыто</div>
-                <div class="photo-private-subtext">Откроется после мэтча</div>
-              </div>
-            </div>
-          `;
-        }
-        return `<img src="${pm.url}" class="sheet-photo" alt="Photo" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />`;
-      })
-      .join("");
+    // Build Hero Slides
+    const heroSlidesHtml = photos.map((url, i) => `
+      <div class="profile-hero-slide" data-slide-index="${i}">
+        <img src="${url}" class="profile-hero-img" alt="${escapeHtml(profile.name || 'Student')}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+      </div>
+    `).join("");
 
-    const tagsHtml = (profile.tags || [])
-      .map((t) => `<span class="card-tag">${t.emoji || "🏷"} ${t.name}</span>`)
-      .join("");
+    // Build Hero Indicators
+    const indicatorsHtml = photos.length > 1
+      ? `<div class="profile-hero-indicators">${photos.map((_, i) => `<div class="profile-hero-dot ${i === 0 ? 'active' : ''}"></div>`).join("")}</div>`
+      : "";
+
+    // Subtitle text (University • Major • Course)
+    const subtitleParts = [];
+    if (profile.university) subtitleParts.push(profile.university);
+    if (profile.major) subtitleParts.push(profile.major);
+    if (profile.year) subtitleParts.push(`${profile.year} курс`);
+    const subtitleText = subtitleParts.length > 0 ? subtitleParts.join(" • ") : "Студент StudMatch";
+
+    // Location text
+    const locationCity = profile.city || profile.university_city || "Москва";
+    const locationUniv = profile.university ? `, ${profile.university}` : "";
+    const distanceText = profile.distance ? `${profile.distance} км` : "1 км";
+
+    // Interests pills with checkmarks
+    const tags = profile.tags || [];
+    const interestsHtml = tags.map((t, idx) => `
+      <span class="profile-interest-pill ${idx < 2 ? 'highlighted' : ''}">
+        ${idx < 2 ? '<span class="profile-interest-check">✔</span>' : ''}
+        ${t.emoji || '🏷'} ${escapeHtml(t.name)}
+      </span>
+    `).join("");
 
     // Career information
-    let careerSection = "";
+    let careerHtml = "";
     if (profile.career_goal || profile.career_custom_skills || profile.career_portfolio_url || profile.career_work_format) {
-      careerSection = `
-        <div class="sheet-section">
-          <div class="sheet-section-title">💼 Профессиональная информация</div>
-          ${profile.career_work_format ? `<p class="sheet-section-text"><b>Формат:</b> ${escapeHtml(profile.career_work_format)}</p>` : ""}
-          ${profile.career_custom_skills ? `<p class="sheet-section-text"><b>Навыки / Стек:</b> ${escapeHtml(profile.career_custom_skills)}</p>` : ""}
-          ${profile.career_goal ? `<p class="sheet-section-text"><b>Цель:</b> ${escapeHtml(profile.career_goal)}</p>` : ""}
-          ${profile.career_portfolio_url ? `<a href="${escapeHtml(profile.career_portfolio_url)}" target="_blank" class="sheet-link-btn">🔗 Открыть резюме / портфолио</a>` : ""}
+      careerHtml = `
+        <div class="profile-card-section">
+          <div class="profile-section-title-row">
+            <h4 class="profile-section-title">💼 Карьера и навыки</h4>
+          </div>
+          <div class="profile-career-box">
+            ${profile.career_work_format ? `<div class="profile-career-item"><b>Формат:</b> ${escapeHtml(profile.career_work_format)}</div>` : ""}
+            ${profile.career_custom_skills ? `<div class="profile-career-item"><b>Навыки:</b> ${escapeHtml(profile.career_custom_skills)}</div>` : ""}
+            ${profile.career_goal ? `<div class="profile-career-item"><b>Цель:</b> ${escapeHtml(profile.career_goal)}</div>` : ""}
+            ${profile.career_portfolio_url ? `<a href="${escapeHtml(profile.career_portfolio_url)}" target="_blank" class="sheet-link-btn" style="margin-top:8px;">🔗 Портфолио / Резюме</a>` : ""}
+          </div>
         </div>
       `;
     }
 
+    // Gallery Grid
+    const galleryGridHtml = buildGalleryGridHtml(photos, photosMeta);
+
+    // About text
+    const bioText = profile.goal || profile.about || profile.bio || "";
+    const isBioLong = bioText.length > 140;
+
     body.innerHTML = `
-      <div class="sheet-gallery">${galleryHtml}</div>
-
-      <div>
-        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">
-          <h2 style="font-size: 24px; font-weight: 800; margin: 0;">
-            ${escapeHtml(profile.name)}, ${profile.age || ""}
-            ${profile.is_verified ? "🎓" : ""} ${profile.is_premium ? "💎" : ""}
-          </h2>
-          <span class="sheet-rating-badge" id="sheetRatingBadge">⭐ <span id="sheetRatingVal">${profile.rating_score || 0}</span></span>
-        </div>
-        <p style="font-size: 14px; color: var(--text-muted);">
-          🏛 ${profile.university || "ВУЗ"} ${profile.major ? `• ${profile.major}` : ""} ${profile.year ? `• ${profile.year} курс` : ""}
-        </p>
-      </div>
-
-      ${profile.goal ? `
-        <div class="sheet-section">
-          <div class="sheet-section-title">О себе</div>
-          <p class="sheet-section-text">${escapeHtml(profile.goal)}</p>
-        </div>
-      ` : ""}
-
-      ${tagsHtml ? `
-        <div class="sheet-section">
-          <div class="sheet-section-title">Интересы</div>
-          <div class="card-tags" style="margin-top: 6px;">${tagsHtml}</div>
-          ${profile.custom_interests ? `<p class="sheet-section-text" style="margin-top: 6px;">${escapeHtml(profile.custom_interests)}</p>` : ""}
-        </div>
-      ` : ""}
-
-      ${careerSection}
-
-      <button type="button" class="btn-send-rating" id="sheetSendRatingBtn">
-        <span class="btn-rating-icon">⭐</span>
-        <span class="btn-rating-text">Отправить рейтинг (+1 б.)</span>
-        <span class="btn-rating-balance" id="sheetRatingBalance">${state.currentUser?.superlike_balance || 0} ⭐</span>
-      </button>
-
-      ${state.currentUser?.is_superadmin || state.currentUser?.id === 149620234 ? `
-        <div class="admin-quick-toolbar" style="margin-top:14px;padding:12px;background:#f8f9fe;border-radius:14px;border:1px dashed #6c5ce7;">
-          <div style="font-size:11px;font-weight:700;color:#6c5ce7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-            👑 Панель управления (Superadmin)
-          </div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn-primary" id="sheetAdminPremBtn" style="font-size:12px;padding:8px 12px;background:${profile.is_premium ? '#ff7675' : 'linear-gradient(135deg, #FFD700, #FFA500)'};color:#fff;border:none;">
-              ${profile.is_premium ? "💎 Снять Премиум" : "👑 Выдать Премиум (1 год)"}
-            </button>
-            <button class="btn-secondary" id="sheetAdminVerifyBtn" style="font-size:12px;padding:8px 12px;">
-              🎓 ${profile.is_verified ? "Снять статус" : "Верифицировать"}
-            </button>
+      <div class="profile-view-wrapper">
+        <!-- Top Hero Section -->
+        <div class="profile-hero-wrap" id="candidateHeroWrap">
+          <button class="profile-hero-back-btn" id="closeCandidateSheetBtn" aria-label="Назад">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E53935" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          ${indicatorsHtml}
+          <div class="profile-hero-gradient-top"></div>
+          <div class="profile-hero-gradient-bottom"></div>
+          <div class="profile-hero-slider">
+            ${heroSlidesHtml}
           </div>
         </div>
-      ` : ""}
 
-      <div class="card-actions-row" style="margin-top: 10px;">
-        <button class="action-btn dislike" id="sheetDislikeBtn" title="Пропустить">
-          <svg class="action-btn-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="3.5" stroke-linecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-        <button class="action-btn superlike" id="sheetSuperlikeBtn" title="Суперлайк">
-          <svg class="action-btn-icon" width="28" height="28" viewBox="0 0 24 24" fill="white">
-            <path d="M12 2.5L15.09 8.76L22 9.77L17 14.64L18.18 21.5L12 18.25L5.82 21.5L7 14.64L2 9.77L8.91 8.76L12 2.5Z"/>
-          </svg>
-        </button>
-        <button class="action-btn like ${state.currentUser?.mode === 'career' ? 'career-like' : ''}" id="sheetLikeBtn" title="${state.currentUser?.mode === 'career' ? 'Предложить проект' : 'Нравится'}">
-          ${state.currentUser?.mode === 'career'
-            ? `<svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="white">
-                 <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/>
-               </svg>`
-            : `<svg class="action-btn-icon" width="24" height="24" viewBox="0 0 24 24" fill="white">
-                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-               </svg>`}
-        </button>
+        <!-- White Content Card -->
+        <div class="profile-sheet-card">
+          <!-- Floating Action Buttons Cluster (Reference 2) -->
+          <div class="profile-floating-actions">
+            <button class="floating-action-btn dislike" id="candidateDislikeBtn" title="Пропустить">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="3" stroke-linecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <button class="floating-action-btn like" id="candidateLikeBtn" title="Лайк">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+            </button>
+            <button class="floating-action-btn superlike" id="candidateSuperlikeBtn" title="Суперлайк">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="#8B5CF6">
+                <path d="M12 2.5L15.09 8.76L22 9.77L17 14.64L18.18 21.5L12 18.25L5.82 21.5L7 14.64L2 9.77L8.91 8.76L12 2.5Z"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Header: Name, Age, Subtitle & Airplane Button -->
+          <div class="profile-header-row">
+            <div class="profile-header-left">
+              <h2 class="profile-name-title">
+                ${escapeHtml(profile.name || "Студент")}${profile.age ? `, ${profile.age}` : ""}
+                ${profile.is_verified ? "🎓" : ""} ${profile.is_premium ? "💎" : ""}
+                <span class="sheet-rating-badge" id="sheetRatingBadge">⭐ <span id="sheetRatingVal">${profile.rating_score || 0}</span></span>
+              </h2>
+              <p class="profile-role-subtitle">${escapeHtml(subtitleText)}</p>
+            </div>
+            <button class="profile-airplane-btn" id="candidateAirplaneBtn" title="Написать сообщение">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF4B6E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Section: Location -->
+          <div class="profile-card-section">
+            <div class="profile-section-title-row">
+              <h4 class="profile-section-title">Локация</h4>
+            </div>
+            <div class="profile-location-wrap">
+              <p class="profile-location-text">${escapeHtml(locationCity)}${escapeHtml(locationUniv)}</p>
+              <span class="profile-distance-badge">📍 ${escapeHtml(distanceText)}</span>
+            </div>
+          </div>
+
+          <!-- Section: About -->
+          ${bioText ? `
+            <div class="profile-card-section">
+              <div class="profile-section-title-row">
+                <h4 class="profile-section-title">О себе</h4>
+              </div>
+              <div class="profile-about-text ${isBioLong ? 'clamped' : ''}" id="candidateAboutText">
+                ${escapeHtml(bioText)}
+              </div>
+              ${isBioLong ? `<button class="profile-readmore-btn" id="candidateReadMoreBtn">Читать дальше</button>` : ""}
+            </div>
+          ` : ""}
+
+          <!-- Section: Interests -->
+          ${tags.length > 0 ? `
+            <div class="profile-card-section">
+              <div class="profile-section-title-row">
+                <h4 class="profile-section-title">Интересы</h4>
+              </div>
+              <div class="profile-interests-wrap">
+                ${interestsHtml}
+              </div>
+              ${profile.custom_interests ? `<p style="font-size:13.5px;color:#6B7280;margin-top:8px;">${escapeHtml(profile.custom_interests)}</p>` : ""}
+            </div>
+          ` : ""}
+
+          <!-- Section: Career (if exists) -->
+          ${careerHtml}
+
+          <!-- Section: Gallery -->
+          ${photos.length > 0 ? `
+            <div class="profile-card-section">
+              <div class="profile-section-title-row">
+                <h4 class="profile-section-title">Галерея</h4>
+                <button class="profile-section-action-link" id="candidateSeeAllBtn">Все фото (${photos.length})</button>
+              </div>
+              ${galleryGridHtml}
+            </div>
+          ` : ""}
+
+          <!-- Rating & Admin & Report Actions -->
+          <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 12px;">
+            <button type="button" class="btn-send-rating" id="sheetSendRatingBtn">
+              <span class="btn-rating-icon">⭐</span>
+              <span class="btn-rating-text">Отправить рейтинг (+1 б.)</span>
+              <span class="btn-rating-balance" id="sheetRatingBalance">${state.currentUser?.superlike_balance || 0} ⭐</span>
+            </button>
+
+            ${state.currentUser?.is_superadmin || state.currentUser?.id === 149620234 ? `
+              <div class="admin-quick-toolbar" style="padding:12px;background:#f8f9fe;border-radius:14px;border:1px dashed #6c5ce7;">
+                <div style="font-size:11px;font-weight:700;color:#6c5ce7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                  👑 Панель управления (Superadmin)
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn-primary" id="sheetAdminPremBtn" style="font-size:12px;padding:8px 12px;background:${profile.is_premium ? '#ff7675' : 'linear-gradient(135deg, #FFD700, #FFA500)'};color:#fff;border:none;">
+                    ${profile.is_premium ? "💎 Снять Премиум" : "👑 Выдать Премиум (1 год)"}
+                  </button>
+                  <button class="btn-secondary" id="sheetAdminVerifyBtn" style="font-size:12px;padding:8px 12px;">
+                    🎓 ${profile.is_verified ? "Снять статус" : "Верифицировать"}
+                  </button>
+                </div>
+              </div>
+            ` : ""}
+
+            <button class="sheet-report-btn" id="sheetReportBtn">
+              🚩 Пожаловаться на анкету
+            </button>
+          </div>
+        </div>
       </div>
-
-      <button class="sheet-report-btn" id="sheetReportBtn">
-        🚩 Пожаловаться на анкету
-      </button>
     `;
 
     detailsSheetOverlay.classList.add("active");
 
+    // Setup hero slider gestures
+    const heroWrap = document.getElementById("candidateHeroWrap");
+    setupHeroSlider(heroWrap, photos);
+
+    // Hero photo tap -> open fullscreen gallery
+    heroWrap?.querySelectorAll(".profile-hero-slide").forEach((slide, i) => {
+      slide.addEventListener("click", () => {
+        openFullscreenGallery(photos, i);
+      });
+    });
+
+    // Gallery cells tap -> open fullscreen gallery
+    body.querySelectorAll(".gallery-grid-cell").forEach((cell) => {
+      cell.addEventListener("click", () => {
+        const idx = parseInt(cell.dataset.galleryIndex, 10) || 0;
+        openFullscreenGallery(photos, idx);
+      });
+    });
+
+    document.getElementById("candidateSeeAllBtn")?.addEventListener("click", () => {
+      openFullscreenGallery(photos, 0);
+    });
+
+    // Read more toggle
+    const readMoreBtn = document.getElementById("candidateReadMoreBtn");
+    const aboutText = document.getElementById("candidateAboutText");
+    if (readMoreBtn && aboutText) {
+      readMoreBtn.addEventListener("click", () => {
+        triggerHaptic("light");
+        const isClamped = aboutText.classList.contains("clamped");
+        if (isClamped) {
+          aboutText.classList.remove("clamped");
+          readMoreBtn.textContent = "Свернуть";
+        } else {
+          aboutText.classList.add("clamped");
+          readMoreBtn.textContent = "Читать дальше";
+        }
+      });
+    }
+
+    // Close button
+    document.getElementById("closeCandidateSheetBtn")?.addEventListener("click", closeDetailsSheet);
+
+    // Airplane / Direct message button
+    document.getElementById("candidateAirplaneBtn")?.addEventListener("click", () => {
+      handleProfileMessageClick(profile);
+    });
+
+    // Reaction buttons
+    document.getElementById("candidateDislikeBtn")?.addEventListener("click", () => {
+      closeDetailsSheet();
+      handleSwipeAction(profile, "skip");
+    });
+    document.getElementById("candidateSuperlikeBtn")?.addEventListener("click", () => {
+      closeDetailsSheet();
+      openSuperlikeModal(profile);
+    });
+    document.getElementById("candidateLikeBtn")?.addEventListener("click", () => {
+      closeDetailsSheet();
+      handleSwipeAction(profile, "like");
+    });
+
+    // Rating and Report
+    document.getElementById("sheetSendRatingBtn")?.addEventListener("click", () => {
+      const targetUserId = profile.user_id || profile.id;
+      handleSendRatingToUser(targetUserId, (newRating, remainingBalance) => {
+        profile.rating_score = newRating;
+        const rVal = document.getElementById("sheetRatingVal");
+        if (rVal) rVal.textContent = newRating;
+        const bTag = document.getElementById("sheetRatingBalance");
+        if (bTag) bTag.textContent = `${remainingBalance} ⭐`;
+        const topCardRating = document.querySelector(".card.top-card .card-rating-badge span");
+        if (topCardRating) topCardRating.textContent = newRating;
+      });
+    });
+
+    document.getElementById("sheetReportBtn")?.addEventListener("click", () => {
+      closeDetailsSheet();
+      openReportModal(profile);
+    });
+
+    // Admin buttons
     if (state.currentUser?.is_superadmin || state.currentUser?.id === 149620234) {
       const targetUserId = profile.user_id || profile.id;
       document.getElementById("sheetAdminPremBtn")?.addEventListener("click", async () => {
@@ -1334,37 +1731,6 @@
         await loadStories();
       });
     }
-
-    document.getElementById("sheetSendRatingBtn")?.addEventListener("click", () => {
-      const targetUserId = profile.user_id || profile.id;
-      handleSendRatingToUser(targetUserId, (newRating, remainingBalance) => {
-        profile.rating_score = newRating;
-        const rVal = document.getElementById("sheetRatingVal");
-        if (rVal) rVal.textContent = newRating;
-        const bTag = document.getElementById("sheetRatingBalance");
-        if (bTag) bTag.textContent = `${remainingBalance} ⭐`;
-        // Обновляем бейдж на карточке свайпа, если карточка сейчас активна
-        const topCardRating = document.querySelector(".card.top-card .card-rating-badge span");
-        if (topCardRating) topCardRating.textContent = newRating;
-      });
-    });
-
-    document.getElementById("sheetDislikeBtn")?.addEventListener("click", () => {
-      closeDetailsSheet();
-      handleSwipeAction(profile, "skip");
-    });
-    document.getElementById("sheetSuperlikeBtn")?.addEventListener("click", () => {
-      closeDetailsSheet();
-      openSuperlikeModal(profile);
-    });
-    document.getElementById("sheetLikeBtn")?.addEventListener("click", () => {
-      closeDetailsSheet();
-      handleSwipeAction(profile, "like");
-    });
-    document.getElementById("sheetReportBtn")?.addEventListener("click", () => {
-      closeDetailsSheet();
-      openReportModal(profile);
-    });
   }
 
   function closeDetailsSheet() {
@@ -2904,7 +3270,7 @@
     loadIncomingLikes();
   };
 
-  // 11. Раздел «Профиль»
+  // 11. Раздел «Профиль» (Reference 2)
   async function loadProfile() {
     const container = document.getElementById("profileContainer");
     if (!container) return;
@@ -2919,91 +3285,300 @@
       const u = data.user;
       state.currentUser = u;
 
-      const avatar = u.photos && u.photos.length > 0
-        ? u.photos[0]
-        : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80";
+      const rawPhotos = u.photos && u.photos.length > 0
+        ? u.photos
+        : [u.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"];
+
+      const photos = rawPhotos;
+      const photosMeta = u.photos_meta || photos.map((p, i) => ({ url: p, is_private: false, index: i }));
+
+      // Hero slides
+      const heroSlidesHtml = photos.map((url, i) => `
+        <div class="profile-hero-slide" data-slide-index="${i}">
+          <img src="${url}" class="profile-hero-img" alt="${escapeHtml(u.name || 'User')}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+        </div>
+      `).join("");
+
+      // Hero indicators
+      const indicatorsHtml = photos.length > 1
+        ? `<div class="profile-hero-indicators">${photos.map((_, i) => `<div class="profile-hero-dot ${i === 0 ? 'active' : ''}"></div>`).join("")}</div>`
+        : "";
+
+      // Subtitle
+      const subtitleParts = [];
+      if (u.university) subtitleParts.push(u.university);
+      if (u.major) subtitleParts.push(u.major);
+      if (u.year) subtitleParts.push(`${u.year} курс`);
+      const subtitleText = subtitleParts.length > 0 ? subtitleParts.join(" • ") : "Студент StudMatch";
+
+      // Location
+      const locationCity = u.city || u.university_city || "Москва";
+      const locationUniv = u.university ? `, ${u.university}` : "";
+
+      // Interests pills
+      const tags = u.tags || [];
+      const interestsHtml = tags.map((t, idx) => `
+        <span class="profile-interest-pill ${idx < 2 ? 'highlighted' : ''}">
+          ${idx < 2 ? '<span class="profile-interest-check">✔</span>' : ''}
+          ${t.emoji || '🏷'} ${escapeHtml(t.name)}
+        </span>
+      `).join("");
+
+      // Career information
+      let careerHtml = "";
+      if (u.career_goal || u.career_custom_skills || u.career_portfolio_url || u.career_work_format) {
+        careerHtml = `
+          <div class="profile-card-section">
+            <div class="profile-section-title-row">
+              <h4 class="profile-section-title">💼 Профессиональная информация</h4>
+            </div>
+            <div class="profile-career-box">
+              ${u.career_work_format ? `<div class="profile-career-item"><b>Формат:</b> ${escapeHtml(u.career_work_format)}</div>` : ""}
+              ${u.career_custom_skills ? `<div class="profile-career-item"><b>Навыки:</b> ${escapeHtml(u.career_custom_skills)}</div>` : ""}
+              ${u.career_goal ? `<div class="profile-career-item"><b>Цель:</b> ${escapeHtml(u.career_goal)}</div>` : ""}
+              ${u.career_portfolio_url ? `<a href="${escapeHtml(u.career_portfolio_url)}" target="_blank" class="sheet-link-btn" style="margin-top:8px;">🔗 Открыть портфолио / резюме</a>` : ""}
+            </div>
+          </div>
+        `;
+      }
+
+      // Gallery Grid
+      const galleryGridHtml = buildGalleryGridHtml(photos, photosMeta);
+
+      // Bio text
+      const bioText = u.goal || u.about || u.bio || "";
+      const isBioLong = bioText.length > 140;
 
       container.innerHTML = `
-        <div class="profile-card">
-          <div class="profile-avatar-wrap ${u.is_premium ? "premium" : ""}">
-            <img src="${avatar}" class="profile-avatar" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+        <div class="profile-view-wrapper">
+          <!-- Top Hero Section -->
+          <div class="profile-hero-wrap" id="myProfileHeroWrap">
+            ${indicatorsHtml}
+            <div class="profile-hero-gradient-top"></div>
+            <div class="profile-hero-gradient-bottom"></div>
+            <div class="profile-hero-slider">
+              ${heroSlidesHtml}
+            </div>
           </div>
-          <div class="profile-name">${escapeHtml(u.name || "Студент")} ${u.is_verified ? "🎓" : ""} ${u.is_premium ? "💎" : ""}</div>
-          <div class="profile-univ">${u.university || ""} ${u.major ? `• ${u.major}` : ""}</div>
 
-          <div class="profile-stats-row">
-            <div class="profile-stat">
-              <span class="stat-value">⭐ ${u.rating_score || 0}</span>
-              <span class="stat-label">Рейтинг</span>
+          <!-- White Content Card -->
+          <div class="profile-sheet-card">
+            <!-- Floating Management Actions for Own Profile -->
+            <div class="profile-manage-actions">
+              <button class="profile-manage-btn secondary" id="btnMyPrivacyTop">
+                <span style="font-size:16px;">🔒</span> Приватность
+              </button>
+              <button class="profile-manage-btn primary" id="btnMyEditTop">
+                <span style="font-size:16px;">✏️</span> Редактировать
+              </button>
+              <button class="profile-manage-btn secondary" id="btnMyFiltersTop">
+                <span style="font-size:16px;">🎯</span> Фильтры
+              </button>
             </div>
-            <div class="profile-stat">
-              <span class="stat-value">${u.superlike_balance || 0}</span>
-              <span class="stat-label">Суперлайки</span>
-            </div>
-            <div class="profile-stat">
-              <span class="stat-value" id="profileModeStat">${u.mode === "career" ? "💼" : "💘"}</span>
-              <span class="stat-label">Режим</span>
-            </div>
-          </div>
-        </div>
 
-        <div class="profile-menu-list">
-          ${u.is_superadmin ? `
-            <div class="profile-menu-item admin-btn" id="btnOpenAdminHub">
-              <span>👑 Панель управления (Admin Hub)</span>
-              <span style="font-size: 11px; background:linear-gradient(135deg, #FFB800, #FF6584); color:#fff; padding:3px 8px; border-radius:10px; font-weight:900;">GOD MODE</span>
+            <!-- Header: Name, Age, Subtitle & Edit Button -->
+            <div class="profile-header-row">
+              <div class="profile-header-left">
+                <h2 class="profile-name-title">
+                  ${escapeHtml(u.name || "Студент")}${u.age ? `, ${u.age}` : ""}
+                  ${u.is_verified ? "🎓" : ""} ${u.is_premium ? "💎" : ""}
+                </h2>
+                <p class="profile-role-subtitle">${escapeHtml(subtitleText)}</p>
+              </div>
+              <button class="profile-airplane-btn" id="btnMyEditQuick" title="Редактировать анкету">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF4B6E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+              </button>
             </div>
-          ` : ""}
-          <div class="profile-menu-item" id="btnToggleProfileMode">
-            <span>Режим поиска: <b id="profileModeLabel">${u.mode === "career" ? "💼 Карьера" : "💘 Знакомства"}</b></span>
-            <span>⇄</span>
-          </div>
-          <div class="profile-menu-item" id="btnOpenSearchFilters">
-            <span>🎯 Настройки фильтров поиска</span>
-            <span>→</span>
-          </div>
-          <div class="profile-menu-item" id="btnOpenPrivacySettings">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <span style="font-size: 20px;">🔒</span>
-              <div style="text-align: left;">
-                <div style="font-size: 14.5px; font-weight: 700; color: var(--text-main);">Настройки приватности</div>
-                <div style="font-size: 11.5px; color: var(--text-muted); font-weight: 500;">Онлайн, фото, сообщения, видимость данных</div>
+
+            <!-- Stats Bar -->
+            <div class="profile-stats-row" style="margin-bottom: 22px; padding: 12px 8px; background: #F9FAFB; border-radius: 16px; border: 1px solid #F3F4F6;">
+              <div class="profile-stat">
+                <span class="stat-value">⭐ ${u.rating_score || 0}</span>
+                <span class="stat-label">Рейтинг</span>
+              </div>
+              <div class="profile-stat">
+                <span class="stat-value">${u.superlike_balance || 0}</span>
+                <span class="stat-label">Суперлайки</span>
+              </div>
+              <div class="profile-stat">
+                <span class="stat-value" id="profileModeStat">${u.mode === "career" ? "💼" : "💘"}</span>
+                <span class="stat-label">Режим</span>
               </div>
             </div>
-            <span>→</span>
-          </div>
-          <div class="profile-menu-item" id="btnOpenOnboarding">
-            <span>✨ О платформе и подарке</span>
-            <span>→</span>
-          </div>
-          <div class="profile-menu-item" id="btnToggleNotifications">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <span style="font-size: 20px;">🔔</span>
-              <div style="text-align: left;">
-                <div style="font-size: 14.5px; font-weight: 700; color: var(--text-main);">Уведомления о мэтчах</div>
-                <div style="font-size: 11.5px; color: var(--text-muted); font-weight: 500;">Мгновенные алерты в чат с ботом</div>
+
+            <!-- Section: Location -->
+            <div class="profile-card-section">
+              <div class="profile-section-title-row">
+                <h4 class="profile-section-title">Локация</h4>
+              </div>
+              <div class="profile-location-wrap">
+                <p class="profile-location-text">${escapeHtml(locationCity)}${escapeHtml(locationUniv)}</p>
+                <span class="profile-distance-badge">📍 Мой ВУЗ</span>
               </div>
             </div>
-            <label class="ios-toggle" onclick="event.stopPropagation()">
-              <input type="checkbox" id="notificationToggleInput" ${localStorage.getItem("studmatch_notifications") !== "0" ? "checked" : ""}>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="profile-menu-item" id="btnResetSwipesProfile">
-            <span>🔄 Сбросить историю свайпов</span>
-            <span>→</span>
-          </div>
-          <div class="profile-menu-item" id="btnOpenSupport">
-            <span>💬 Поддержка и обратная связь</span>
-            <span>→</span>
-          </div>
-          <div class="profile-menu-item" id="btnOpenPrivacyPolicy">
-            <span>📜 Политика конфиденциальности (152-ФЗ)</span>
-            <span>→</span>
+
+            <!-- Section: About -->
+            ${bioText ? `
+              <div class="profile-card-section">
+                <div class="profile-section-title-row">
+                  <h4 class="profile-section-title">О себе</h4>
+                </div>
+                <div class="profile-about-text ${isBioLong ? 'clamped' : ''}" id="myProfileAboutText">
+                  ${escapeHtml(bioText)}
+                </div>
+                ${isBioLong ? `<button class="profile-readmore-btn" id="myProfileReadMoreBtn">Читать дальше</button>` : ""}
+              </div>
+            ` : ""}
+
+            <!-- Section: Interests -->
+            ${tags.length > 0 ? `
+              <div class="profile-card-section">
+                <div class="profile-section-title-row">
+                  <h4 class="profile-section-title">Интересы</h4>
+                </div>
+                <div class="profile-interests-wrap">
+                  ${interestsHtml}
+                </div>
+                ${u.custom_interests ? `<p style="font-size:13.5px;color:#6B7280;margin-top:8px;">${escapeHtml(u.custom_interests)}</p>` : ""}
+              </div>
+            ` : ""}
+
+            <!-- Section: Career (if exists) -->
+            ${careerHtml}
+
+            <!-- Section: Gallery -->
+            ${photos.length > 0 ? `
+              <div class="profile-card-section">
+                <div class="profile-section-title-row">
+                  <h4 class="profile-section-title">Галерея</h4>
+                  <button class="profile-section-action-link" id="myProfileSeeAllBtn">Все фото (${photos.length})</button>
+                </div>
+                ${galleryGridHtml}
+              </div>
+            ` : ""}
+
+            <!-- Settings and Management Menu Card -->
+            <div class="profile-settings-menu-card">
+              ${u.is_superadmin ? `
+                <div class="profile-menu-item admin-btn" id="btnOpenAdminHub">
+                  <span>👑 Панель управления (Admin Hub)</span>
+                  <span style="font-size: 11px; background:linear-gradient(135deg, #FFB800, #FF6584); color:#fff; padding:3px 8px; border-radius:10px; font-weight:900;">GOD MODE</span>
+                </div>
+              ` : ""}
+              <div class="profile-menu-item" id="btnToggleProfileMode">
+                <span>Режим поиска: <b id="profileModeLabel">${u.mode === "career" ? "💼 Карьера" : "💘 Знакомства"}</b></span>
+                <span>⇄</span>
+              </div>
+              <div class="profile-menu-item" id="btnOpenSearchFilters">
+                <span>🎯 Настройки фильтров поиска</span>
+                <span>→</span>
+              </div>
+              <div class="profile-menu-item" id="btnOpenPrivacySettings">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-size: 20px;">🔒</span>
+                  <div style="text-align: left;">
+                    <div style="font-size: 14.5px; font-weight: 700; color: var(--text-main);">Настройки приватности</div>
+                    <div style="font-size: 11.5px; color: var(--text-muted); font-weight: 500;">Онлайн, фото, сообщения, видимость данных</div>
+                  </div>
+                </div>
+                <span>→</span>
+              </div>
+              <div class="profile-menu-item" id="btnOpenOnboarding">
+                <span>✨ О платформе и подарке</span>
+                <span>→</span>
+              </div>
+              <div class="profile-menu-item" id="btnToggleNotifications">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-size: 20px;">🔔</span>
+                  <div style="text-align: left;">
+                    <div style="font-size: 14.5px; font-weight: 700; color: var(--text-main);">Уведомления о мэтчах</div>
+                    <div style="font-size: 11.5px; color: var(--text-muted); font-weight: 500;">Мгновенные алерты в чат с ботом</div>
+                  </div>
+                </div>
+                <label class="ios-toggle" onclick="event.stopPropagation()">
+                  <input type="checkbox" id="notificationToggleInput" ${localStorage.getItem("studmatch_notifications") !== "0" ? "checked" : ""}>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="profile-menu-item" id="btnResetSwipesProfile">
+                <span>🔄 Сбросить историю свайпов</span>
+                <span>→</span>
+              </div>
+              <div class="profile-menu-item" id="btnOpenSupport">
+                <span>💬 Поддержка и обратная связь</span>
+                <span>→</span>
+              </div>
+              <div class="profile-menu-item" id="btnOpenPrivacyPolicy">
+                <span>📜 Политика конфиденциальности (152-ФЗ)</span>
+                <span>→</span>
+              </div>
+            </div>
           </div>
         </div>
       `;
 
+      // Setup Hero Slider gestures
+      const heroWrap = document.getElementById("myProfileHeroWrap");
+      setupHeroSlider(heroWrap, photos);
+
+      // Hero slides tap -> open fullscreen gallery
+      heroWrap?.querySelectorAll(".profile-hero-slide").forEach((slide, i) => {
+        slide.addEventListener("click", () => {
+          openFullscreenGallery(photos, i);
+        });
+      });
+
+      // Gallery cells tap -> open fullscreen gallery
+      container.querySelectorAll(".gallery-grid-cell").forEach((cell) => {
+        cell.addEventListener("click", () => {
+          const idx = parseInt(cell.dataset.galleryIndex, 10) || 0;
+          openFullscreenGallery(photos, idx);
+        });
+      });
+
+      document.getElementById("myProfileSeeAllBtn")?.addEventListener("click", () => {
+        openFullscreenGallery(photos, 0);
+      });
+
+      // Read more toggle for own profile
+      const readMoreBtn = document.getElementById("myProfileReadMoreBtn");
+      const aboutText = document.getElementById("myProfileAboutText");
+      if (readMoreBtn && aboutText) {
+        readMoreBtn.addEventListener("click", () => {
+          triggerHaptic("light");
+          const isClamped = aboutText.classList.contains("clamped");
+          if (isClamped) {
+            aboutText.classList.remove("clamped");
+            readMoreBtn.textContent = "Свернуть";
+          } else {
+            aboutText.classList.add("clamped");
+            readMoreBtn.textContent = "Читать дальше";
+          }
+        });
+      }
+
+      // Wire edit buttons
+      const handleEdit = () => {
+        triggerHaptic("medium");
+        const botUser = window.BOT_USERNAME || "edudating_bot";
+        const editUrl = `https://t.me/${botUser}?start=edit_profile`;
+        if (tg && tg.openTelegramLink) {
+          tg.openTelegramLink(editUrl);
+        } else {
+          window.open(editUrl, "_blank");
+        }
+      };
+      document.getElementById("btnMyEditTop")?.addEventListener("click", handleEdit);
+      document.getElementById("btnMyEditQuick")?.addEventListener("click", handleEdit);
+
+      // Top action buttons
+      document.getElementById("btnMyPrivacyTop")?.addEventListener("click", openPrivacyModal);
+      document.getElementById("btnMyFiltersTop")?.addEventListener("click", openFiltersModal);
+
+      // Settings list event listeners
       if (u.is_superadmin) {
         document.getElementById("btnOpenAdminHub")?.addEventListener("click", openAdminHubModal);
       }
@@ -3011,8 +3586,8 @@
       document.getElementById("btnOpenSearchFilters")?.addEventListener("click", openFiltersModal);
       document.getElementById("btnOpenPrivacySettings")?.addEventListener("click", openPrivacyModal);
       document.getElementById("btnOpenOnboarding")?.addEventListener("click", () => openOnboarding(true));
-      
-      // Обработчик тумблера уведомлений
+
+      // Notification toggle
       const notifToggle = document.getElementById("notificationToggleInput");
       const notifItem = document.getElementById("btnToggleNotifications");
       const handleNotifChange = (newState) => {
