@@ -1056,7 +1056,14 @@
     }
   }
 
+  const pendingSwipeIds = new Set();
+
   async function sendSwipe(targetId, action, comment = null, candidate = null) {
+    if (pendingSwipeIds.has(targetId)) {
+      console.warn("⚠️ Swipe already in flight for candidate:", targetId);
+      return;
+    }
+    pendingSwipeIds.add(targetId);
     try {
       const res = await apiFetch("/api/webapp/swipe", {
         method: "POST",
@@ -1070,6 +1077,8 @@
       }
     } catch (e) {
       console.error("Swipe API error:", e);
+    } finally {
+      pendingSwipeIds.delete(targetId);
     }
   }
 
@@ -3127,8 +3136,13 @@
   }
 
   async function sendCareerConnect(targetUserId, btn) {
+    if (pendingSwipeIds.has(targetUserId)) return;
+    pendingSwipeIds.add(targetUserId);
     triggerHaptic("medium");
-    if (!btn) return;
+    if (!btn) {
+      pendingSwipeIds.delete(targetUserId);
+      return;
+    }
 
     btn.disabled = true;
     btn.innerHTML = `⏳ Отправка...`;
@@ -3169,6 +3183,8 @@
       console.error("[StudMatch] Connect error:", e);
       btn.disabled = false;
       btn.innerHTML = "💼 Предложить проект";
+    } finally {
+      pendingSwipeIds.delete(targetUserId);
     }
   }
 

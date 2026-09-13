@@ -402,20 +402,26 @@ async def webapp_swipe(
     }
     action = action_map.get(payload.action.lower(), SwipeAction.skip)
 
+    # Заранее сохраняем необходимые скалярные атрибуты до любых операций с БД во избежание MissingGreenlet
+    current_superlike_balance = int(getattr(student, "superlike_balance", 0) or 0)
+    user_mode = getattr(student, "mode", ModeEnum.dating) or ModeEnum.dating
+    student_id = student.id
+
     # Проверка баланса суперлайков
     if action == SwipeAction.superlike:
-        if student.superlike_balance <= 0:
+        if current_superlike_balance <= 0:
             raise HTTPException(status_code=400, detail="Недостаточно суперлайков на балансе")
-        deducted = await deduct_superlike(db, student.id)
+        deducted = await deduct_superlike(db, student_id)
         if not deducted:
             raise HTTPException(status_code=400, detail="Недостаточно суперлайков")
+        current_superlike_balance = max(0, current_superlike_balance - 1)
 
     is_match = await create_swipe(
         db,
-        from_id=student.id,
+        from_id=student_id,
         to_id=payload.target_id,
         action=action,
-        mode=student.mode,
+        mode=user_mode,
         comment=payload.comment,
     )
 
@@ -425,14 +431,14 @@ async def webapp_swipe(
         if partner:
             p_profile = partner.profile
             p_name = p_profile.name if (p_profile and p_profile.name) else "Студент"
-            if student.mode == ModeEnum.career and p_profile and p_profile.career_avatar_file_id:
+            if user_mode == ModeEnum.career and p_profile and p_profile.career_avatar_file_id:
                 first_p = p_profile.career_avatar_file_id
             else:
                 p_photos = list(p_profile.photos) if (p_profile and p_profile.photos) else ([p_profile.avatar_file_id] if (p_profile and p_profile.avatar_file_id) else [])
                 first_p = p_photos[0] if p_photos else None
 
             p_photo_url = resolve_photo_url(first_p) or DEFAULT_FALLBACK_AVATAR
-            match_obj = await get_match_between_users(db, student.id, partner.id, student.mode)
+            match_obj = await get_match_between_users(db, student_id, partner.id, user_mode)
             match_id_str = str(match_obj.id) if match_obj else ""
 
             match_data = {
@@ -450,7 +456,8 @@ async def webapp_swipe(
                 from aiogram import Bot
                 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
                 bot = Bot(token=settings.BOT_TOKEN)
-                my_name = student.profile.name if (student.profile and student.profile.name) else "Студент"
+                my_prof = await get_profile(db, student_id)
+                student_name = my_prof.name if (my_prof and my_prof.name) else "Студент"
                 chat_url = f"{settings.webapp_url}?startapp=chat_{match_id_str}" if match_id_str else settings.webapp_url
                 kb = InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=chat_url))
@@ -459,7 +466,7 @@ async def webapp_swipe(
                     chat_id=partner.id,
                     text=(
                         f"🎉 <b>Это взаимно!</b>\n\n"
-                        f"Ты и <b>{html.escape(my_name)}</b> понравились друг другу!\n\n"
+                        f"Ты и <b>{html.escape(student_name)}</b> понравились друг другу!\n\n"
                         f"Начните общение во внутреннем чате приложения 💬"
                     ),
                     parse_mode="HTML",
@@ -474,7 +481,7 @@ async def webapp_swipe(
         "action": action.value,
         "is_match": is_match,
         "match": match_data,
-        "superlike_balance": student.superlike_balance,
+        "superlike_balance": current_superlike_balance,
     }
 
 

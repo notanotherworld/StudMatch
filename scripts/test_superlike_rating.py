@@ -297,3 +297,74 @@ async def test_bot_gift_rating_callback():
             assert mock_cb.answer.called
             assert "закончились суперлайки" in mock_cb.answer.call_args[0][0].lower()
             assert mock_cb.message.answer.called
+
+
+@pytest.mark.asyncio
+async def test_concurrent_swipe_and_missing_greenlet_prevention():
+    from web.routers.webapp import webapp_swipe, WebAppSwipeRequest
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with AsyncSessionLocal() as db:
+        user1 = User(id=501, consent_given=True, superlike_balance=3, mode=ModeEnum.dating)
+        prof1 = Profile(user_id=501, name="Свайпер", is_complete=True, is_visible=True, rating_score=5.0)
+        user2 = User(id=502, consent_given=True, superlike_balance=0, mode=ModeEnum.dating)
+        prof2 = Profile(user_id=502, name="Кандидат", is_complete=True, is_visible=True, rating_score=1.0)
+
+        db.add_all([user1, prof1, user2, prof2])
+        await db.commit()
+
+        # 1. Вызываем webapp_swipe обычным лайком
+        req_like = WebAppSwipeRequest(target_id=502, action="like")
+        res1 = await webapp_swipe(req_like, student=user1, db=db)
+        assert res1["status"] == "ok"
+        assert res1["action"] == "like"
+        assert res1["superlike_balance"] == 3
+
+        # 2. Имитируем параллельный повторный вызов (повторный свайп того же пользователя)
+        # Он не должен вызывать IntegrityError и не должен вызывать MissingGreenlet
+        res2 = await webapp_swipe(req_like, student=user1, db=db)
+        assert res2["status"] == "ok"
+
+        # 3. Проверяем create_swipe с superlike и обновление баланса
+        req_super = WebAppSwipeRequest(target_id=502, action="superlike")
+        res3 = await webapp_swipe(req_super, student=user1, db=db)
+        assert res3["status"] == "ok"
+        assert res3["action"] == "superlike"
+        assert res3["superlike_balance"] == 2
+
+        # 4. Проверяем, что рейтинг кандидата увеличился на 1
+        p2 = await get_profile(db, 502)
+        assert p2.rating_score == 2.0
+
+
+@pytest.mark.asyncio
+async def test_concurrent_create_swipe_race_condition():
+    import asyncio
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with AsyncSessionLocal() as db_setup:
+        u1 = User(id=601, consent_given=True, mode=ModeEnum.dating)
+        u2 = User(id=602, consent_given=True, mode=ModeEnum.dating)
+        p2 = Profile(user_id=602, name="Кандидат 602", is_complete=True, is_visible=True, rating_score=0.0)
+        db_setup.add_all([u1, u2, p2])
+        await db_setup.commit()
+
+    async def do_swipe(action):
+        async with AsyncSessionLocal() as session:
+            return await create_swipe(session, from_id=601, to_id=602, action=action, mode=ModeEnum.dating)
+
+    results = await asyncio.gather(
+        do_swipe(SwipeAction.like),
+        do_swipe(SwipeAction.like),
+        return_exceptions=True
+    )
+
+    for r in results:
+        assert not isinstance(r, Exception), f"Swipe raised exception: {r}"
+

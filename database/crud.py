@@ -10,6 +10,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, and_, or_, func, case, exists
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger(__name__)
@@ -636,16 +637,39 @@ async def create_swipe(
             if comment is not None:
                 existing_swipe.comment = comment
         else:
-            db.add(
-                Swipe(
-                    from_user_id=from_id,
-                    to_user_id=to_id,
-                    mode=current_mode,
-                    action=action,
-                    comment=comment,
-                    created_at=now,
+            try:
+                async with db.begin_nested():
+                    db.add(
+                        Swipe(
+                            from_user_id=from_id,
+                            to_user_id=to_id,
+                            mode=current_mode,
+                            action=action,
+                            comment=comment,
+                            created_at=now,
+                        )
+                    )
+                    await db.flush()
+            except IntegrityError:
+                # В случае одновременного запроса (гонка) запись уже создана другим процессом
+                existing = await db.execute(
+                    select(Swipe).where(
+                        and_(
+                            Swipe.from_user_id == from_id,
+                            Swipe.to_user_id == to_id,
+                            Swipe.mode == current_mode,
+                        )
+                    ).order_by(Swipe.created_at.desc()).limit(1)
                 )
-            )
+                existing_swipe = existing.scalar_one_or_none()
+                if existing_swipe:
+                    if existing_swipe.action == action and action in (SwipeAction.like, SwipeAction.superlike):
+                        return False
+                    existing_swipe.action = action
+                    existing_swipe.created_at = now
+                    if comment is not None:
+                        existing_swipe.comment = comment
+
         # Если отправлен суперлайк — начисляем получателю +1 балл к рейтингу
         if action == SwipeAction.superlike:
             await db.execute(
@@ -666,17 +690,22 @@ async def create_swipe(
                         and_(
                             Swipe.from_user_id == to_id,
                             Swipe.to_user_id == from_id,
-                            Swipe.mode == mode,
+                            Swipe.mode == current_mode,
                         )
                     )
                 )
                 if not rev_fake.scalar_one_or_none():
-                    db.add(Swipe(from_user_id=to_id, to_user_id=from_id, mode=mode, action=SwipeAction.like, created_at=now))
+                    try:
+                        async with db.begin_nested():
+                            db.add(Swipe(from_user_id=to_id, to_user_id=from_id, mode=current_mode, action=SwipeAction.like, created_at=now))
+                            await db.flush()
+                    except IntegrityError:
+                        pass
 
                 exist_match = await db.execute(
                     select(Match).where(
                         and_(
-                            Match.mode == mode,
+                            Match.mode == current_mode,
                             or_(
                                 and_(Match.user1_id == from_id, Match.user2_id == to_id),
                                 and_(Match.user1_id == to_id, Match.user2_id == from_id),
@@ -685,9 +714,15 @@ async def create_swipe(
                     )
                 )
                 if not exist_match.scalar_one_or_none():
-                    db.add(Match(user1_id=from_id, user2_id=to_id, mode=mode))
-                    await db.commit()
-                    return True
+                    try:
+                        async with db.begin_nested():
+                            db.add(Match(user1_id=from_id, user2_id=to_id, mode=current_mode))
+                            await db.flush()
+                        await db.commit()
+                        return True
+                    except IntegrityError:
+                        await db.commit()
+                        return True
                 return False
 
             reverse = await db.execute(
@@ -695,7 +730,7 @@ async def create_swipe(
                     and_(
                         Swipe.from_user_id == to_id,
                         Swipe.to_user_id == from_id,
-                        Swipe.mode == mode,
+                        Swipe.mode == current_mode,
                         Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
                     )
                 )
@@ -704,7 +739,7 @@ async def create_swipe(
                 exist_match = await db.execute(
                     select(Match).where(
                         and_(
-                            Match.mode == mode,
+                            Match.mode == current_mode,
                             or_(
                                 and_(Match.user1_id == from_id, Match.user2_id == to_id),
                                 and_(Match.user1_id == to_id, Match.user2_id == from_id),
@@ -713,9 +748,15 @@ async def create_swipe(
                     )
                 )
                 if not exist_match.scalar_one_or_none():
-                    db.add(Match(user1_id=from_id, user2_id=to_id, mode=mode))
-                    await db.commit()
-                    return True
+                    try:
+                        async with db.begin_nested():
+                            db.add(Match(user1_id=from_id, user2_id=to_id, mode=current_mode))
+                            await db.flush()
+                        await db.commit()
+                        return True
+                    except IntegrityError:
+                        await db.commit()
+                        return True
                 return False
         return False
     except Exception as e:
