@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 from database.models import (
     User, Profile, University, EmailToken, Achievement,
     Swipe, Match, ChatMessage, Admin, Employer, EmployerProfileAccess, Payment, Report,
-    VerifiedStatus, SwipeAction, ModeEnum, PaymentStatus, PaymentProduct,
+    VerifiedStatus, SwipeAction, ModeEnum, PaymentStatus, PaymentProduct, UserPrivacy,
 )
 
 
@@ -28,7 +28,7 @@ from database.models import (
 async def get_user(db: AsyncSession, user_id: int) -> Optional[User]:
     result = await db.execute(
         select(User)
-        .options(selectinload(User.profile), selectinload(User.university))
+        .options(selectinload(User.profile), selectinload(User.university), selectinload(User.privacy))
         .where(User.id == user_id)
     )
     return result.scalar_one_or_none()
@@ -154,6 +154,102 @@ async def transfer_superlike_rating(db: AsyncSession, from_user_id: int, to_user
         "target_name": (refreshed_target.profile.name if refreshed_target and refreshed_target.profile else "Студент"),
         "sender_name": (sender.profile.name if sender and sender.profile else "Студент"),
     }
+
+
+# ─────────────────────────────────────────────────────────────
+# Privacy Settings (UserPrivacy)
+# ─────────────────────────────────────────────────────────────
+async def get_or_create_user_privacy(db: AsyncSession, user_id: int) -> UserPrivacy:
+    """Получить или создать дефолтные настройки приватности для пользователя."""
+    res = await db.execute(select(UserPrivacy).where(UserPrivacy.user_id == user_id))
+    privacy = res.scalar_one_or_none()
+    if not privacy:
+        privacy = UserPrivacy(
+            user_id=user_id,
+            online_visibility="all",
+            message_permission="matches",
+            allow_employer_access=True,
+            hide_age=False,
+            hide_course=False,
+            hide_email=False,
+            private_photos=[],
+        )
+        db.add(privacy)
+        try:
+            await db.commit()
+            await db.refresh(privacy)
+        except IntegrityError:
+            await db.rollback()
+            res = await db.execute(select(UserPrivacy).where(UserPrivacy.user_id == user_id))
+            privacy = res.scalar_one_or_none()
+    return privacy
+
+
+async def update_user_privacy(db: AsyncSession, user_id: int, **fields) -> UserPrivacy:
+    """Обновить настройки приватности пользователя."""
+    privacy = await get_or_create_user_privacy(db, user_id)
+    allowed = {
+        "online_visibility", "message_permission", "allow_employer_access",
+        "hide_age", "hide_course", "hide_email", "private_photos"
+    }
+    for key, value in fields.items():
+        if key in allowed and value is not None:
+            setattr(privacy, key, value)
+    privacy.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(privacy)
+    return privacy
+
+
+async def toggle_photo_privacy(db: AsyncSession, user_id: int, photo_id: str) -> Tuple[UserPrivacy, bool]:
+    """
+    Переключить видимость дополнительного фото:
+    Если было в private_photos — удаляет (становится открытым всем).
+    Если не было — добавляет (становится доступно только взаимным мэтчам).
+    Возвращает (privacy, is_now_private).
+    """
+    privacy = await get_or_create_user_privacy(db, user_id)
+    current = list(privacy.private_photos or [])
+    clean_id = str(photo_id).strip()
+    if clean_id in current:
+        current.remove(clean_id)
+        is_now_private = False
+    else:
+        current.append(clean_id)
+        is_now_private = True
+
+    privacy.private_photos = current
+    privacy.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(privacy)
+    return privacy, is_now_private
+
+
+def is_user_online_visible_to(viewer_id: int, target_user: User, is_mutual_match: bool = False) -> bool:
+    """
+    Проверяет, виден ли статус онлайн target_user для viewer_id с учётом настроек приватности.
+    Односторонняя приватность:
+    - Если 'nobody': никто не видит (кроме самого себя).
+    - Если 'matches': видят только взаимные мэтчи (и сам пользователь).
+    - Если 'all': видят все.
+    """
+    if viewer_id == target_user.id:
+        return target_user.is_online
+
+    privacy = getattr(target_user, "privacy", None)
+    vis = privacy.online_visibility if privacy else "all"
+    if vis == "nobody":
+        return False
+    if vis == "matches" and not is_mutual_match:
+        return False
+    return target_user.is_online
+
+
+def get_user_online_status_text_for(viewer_id: int, target_user: User, is_mutual_match: bool = False) -> str:
+    """Возвращает статус активности target_user для viewer_id с учётом настроек приватности."""
+    if is_user_online_visible_to(viewer_id, target_user, is_mutual_match):
+        return target_user.online_status_text
+    return "был(а) недавно"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1337,7 +1433,10 @@ async def get_employer_profiles(
         .options(
             selectinload(EmployerProfileAccess.profile)
             .selectinload(Profile.user)
-            .selectinload(User.university)
+            .selectinload(User.university),
+            selectinload(EmployerProfileAccess.profile)
+            .selectinload(Profile.user)
+            .selectinload(User.privacy),
         )
         .where(EmployerProfileAccess.employer_id == employer_id)
     )
@@ -1354,7 +1453,11 @@ async def get_employer_profiles(
 
     query = query.order_by(EmployerProfileAccess.granted_at.desc())
     result = await db.execute(query)
-    return list(result.scalars().all())
+    accesses = list(result.scalars().all())
+    return [
+        acc for acc in accesses
+        if not (acc.profile and acc.profile.user and acc.profile.user.privacy and acc.profile.user.privacy.allow_employer_access is False)
+    ]
 
 
 async def get_employer_profile_counts(db: AsyncSession, employer_id: int) -> dict:

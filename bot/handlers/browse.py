@@ -86,13 +86,17 @@ async def _build_profile_caption(
     is_verified = bool(user_obj and getattr(user_obj, "email_verified", False))
     ver_badge = " 🎓" if is_verified else ""
 
+    target_privacy = getattr(user_obj, "privacy", None)
+    hide_age = getattr(target_privacy, "hide_age", False) if target_privacy else False
+    hide_course = getattr(target_privacy, "hide_course", False) if target_privacy else False
+
     # Строка идентификации: Имя 🎓, 19 лет, РУДН, 2 курс
     identity_parts = [f"<b>{name}</b>{ver_badge}"]
-    if age_formatted:
+    if age_formatted and not hide_age:
         identity_parts.append(age_formatted)
     if univ_str:
         identity_parts.append(univ_str)
-    if year_str:
+    if year_str and not hide_course:
         identity_parts.append(year_str)
     identity_line = ", ".join(identity_parts)
 

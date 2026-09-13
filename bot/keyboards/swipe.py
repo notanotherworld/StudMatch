@@ -386,6 +386,7 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
 
     vis_label = "🔒 Скрыть из поиска" if is_visible else "👁 Показать в поиске"
     builder.button(text=vis_label, callback_data="settings:toggle_visibility")
+    builder.button(text="🔒 Настройки приватности", callback_data="settings:privacy")
     builder.button(text="🎯 Фильтры поиска", callback_data="settings:filters")
     builder.button(text="🏷 Изменить интересы", callback_data="settings:edit_interests")
     builder.button(text="📸 Фото: Знакомства / Карьера", callback_data="settings:choose_photo_mode")
@@ -397,11 +398,88 @@ def settings_keyboard(current_mode: str, is_visible: bool = True, email_verified
     return builder.as_markup()
 
 
+def privacy_settings_keyboard(privacy: Any = None) -> InlineKeyboardMarkup:
+    """
+    Клавиатура меню Приватности:
+    - Онлайн: [Все / Только мэтчи / Никто]
+    - Сообщения: [Все мэтчи / Верифицированные / Никто]
+    - Приватность доп. фото (Блюр до мэтча)
+    - Доступ работодателей (HR): [Разрешён / Запрещён]
+    - Скрывать возраст: [Да / Нет]
+    - Скрывать курс: [Да / Нет]
+    - Скрывать email: [Да / Нет]
+    - Назад в настройки
+    """
+    builder = InlineKeyboardBuilder()
+
+    online_mode = getattr(privacy, "online_visibility", "all")
+    if online_mode == "all":
+        online_text = "👁 Онлайн: Все"
+    elif online_mode == "matches":
+        online_text = "👁 Онлайн: Только мэтчи"
+    else:
+        online_text = "👁 Онлайн: Никто (скрыт)"
+    builder.button(text=online_text, callback_data="privacy:toggle_online")
+
+    msg_mode = getattr(privacy, "message_permission", "matches")
+    if msg_mode == "matches":
+        msg_text = "💬 Сообщения: Все мэтчи"
+    elif msg_mode == "verified_only":
+        msg_text = "💬 Сообщения: Верифицированные 🎓"
+    else:
+        msg_text = "💬 Сообщения: Запрещены 🔒"
+    builder.button(text=msg_text, callback_data="privacy:toggle_messages")
+
+    builder.button(text="📸 Приватность фото (Блюр до мэтча)", callback_data="privacy:photos")
+
+    hr_access = getattr(privacy, "allow_employer_access", True)
+    hr_text = "💼 Доступ HR: Разрешён ✅" if hr_access else "💼 Доступ HR: Запрещён ❌"
+    builder.button(text=hr_text, callback_data="privacy:toggle_employer")
+
+    hide_age = getattr(privacy, "hide_age", False)
+    age_text = "🎂 Скрывать возраст: Да 🔒" if hide_age else "🎂 Скрывать возраст: Нет 👁"
+    builder.button(text=age_text, callback_data="privacy:toggle_age")
+
+    hide_course = getattr(privacy, "hide_course", False)
+    course_text = "🎓 Скрывать курс: Да 🔒" if hide_course else "🎓 Скрывать курс: Нет 👁"
+    builder.button(text=course_text, callback_data="privacy:toggle_course")
+
+    hide_email = getattr(privacy, "hide_email", False)
+    email_text = "✉️ Скрывать email: Да 🔒" if hide_email else "✉️ Скрывать email: Нет 👁"
+    builder.button(text=email_text, callback_data="privacy:toggle_email")
+
+    builder.button(text="🔙 Назад в настройки", callback_data="settings:back_to_settings")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def photo_privacy_keyboard(photos: List[str], private_photos: List[str]) -> InlineKeyboardMarkup:
+    """
+    Клавиатура управления приватностью фотографий.
+    Главное фото (индекс 0) всегда открыто.
+    Для дополнительных фото (индексы 1+) переключатель: «Видно всем» / «🔒 Только мэтчам».
+    """
+    builder = InlineKeyboardBuilder()
+
+    builder.button(text="⭐ Фото 1 (Главное): 👁 Всегда видно", callback_data="privacy:photo_main_info")
+
+    for i in range(1, len(photos)):
+        photo_id = photos[i]
+        is_priv = photo_id in (private_photos or [])
+        status = "🔒 Только мэтчам" if is_priv else "👁 Всем"
+        builder.button(text=f"Фото {i + 1}: {status}", callback_data=f"privacy:toggle_photo:{i}")
+
+    builder.button(text="🔙 Назад в приватность", callback_data="settings:privacy")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def choose_photo_mode_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура выбора анкеты для смены фото (Знакомства / Карьера)."""
     builder = InlineKeyboardBuilder()
     builder.button(text="❤️ Фото для Знакомств (до 3 фото + видео)", callback_data="settings:edit_dating_media")
     builder.button(text="💼 Деловое фото для Карьеры", callback_data="settings:edit_career_photo")
+    builder.button(text="🔒 Приватность доп. фото", callback_data="privacy:photos")
     builder.button(text="🔙 Назад в настройки", callback_data="settings:back_to_settings")
     builder.adjust(1)
     return builder.as_markup()

@@ -16,11 +16,15 @@ from bot.keyboards.swipe import (
     buy_superlike_keyboard, main_menu_keyboard, interests_keyboard, gender_keyboard,
     edit_profile_choice_keyboard,
     search_filters_keyboard, filter_age_keyboard, filter_year_keyboard, filter_major_keyboard,
+    privacy_settings_keyboard, photo_privacy_keyboard,
     RUDN_INSTITUTES,
 )
 from bot.states.fsm import ProfileState, FilterState
-from database.crud import set_user_mode
-from database.models import User, ModeEnum, Profile, InterestTag, Swipe
+from database.crud import (
+    set_user_mode, get_or_create_user_privacy, update_user_privacy,
+    toggle_photo_privacy, is_user_online_visible_to, get_user_online_status_text_for,
+)
+from database.models import User, ModeEnum, Profile, InterestTag, Swipe, UserPrivacy
 from bot.utils.dynamic_settings import get_dynamic_pricing
 
 def format_age(age: Optional[int]) -> str:
@@ -148,6 +152,171 @@ async def back_to_settings_callback(callback: CallbackQuery, user: User):
             parse_mode="HTML",
             reply_markup=settings_keyboard(user.mode.value, is_visible=is_vis, email_verified=user.email_verified),
         )
+
+
+@router.callback_query(F.data == "settings:privacy")
+async def show_privacy_settings(callback: CallbackQuery, user: User, db: AsyncSession):
+    await callback.answer()
+    privacy = await get_or_create_user_privacy(db, user.id)
+    text = (
+        "🔒 <b>Настройки приватности профиля</b>\n\n"
+        "Здесь ты можешь настроить видимость статуса онлайн, доступ к отправке сообщений, "
+        "скрытие отдельных фото (будут заблюрены до взаимного мэтча) "
+        "и показ личных данных (возраст, курс, email, доступ для HR)."
+    )
+    kb = privacy_settings_keyboard(privacy)
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    except Exception:
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+
+@router.callback_query(F.data == "privacy:toggle_online")
+async def toggle_online_privacy(callback: CallbackQuery, user: User, db: AsyncSession):
+    privacy = await get_or_create_user_privacy(db, user.id)
+    order = ["all", "matches", "nobody"]
+    current = privacy.online_visibility or "all"
+    next_mode = order[(order.index(current) + 1) % len(order)]
+    privacy = await update_user_privacy(db, user.id, online_visibility=next_mode)
+    labels = {"all": "Все пользователи 👁", "matches": "Только взаимные мэтчи ❤️", "nobody": "Никто (скрыт) 🔒"}
+    await callback.answer(f"Статус онлайн: {labels.get(next_mode, next_mode)}")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=privacy_settings_keyboard(privacy))
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data == "privacy:toggle_messages")
+async def toggle_messages_privacy(callback: CallbackQuery, user: User, db: AsyncSession):
+    privacy = await get_or_create_user_privacy(db, user.id)
+    order = ["matches", "verified_only", "nobody"]
+    current = privacy.message_permission or "matches"
+    next_mode = order[(order.index(current) + 1) % len(order)]
+    privacy = await update_user_privacy(db, user.id, message_permission=next_mode)
+    labels = {"matches": "Все взаимные мэтчи 💬", "verified_only": "Только верифицированные 🎓", "nobody": "Запрещены 🔒"}
+    await callback.answer(f"Сообщения: {labels.get(next_mode, next_mode)}")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=privacy_settings_keyboard(privacy))
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data == "privacy:toggle_employer")
+async def toggle_employer_privacy(callback: CallbackQuery, user: User, db: AsyncSession):
+    privacy = await get_or_create_user_privacy(db, user.id)
+    new_val = not bool(privacy.allow_employer_access)
+    privacy = await update_user_privacy(db, user.id, allow_employer_access=new_val)
+    status = "разрешён ✅" if new_val else "запрещён ❌"
+    await callback.answer(f"Доступ работодателей: {status}")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=privacy_settings_keyboard(privacy))
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data == "privacy:toggle_age")
+async def toggle_age_privacy(callback: CallbackQuery, user: User, db: AsyncSession):
+    privacy = await get_or_create_user_privacy(db, user.id)
+    new_val = not bool(privacy.hide_age)
+    privacy = await update_user_privacy(db, user.id, hide_age=new_val)
+    status = "скрыт 🔒" if new_val else "виден 👁"
+    await callback.answer(f"Возраст: {status}")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=privacy_settings_keyboard(privacy))
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data == "privacy:toggle_course")
+async def toggle_course_privacy(callback: CallbackQuery, user: User, db: AsyncSession):
+    privacy = await get_or_create_user_privacy(db, user.id)
+    new_val = not bool(privacy.hide_course)
+    privacy = await update_user_privacy(db, user.id, hide_course=new_val)
+    status = "скрыт 🔒" if new_val else "виден 👁"
+    await callback.answer(f"Курс: {status}")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=privacy_settings_keyboard(privacy))
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data == "privacy:toggle_email")
+async def toggle_email_privacy(callback: CallbackQuery, user: User, db: AsyncSession):
+    privacy = await get_or_create_user_privacy(db, user.id)
+    new_val = not bool(privacy.hide_email)
+    privacy = await update_user_privacy(db, user.id, hide_email=new_val)
+    status = "скрыт 🔒" if new_val else "виден 👁"
+    await callback.answer(f"Email: {status}")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=privacy_settings_keyboard(privacy))
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data == "privacy:photo_main_info")
+async def photo_main_info_callback(callback: CallbackQuery):
+    await callback.answer(
+        "⭐ Главное фото всегда остаётся открытым для всех студентов при свайпах!",
+        show_alert=True,
+    )
+
+
+@router.callback_query(F.data == "privacy:photos")
+async def manage_photo_privacy(callback: CallbackQuery, user: User, db: AsyncSession):
+    await callback.answer()
+    p = user.profile
+    photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
+    photos = [x for x in photos if x]
+    if not photos:
+        await callback.message.answer(
+            "⚠️ У тебя пока нет загруженных фотографий в анкете.\n"
+            "Загрузи фото через <b>📸 Фото: Знакомства / Карьера</b>.",
+            parse_mode="HTML",
+        )
+        return
+
+    privacy = await get_or_create_user_privacy(db, user.id)
+    priv_photos = privacy.private_photos or []
+    text = (
+        "📸 <b>Приватность фотографий</b>\n\n"
+        "• <b>Главное фото</b> всегда открыто для всех студентов при свайпах.\n"
+        "• Для <b>дополнительных фото</b> (2-е и 3-е) можно включить скрытие: "
+        "до взаимного мэтча они будут заблюрены с плашкой 🔒, а после мэтча откроются автоматически!\n\n"
+        "<i>Нажми на кнопку с номером фото, чтобы переключить режим:</i>"
+    )
+    kb = photo_privacy_keyboard(photos, priv_photos)
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    except Exception:
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("privacy:toggle_photo:"))
+async def toggle_photo_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    idx_str = callback.data.split("privacy:toggle_photo:")[1]
+    try:
+        idx = int(idx_str)
+    except ValueError:
+        await callback.answer("Ошибка индекса фото")
+        return
+
+    p = user.profile
+    photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
+    photos = [x for x in photos if x]
+    if idx < 0 or idx >= len(photos):
+        await callback.answer("Фото не найдено")
+        return
+
+    photo_id = photos[idx]
+    privacy, is_now_private = await toggle_photo_privacy(db, user.id, photo_id)
+    status_text = "🔒 Теперь доступно только взаимным мэтчам!" if is_now_private else "👁 Теперь открыто для всех!"
+    await callback.answer(f"Фото {idx + 1}: {status_text}", show_alert=True)
+    kb = photo_privacy_keyboard(photos, privacy.private_photos or [])
+    try:
+        await callback.message.edit_reply_markup(reply_markup=kb)
+    except Exception:
+        pass
+
 
 
 @router.callback_query(F.data == "settings:edit_profile")
