@@ -135,7 +135,9 @@
     if (state.token) {
       options.headers["Authorization"] = `Bearer ${state.token}`;
     }
-    options.headers["Content-Type"] = "application/json";
+    if (!(options.body instanceof FormData) && !options.headers["Content-Type"]) {
+      options.headers["Content-Type"] = "application/json";
+    }
 
     const res = await fetch(url, options);
     if (res.status === 401) {
@@ -1180,14 +1182,17 @@
   // ─── Fullscreen Photo Gallery Viewer (Reference 1) ─────────────────
   let currentGalleryPhotos = [];
   let currentGalleryIndex = 0;
+  let currentGalleryIsOwn = false;
+  let currentGalleryOnDelete = null;
 
-  function openFullscreenGallery(photos, initialIndex = 0) {
+  function openFullscreenGallery(photos, initialIndex = 0, isOwnProfile = false, onDelete = null) {
     triggerHaptic("medium");
     const modal = document.getElementById("fullscreenGalleryModal");
     const mainImg = document.getElementById("fullscreenGalleryImg");
     const counter = document.getElementById("galleryPhotoCounter");
     const strip = document.getElementById("galleryThumbnailsStrip");
     const closeBtn = document.getElementById("closeGalleryModalBtn");
+    const deleteBtn = document.getElementById("deleteGalleryPhotoBtn");
     if (!modal) return;
 
     if (!photos || photos.length === 0) {
@@ -1196,6 +1201,57 @@
 
     currentGalleryPhotos = photos.map((p) => (typeof p === "string" ? p : (p.url || p)));
     currentGalleryIndex = Math.max(0, Math.min(initialIndex, currentGalleryPhotos.length - 1));
+    currentGalleryIsOwn = !!isOwnProfile;
+    currentGalleryOnDelete = onDelete;
+
+    if (deleteBtn) {
+      deleteBtn.style.visibility = currentGalleryIsOwn ? "visible" : "hidden";
+      deleteBtn.onclick = () => {
+        triggerHaptic("medium");
+        const doDelete = async () => {
+          try {
+            const photoUrl = currentGalleryPhotos[currentGalleryIndex];
+            const resp = await apiFetch("/api/webapp/profile/photos", {
+              method: "DELETE",
+              body: JSON.stringify({ index: currentGalleryIndex, photo_url: photoUrl }),
+            });
+            if (resp && resp.status === "ok") {
+              triggerHaptic("success");
+              showAppToast("Фото удалено");
+              const remainingPhotos = resp.photos || [];
+              if (remainingPhotos.length === 0) {
+                closeFullscreenGallery();
+              } else {
+                currentGalleryPhotos = remainingPhotos;
+                currentGalleryIndex = Math.max(0, Math.min(currentGalleryIndex, currentGalleryPhotos.length - 1));
+                renderGalleryView();
+              }
+              if (typeof currentGalleryOnDelete === "function") {
+                currentGalleryOnDelete(remainingPhotos);
+              }
+              if (typeof loadProfile === "function") {
+                loadProfile();
+              }
+            } else {
+              triggerHaptic("error");
+              showAppToast(resp?.detail || "Ошибка при удалении фото");
+            }
+          } catch (err) {
+            console.error("Gallery delete error:", err);
+            triggerHaptic("error");
+            showAppToast("Не удалось удалить фото");
+          }
+        };
+
+        if (window.Telegram?.WebApp?.showConfirm) {
+          window.Telegram.WebApp.showConfirm("Удалить эту фотографию из профиля?", (ok) => {
+            if (ok) doDelete();
+          });
+        } else if (confirm("Удалить эту фотографию из профиля?")) {
+          doDelete();
+        }
+      };
+    }
 
     function renderGalleryView() {
       if (mainImg) {
@@ -1267,23 +1323,72 @@
     triggerHaptic("light");
     const modal = document.getElementById("fullscreenGalleryModal");
     if (modal) modal.classList.remove("active");
+    const deleteBtn = document.getElementById("deleteGalleryPhotoBtn");
+    if (deleteBtn) deleteBtn.style.visibility = "hidden";
   }
   window.openFullscreenGallery = openFullscreenGallery;
   window.closeFullscreenGallery = closeFullscreenGallery;
 
-  // ─── Gallery Grid Builder (2 Top + 3 Bottom) ──────────────────────
-  function buildGalleryGridHtml(photos, photosMeta) {
-    if (!photos || photos.length === 0) return "";
-    const total = photos.length;
+  // ─── Gallery Grid Builder (2 Top + 3/4 Bottom) ──────────────────────
+  function buildGalleryGridHtml(photos, photosMeta, isOwnProfile = false) {
+    const rawList = Array.isArray(photos) ? photos : [];
+    const total = rawList.length;
 
+    const getDeleteBtnHtml = (idx) => isOwnProfile ? `
+      <button class="gallery-cell-delete-btn" data-delete-index="${idx}" title="Удалить это фото" aria-label="Удалить фото">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    ` : "";
+
+    const uploadCellHtml = `
+      <div class="gallery-upload-cell" id="galleryUploadCell" title="Загрузить новое фото" role="button" tabindex="0">
+        <div class="gallery-upload-icon-circle">+</div>
+        <div class="gallery-upload-text">Добавить<br/>фото</div>
+      </div>
+    `;
+
+    // Case 0: No photos
+    if (total === 0) {
+      if (!isOwnProfile) return "";
+      return `
+        <div class="profile-gallery-grid">
+          <div class="gallery-grid-row-top" style="grid-template-columns: 1fr;">
+            <div class="gallery-upload-cell" id="galleryUploadCell" style="aspect-ratio: 16/10; border-radius: 18px;">
+              <div class="gallery-upload-icon-circle">+</div>
+              <div class="gallery-upload-text" style="font-size:13px;">Добавить фото в профиль</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Case 1: Exactly 1 photo
     if (total === 1) {
       const pm = photosMeta && photosMeta[0];
-      const isPrivate = pm && pm.is_private;
+      const isPrivate = !isOwnProfile && pm && pm.is_private;
+
+      if (isOwnProfile) {
+        return `
+          <div class="profile-gallery-grid">
+            <div class="gallery-grid-row-top">
+              <div class="gallery-grid-cell" data-gallery-index="0">
+                <img src="${rawList[0]}" alt="Photo 1" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+                ${getDeleteBtnHtml(0)}
+              </div>
+              ${uploadCellHtml}
+            </div>
+          </div>
+        `;
+      }
+
       return `
         <div class="profile-gallery-grid">
           <div class="gallery-grid-row-top" style="grid-template-columns: 1fr;">
             <div class="gallery-grid-cell" data-gallery-index="0" style="aspect-ratio: 16/10;">
-              <img src="${photos[0]}" alt="Photo 1" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+              <img src="${rawList[0]}" alt="Photo 1" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
               ${isPrivate ? `
                 <div class="photo-private-overlay">
                   <div class="photo-private-lock-icon">🔒</div>
@@ -1297,16 +1402,15 @@
       `;
     }
 
-    const rowTop = photos.slice(0, 2);
-    const rowBottom = photos.slice(2, 5);
-    const remaining = total > 5 ? total - 5 : 0;
-
+    // Case 2+: Two or more photos
+    const rowTop = rawList.slice(0, 2);
     let topHtml = rowTop.map((url, i) => {
       const pm = photosMeta && photosMeta[i];
-      const isPrivate = pm && pm.is_private;
+      const isPrivate = !isOwnProfile && pm && pm.is_private;
       return `
         <div class="gallery-grid-cell" data-gallery-index="${i}">
           <img src="${url}" alt="Photo ${i + 1}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+          ${getDeleteBtnHtml(i)}
           ${isPrivate ? `
             <div class="photo-private-overlay">
               <div class="photo-private-lock-icon">🔒</div>
@@ -1318,30 +1422,58 @@
     }).join("");
 
     let bottomHtml = "";
-    if (rowBottom.length > 0) {
-      bottomHtml = `
-        <div class="gallery-grid-row-bottom">
-          ${rowBottom.map((url, idx) => {
-            const actualIdx = idx + 2;
-            const pm = photosMeta && photosMeta[actualIdx];
-            const isPrivate = pm && pm.is_private;
-            const isLastWithMore = (idx === 2 && remaining > 0);
-            return `
-              <div class="gallery-grid-cell" data-gallery-index="${actualIdx}">
-                <img src="${url}" alt="Photo ${actualIdx + 1}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';" />
-                ${isPrivate ? `
-                  <div class="photo-private-overlay">
-                    <div class="photo-private-lock-icon" style="font-size:16px;">🔒</div>
-                  </div>
-                ` : ""}
-                ${isLastWithMore ? `
-                  <div class="gallery-grid-overlay-more">+${remaining}</div>
-                ` : ""}
-              </div>
-            `;
-          }).join("")}
-        </div>
-      `;
+    if (isOwnProfile) {
+      const rowBottomPhotos = rawList.slice(2, 6);
+      const rowBottomItems = rowBottomPhotos.map((url, idx) => {
+        const actualIdx = idx + 2;
+        return `
+          <div class="gallery-grid-cell" data-gallery-index="${actualIdx}">
+            <img src="${url}" alt="Photo ${actualIdx + 1}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';" />
+            ${getDeleteBtnHtml(actualIdx)}
+          </div>
+        `;
+      });
+
+      if (total < 6) {
+        rowBottomItems.push(uploadCellHtml);
+      }
+
+      if (rowBottomItems.length > 0) {
+        const bottomGridCols = rowBottomItems.length === 4 ? "grid-template-columns: repeat(4, 1fr);" : "";
+        bottomHtml = `
+          <div class="gallery-grid-row-bottom" style="${bottomGridCols}">
+            ${rowBottomItems.join("")}
+          </div>
+        `;
+      }
+    } else {
+      const rowBottom = rawList.slice(2, 5);
+      const remaining = total > 5 ? total - 5 : 0;
+      if (rowBottom.length > 0) {
+        bottomHtml = `
+          <div class="gallery-grid-row-bottom">
+            ${rowBottom.map((url, idx) => {
+              const actualIdx = idx + 2;
+              const pm = photosMeta && photosMeta[actualIdx];
+              const isPrivate = pm && pm.is_private;
+              const isLastWithMore = (idx === 2 && remaining > 0);
+              return `
+                <div class="gallery-grid-cell" data-gallery-index="${actualIdx}">
+                  <img src="${url}" alt="Photo ${actualIdx + 1}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';" />
+                  ${isPrivate ? `
+                    <div class="photo-private-overlay">
+                      <div class="photo-private-lock-icon" style="font-size:16px;">🔒</div>
+                    </div>
+                  ` : ""}
+                  ${isLastWithMore ? `
+                    <div class="gallery-grid-overlay-more">+${remaining}</div>
+                  ` : ""}
+                </div>
+              `;
+            }).join("")}
+          </div>
+        `;
+      }
     }
 
     return `
@@ -3285,11 +3417,13 @@
       const u = data.user;
       state.currentUser = u;
 
-      const rawPhotos = u.photos && u.photos.length > 0
-        ? u.photos
+      const hasRealPhotos = (Array.isArray(u.raw_photos) && u.raw_photos.length > 0)
+        || (Array.isArray(u.photos) && u.photos.length > 0 && !u.photos[0].includes("images.unsplash.com"));
+      const userPhotos = hasRealPhotos ? u.photos : [];
+      const photos = userPhotos.length > 0
+        ? userPhotos
         : [u.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"];
 
-      const photos = rawPhotos;
       const photosMeta = u.photos_meta || photos.map((p, i) => ({ url: p, is_private: false, index: i }));
 
       // Hero slides
@@ -3343,7 +3477,7 @@
       }
 
       // Gallery Grid
-      const galleryGridHtml = buildGalleryGridHtml(photos, photosMeta);
+      const galleryGridHtml = buildGalleryGridHtml(userPhotos, photosMeta, true);
 
       // Bio text
       const bioText = u.goal || u.about || u.bio || "";
@@ -3450,15 +3584,22 @@
             ${careerHtml}
 
             <!-- Section: Gallery -->
-            ${photos.length > 0 ? `
-              <div class="profile-card-section">
-                <div class="profile-section-title-row">
-                  <h4 class="profile-section-title">Галерея</h4>
-                  <button class="profile-section-action-link" id="myProfileSeeAllBtn">Все фото (${photos.length})</button>
+            <div class="profile-card-section" id="profileGallerySection">
+              <div class="profile-section-title-row">
+                <h4 class="profile-section-title">Галерея</h4>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  ${userPhotos.length < 6 ? `
+                    <button class="gallery-header-upload-btn" id="btnHeaderUploadPhoto" type="button">
+                      <span style="font-size:14px;font-weight:900;line-height:1;">+</span> Добавить
+                    </button>
+                  ` : ""}
+                  ${userPhotos.length > 0 ? `
+                    <button class="profile-section-action-link" id="myProfileSeeAllBtn" type="button">Все фото (${userPhotos.length})</button>
+                  ` : ""}
                 </div>
-                ${galleryGridHtml}
               </div>
-            ` : ""}
+              ${galleryGridHtml}
+            </div>
 
             <!-- Settings and Management Menu Card -->
             <div class="profile-settings-menu-card">
@@ -3527,7 +3668,9 @@
       // Hero slides tap -> open fullscreen gallery
       heroWrap?.querySelectorAll(".profile-hero-slide").forEach((slide, i) => {
         slide.addEventListener("click", () => {
-          openFullscreenGallery(photos, i);
+          openFullscreenGallery(userPhotos.length > 0 ? userPhotos : photos, i, hasRealPhotos, () => {
+            loadProfile();
+          });
         });
       });
 
@@ -3535,13 +3678,141 @@
       container.querySelectorAll(".gallery-grid-cell").forEach((cell) => {
         cell.addEventListener("click", () => {
           const idx = parseInt(cell.dataset.galleryIndex, 10) || 0;
-          openFullscreenGallery(photos, idx);
+          openFullscreenGallery(userPhotos, idx, true, () => {
+            loadProfile();
+          });
         });
       });
 
       document.getElementById("myProfileSeeAllBtn")?.addEventListener("click", () => {
-        openFullscreenGallery(photos, 0);
+        openFullscreenGallery(userPhotos, 0, true, () => {
+          loadProfile();
+        });
       });
+
+      // Delete buttons on individual gallery cells
+      const handleDeleteProfilePhoto = async (idx, targetUrl) => {
+        triggerHaptic("medium");
+        const doDelete = async () => {
+          try {
+            showAppToast("Удаление фото...");
+            const resp = await apiFetch("/api/webapp/profile/photos", {
+              method: "DELETE",
+              body: JSON.stringify({ index: idx, photo_url: targetUrl }),
+            });
+            if (resp && resp.status === "ok") {
+              triggerHaptic("success");
+              showAppToast("Фото удалено");
+              await loadProfile();
+            } else {
+              triggerHaptic("error");
+              showAppToast(resp?.detail || "Ошибка при удалении фото");
+            }
+          } catch (err) {
+            console.error("Delete photo error:", err);
+            triggerHaptic("error");
+            showAppToast("Не удалось удалить фото");
+          }
+        };
+
+        if (window.Telegram?.WebApp?.showConfirm) {
+          window.Telegram.WebApp.showConfirm("Удалить эту фотографию из профиля?", (ok) => {
+            if (ok) doDelete();
+          });
+        } else if (confirm("Удалить эту фотографию из профиля?")) {
+          doDelete();
+        }
+      };
+
+      container.querySelectorAll(".gallery-cell-delete-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.deleteIndex, 10);
+          const targetUrl = userPhotos[idx];
+          handleDeleteProfilePhoto(idx, targetUrl);
+        });
+      });
+
+      // Upload cells in gallery
+      container.querySelectorAll(".gallery-upload-cell").forEach((cell) => {
+        cell.addEventListener("click", (e) => {
+          e.stopPropagation();
+          triggerHaptic("light");
+          document.getElementById("profilePhotoFileInput")?.click();
+        });
+      });
+
+      // Header upload button
+      document.getElementById("btnHeaderUploadPhoto")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        triggerHaptic("light");
+        document.getElementById("profilePhotoFileInput")?.click();
+      });
+
+      // Setup photo file input listener (wire once)
+      const fileInput = document.getElementById("profilePhotoFileInput");
+      if (fileInput && !fileInput.dataset.wired) {
+        fileInput.dataset.wired = "true";
+        fileInput.addEventListener("change", async (e) => {
+          const file = e.target.files && e.target.files[0];
+          e.target.value = "";
+          if (!file) return;
+
+          if (!file.type.match(/^image\/(jpeg|jpg|png|webp)$/i)) {
+            triggerHaptic("error");
+            showAppToast("Поддерживаются только JPG, PNG или WebP");
+            return;
+          }
+
+          if (file.size > 10 * 1024 * 1024) {
+            triggerHaptic("error");
+            showAppToast("Максимальный размер фото — 10 МБ");
+            return;
+          }
+
+          const uploadCell = document.getElementById("galleryUploadCell");
+          if (uploadCell) {
+            uploadCell.classList.add("loading");
+            uploadCell.innerHTML = `
+              <div class="gallery-upload-spinner"></div>
+              <div class="gallery-upload-text">Загрузка...</div>
+            `;
+          }
+          const headerBtn = document.getElementById("btnHeaderUploadPhoto");
+          if (headerBtn) {
+            headerBtn.disabled = true;
+            headerBtn.textContent = "Загрузка...";
+          }
+
+          triggerHaptic("light");
+          showAppToast("Загрузка фото...");
+
+          try {
+            const formData = new FormData();
+            formData.append("photo", file);
+
+            const resp = await apiFetch("/api/webapp/profile/photos", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (resp && resp.status === "ok") {
+              triggerHaptic("success");
+              showAppToast("Фото успешно добавлено! 📸");
+              await loadProfile();
+            } else {
+              triggerHaptic("error");
+              showAppToast(resp?.detail || "Не удалось загрузить фото");
+              await loadProfile();
+            }
+          } catch (err) {
+            console.error("Upload error:", err);
+            triggerHaptic("error");
+            showAppToast("Ошибка соединения при загрузке фото");
+            await loadProfile();
+          }
+        });
+      }
 
       // Read more toggle for own profile
       const readMoreBtn = document.getElementById("myProfileReadMoreBtn");

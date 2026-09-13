@@ -12,7 +12,7 @@ from urllib.parse import parse_qsl
 
 import os
 import aiohttp
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, Response, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, Response, Query, WebSocket, WebSocketDisconnect, File, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -1337,6 +1337,101 @@ async def webapp_profile(
                 "private_photos": privacy.private_photos or [],
             },
         }
+    }
+
+
+# ─── API: Загрузка и удаление фото профиля ──────────────────
+class PhotoDeleteRequest(BaseModel):
+    index: Optional[int] = None
+    photo_url: Optional[str] = None
+
+
+@router.post("/api/webapp/profile/photos")
+async def webapp_upload_profile_photo(
+    photo: UploadFile = File(...),
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Загрузка новой фотографии в галерею профиля студента (максимум 6 фото)."""
+    p = student.profile if "profile" in student.__dict__ else None
+    if p is None:
+        u_full = await get_user(db, student.id)
+        p = u_full.profile if u_full else None
+    if not p:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+
+    current_photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
+    current_photos = [x for x in current_photos if x]
+    if len(current_photos) >= 6:
+        raise HTTPException(status_code=400, detail="Достигнут лимит: максимум 6 фотографий в профиле")
+
+    from web.utils.uploads import save_avatar_upload
+    photo_url = await save_avatar_upload(photo)
+    if not photo_url:
+        raise HTTPException(status_code=400, detail="Неверный формат или размер файла (поддерживаются JPG, PNG, WEBP до 10MB)")
+
+    current_photos.append(photo_url)
+    p.photos = current_photos
+    if not p.avatar_file_id:
+        p.avatar_file_id = photo_url
+
+    await db.commit()
+
+    resolved_photos = [resolve_photo_url(pid) for pid in p.photos if resolve_photo_url(pid)]
+    return {
+        "status": "ok",
+        "photos": resolved_photos,
+        "photo_url": resolve_photo_url(photo_url),
+    }
+
+
+@router.delete("/api/webapp/profile/photos")
+async def webapp_delete_profile_photo(
+    payload: PhotoDeleteRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Удаление фотографии из профиля студента."""
+    p = student.profile if "profile" in student.__dict__ else None
+    if p is None:
+        u_full = await get_user(db, student.id)
+        p = u_full.profile if u_full else None
+    if not p:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+
+    current_photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
+    current_photos = [x for x in current_photos if x]
+
+    removed = False
+    if payload.index is not None and 0 <= payload.index < len(current_photos):
+        del current_photos[payload.index]
+        removed = True
+    elif payload.photo_url:
+        target = payload.photo_url.strip()
+        new_list = []
+        for item in current_photos:
+            if not removed and (item == target or resolve_photo_url(item) == target or os.path.basename(item) == os.path.basename(target)):
+                removed = True
+                continue
+            new_list.append(item)
+        current_photos = new_list
+
+    if not removed:
+        raise HTTPException(status_code=404, detail="Фотография не найдена")
+
+    p.photos = current_photos
+    if current_photos:
+        p.avatar_file_id = current_photos[0]
+    else:
+        p.photos = []
+        p.avatar_file_id = None
+
+    await db.commit()
+
+    resolved_photos = [resolve_photo_url(pid) for pid in current_photos if resolve_photo_url(pid)]
+    return {
+        "status": "ok",
+        "photos": resolved_photos,
     }
 
 
