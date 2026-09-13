@@ -873,18 +873,27 @@
         ${(profile.career_goal || profile.goal) ? `<p class="card-bio">${escapeHtml(profile.career_goal || profile.goal)}</p>` : ""}
         ${careerPortfolioBtn}
 
-        <!-- Authentic Figma Action Buttons -->
+        <!-- Authentic Figma Action Buttons (Reference Matched) -->
         <div class="card-actions-row">
           <button class="action-btn dislike" data-action="skip" title="Пропустить">
-            <img src="/static/webapp/assets/reaction-circle-1.svg" class="action-svg" alt="Skip" />
+            <svg class="action-btn-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="3.5" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
           </button>
           <button class="action-btn superlike" data-action="superlike" title="Суперлайк">
-            ⭐
+            <svg class="action-btn-icon" width="28" height="28" viewBox="0 0 24 24" fill="white">
+              <path d="M12 2.5L15.09 8.76L22 9.77L17 14.64L18.18 21.5L12 18.25L5.82 21.5L7 14.64L2 9.77L8.91 8.76L12 2.5Z"/>
+            </svg>
           </button>
-          <button class="action-btn like" data-action="like" title="${isCareer ? 'Предложить проект' : 'Нравится'}">
+          <button class="action-btn like ${isCareer ? 'career-like' : ''}" data-action="like" title="${isCareer ? 'Предложить проект' : 'Нравится'}">
             ${isCareer 
-              ? '<img src="/static/webapp/assets/icon_career.svg" class="action-svg" style="border-radius:50%;" alt="Connect" />' 
-              : '<img src="/static/webapp/assets/icon_dating.svg" class="action-svg" style="border-radius:50%;" alt="Like" />'}
+              ? `<svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="white">
+                   <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/>
+                 </svg>`
+              : `<svg class="action-btn-icon" width="24" height="24" viewBox="0 0 24 24" fill="white">
+                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                 </svg>`}
           </button>
         </div>
       </div>
@@ -965,6 +974,10 @@
     const nopeStamp = card.querySelector(".nope-stamp");
     const superStamp = card.querySelector(".super-stamp");
 
+    const dislikeBtn = card.querySelector(".action-btn.dislike");
+    const superlikeBtn = card.querySelector(".action-btn.superlike");
+    const likeBtn = card.querySelector(".action-btn.like");
+
     function onStart(e) {
       if (state.isSwiping) return;
       isDragging = true;
@@ -985,29 +998,45 @@
       const rotate = currentX * 0.06;
       card.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${rotate}deg)`;
 
-      // Отрисовка штампов
+      // Отрисовка штампов и тактильная подсветка кнопок
       if (currentX > 35) {
         likeStamp.style.opacity = Math.min(1, (currentX - 35) / 80);
         nopeStamp.style.opacity = 0;
         superStamp.style.opacity = 0;
+        likeBtn?.classList.add("drag-hint-active");
+        dislikeBtn?.classList.remove("drag-hint-active");
+        superlikeBtn?.classList.remove("drag-hint-active");
       } else if (currentX < -35) {
         nopeStamp.style.opacity = Math.min(1, (-currentX - 35) / 80);
         likeStamp.style.opacity = 0;
         superStamp.style.opacity = 0;
+        dislikeBtn?.classList.add("drag-hint-active");
+        likeBtn?.classList.remove("drag-hint-active");
+        superlikeBtn?.classList.remove("drag-hint-active");
       } else if (currentY < -40 && Math.abs(currentX) < 40) {
         superStamp.style.opacity = Math.min(1, (-currentY - 40) / 70);
         likeStamp.style.opacity = 0;
         nopeStamp.style.opacity = 0;
+        superlikeBtn?.classList.add("drag-hint-active");
+        likeBtn?.classList.remove("drag-hint-active");
+        dislikeBtn?.classList.remove("drag-hint-active");
       } else {
         likeStamp.style.opacity = 0;
         nopeStamp.style.opacity = 0;
         superStamp.style.opacity = 0;
+        dislikeBtn?.classList.remove("drag-hint-active");
+        superlikeBtn?.classList.remove("drag-hint-active");
+        likeBtn?.classList.remove("drag-hint-active");
       }
     }
 
     function onEnd() {
       if (!isDragging) return;
       isDragging = false;
+
+      dislikeBtn?.classList.remove("drag-hint-active");
+      superlikeBtn?.classList.remove("drag-hint-active");
+      likeBtn?.classList.remove("drag-hint-active");
 
       // Пороги срабатывания свайпа
       if (currentX > 90) {
@@ -1252,12 +1281,25 @@
       ` : ""}
 
       <div class="card-actions-row" style="margin-top: 10px;">
-        <button class="action-btn dislike" id="sheetDislikeBtn">
-          <img src="/static/webapp/assets/reaction-circle-1.svg" class="action-svg" alt="Skip" />
+        <button class="action-btn dislike" id="sheetDislikeBtn" title="Пропустить">
+          <svg class="action-btn-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="3.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
         </button>
-        <button class="action-btn superlike" id="sheetSuperlikeBtn">⭐</button>
-        <button class="action-btn like" id="sheetLikeBtn">
-          <img src="/static/webapp/assets/reaction-circle-2.svg" class="action-svg" alt="Like" />
+        <button class="action-btn superlike" id="sheetSuperlikeBtn" title="Суперлайк">
+          <svg class="action-btn-icon" width="28" height="28" viewBox="0 0 24 24" fill="white">
+            <path d="M12 2.5L15.09 8.76L22 9.77L17 14.64L18.18 21.5L12 18.25L5.82 21.5L7 14.64L2 9.77L8.91 8.76L12 2.5Z"/>
+          </svg>
+        </button>
+        <button class="action-btn like ${state.currentUser?.mode === 'career' ? 'career-like' : ''}" id="sheetLikeBtn" title="${state.currentUser?.mode === 'career' ? 'Предложить проект' : 'Нравится'}">
+          ${state.currentUser?.mode === 'career'
+            ? `<svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="white">
+                 <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/>
+               </svg>`
+            : `<svg class="action-btn-icon" width="24" height="24" viewBox="0 0 24 24" fill="white">
+                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+               </svg>`}
         </button>
       </div>
 
