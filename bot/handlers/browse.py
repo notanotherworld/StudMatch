@@ -290,6 +290,17 @@ async def send_next_card(
     # Ограничиваем до 3 фото
     photos = photos[:3]
 
+    # Скрытие приватных фото до взаимного мэтча
+    from database.crud import get_or_create_user_privacy
+    cand_privacy = await get_or_create_user_privacy(db, profile.user_id)
+    priv_photos = set(cand_privacy.private_photos or [])
+    if priv_photos and len(photos) > 1:
+        has_match = bool(await get_match_between_users(db, user.id, profile.user_id, mode=user.mode))
+        if not has_match:
+            main_photo = photos[0]
+            other_photos = [p for p in photos[1:] if p not in priv_photos]
+            photos = [main_photo] + other_photos
+
     # Если медиа больше одного — отправляем медиагруппу (альбом)
     total_media_count = len(photos) + (1 if video_id else 0)
 
@@ -1170,6 +1181,16 @@ async def prompt_letter(callback: CallbackQuery, state: FSMContext, user: User, 
     target = await get_user(db, target_id)
     if not target or not target.profile:
         await callback.answer("Пользователь не найден.", show_alert=True)
+        return
+
+    from database.crud import get_or_create_user_privacy
+    target_privacy = await get_or_create_user_privacy(db, target_id)
+    msg_perm = target_privacy.message_permission or "matches"
+    if msg_perm == "nobody":
+        await callback.answer("🔒 Пользователь ограничил входящие сообщения.", show_alert=True)
+        return
+    if msg_perm == "verified_only" and not user.email_verified:
+        await callback.answer("🎓 Пользователь разрешил сообщения только верифицированным студентам.", show_alert=True)
         return
 
     await state.update_data(letter_target_id=target_id)

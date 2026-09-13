@@ -464,6 +464,12 @@
           </div>
         </div>
 
+        <!-- Chat Blocked Banner (Privacy) -->
+        <div class="chat-blocked-banner" id="chatBlockedBanner" style="display: none;">
+          <span style="margin-right: 6px;">🔒</span>
+          <span id="chatBlockedBannerText">Отправка сообщений ограничена пользователем</span>
+        </div>
+
         <!-- Chat Input Bar -->
         <div class="chat-input-bar" id="chatInputBar">
           <div class="chat-input-wrap">
@@ -799,6 +805,131 @@
         <button type="button" class="btn-primary" id="openBotAchievementsBtn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
           <span>📨 Отправить диплом боту</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Privacy Settings Bottom Sheet Modal -->
+  <div class="bottom-sheet-overlay" id="privacyModal">
+    <div class="bottom-sheet-content privacy-sheet-content">
+      <div class="sheet-top-header">
+        <div class="sheet-drag-handle"></div>
+        <button class="sheet-close-circle-btn" id="closePrivacyModalBtn" aria-label="Закрыть">✕</button>
+      </div>
+
+      <div class="sheet-body" style="padding-top: 4px;">
+        <div class="privacy-header">
+          <div class="privacy-badge">🔒 КОНФИДЕНЦИАЛЬНОСТЬ</div>
+          <h2 class="privacy-title">Настройки приватности</h2>
+          <p class="privacy-subtitle">Управляйте видимостью профиля, фото, статуса онлайн и доступом к сообщениям</p>
+        </div>
+
+        <!-- 1. Кто видит мой статус онлайн -->
+        <div class="privacy-section">
+          <div class="privacy-section-header">
+            <span class="privacy-section-icon">🟢</span>
+            <div>
+              <div class="privacy-section-title">Кто видит мой статус онлайн</div>
+              <div class="privacy-section-hint">Сам(а) вы продолжите видеть реальный онлайн других студентов</div>
+            </div>
+          </div>
+          <div class="privacy-pills" id="onlineVisibilityPills">
+            <button type="button" class="privacy-pill" data-val="all">👁 Все</button>
+            <button type="button" class="privacy-pill" data-val="matches">❤️ Только мэтчи</button>
+            <button type="button" class="privacy-pill" data-val="nobody">🔒 Никто</button>
+          </div>
+        </div>
+
+        <!-- 2. Кто может писать сообщения -->
+        <div class="privacy-section">
+          <div class="privacy-section-header">
+            <span class="privacy-section-icon">💬</span>
+            <div>
+              <div class="privacy-section-title">Кто может писать мне сообщения</div>
+              <div class="privacy-section-hint">Ограничивает отправку сообщений в чатах и комментарии к суперлайкам</div>
+            </div>
+          </div>
+          <div class="privacy-pills" id="messagePermissionPills">
+            <button type="button" class="privacy-pill" data-val="matches">💬 Все мэтчи</button>
+            <button type="button" class="privacy-pill" data-val="verified_only">🎓 Только вериф.</button>
+            <button type="button" class="privacy-pill" data-val="nobody">🔒 Запретить</button>
+          </div>
+        </div>
+
+        <!-- 3. Мои фото и блюр до мэтча -->
+        <div class="privacy-section">
+          <div class="privacy-section-header">
+            <span class="privacy-section-icon">📸</span>
+            <div>
+              <div class="privacy-section-title">Приватность фотографий</div>
+              <div class="privacy-section-hint">Главное фото всегда открыто. Дополнительные фото можно скрыть блюром до взаимного мэтча</div>
+            </div>
+          </div>
+          <div class="privacy-photos-grid" id="privacyPhotosGrid">
+            <!-- Dynamically injected photos with blur switch -->
+          </div>
+        </div>
+
+        <!-- 4. Персональные данные и доступ -->
+        <div class="privacy-section">
+          <div class="privacy-section-header">
+            <span class="privacy-section-icon">🛡️</span>
+            <div>
+              <div class="privacy-section-title">Личные данные и доступ</div>
+              <div class="privacy-section-hint">Тонкая настройка видимости отдельных полей анкеты</div>
+            </div>
+          </div>
+
+          <div class="privacy-toggle-row">
+            <div class="privacy-toggle-info">
+              <span class="privacy-toggle-label">💼 Доступ для работодателей (HR)</span>
+              <span class="privacy-toggle-desc">Показывать анкету компаниям для стажировок и вакансий</span>
+            </div>
+            <label class="ios-toggle">
+              <input type="checkbox" id="privacyToggleEmployer">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="privacy-toggle-row">
+            <div class="privacy-toggle-info">
+              <span class="privacy-toggle-label">🎂 Скрывать возраст в анкете</span>
+              <span class="privacy-toggle-desc">Не показывать количество лет в карточке и ленте свайпов</span>
+            </div>
+            <label class="ios-toggle">
+              <input type="checkbox" id="privacyToggleHideAge">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="privacy-toggle-row">
+            <div class="privacy-toggle-info">
+              <span class="privacy-toggle-label">🎓 Скрывать курс обучения</span>
+              <span class="privacy-toggle-desc">Не показывать номер курса в анкете</span>
+            </div>
+            <label class="ios-toggle">
+              <input type="checkbox" id="privacyToggleHideCourse">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="privacy-toggle-row">
+            <div class="privacy-toggle-info">
+              <span class="privacy-toggle-label">✉️ Скрывать email</span>
+              <span class="privacy-toggle-desc">Скрыть адрес корпоративной почты из профиля</span>
+            </div>
+            <label class="ios-toggle">
+              <input type="checkbox" id="privacyToggleHideEmail">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div style="margin: 20px 0 30px;">
+          <button class="btn-primary" id="savePrivacyBtn" style="background: linear-gradient(135deg, #10B981, #059669); font-weight: 700;">
+            ✅ Сохранить настройки
+          </button>
+        </div>
       </div>
     </div>
   </div>

@@ -7,6 +7,7 @@ import uuid
 import random
 import string
 import logging
+import json
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, and_, or_, func, case, exists
@@ -159,6 +160,19 @@ async def transfer_superlike_rating(db: AsyncSession, from_user_id: int, to_user
 # ─────────────────────────────────────────────────────────────
 # Privacy Settings (UserPrivacy)
 # ─────────────────────────────────────────────────────────────
+def _normalize_private_photos(val) -> List[str]:
+    if val is None:
+        return []
+    if isinstance(val, str):
+        try:
+            parsed = json.loads(val)
+            if isinstance(parsed, list):
+                return [str(x) for x in parsed]
+        except Exception:
+            return [val] if val else []
+    return [str(x) for x in list(val)]
+
+
 async def get_or_create_user_privacy(db: AsyncSession, user_id: int) -> UserPrivacy:
     """Получить или создать дефолтные настройки приватности для пользователя."""
     res = await db.execute(select(UserPrivacy).where(UserPrivacy.user_id == user_id))
@@ -182,6 +196,8 @@ async def get_or_create_user_privacy(db: AsyncSession, user_id: int) -> UserPriv
             await db.rollback()
             res = await db.execute(select(UserPrivacy).where(UserPrivacy.user_id == user_id))
             privacy = res.scalar_one_or_none()
+    if privacy:
+        privacy.private_photos = _normalize_private_photos(privacy.private_photos)
     return privacy
 
 
@@ -194,10 +210,13 @@ async def update_user_privacy(db: AsyncSession, user_id: int, **fields) -> UserP
     }
     for key, value in fields.items():
         if key in allowed and value is not None:
+            if key == "private_photos":
+                value = _normalize_private_photos(value)
             setattr(privacy, key, value)
     privacy.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(privacy)
+    privacy.private_photos = _normalize_private_photos(privacy.private_photos)
     return privacy
 
 
@@ -209,7 +228,7 @@ async def toggle_photo_privacy(db: AsyncSession, user_id: int, photo_id: str) ->
     Возвращает (privacy, is_now_private).
     """
     privacy = await get_or_create_user_privacy(db, user_id)
-    current = list(privacy.private_photos or [])
+    current = _normalize_private_photos(privacy.private_photos)
     clean_id = str(photo_id).strip()
     if clean_id in current:
         current.remove(clean_id)
@@ -222,6 +241,7 @@ async def toggle_photo_privacy(db: AsyncSession, user_id: int, photo_id: str) ->
     privacy.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(privacy)
+    privacy.private_photos = current
     return privacy, is_now_private
 
 
@@ -968,6 +988,7 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
                 .options(
                     selectinload(User.profile),
                     selectinload(User.university),
+                    selectinload(User.privacy),
                 )
                 .where(User.id.in_(partner_ids))
             )

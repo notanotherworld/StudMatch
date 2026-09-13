@@ -29,7 +29,7 @@ from web.dependencies import get_db, SECRET, ALGORITHM
 import jwt
 from database.models import (
     User, Profile, University, Swipe, Match, ChatMessage, SwipeAction, ModeEnum, InterestTag,
-    Report, ReportStatus
+    Report, ReportStatus, UserPrivacy,
 )
 from database.crud import (
     get_user, get_profile, get_next_profile, create_swipe,
@@ -38,6 +38,8 @@ from database.crud import (
     mark_chat_messages_as_read, get_unread_messages_count, get_last_chat_message,
     approve_match_telegram, delete_match_by_id, get_match_between_users,
     transfer_superlike_rating, update_user_last_active,
+    get_or_create_user_privacy, update_user_privacy, toggle_photo_privacy,
+    is_user_online_visible_to, get_user_online_status_text_for,
 )
 
 logger = logging.getLogger(__name__)
@@ -345,26 +347,52 @@ async def webapp_feed(
         else:
             photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
 
-        # Преобразуем фото в URL медиа-прокси или прямые ссылки
-        photo_urls = [resolve_photo_url(pid) for pid in photos if resolve_photo_url(pid)]
-        if not photo_urls:
-            photo_urls = [DEFAULT_FALLBACK_AVATAR]
+        # Проверяем настройки приватности кандидата
+        cand_privacy = u.privacy if (u and "privacy" in u.__dict__) else None
+        if not cand_privacy and u:
+            cand_privacy = await get_or_create_user_privacy(db, u.id)
+
+        hide_age = getattr(cand_privacy, "hide_age", False) if cand_privacy else False
+        hide_course = getattr(cand_privacy, "hide_course", False) if cand_privacy else False
+        priv_photos_set = set(cand_privacy.private_photos or []) if cand_privacy else set()
+
+        # Формируем фотографии и метаданные с пометкой блюра (is_private)
+        photos_meta = []
+        for idx, pid in enumerate(photos):
+            url = resolve_photo_url(pid)
+            if not url:
+                continue
+            # Первое фото (idx == 0) ВСЕГДА открыто
+            # Дополнительные фото (idx > 0) приватны, если они в private_photos
+            is_priv = bool(idx > 0 and str(pid).strip() in priv_photos_set)
+            photos_meta.append({
+                "id": str(pid),
+                "url": url,
+                "is_private": is_priv,
+            })
+
+        if not photos_meta:
+            photos_meta = [{"id": "fallback", "url": DEFAULT_FALLBACK_AVATAR, "is_private": False}]
+
+        photo_urls = [pm["url"] for pm in photos_meta]
 
         cand_tags = [tags_map[tid] for tid in (p.interest_ids or []) if tid in tags_map]
-
         univ_name = u.university.short_name if (u and u.university) else ""
 
         result.append({
             "user_id": p.user_id,
             "name": p.name or "Студент",
-            "age": p.age,
-            "year": p.year,
+            "age": None if hide_age else p.age,
+            "year": None if hide_course else p.year,
+            "hide_age": hide_age,
+            "hide_course": hide_course,
             "major": p.major or "",
             "university": univ_name,
             "goal": p.goal or "",
             "custom_interests": p.custom_interests or "",
             "tags": cand_tags,
             "photos": photo_urls,
+            "photos_meta": photos_meta,
             "rating_score": round(p.rating_score or 0.0, 1),
             "is_verified": getattr(u, "email_verified", False),
             "is_premium": getattr(u, "is_premium", False),
@@ -417,13 +445,20 @@ async def webapp_swipe(
             raise HTTPException(status_code=400, detail="Недостаточно суперлайков")
         current_superlike_balance = max(0, current_superlike_balance - 1)
 
+    swipe_comment = payload.comment
+    if swipe_comment and swipe_comment.strip():
+        target_privacy = await get_or_create_user_privacy(db, payload.target_id)
+        msg_perm = target_privacy.message_permission or "matches"
+        if msg_perm == "nobody" or (msg_perm == "verified_only" and not getattr(student, "email_verified", False)):
+            swipe_comment = None
+
     is_match = await create_swipe(
         db,
         from_id=student_id,
         to_id=payload.target_id,
         action=action,
         mode=user_mode,
-        comment=payload.comment,
+        comment=swipe_comment,
     )
 
     match_data = None
@@ -619,6 +654,13 @@ async def webapp_matches(
                 "timestamp": last_msg.created_at.timestamp() if last_msg.created_at else 0,
             }
 
+        partner_privacy = partner.privacy if (partner and "privacy" in partner.__dict__) else None
+        if not partner_privacy and partner:
+            partner_privacy = await get_or_create_user_privacy(db, partner.id)
+
+        hide_age = getattr(partner_privacy, "hide_age", False)
+        hide_course = getattr(partner_privacy, "hide_course", False)
+
         result.append({
             "match_id": str(m.id),
             "user_id": partner.id,
@@ -629,16 +671,18 @@ async def webapp_matches(
             "my_tg_approved": my_tg_approved,
             "partner_tg_approved": partner_tg_approved,
             "photo_url": photo_url,
-            "year": p.year if p else None,
-            "age": p.age if p else None,
+            "year": None if hide_course else (p.year if p else None),
+            "age": None if hide_age else (p.age if p else None),
+            "hide_age": hide_age,
+            "hide_course": hide_course,
             "major": p.major if p else None,
             "university": univ_name,
             "goal": p.goal if p else None,
             "created_at": date_str,
             "is_verified": getattr(partner, "email_verified", False),
             "is_premium": getattr(partner, "is_premium", False),
-            "is_online": getattr(partner, "is_online", False),
-            "online_status_text": getattr(partner, "online_status_text", "был(а) давно"),
+            "is_online": is_user_online_visible_to(student.id, partner, is_mutual_match=True),
+            "online_status_text": get_user_online_status_text_for(student.id, partner, is_mutual_match=True),
             "unread_count": unread_count,
             "last_message": last_msg_data,
             "_sort_time": last_msg_data["timestamp"] if last_msg_data else (m.created_at.timestamp() if m.created_at else 0),
@@ -708,19 +752,40 @@ async def webapp_get_match_messages(
 
     partner_tg = partner.tg_username if is_tg_unlocked else None
 
+    partner_privacy = partner.privacy if (partner and "privacy" in partner.__dict__) else None
+    if not partner_privacy and partner:
+        partner_privacy = await get_or_create_user_privacy(db, partner.id)
+
+    hide_age = getattr(partner_privacy, "hide_age", False)
+    hide_course = getattr(partner_privacy, "hide_course", False)
+    msg_perm = partner_privacy.message_permission or "matches"
+    can_send_message = True
+    message_block_reason = ""
+    if msg_perm == "nobody":
+        can_send_message = False
+        message_block_reason = "Пользователь ограничил входящие сообщения 🔒"
+    elif msg_perm == "verified_only" and not getattr(student, "email_verified", False):
+        can_send_message = False
+        message_block_reason = "Сообщения разрешены только верифицированным студентам 🎓"
+
     partner_dict = {
         "id": partner.id,
         "name": p.name if (p and p.name) else "Студент",
         "photo_url": photo_url,
         "avatar_url": photo_url,
         "university": partner.university.short_name if partner.university else "",
-        "year": p.year if p else None,
+        "year": None if hide_course else (p.year if p else None),
+        "age": None if hide_age else (p.age if p else None),
+        "hide_age": hide_age,
+        "hide_course": hide_course,
         "is_verified": getattr(partner, "email_verified", False),
         "is_premium": getattr(partner, "is_premium", False),
-        "is_online": getattr(partner, "is_online", False),
-        "online_status_text": getattr(partner, "online_status_text", "был(а) давно"),
+        "is_online": is_user_online_visible_to(student.id, partner, is_mutual_match=True),
+        "online_status_text": get_user_online_status_text_for(student.id, partner, is_mutual_match=True),
         # Скрыт до обоюдного согласия!
         "tg_username": partner_tg,
+        "can_send_message": can_send_message,
+        "message_block_reason": message_block_reason,
     }
 
     match_dict = {
@@ -731,6 +796,8 @@ async def webapp_get_match_messages(
         "my_tg_approved": my_tg_approved,
         "partner_tg_approved": partner_tg_approved,
         "partner_tg_username": partner_tg,
+        "can_send_message": can_send_message,
+        "message_block_reason": message_block_reason,
     }
 
     return {
@@ -742,6 +809,8 @@ async def webapp_get_match_messages(
         "my_tg_approved": my_tg_approved,
         "partner_tg_approved": partner_tg_approved,
         "partner_tg_username": partner_tg,
+        "can_send_message": can_send_message,
+        "message_block_reason": message_block_reason,
         "messages": messages_data,
     }
 
@@ -771,6 +840,13 @@ async def webapp_send_message(
         raise HTTPException(status_code=403, detail="Доступ запрещён")
 
     partner_id = match.user2_id if match.user1_id == student.id else match.user1_id
+    partner_privacy = await get_or_create_user_privacy(db, partner_id)
+    msg_perm = partner_privacy.message_permission or "matches"
+    if msg_perm == "nobody":
+        raise HTTPException(status_code=403, detail="Пользователь ограничил входящие сообщения 🔒")
+    if msg_perm == "verified_only" and not getattr(student, "email_verified", False):
+        raise HTTPException(status_code=403, detail="Сообщения разрешены только верифицированным студентам 🎓")
+
     msg = await create_chat_message(db, match_uuid, student.id, text, msg_type="text")
 
     # Транслируем новое сообщение через WebSocket
@@ -1192,6 +1268,21 @@ async def webapp_profile(
     if not maintenance_message or not maintenance_message.strip():
         maintenance_message = default_msg
 
+    privacy = await get_or_create_user_privacy(db, student.id)
+    priv_photos_set = set(privacy.private_photos or [])
+
+    raw_photos = []
+    for idx, pid in enumerate(photos):
+        u_url = resolve_photo_url(pid)
+        if not u_url:
+            continue
+        raw_photos.append({
+            "id": str(pid),
+            "url": u_url,
+            "is_main": (idx == 0),
+            "is_private": bool(idx > 0 and str(pid).strip() in priv_photos_set),
+        })
+
     return {
         "status": "ok",
         "maintenance": {
@@ -1214,6 +1305,7 @@ async def webapp_profile(
             "custom_interests": p.custom_interests if p else "",
             "tags": tags,
             "photos": photo_urls,
+            "raw_photos": raw_photos,
             "career_avatar_url": career_avatar_url,
             "career_goal": p.career_goal if p else "",
             "career_custom_skills": p.career_custom_skills if p else "",
@@ -1222,7 +1314,138 @@ async def webapp_profile(
             "career_is_complete": p.career_is_complete if p else False,
             "rating_score": round(p.rating_score or 0.0, 1) if p else 0.0,
             "is_superadmin": is_superadmin,
+            "privacy": {
+                "online_visibility": privacy.online_visibility or "all",
+                "message_permission": privacy.message_permission or "matches",
+                "allow_employer_access": bool(privacy.allow_employer_access),
+                "hide_age": bool(privacy.hide_age),
+                "hide_course": bool(privacy.hide_course),
+                "hide_email": bool(privacy.hide_email),
+                "private_photos": privacy.private_photos or [],
+            },
         }
+    }
+
+
+# ─── API: Настройки приватности профиля ──────────────────────
+class PrivacyUpdateRequest(BaseModel):
+    online_visibility: Optional[str] = None
+    message_permission: Optional[str] = None
+    allow_employer_access: Optional[bool] = None
+    hide_age: Optional[bool] = None
+    hide_course: Optional[bool] = None
+    hide_email: Optional[bool] = None
+
+
+class PhotoToggleRequest(BaseModel):
+    photo_id: str
+
+
+@router.get("/api/webapp/privacy")
+async def webapp_get_privacy(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Получить текущие настройки приватности профиля."""
+    privacy = await get_or_create_user_privacy(db, student.id)
+    p = student.profile if "profile" in student.__dict__ else None
+    if p is None:
+        u_full = await get_user(db, student.id)
+        p = u_full.profile if u_full else None
+    photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
+    photos = [x for x in photos if x]
+    priv_photos_set = set(privacy.private_photos or [])
+
+    photos_meta = []
+    for idx, pid in enumerate(photos):
+        url = resolve_photo_url(pid)
+        if not url:
+            continue
+        photos_meta.append({
+            "id": str(pid),
+            "url": url,
+            "is_main": (idx == 0),
+            "is_private": bool(idx > 0 and str(pid).strip() in priv_photos_set),
+        })
+
+    return {
+        "status": "ok",
+        "privacy": {
+            "online_visibility": privacy.online_visibility or "all",
+            "message_permission": privacy.message_permission or "matches",
+            "allow_employer_access": bool(privacy.allow_employer_access),
+            "hide_age": bool(privacy.hide_age),
+            "hide_course": bool(privacy.hide_course),
+            "hide_email": bool(privacy.hide_email),
+            "private_photos": privacy.private_photos or [],
+        },
+        "photos": photos_meta,
+    }
+
+
+@router.post("/api/webapp/privacy")
+async def webapp_update_privacy(
+    payload: PrivacyUpdateRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновить настройки приватности профиля."""
+    update_data = {}
+    if payload.online_visibility in ("all", "matches", "nobody"):
+        update_data["online_visibility"] = payload.online_visibility
+    if payload.message_permission in ("matches", "verified_only", "nobody"):
+        update_data["message_permission"] = payload.message_permission
+    if payload.allow_employer_access is not None:
+        update_data["allow_employer_access"] = payload.allow_employer_access
+    if payload.hide_age is not None:
+        update_data["hide_age"] = payload.hide_age
+    if payload.hide_course is not None:
+        update_data["hide_course"] = payload.hide_course
+    if payload.hide_email is not None:
+        update_data["hide_email"] = payload.hide_email
+
+    privacy = await update_user_privacy(db, student.id, **update_data)
+    return {
+        "status": "ok",
+        "message": "Настройки приватности успешно сохранены",
+        "privacy": {
+            "online_visibility": privacy.online_visibility or "all",
+            "message_permission": privacy.message_permission or "matches",
+            "allow_employer_access": bool(privacy.allow_employer_access),
+            "hide_age": bool(privacy.hide_age),
+            "hide_course": bool(privacy.hide_course),
+            "hide_email": bool(privacy.hide_email),
+            "private_photos": privacy.private_photos or [],
+        },
+    }
+
+
+@router.post("/api/webapp/privacy/photo-toggle")
+async def webapp_toggle_photo_privacy(
+    payload: PhotoToggleRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Переключить приватность конкретного дополнительного фото."""
+    clean_id = payload.photo_id.strip()
+    if not clean_id:
+        raise HTTPException(status_code=400, detail="Не указан ID фото")
+
+    # Проверяем, не является ли это фото главным
+    p = student.profile if "profile" in student.__dict__ else None
+    if p is None:
+        u_full = await get_user(db, student.id)
+        p = u_full.profile if u_full else None
+    photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
+    if photos and str(photos[0]).strip() == clean_id:
+        raise HTTPException(status_code=400, detail="Главное фото всегда остаётся открытым")
+
+    privacy, is_now_private = await toggle_photo_privacy(db, student.id, clean_id)
+    return {
+        "status": "ok",
+        "photo_id": clean_id,
+        "is_private": is_now_private,
+        "private_photos": privacy.private_photos or [],
     }
 
 
@@ -1494,11 +1717,19 @@ async def webapp_career_feed(
         is_connected = u.id in connected_ids
         is_pending = u.id in pending_ids
 
+        u_priv = u.privacy if (u and "privacy" in u.__dict__) else None
+        if not u_priv and u:
+            u_priv = await get_or_create_user_privacy(db, u.id)
+        hide_age = getattr(u_priv, "hide_age", False)
+        hide_course = getattr(u_priv, "hide_course", False)
+
         cards.append({
             "user_id": u.id,
             "name": p.name or "Студент",
-            "age": p.age,
-            "year": p.year,
+            "age": None if hide_age else p.age,
+            "year": None if hide_course else p.year,
+            "hide_age": hide_age,
+            "hide_course": hide_course,
             "major": p.major or "",
             "university": (u.university.short_name or u.university.name) if u.university else "",
             "photos": photo_urls,
@@ -1618,35 +1849,39 @@ async def webapp_get_user_details(
     if not target or not target.is_active:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-    p = target.profile
-    photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
-    photo_urls = [resolve_photo_url(pid) for pid in photos if resolve_photo_url(pid)]
-    if not photo_urls:
-        photo_urls = [DEFAULT_FALLBACK_AVATAR]
+    target_privacy = target.privacy if (target and "privacy" in target.__dict__) else None
+    if not target_privacy and target:
+        target_privacy = await get_or_create_user_privacy(db, target.id)
 
-    career_avatar_url = resolve_photo_url(p.career_avatar_file_id) if (p and p.career_avatar_file_id) else None
-    career_photos = [career_avatar_url] if career_avatar_url else photo_urls
+    hide_age = getattr(target_privacy, "hide_age", False) if not is_me else False
+    hide_course = getattr(target_privacy, "hide_course", False) if not is_me else False
+    priv_photos_set = set(target_privacy.private_photos or [])
 
-    tags = []
-    if p and p.interest_ids:
-        tag_res = await db.execute(select(InterestTag).where(InterestTag.id.in_(p.interest_ids)))
-        for t in tag_res.scalars().all():
-            tags.append({"id": t.id, "name": t.name, "emoji": t.emoji})
+    photos_meta = []
+    for idx, pid in enumerate(photos):
+        url = resolve_photo_url(pid)
+        if not url:
+            continue
+        is_priv = bool(idx > 0 and str(pid).strip() in priv_photos_set and not has_match and not is_me)
+        photos_meta.append({
+            "id": str(pid),
+            "url": url,
+            "is_main": (idx == 0),
+            "is_private": is_priv,
+        })
+    if not photos_meta:
+        photos_meta = [{"id": "fallback", "url": DEFAULT_FALLBACK_AVATAR, "is_main": True, "is_private": False}]
+    photo_urls = [pm["url"] for pm in photos_meta]
 
-    # Проверяем обоюдное открытие контактов и наличие мэтча
-    is_me = (student.id == target.id)
-    m = None
-    has_match = False
-    match_id = None
-    is_tg_unlocked = False
-
-    if not is_me:
-        m = await get_match_between_users(db, student.id, target.id)
-        if m:
-            has_match = True
-            match_id = str(m.id)
-            if m.is_tg_unlocked:
-                is_tg_unlocked = True
+    msg_perm = target_privacy.message_permission or "matches"
+    can_send_message = True
+    message_block_reason = ""
+    if msg_perm == "nobody":
+        can_send_message = False
+        message_block_reason = "Пользователь ограничил входящие сообщения 🔒"
+    elif msg_perm == "verified_only" and not getattr(student, "email_verified", False):
+        can_send_message = False
+        message_block_reason = "Сообщения разрешены только верифицированным студентам 🎓"
 
     return {
         "status": "ok",
@@ -1658,14 +1893,21 @@ async def webapp_get_user_details(
             "match_id": match_id,
             "is_tg_unlocked": is_tg_unlocked,
             "name": p.name if p else "Студент",
-            "age": p.age if p else None,
-            "year": p.year if p else None,
+            "age": None if hide_age else (p.age if p else None),
+            "year": None if hide_course else (p.year if p else None),
+            "hide_age": hide_age,
+            "hide_course": hide_course,
+            "is_online": is_user_online_visible_to(student.id, target, is_mutual_match=has_match),
+            "online_status_text": get_user_online_status_text_for(student.id, target, is_mutual_match=has_match),
             "major": p.major if p else "",
             "university": target.university.name if target.university else "",
             "goal": p.goal if p else "",
             "custom_interests": p.custom_interests if p else "",
             "tags": tags,
             "photos": photo_urls,
+            "photos_meta": photos_meta,
+            "can_send_message": can_send_message,
+            "message_block_reason": message_block_reason,
             "career_avatar_url": career_avatar_url,
             "career_photos": career_photos,
             "rating_score": round(p.rating_score or 0.0, 1) if p else 0.0,

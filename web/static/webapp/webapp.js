@@ -829,9 +829,16 @@
       careerSub = `<div class="card-subtext" style="color:#A8A5FF;">💼 Карьерная анкета</div>`;
     }
 
+    const photosMeta = profile.photos_meta || photos.map((p, i) => ({ url: p, is_private: false, index: i }));
+
     card.innerHTML = `
       ${barsHtml}
       <img src="${photos[0]}" class="card-photo-bg" alt="${escapeHtml(profile.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+      <div class="photo-private-overlay" style="display: none;">
+        <div class="photo-private-lock-icon">🔒</div>
+        <div class="photo-private-text">Фото скрыто автором</div>
+        <div class="photo-private-subtext">Станет доступно после взаимного мэтча</div>
+      </div>
       <div class="card-gradient-overlay"></div>
 
       <!-- Tap zones for photo carousel -->
@@ -888,6 +895,21 @@
     const tapRight = card.querySelector(".card-tap-right");
     const photoImg = card.querySelector(".card-photo-bg");
     const storyBars = card.querySelectorAll(".story-bar");
+    const privateOverlay = card.querySelector(".photo-private-overlay");
+
+    const updateCardPhoto = (idx) => {
+      const meta = photosMeta[idx] || { is_private: false };
+      photoImg.onerror = function() { this.onerror = null; this.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"; };
+      photoImg.src = photos[idx];
+      storyBars.forEach((bar, i) => bar.classList.toggle("active", i <= idx));
+      if (meta.is_private) {
+        photoImg.classList.add("photo-private");
+        if (privateOverlay) privateOverlay.style.display = "flex";
+      } else {
+        photoImg.classList.remove("photo-private");
+        if (privateOverlay) privateOverlay.style.display = "none";
+      }
+    };
 
     if (tapLeft && tapRight && photos.length > 1) {
       tapLeft.addEventListener("click", (e) => {
@@ -896,8 +918,7 @@
         if (idx > 0) {
           idx--;
           card.dataset.photoIndex = idx.toString();
-          photoImg.onerror = function() { this.onerror = null; this.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"; }; photoImg.src = photos[idx];
-          storyBars.forEach((bar, i) => bar.classList.toggle("active", i <= idx));
+          updateCardPhoto(idx);
           triggerHaptic("light");
         }
       });
@@ -908,8 +929,7 @@
         if (idx < photos.length - 1) {
           idx++;
           card.dataset.photoIndex = idx.toString();
-          photoImg.onerror = function() { this.onerror = null; this.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"; }; photoImg.src = photos[idx];
-          storyBars.forEach((bar, i) => bar.classList.toggle("active", i <= idx));
+          updateCardPhoto(idx);
           triggerHaptic("light");
         }
       });
@@ -1138,8 +1158,24 @@
       ? profile.photos
       : ["https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80"];
 
-    const galleryHtml = photos
-      .map((p) => `<img src="${p}" class="sheet-photo" alt="Photo" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />`)
+    const photosMeta = profile.photos_meta || photos.map((p, i) => ({ url: p, is_private: false, index: i }));
+
+    const galleryHtml = photosMeta
+      .map((pm) => {
+        if (pm.is_private) {
+          return `
+            <div class="sheet-photo-wrap" style="position:relative;display:inline-block;overflow:hidden;border-radius:16px;flex-shrink:0;">
+              <img src="${pm.url}" class="sheet-photo photo-private" alt="Photo" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+              <div class="photo-private-overlay">
+                <div class="photo-private-lock-icon">🔒</div>
+                <div class="photo-private-text">Фото скрыто</div>
+                <div class="photo-private-subtext">Откроется после мэтча</div>
+              </div>
+            </div>
+          `;
+        }
+        return `<img src="${pm.url}" class="sheet-photo" alt="Photo" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />`;
+      })
       .join("");
 
     const tagsHtml = (profile.tags || [])
@@ -1480,6 +1516,212 @@
     document.getElementById("matchCloseBtn")?.addEventListener("click", () => {
       matchModal.classList.remove("active");
     });
+
+    setupPrivacyListeners();
+  }
+
+  // 7.1. Модальное окно настроек приватности профиля
+  async function openPrivacyModal() {
+    triggerHaptic("medium");
+    const modal = document.getElementById("privacyModal");
+    if (!modal) return;
+
+    try {
+      const data = await apiFetch("/api/webapp/privacy");
+      if (data && data.privacy) {
+        const priv = data.privacy;
+        // 1. Онлайн
+        const onlineVal = priv.online_visibility || "all";
+        document.querySelectorAll("#onlineVisibilityPills .privacy-pill").forEach((pill) => {
+          pill.classList.toggle("active", pill.dataset.val === onlineVal);
+        });
+
+        // 2. Сообщения
+        const msgVal = priv.message_permission || "matches";
+        document.querySelectorAll("#messagePermissionPills .privacy-pill").forEach((pill) => {
+          pill.classList.toggle("active", pill.dataset.val === msgVal);
+        });
+
+        // 3. Личные данные
+        const togEmp = document.getElementById("privacyToggleEmployer");
+        const togAge = document.getElementById("privacyToggleHideAge");
+        const togCourse = document.getElementById("privacyToggleHideCourse");
+        const togEmail = document.getElementById("privacyToggleHideEmail");
+
+        if (togEmp) togEmp.checked = Boolean(priv.allow_employer_access);
+        if (togAge) togAge.checked = Boolean(priv.hide_age);
+        if (togCourse) togCourse.checked = Boolean(priv.hide_course);
+        if (togEmail) togEmail.checked = Boolean(priv.hide_email);
+
+        // 4. Фотографии
+        renderPrivacyPhotos(data.photos || []);
+      }
+    } catch (e) {
+      console.warn("Failed to load privacy settings:", e);
+    }
+    modal.classList.add("active");
+  }
+
+  function closePrivacyModal() {
+    triggerHaptic("light");
+    const modal = document.getElementById("privacyModal");
+    if (modal) modal.classList.remove("active");
+  }
+
+  function renderPrivacyPhotos(photos) {
+    const grid = document.getElementById("privacyPhotosGrid");
+    if (!grid) return;
+
+    if (!photos || photos.length === 0) {
+      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted);font-size:13px;">У вас пока нет загруженных фото</div>`;
+      return;
+    }
+
+    grid.innerHTML = photos.map((p, idx) => {
+      const isMain = Boolean(p.is_main || idx === 0);
+      const isPrivate = Boolean(p.is_private);
+      return `
+        <div class="privacy-photo-card" data-photo-id="${escapeHtml(String(p.id))}">
+          <div class="privacy-photo-thumb-wrap">
+            <img src="${escapeHtml(p.url)}" class="privacy-photo-thumb ${isPrivate ? 'blurred' : ''}" alt="Фото" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80';" />
+            <div class="privacy-photo-status-badge ${isMain ? 'main' : (isPrivate ? 'locked' : 'open')}">
+              ${isMain ? '⭐ Главное' : (isPrivate ? '🔒 Блюр' : '👁 Открыто')}
+            </div>
+          </div>
+          ${isMain ? `
+            <div style="padding: 8px 4px; font-size: 11px; font-weight: 700; color: #64748B; text-align: center; background: #F8FAFC;">Всегда открыто</div>
+          ` : `
+            <button type="button" class="privacy-photo-action-btn ${isPrivate ? 'is-locked' : ''}" data-photo-id="${escapeHtml(String(p.id))}">
+              ${isPrivate ? '🔒 Только мэтчам' : '👁 Видно всем'}
+            </button>
+          `}
+        </div>
+      `;
+    }).join("");
+
+    // Обработчик переключения приватности фото
+    grid.querySelectorAll(".privacy-photo-action-btn").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const photoId = btn.dataset.photoId;
+        if (!photoId) return;
+        triggerHaptic("light");
+        btn.disabled = true;
+
+        try {
+          const res = await apiFetch("/api/webapp/privacy/photo-toggle", {
+            method: "POST",
+            body: JSON.stringify({ photo_id: photoId }),
+          });
+          if (res && res.status === "ok") {
+            const isNowPrivate = Boolean(res.is_private);
+            btn.classList.toggle("is-locked", isNowPrivate);
+            btn.textContent = isNowPrivate ? "🔒 Только мэтчам" : "👁 Видно всем";
+
+            const card = btn.closest(".privacy-photo-card");
+            if (card) {
+              const img = card.querySelector(".privacy-photo-thumb");
+              const badge = card.querySelector(".privacy-photo-status-badge");
+              if (img) img.classList.toggle("blurred", isNowPrivate);
+              if (badge) {
+                badge.className = `privacy-photo-status-badge ${isNowPrivate ? 'locked' : 'open'}`;
+                badge.textContent = isNowPrivate ? '🔒 Блюр' : '👁 Открыто';
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error toggling photo privacy:", err);
+          triggerHaptic("warning");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  async function savePrivacySettings() {
+    triggerHaptic("medium");
+    const saveBtn = document.getElementById("savePrivacyBtn");
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Сохранение...";
+    }
+
+    try {
+      const activeOnlinePill = document.querySelector("#onlineVisibilityPills .privacy-pill.active");
+      const onlineVisibility = activeOnlinePill ? activeOnlinePill.dataset.val : "all";
+
+      const activeMsgPill = document.querySelector("#messagePermissionPills .privacy-pill.active");
+      const messagePermission = activeMsgPill ? activeMsgPill.dataset.val : "matches";
+
+      const allowEmployer = Boolean(document.getElementById("privacyToggleEmployer")?.checked);
+      const hideAge = Boolean(document.getElementById("privacyToggleHideAge")?.checked);
+      const hideCourse = Boolean(document.getElementById("privacyToggleHideCourse")?.checked);
+      const hideEmail = Boolean(document.getElementById("privacyToggleHideEmail")?.checked);
+
+      const res = await apiFetch("/api/webapp/privacy", {
+        method: "POST",
+        body: JSON.stringify({
+          online_visibility: onlineVisibility,
+          message_permission: messagePermission,
+          allow_employer_access: allowEmployer,
+          hide_age: hideAge,
+          hide_course: hideCourse,
+          hide_email: hideEmail,
+        }),
+      });
+
+      if (res && res.status === "ok") {
+        triggerHaptic("success");
+        if (tg && tg.showAlert) {
+          tg.showAlert("🔒 Настройки приватности успешно сохранены!");
+        }
+        closePrivacyModal();
+      }
+    } catch (err) {
+      console.error("Failed to save privacy settings:", err);
+      triggerHaptic("warning");
+      if (tg && tg.showAlert) {
+        tg.showAlert("Не удалось сохранить настройки. Попробуйте снова.");
+      }
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "✅ Сохранить настройки";
+      }
+    }
+  }
+
+  function setupPrivacyListeners() {
+    document.getElementById("closePrivacyModalBtn")?.addEventListener("click", closePrivacyModal);
+
+    const privacyModalEl = document.getElementById("privacyModal");
+    privacyModalEl?.addEventListener("click", (e) => {
+      if (e.target === privacyModalEl) {
+        closePrivacyModal();
+      }
+    });
+
+    // Online pills
+    document.querySelectorAll("#onlineVisibilityPills .privacy-pill").forEach((pill) => {
+      pill.addEventListener("click", () => {
+        triggerHaptic("light");
+        document.querySelectorAll("#onlineVisibilityPills .privacy-pill").forEach((p) => p.classList.remove("active"));
+        pill.classList.add("active");
+      });
+    });
+
+    // Message pills
+    document.querySelectorAll("#messagePermissionPills .privacy-pill").forEach((pill) => {
+      pill.addEventListener("click", () => {
+        triggerHaptic("light");
+        document.querySelectorAll("#messagePermissionPills .privacy-pill").forEach((p) => p.classList.remove("active"));
+        pill.classList.add("active");
+      });
+    });
+
+    // Save button
+    document.getElementById("savePrivacyBtn")?.addEventListener("click", savePrivacySettings);
   }
 
   function openSuperlikeModal(profile) {
@@ -1943,6 +2185,35 @@
       if (chatLoadingSpinner) chatLoadingSpinner.style.display = "none";
       renderChatMessages(data.messages || []);
 
+      // Проверка прав приватности на отправку сообщений
+      const chatBlockedBanner = document.getElementById("chatBlockedBanner");
+      const chatBlockedBannerText = document.getElementById("chatBlockedBannerText");
+      if (data.can_send_message === false) {
+        if (chatBlockedBanner) {
+          chatBlockedBanner.style.display = "flex";
+          if (chatBlockedBannerText) {
+            chatBlockedBannerText.textContent = data.message_block_reason || "Отправка сообщений ограничена пользователем";
+          }
+        }
+        if (chatInputText) {
+          chatInputText.disabled = true;
+          chatInputText.placeholder = data.message_block_reason || "Сообщения ограничены";
+        }
+        if (chatSendBtn) {
+          chatSendBtn.disabled = true;
+          chatSendBtn.style.opacity = "0.4";
+        }
+      } else {
+        if (chatBlockedBanner) chatBlockedBanner.style.display = "none";
+        if (chatInputText) {
+          chatInputText.disabled = false;
+          chatInputText.placeholder = "Напишите сообщение...";
+        }
+        if (chatSendBtn) {
+          chatSendBtn.style.opacity = "1";
+        }
+      }
+
       // Подключаем WebSocket
       connectChatWebSocket(matchId);
 
@@ -1966,6 +2237,15 @@
   function closeChat() {
     triggerHaptic("light");
     if (chatScreenModal) chatScreenModal.style.display = "none";
+    const chatBlockedBanner = document.getElementById("chatBlockedBanner");
+    if (chatBlockedBanner) chatBlockedBanner.style.display = "none";
+    if (chatInputText) {
+      chatInputText.disabled = false;
+      chatInputText.placeholder = "Напишите сообщение...";
+    }
+    if (chatSendBtn) {
+      chatSendBtn.style.opacity = "1";
+    }
     if (chatWebSocket) {
       try { chatWebSocket.close(); } catch(e) {}
       chatWebSocket = null;
@@ -2137,7 +2417,7 @@
 
   // Отправка текстового сообщения
   async function sendChatMessage() {
-    if (!currentChatMatchId || !chatInputText) return;
+    if (!currentChatMatchId || !chatInputText || chatInputText.disabled) return;
     const text = chatInputText.value.trim();
     if (!text) return;
 
@@ -2619,6 +2899,16 @@
             <span>🎯 Настройки фильтров поиска</span>
             <span>→</span>
           </div>
+          <div class="profile-menu-item" id="btnOpenPrivacySettings">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-size: 20px;">🔒</span>
+              <div style="text-align: left;">
+                <div style="font-size: 14.5px; font-weight: 700; color: var(--text-main);">Настройки приватности</div>
+                <div style="font-size: 11.5px; color: var(--text-muted); font-weight: 500;">Онлайн, фото, сообщения, видимость данных</div>
+              </div>
+            </div>
+            <span>→</span>
+          </div>
           <div class="profile-menu-item" id="btnOpenOnboarding">
             <span>✨ О платформе и подарке</span>
             <span>→</span>
@@ -2656,6 +2946,7 @@
       }
       document.getElementById("btnToggleProfileMode")?.addEventListener("click", toggleMode);
       document.getElementById("btnOpenSearchFilters")?.addEventListener("click", openFiltersModal);
+      document.getElementById("btnOpenPrivacySettings")?.addEventListener("click", openPrivacyModal);
       document.getElementById("btnOpenOnboarding")?.addEventListener("click", () => openOnboarding(true));
       
       // Обработчик тумблера уведомлений
