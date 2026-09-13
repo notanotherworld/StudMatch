@@ -49,4 +49,13 @@ sleep 3
 echo "🗄️ Проверяем миграции БД..."
 docker compose exec -T web alembic upgrade head || true
 
+echo "🩺 Проверяем статус веб-сервиса (127.0.0.1:8000)..."
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 http://127.0.0.1:8000/admin/login || echo "000")
+echo "HTTP статус: $STATUS"
+if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ]; then
+  echo "✅ Сервис веба доступен и отвечает!"
+else
+  echo "⚠️ Веб-панель вернула статус $STATUS (проверьте логи через docker compose logs web)"
+fi
+
 echo "✅ Деплой успешно завершён!"

@@ -57,19 +57,6 @@ jobs:
             NEW_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
             bash ./deploy.sh "$PREV_COMMIT" "$NEW_COMMIT"
 
-      - name: Health check
-        run: |
-          sleep 4
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            http://${{ secrets.VPS_HOST }}:8000/admin/login || echo "000")
-          echo "HTTP статус (port 8000): $STATUS"
-          if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ]; then
-            echo "✅ Сервис веба доступен и отвечает!"
-          else
-            echo "⚠️ Веб-панель вернула статус $STATUS"
-          fi
-        continue-on-error: true
-
       - name: Notify Telegram (success)
         if: success()
         continue-on-error: true
@@ -80,7 +67,7 @@ jobs:
           ACTOR: ${{ github.actor }}
         run: |
           if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
-            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            curl -s --connect-timeout 5 --max-time 10 -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
               -H "Content-Type: application/json" \
               -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"⚡ Деплой завершён за секунды!\n\n📦 Коммит: ${SHA:0:7}\n👤 Автор: ${ACTOR}\"}"
           fi
@@ -97,7 +84,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
-            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            curl -s --connect-timeout 5 --max-time 10 -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
               -H "Content-Type: application/json" \
               -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"❌ Ошибка деплоя!\n\n📦 Коммит: ${SHA:0:7}\n👤 Автор: ${ACTOR}\n🔗 https://github.com/${REPO}/actions/runs/${RUN_ID}\"}"
           fi
