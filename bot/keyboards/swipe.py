@@ -355,13 +355,15 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
     is_prem = getattr(user, "is_premium", False)
     prem_label = "💎 Премиум активен (Продлить)" if is_prem else "💎 Получить Премиум"
     builder.button(text=prem_label, callback_data="settings:buy")
-    # 8. Пригласить друзей
+    # 8. Настройки приватности
+    builder.button(text="🔒 Настройки приватности", callback_data="settings:privacy")
+    # 9. Пригласить друзей
     builder.button(text="🪢 Пригласить друзей (+3 ⭐️)", callback_data="settings:ref_link")
 
     if show_verify:
-        builder.adjust(2, 2, 1, 1, 1, 1, 1, 1)
+        builder.adjust(2, 2, 1, 1, 1, 1, 1, 1, 1)
     else:
-        builder.adjust(2, 2, 1, 1, 1, 1, 1)
+        builder.adjust(2, 2, 1, 1, 1, 1, 1, 1)
     return builder.as_markup()
 
 

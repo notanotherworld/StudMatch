@@ -176,6 +176,17 @@ async def webapp_page(request: Request):
     if not maintenance_message or not maintenance_message.strip():
         maintenance_message = default_msg
 
+    # Автоматический cache-busting по времени изменения (mtime) файлов статики
+    static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "webapp")
+    try:
+        js_v = str(int(os.path.getmtime(os.path.join(static_dir, "webapp.js"))))
+    except Exception:
+        js_v = "20260913_2125"
+    try:
+        css_v = str(int(os.path.getmtime(os.path.join(static_dir, "webapp.css"))))
+    except Exception:
+        css_v = "20260913_2125"
+
     return templates.TemplateResponse(
         "webapp.html",
         {
@@ -183,6 +194,8 @@ async def webapp_page(request: Request):
             "bot_username": settings.BOT_USERNAME,
             "is_maintenance": is_maintenance,
             "maintenance_message": maintenance_message,
+            "js_version": js_v,
+            "css_version": css_v,
         }
     )
 
