@@ -155,16 +155,33 @@ MIGRATION_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_chat_messages_match_created ON chat_messages (match_id, created_at);",
     # 027_add_last_active_at
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;",
+    # 028_user_privacy_settings
+    """
+    CREATE TABLE IF NOT EXISTS user_privacy_settings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        online_visibility VARCHAR(20) NOT NULL DEFAULT 'all',
+        message_permission VARCHAR(20) NOT NULL DEFAULT 'matches',
+        allow_employer_access BOOLEAN NOT NULL DEFAULT TRUE,
+        hide_age BOOLEAN NOT NULL DEFAULT FALSE,
+        hide_course BOOLEAN NOT NULL DEFAULT FALSE,
+        hide_email BOOLEAN NOT NULL DEFAULT FALSE,
+        private_photos TEXT[] DEFAULT '{}',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_user_privacy_user_id ON user_privacy_settings (user_id);",
     # Установка версии alembic
     """
     DO $$
     BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version') THEN
             ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64);
-            UPDATE alembic_version SET version_num = '027_add_last_active_at';
+            UPDATE alembic_version SET version_num = '028_user_privacy_settings';
         ELSE
             CREATE TABLE alembic_version (version_num VARCHAR(64) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));
-            INSERT INTO alembic_version (version_num) VALUES ('027_add_last_active_at');
+            INSERT INTO alembic_version (version_num) VALUES ('028_user_privacy_settings');
         END IF;
     END $$;
     """
