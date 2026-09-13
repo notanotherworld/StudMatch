@@ -1866,7 +1866,20 @@ async def webapp_get_user_details(
     if not p:
         p = await get_profile(db, target.id)
 
-    photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
+    raw_photos = p.photos if p else None
+    if isinstance(raw_photos, str):
+        try:
+            import json
+            parsed = json.loads(raw_photos)
+            photos = list(parsed) if isinstance(parsed, (list, tuple)) else [parsed]
+        except Exception:
+            photos = [raw_photos]
+    elif isinstance(raw_photos, (list, tuple)):
+        photos = list(raw_photos)
+    elif p and p.avatar_file_id:
+        photos = [p.avatar_file_id]
+    else:
+        photos = []
     photos = [x for x in photos if x]
 
     career_avatar_url = resolve_photo_url(p.career_avatar_file_id) if (p and p.career_avatar_file_id) else None

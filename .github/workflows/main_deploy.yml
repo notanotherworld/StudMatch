@@ -11,9 +11,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: 🔍 Lint & Check
+  deploy:
+    name: 🚀 Fast Lint & Deploy
     runs-on: ubuntu-latest
+    timeout-minutes: 8
 
     steps:
       - name: Checkout code
@@ -23,24 +24,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
-      - name: Install dependencies
+      - name: Fast Lint Check
         run: |
           pip install ruff
-
-      - name: Run ruff linter
-        run: |
           ruff check . --ignore E501,B008 --exit-zero
-
-  deploy:
-    name: 🚢 Deploy
-    runs-on: ubuntu-latest
-    needs: lint
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
       - name: Show deploy info
         run: |
@@ -55,7 +44,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key:      ${{ secrets.VPS_SSH_KEY }}
           port:     ${{ secrets.VPS_PORT || 22 }}
-          command_timeout: 10m
+          command_timeout: 8m
           script_stop: true
           script: |
             set -e
@@ -64,31 +53,46 @@ jobs:
             cd ~/apps/bot-univer
 
             echo "⬇️ Получаем последний код..."
+            PREV_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
             git fetch origin main
             git reset --hard origin/main
+            NEW_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
 
             echo "📁 Подготавливаем папки..."
             mkdir -p web/static/uploads/avatars
             chmod -R 777 web/static/uploads 2>/dev/null || true
 
-            echo "🐳 Пересобираем и перезапускаем контейнеры..."
-            docker compose pull
-            docker compose up -d --build --remove-orphans
+            # Проверяем изменения в зависимостях или файлах Docker
+            NEED_BUILD=false
+            if [ -n "$PREV_COMMIT" ] && [ "$PREV_COMMIT" != "$NEW_COMMIT" ]; then
+              CHANGED_FILES=$(git diff --name-only "$PREV_COMMIT" "$NEW_COMMIT" 2>/dev/null || echo "")
+              if echo "$CHANGED_FILES" | grep -qE "(requirements\.txt|Dockerfile|docker-compose\.yml)"; then
+                echo "📦 Обнаружены изменения в зависимостях: выполняется пересборка..."
+                NEED_BUILD=true
+              fi
+            fi
+
+            if [ "$NEED_BUILD" = true ]; then
+              echo "🐳 Пересобираем контейнеры (зависимости изменились)..."
+              docker compose up -d --build web bot
+              echo "🧹 Очистка старых образов..."
+              docker image prune -f
+            else
+              echo "⚡ Быстрый перезапуск контейнеров (код смонтирован, зависимости без изменений)..."
+              docker compose restart web bot
+            fi
 
             echo "⏳ Ожидаем запуск сервисов..."
-            sleep 4
+            sleep 3
 
             echo "🗄️ Проверяем миграции БД..."
             docker compose exec -T web alembic upgrade head || true
 
-            echo "🧹 Удаляем старые образы..."
-            docker image prune -f
-
-            echo "✅ Деплой завершён успешно!"
+            echo "✅ Деплой на VPS успешно завершён!"
 
       - name: Health check
         run: |
-          sleep 5
+          sleep 4
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             http://${{ secrets.VPS_HOST }}:8000/admin/login || echo "000")
           echo "HTTP статус (port 8000): $STATUS"
@@ -111,7 +115,7 @@ jobs:
           if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
             curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
               -H "Content-Type: application/json" \
-              -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"✅ Деплой завершён!\n\n📦 Коммит: ${SHA:0:7}\n👤 Автор: ${ACTOR}\"}"
+              -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"⚡ Деплой завершён за секунды!\n\n📦 Коммит: ${SHA:0:7}\n👤 Автор: ${ACTOR}\"}"
           fi
 
       - name: Notify Telegram (failure)
