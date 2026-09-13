@@ -1584,6 +1584,7 @@
           const verified = m.is_verified ? " 🎓" : "";
           const prem = m.is_premium ? " 💎" : "";
           const unreadBadge = m.unread_count > 0 ? `<div class="match-unread-badge">${m.unread_count}</div>` : "";
+          const onlineDot = m.is_online ? `<div class="match-online-dot"></div>` : "";
 
           let lastMsgText = "Нажмите, чтобы начать общение";
           if (m.last_message && m.last_message.text) {
@@ -1600,6 +1601,7 @@
             <div class="match-item" data-match-id="${m.match_id}" data-partner-id="${m.user_id}">
               <div class="match-avatar-wrap">
                 <img src="${photoUrl}" class="match-avatar" alt="${escapeHtml(m.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+                ${onlineDot}
                 ${unreadBadge}
               </div>
               <div class="match-info">
@@ -1926,11 +1928,12 @@
       if (chatTypingName) {
         chatTypingName.textContent = currentChatPartner.name || "Собеседник";
       }
+      const isOnline = Boolean(currentChatPartner.is_online);
       if (chatPartnerStatus) {
-        chatPartnerStatus.textContent = "онлайн";
+        chatPartnerStatus.textContent = currentChatPartner.online_status_text || (isOnline ? "онлайн" : "был(а) недавно");
       }
       if (chatPartnerOnlineDot) {
-        chatPartnerOnlineDot.style.display = "block";
+        chatPartnerOnlineDot.style.display = isOnline ? "block" : "none";
       }
 
       // Отрисовываем баннер Telegram
@@ -2317,11 +2320,17 @@
       }
 
     } else if (data.type === "user_online") {
-      if (chatPartnerOnlineDot) chatPartnerOnlineDot.style.display = "block";
-      if (chatPartnerStatus) chatPartnerStatus.textContent = "онлайн";
+      if (!data.user_id || (currentChatPartner && String(data.user_id) === String(currentChatPartner.id))) {
+        if (currentChatPartner) currentChatPartner.is_online = true;
+        if (chatPartnerOnlineDot) chatPartnerOnlineDot.style.display = "block";
+        if (chatPartnerStatus) chatPartnerStatus.textContent = "онлайн";
+      }
     } else if (data.type === "user_offline") {
-      if (chatPartnerOnlineDot) chatPartnerOnlineDot.style.display = "none";
-      if (chatPartnerStatus) chatPartnerStatus.textContent = "был(а) недавно";
+      if (!data.user_id || (currentChatPartner && String(data.user_id) === String(currentChatPartner.id))) {
+        if (currentChatPartner) currentChatPartner.is_online = false;
+        if (chatPartnerOnlineDot) chatPartnerOnlineDot.style.display = "none";
+        if (chatPartnerStatus) chatPartnerStatus.textContent = "был(а) недавно";
+      }
     } else if (data.type === "unmatched") {
       alert("Собеседник удалил пару или диалог был закрыт.");
       closeChat();

@@ -6,7 +6,7 @@ from aiogram import BaseMiddleware
 from aiogram.types import Message, CallbackQuery, TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.crud import get_or_create_user
+from database.crud import get_or_create_user, update_user_last_active
 from database.session import AsyncSessionLocal
 
 
@@ -34,6 +34,7 @@ class AuthMiddleware(BaseMiddleware):
                 user_id=tg_user.id,
                 tg_username=tg_user.username,
             )
+            await update_user_last_active(db, user.id)
             data["db"] = db
             data["user"] = user
             return await handler(event, data)

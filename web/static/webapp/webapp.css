@@ -990,12 +990,31 @@ body {
   transform: scale(0.98);
 }
 
+.match-avatar-wrap {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+}
+
 .match-avatar {
   width: 52px;
   height: 52px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
+}
+
+.match-online-dot {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #00D26A;
+  border: 2px solid var(--bg-card);
+  z-index: 2;
 }
 
 .match-info {

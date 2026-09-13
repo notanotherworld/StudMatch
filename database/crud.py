@@ -87,6 +87,31 @@ async def add_superlikes(db: AsyncSession, user_id: int, amount: int) -> None:
     await db.commit()
 
 
+_user_active_cache: dict = {}
+
+
+async def update_user_last_active(db: AsyncSession, user_id: int, force: bool = False) -> None:
+    """
+    Обновляет время последней активности пользователя (last_active_at) с троттлингом (не чаще 1 раза в 60 сек).
+    """
+    import time
+    now_ts = time.time()
+    last_ts = _user_active_cache.get(user_id, 0)
+    if not force and (now_ts - last_ts < 60):
+        return
+    _user_active_cache[user_id] = now_ts
+    try:
+        now_utc = datetime.now(timezone.utc)
+        await db.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(last_active_at=now_utc)
+        )
+        await db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to update last_active_at for user {user_id}: {e}")
+
+
 async def transfer_superlike_rating(db: AsyncSession, from_user_id: int, to_user_id: int) -> dict:
     """
     Передать 1 суперлайк от from_user_id пользователю to_user_id в виде +1 к его Profile.rating_score.

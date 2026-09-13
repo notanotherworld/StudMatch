@@ -153,17 +153,18 @@ MIGRATION_STATEMENTS = [
     );
     """,
     "CREATE INDEX IF NOT EXISTS idx_chat_messages_match_created ON chat_messages (match_id, created_at);",
-    "CREATE INDEX IF NOT EXISTS idx_chat_messages_unread ON chat_messages (match_id, sender_id, is_read);",
+    # 027_add_last_active_at
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;",
     # Установка версии alembic
     """
     DO $$
     BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version') THEN
             ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64);
-            UPDATE alembic_version SET version_num = '024_in_app_chat_and_tg_reveal';
+            UPDATE alembic_version SET version_num = '027_add_last_active_at';
         ELSE
             CREATE TABLE alembic_version (version_num VARCHAR(64) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));
-            INSERT INTO alembic_version (version_num) VALUES ('024_in_app_chat_and_tg_reveal');
+            INSERT INTO alembic_version (version_num) VALUES ('027_add_last_active_at');
         END IF;
     END $$;
     """

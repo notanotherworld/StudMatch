@@ -142,6 +142,7 @@ class User(Base):
     flood_ban_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     is_flagged_spammer: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     last_banned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_active_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -162,6 +163,35 @@ class User(Base):
         """Проверяет, верифицирован ли пользователь."""
         return bool(self.email_verified)
 
+    @property
+    def is_online(self) -> bool:
+        """Проверяет, находится ли пользователь онлайн (активность за последние 5 минут)."""
+        if self.is_fake or not self.last_active_at:
+            return False
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        target = self.last_active_at
+        if target.tzinfo is None:
+            target = target.replace(tzinfo=timezone.utc)
+        return (now - target).total_seconds() <= 300
+
+    @property
+    def online_status_text(self) -> str:
+        """Возвращает человекочитаемый статус активности в стиле Telegram."""
+        if self.is_online:
+            return "онлайн"
+        if not self.last_active_at or self.is_fake:
+            return "был(а) давно"
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        target = self.last_active_at
+        if target.tzinfo is None:
+            target = target.replace(tzinfo=timezone.utc)
+        diff_sec = (now - target).total_seconds()
+        if diff_sec < 86400:
+            return "был(а) недавно"
+        return "был(а) давно"
+
     # Связи
     university: Mapped[Optional["University"]] = relationship(back_populates="users")
     profile: Mapped[Optional["Profile"]] = relationship(back_populates="user", uselist=False)
@@ -173,6 +203,9 @@ class User(Base):
     )
     swipes_received: Mapped[List["Swipe"]] = relationship(
         foreign_keys="Swipe.to_user_id", back_populates="to_user"
+    )
+    privacy: Mapped[Optional["UserPrivacy"]] = relationship(
+        back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
 
 
@@ -573,3 +606,35 @@ class SystemSetting(Base):
     value: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ─────────────────────────────────────────────────────────────
+# Настройки приватности пользователя
+# ─────────────────────────────────────────────────────────────
+class UserPrivacy(Base):
+    __tablename__ = "user_privacy_settings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+
+    # Видимость статуса онлайн: "all" (видят все) | "matches" (только взаимные мэтчи) | "nobody" (никто)
+    online_visibility: Mapped[str] = mapped_column(String(20), default="all", server_default="all")
+
+    # Кто может писать сообщения: "matches" (все мэтчи) | "verified_only" (только верифицированные мэтчи) | "nobody" (запрет)
+    message_permission: Mapped[str] = mapped_column(String(20), default="matches", server_default="matches")
+
+    # Доступ работодателей (HR) к просмотру анкеты
+    allow_employer_access: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+
+    # Скрытие личных данных в карточке/анкете
+    hide_age: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    hide_course: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    hide_email: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
+    # Список идентификаторов/file_id фотографий (кроме главного), скрытых до взаимного мэтча
+    private_photos: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String), nullable=True, default=list)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="privacy")

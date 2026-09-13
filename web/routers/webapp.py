@@ -37,7 +37,7 @@ from database.crud import (
     deduct_superlike, get_match_by_id, get_chat_messages, create_chat_message,
     mark_chat_messages_as_read, get_unread_messages_count, get_last_chat_message,
     approve_match_telegram, delete_match_by_id, get_match_between_users,
-    transfer_superlike_rating,
+    transfer_superlike_rating, update_user_last_active,
 )
 
 logger = logging.getLogger(__name__)
@@ -157,6 +157,7 @@ async def get_current_student(
     user = await get_user(db, int(user_id))
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Пользователь заблокирован или не найден")
+    await update_user_last_active(db, user.id)
     return user
 
 
@@ -636,6 +637,8 @@ async def webapp_matches(
             "created_at": date_str,
             "is_verified": getattr(partner, "email_verified", False),
             "is_premium": getattr(partner, "is_premium", False),
+            "is_online": getattr(partner, "is_online", False),
+            "online_status_text": getattr(partner, "online_status_text", "был(а) давно"),
             "unread_count": unread_count,
             "last_message": last_msg_data,
             "_sort_time": last_msg_data["timestamp"] if last_msg_data else (m.created_at.timestamp() if m.created_at else 0),
@@ -714,6 +717,8 @@ async def webapp_get_match_messages(
         "year": p.year if p else None,
         "is_verified": getattr(partner, "email_verified", False),
         "is_premium": getattr(partner, "is_premium", False),
+        "is_online": getattr(partner, "is_online", False),
+        "online_status_text": getattr(partner, "online_status_text", "был(а) давно"),
         # Скрыт до обоюдного согласия!
         "tg_username": partner_tg,
     }
@@ -1005,6 +1010,11 @@ async def websocket_chat_endpoint(websocket: WebSocket, match_id: str):
             return
 
     await chat_manager.connect(websocket, match_id, user_id)
+    # Оповещаем собеседника в этой комнате о входе в сеть
+    await chat_manager.broadcast_to_match(match_id, {
+        "type": "user_online",
+        "user_id": user_id,
+    })
     try:
         while True:
             data = await websocket.receive_json()
@@ -1023,10 +1033,15 @@ async def websocket_chat_endpoint(websocket: WebSocket, match_id: str):
                     "type": "read",
                     "reader_id": user_id,
                 })
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
         chat_manager.disconnect(websocket, match_id, user_id)
-    except Exception:
-        chat_manager.disconnect(websocket, match_id, user_id)
+        if not chat_manager.is_user_in_chat(match_id, user_id):
+            await chat_manager.broadcast_to_match(match_id, {
+                "type": "user_offline",
+                "user_id": user_id,
+            })
 
 
 # ─── API: Входящие симпатии (Incoming Likes) ─────────────────
