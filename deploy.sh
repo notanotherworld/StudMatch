@@ -18,24 +18,27 @@ chmod -R 777 web/static/uploads 2>/dev/null || true
 
 # Определяем, изменились ли зависимости или файлы контейнеризации
 NEED_BUILD=false
-if [ -z "$PREV_COMMIT" ] || [ "$PREV_COMMIT" = "$NEW_COMMIT" ]; then
-  NEED_BUILD=false
-else
-  CHANGED_FILES=$(git diff --name-only "$PREV_COMMIT" "$NEW_COMMIT" 2>/dev/null || echo "")
-  if echo "$CHANGED_FILES" | grep -qE "(requirements\.txt|Dockerfile|docker-compose\.yml)"; then
-    echo "📦 Обнаружены изменения в зависимостях или Dockerfile: требуется пересборка..."
-    NEED_BUILD=true
-  fi
+if [ -n "$PREV_COMMIT" ] && [ "$PREV_COMMIT" != "$NEW_COMMIT" ]; then
+  CHANGED_FILES=$(git diff --name-only "$PREV_COMMIT" "$NEW_COMMIT" 2>/dev/null || true)
+  case "$CHANGED_FILES" in
+    *requirements.txt*|*Dockerfile*|*docker-compose.yml*)
+      echo "📦 Обнаружены изменения в зависимостях или Dockerfile: требуется пересборка..."
+      NEED_BUILD=true
+      ;;
+    *)
+      NEED_BUILD=false
+      ;;
+  esac
 fi
 
-if [ "$NEED_BUILD" = true ]; then
+if [ "$NEED_BUILD" = "true" ]; then
   echo "🐳 Пересобираем контейнеры (зависимости изменились)..."
   docker compose up -d --build web bot
   echo "🧹 Очистка старых образов..."
-  docker image prune -f
+  docker image prune -f || true
 else
   echo "⚡ Быстрый перезапуск контейнеров (код смонтирован, зависимости без изменений)..."
-  docker compose restart web bot
+  docker compose restart web bot || docker compose up -d web bot
 fi
 
 echo "⏳ Ожидаем запуск сервисов..."
