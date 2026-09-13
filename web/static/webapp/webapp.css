@@ -4259,137 +4259,280 @@ img, video, canvas {
 }
 
 
-/* ─── Privacy Settings Sheet & Controls ─────────────────────── */
+/* ─── Privacy Settings Sheet & Glassmorphism Controls ───────── */
 .privacy-sheet-content {
-  max-height: 88vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  max-height: 90dvh;
+  max-height: calc(var(--tg-viewport-height, 100dvh) * 0.90);
+  padding: 14px 0 0 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8F9FE 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 -20px 50px rgba(108, 92, 231, 0.15), 0 -8px 24px rgba(0, 0, 0, 0.1);
 }
 
-.privacy-header {
-  margin-bottom: 20px;
+.privacy-sheet-content .sheet-top-header {
+  padding: 0 20px 6px;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.privacy-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 18px 24px;
+}
+
+/* Custom scrollbar for privacy modal */
+.privacy-sheet-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.privacy-sheet-body::-webkit-scrollbar-thumb {
+  background: rgba(142, 146, 164, 0.25);
+  border-radius: 10px;
+}
+
+/* Hero Badge & Title */
+.privacy-hero-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.08) 0%, rgba(255, 101, 132, 0.05) 100%);
+  border: 1px solid rgba(108, 92, 231, 0.16);
+  border-radius: 20px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  box-shadow: 0 6px 20px rgba(108, 92, 231, 0.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .privacy-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.5px;
-  color: #10B981;
-  background: rgba(16, 185, 129, 0.12);
-  padding: 4px 10px;
-  border-radius: 12px;
-  margin-bottom: 8px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #6C5CE7;
+  background: rgba(108, 92, 231, 0.12);
+  border: 1px solid rgba(108, 92, 231, 0.22);
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-bottom: 10px;
+}
+
+.privacy-badge-icon {
+  font-size: 12px;
 }
 
 .privacy-title {
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 800;
-  color: var(--text-main, #0F172A);
-  margin: 0 0 4px;
+  color: #1E1F2E;
+  line-height: 1.25;
+  margin: 0 0 6px;
+  letter-spacing: -0.4px;
 }
 
 .privacy-subtitle {
   font-size: 12.5px;
-  color: var(--text-muted, #64748B);
-  line-height: 1.4;
+  color: #64748B;
+  line-height: 1.45;
   margin: 0;
 }
 
+/* Sections */
 .privacy-section {
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 16px;
-  padding: 14px 16px;
+  background: #FFFFFF;
+  border: 1px solid rgba(230, 233, 245, 0.9);
+  border-radius: 20px;
+  padding: 16px;
   margin-bottom: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .privacy-section-header {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 12px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
-.privacy-section-icon {
-  font-size: 20px;
-  line-height: 1.2;
+.privacy-icon-halo {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+.online-halo {
+  background: linear-gradient(135deg, rgba(0, 210, 106, 0.18) 0%, rgba(16, 185, 129, 0.08) 100%);
+  box-shadow: 0 4px 12px rgba(0, 210, 106, 0.16);
+}
+
+.chat-halo {
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.18) 0%, rgba(168, 165, 255, 0.1) 100%);
+  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.16);
+}
+
+.photo-halo {
+  background: linear-gradient(135deg, rgba(255, 101, 132, 0.18) 0%, rgba(255, 75, 114, 0.08) 100%);
+  box-shadow: 0 4px 12px rgba(255, 101, 132, 0.16);
+}
+
+.shield-halo {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(99, 102, 241, 0.08) 100%);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.16);
+}
+
+.privacy-section-title-wrap {
+  flex: 1;
+  min-width: 0;
 }
 
 .privacy-section-title {
-  font-size: 14.5px;
+  font-size: 15px;
   font-weight: 700;
-  color: var(--text-main, #0F172A);
+  color: #1E1F2E;
+  letter-spacing: -0.2px;
 }
 
 .privacy-section-hint {
   font-size: 11.5px;
-  color: var(--text-muted, #64748B);
+  color: #8E92A4;
   line-height: 1.35;
   margin-top: 2px;
 }
 
-.privacy-pills {
+/* Informative Tile Cards (Replaces plain segmented pills) */
+.privacy-tiles-group {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  background: #E2E8F0;
-  padding: 4px;
-  border-radius: 14px;
 }
 
-.privacy-pill {
-  flex: 1;
-  padding: 8px 6px;
-  border: none;
-  background: transparent;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #64748B;
+.privacy-tile {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #F8F9FE;
+  border: 1.5px solid transparent;
+  border-radius: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+  user-select: none;
+  min-height: 52px;
+}
+
+.privacy-tile:active {
+  transform: scale(0.985);
+}
+
+.privacy-tile-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
-  text-align: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(230, 233, 245, 0.8);
+  transition: all 0.2s ease;
 }
 
-.privacy-pill.active {
-  background: #FFFFFF;
-  color: #0F172A;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-}
-
-.privacy-toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px solid #EDF2F7;
-}
-
-.privacy-toggle-row:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.privacy-toggle-info {
+.privacy-tile-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-right: 12px;
+  min-width: 0;
 }
 
-.privacy-toggle-label {
+.privacy-tile-title {
   font-size: 13.5px;
   font-weight: 700;
-  color: var(--text-main, #0F172A);
+  color: #1E1F2E;
+  transition: color 0.2s ease;
 }
 
-.privacy-toggle-desc {
-  font-size: 11px;
-  color: var(--text-muted, #64748B);
-  line-height: 1.3;
+.privacy-tile-sub {
+  font-size: 11.5px;
+  color: #8E92A4;
+  transition: color 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.privacy-tile-radio {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #CBD5E1;
+  background: #FFFFFF;
+  flex-shrink: 0;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.privacy-tile-radio::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease;
+  transform: scale(0);
+}
+
+/* Active Selected Tile */
+.privacy-tile.active {
+  background: #FFFFFF;
+  border-color: #6C5CE7;
+  box-shadow: 0 6px 20px rgba(108, 92, 231, 0.12), 0 0 0 1px rgba(108, 92, 231, 0.18);
+}
+
+.privacy-tile.active .privacy-tile-icon-wrap {
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.15) 0%, rgba(255, 101, 132, 0.15) 100%);
+  border-color: rgba(108, 92, 231, 0.3);
+  transform: scale(1.05);
+}
+
+.privacy-tile.active .privacy-tile-title {
+  color: #6C5CE7;
+}
+
+.privacy-tile.active .privacy-tile-sub {
+  color: #475569;
+}
+
+.privacy-tile.active .privacy-tile-radio {
+  border-color: #6C5CE7;
+  background: #6C5CE7;
+}
+
+.privacy-tile.active .privacy-tile-radio::after {
+  background: #FFFFFF;
+  transform: scale(1);
 }
 
 /* Photo Privacy Thumbnails Grid */
@@ -4397,17 +4540,23 @@ img, video, canvas {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 .privacy-photo-card {
   position: relative;
   background: #FFFFFF;
-  border: 1.5px solid #E2E8F0;
-  border-radius: 14px;
+  border: 1.5px solid rgba(230, 233, 245, 0.9);
+  border-radius: 16px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.privacy-photo-card:active {
+  transform: scale(0.98);
 }
 
 .privacy-photo-thumb-wrap {
@@ -4422,63 +4571,280 @@ img, video, canvas {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: filter 0.2s ease;
+  transition: filter 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .privacy-photo-thumb.blurred {
-  filter: blur(14px) brightness(0.8);
-  transform: scale(1.08);
+  filter: blur(14px) brightness(0.75);
+  transform: scale(1.1);
+}
+
+.privacy-photo-overlay-lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.privacy-photo-overlay-lock-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 .privacy-photo-status-badge {
   position: absolute;
-  top: 6px;
-  left: 6px;
-  font-size: 10px;
+  top: 7px;
+  left: 7px;
+  font-size: 9.5px;
   font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 6px;
-  backdrop-filter: blur(8px);
+  padding: 3px 7px;
+  border-radius: 7px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  letter-spacing: 0.3px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .privacy-photo-status-badge.main {
-  background: rgba(255, 184, 0, 0.9);
+  background: rgba(255, 184, 0, 0.92);
   color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .privacy-photo-status-badge.locked {
-  background: rgba(239, 68, 68, 0.88);
+  background: rgba(239, 68, 68, 0.9);
   color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .privacy-photo-status-badge.open {
-  background: rgba(16, 185, 129, 0.88);
+  background: rgba(16, 185, 129, 0.9);
   color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.privacy-photo-main-tag {
+  padding: 8px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748B;
+  text-align: center;
+  background: #F8FAFC;
+  border-top: 1px solid rgba(230, 233, 245, 0.8);
 }
 
 .privacy-photo-action-btn {
   width: 100%;
-  padding: 8px 4px;
+  padding: 9px 4px;
   border: none;
-  background: #F1F5F9;
+  background: #F8F9FE;
   font-size: 11px;
   font-weight: 700;
   color: #334155;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
+  border-top: 1px solid rgba(230, 233, 245, 0.8);
 }
 
-.privacy-photo-action-btn:hover {
-  background: #E2E8F0;
+.privacy-photo-action-btn:active {
+  transform: scale(0.96);
 }
 
 .privacy-photo-action-btn.is-locked {
-  background: #FEF2F2;
-  color: #DC2626;
+  background: #FFF1F2;
+  color: #E11D48;
+}
+
+/* Personal Data Toggles Card */
+.privacy-toggles-card {
+  background: #F8F9FE;
+  border: 1px solid rgba(230, 233, 245, 0.9);
+  border-radius: 16px;
+  padding: 4px 14px;
+}
+
+.privacy-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(230, 233, 245, 0.85);
+  gap: 12px;
+}
+
+.privacy-toggle-row:last-child {
+  border-bottom: none;
+}
+
+.privacy-toggle-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.privacy-toggle-icon-badge {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+  background: #FFFFFF;
+  border: 1px solid rgba(230, 233, 245, 0.8);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.badge-employer { background: rgba(108, 92, 231, 0.08); border-color: rgba(108, 92, 231, 0.2); }
+.badge-age { background: rgba(255, 101, 132, 0.08); border-color: rgba(255, 101, 132, 0.2); }
+.badge-course { background: rgba(255, 184, 0, 0.08); border-color: rgba(255, 184, 0, 0.2); }
+.badge-email { background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.2); }
+
+.privacy-toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.privacy-toggle-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1E1F2E;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.privacy-toggle-desc {
+  font-size: 11px;
+  color: #8E92A4;
+  line-height: 1.3;
+}
+
+/* Sticky Glass Footer */
+.privacy-sheet-footer {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 18px calc(14px + max(var(--safe-bottom), 12px));
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(230, 233, 245, 0.85);
+  z-index: 10;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.04);
+}
+
+.privacy-save-btn {
+  width: 100%;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 800;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.28);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.privacy-save-btn:active {
+  transform: scale(0.98);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.privacy-save-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.privacy-save-btn .save-icon {
+  font-size: 16px;
+}
+
+/* Responsive queries */
+@media (max-width: 360px) {
+  .privacy-sheet-body {
+    padding: 4px 12px 20px;
+  }
+  .privacy-hero-card {
+    padding: 14px 14px;
+  }
+  .privacy-title {
+    font-size: 18px;
+  }
+  .privacy-section {
+    padding: 12px 12px;
+  }
+  .privacy-tile {
+    padding: 10px 10px;
+    gap: 8px;
+  }
+  .privacy-tile-title {
+    font-size: 12.5px;
+  }
+  .privacy-tile-sub {
+    font-size: 10.5px;
+  }
+  .privacy-photos-grid {
+    gap: 6px;
+  }
+  .privacy-photo-status-badge {
+    font-size: 8.5px;
+    padding: 2px 5px;
+  }
+  .privacy-photo-action-btn {
+    font-size: 10px;
+    padding: 7px 2px;
+  }
+  .privacy-toggle-row {
+    padding: 10px 0;
+  }
+  .privacy-toggle-label {
+    font-size: 12.5px;
+  }
+  .privacy-toggle-desc {
+    font-size: 10px;
+  }
+  .privacy-toggle-icon-badge {
+    width: 32px;
+    height: 32px;
+    font-size: 15px;
+  }
 }
 
 /* Blurred Photo on Swipe Cards / Details */

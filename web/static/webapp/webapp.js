@@ -1573,7 +1573,7 @@
     if (!grid) return;
 
     if (!photos || photos.length === 0) {
-      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text-muted);font-size:13px;">У вас пока нет загруженных фото</div>`;
+      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;background:rgba(255,255,255,0.7);border-radius:16px;border:1px dashed rgba(230,233,245,0.9);">У вас пока нет загруженных фото</div>`;
       return;
     }
 
@@ -1585,14 +1585,20 @@
           <div class="privacy-photo-thumb-wrap">
             <img src="${escapeHtml(p.url)}" class="privacy-photo-thumb ${isPrivate ? 'blurred' : ''}" alt="Фото" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80';" />
             <div class="privacy-photo-status-badge ${isMain ? 'main' : (isPrivate ? 'locked' : 'open')}">
-              ${isMain ? '⭐ Главное' : (isPrivate ? '🔒 Блюр' : '👁 Открыто')}
+              ${isMain ? '⭐ Главное' : (isPrivate ? '🔒 До мэтча' : '👁 Публично')}
             </div>
+            ${!isMain ? `
+              <div class="privacy-photo-overlay-lock" style="${isPrivate ? '' : 'display: none;'}">
+                <div class="privacy-photo-overlay-lock-icon">🔒</div>
+              </div>
+            ` : ''}
           </div>
           ${isMain ? `
-            <div style="padding: 8px 4px; font-size: 11px; font-weight: 700; color: #64748B; text-align: center; background: #F8FAFC;">Всегда открыто</div>
+            <div class="privacy-photo-main-tag">Всегда открыто</div>
           ` : `
             <button type="button" class="privacy-photo-action-btn ${isPrivate ? 'is-locked' : ''}" data-photo-id="${escapeHtml(String(p.id))}">
-              ${isPrivate ? '🔒 Только мэтчам' : '👁 Видно всем'}
+              <span class="photo-btn-icon">${isPrivate ? '🔒' : '👁️'}</span>
+              <span class="photo-btn-text">${isPrivate ? 'Скрыто' : 'Открыто'}</span>
             </button>
           `}
         </div>
@@ -1616,16 +1622,23 @@
           if (res && res.status === "ok") {
             const isNowPrivate = Boolean(res.is_private);
             btn.classList.toggle("is-locked", isNowPrivate);
-            btn.textContent = isNowPrivate ? "🔒 Только мэтчам" : "👁 Видно всем";
+            
+            const iconEl = btn.querySelector(".photo-btn-icon");
+            const textEl = btn.querySelector(".photo-btn-text");
+            if (iconEl) iconEl.textContent = isNowPrivate ? "🔒" : "👁️";
+            if (textEl) textEl.textContent = isNowPrivate ? "Скрыто" : "Открыто";
 
             const card = btn.closest(".privacy-photo-card");
             if (card) {
               const img = card.querySelector(".privacy-photo-thumb");
               const badge = card.querySelector(".privacy-photo-status-badge");
+              const overlayLock = card.querySelector(".privacy-photo-overlay-lock");
+              
               if (img) img.classList.toggle("blurred", isNowPrivate);
+              if (overlayLock) overlayLock.style.display = isNowPrivate ? "flex" : "none";
               if (badge) {
                 badge.className = `privacy-photo-status-badge ${isNowPrivate ? 'locked' : 'open'}`;
-                badge.textContent = isNowPrivate ? '🔒 Блюр' : '👁 Открыто';
+                badge.textContent = isNowPrivate ? '🔒 До мэтча' : '👁 Публично';
               }
             }
           }
@@ -1642,9 +1655,13 @@
   async function savePrivacySettings() {
     triggerHaptic("medium");
     const saveBtn = document.getElementById("savePrivacyBtn");
+    const saveIcon = saveBtn?.querySelector(".save-icon");
+    const saveLabel = saveBtn?.querySelector(".save-label");
+
     if (saveBtn) {
       saveBtn.disabled = true;
-      saveBtn.textContent = "Сохранение...";
+      if (saveIcon) saveIcon.textContent = "⏳";
+      if (saveLabel) saveLabel.textContent = "Сохраняем...";
     }
 
     try {
@@ -1673,10 +1690,11 @@
 
       if (res && res.status === "ok") {
         triggerHaptic("success");
-        if (tg && tg.showAlert) {
-          tg.showAlert("🔒 Настройки приватности успешно сохранены!");
-        }
-        closePrivacyModal();
+        if (saveIcon) saveIcon.textContent = "✅";
+        if (saveLabel) saveLabel.textContent = "Сохранено!";
+        setTimeout(() => {
+          closePrivacyModal();
+        }, 400);
       }
     } catch (err) {
       console.error("Failed to save privacy settings:", err);
@@ -1686,8 +1704,11 @@
       }
     } finally {
       if (saveBtn) {
-        saveBtn.disabled = false;
-        saveBtn.textContent = "✅ Сохранить настройки";
+        setTimeout(() => {
+          saveBtn.disabled = false;
+          if (saveIcon) saveIcon.textContent = "✨";
+          if (saveLabel) saveLabel.textContent = "Сохранить настройки";
+        }, 600);
       }
     }
   }
