@@ -378,6 +378,7 @@
 
     setupModalListeners();
     setupAdminListeners();
+    setupSupportListeners();
   }
 
 
@@ -2535,10 +2536,13 @@
   // 7.2. Модальное окно редактирования профиля (Знакомства + Карьера)
   let cachedInterestTags = null;
 
-  async function openProfileEditModal(initialTab = null) {
+  function openProfileEditModal(initialTab = null) {
     triggerHaptic("medium");
     const modal = document.getElementById("profileEditModal");
-    if (!modal) return;
+    if (!modal) {
+      console.error("[StudMatch] #profileEditModal not found in DOM!");
+      return;
+    }
 
     const u = state.currentUser || {};
 
@@ -2576,9 +2580,6 @@
       pill.classList.toggle("active", pill.dataset.target === targetGender);
     });
 
-    // Теги интересов
-    await renderProfileEditTags(u);
-
     // 3. Заполнение полей Карьеры
     const careerGoalInput = document.getElementById("editCareerGoal");
     const careerSkillsInput = document.getElementById("editCareerSkills");
@@ -2590,13 +2591,40 @@
     if (careerFormatSelect) careerFormatSelect.value = u.career_work_format || "Удалённо";
     if (careerPortfolioInput) careerPortfolioInput.value = u.career_portfolio_url || "";
 
+    // Мгновенно активируем и отображаем модальное окно
     modal.classList.add("active");
+
+    // Интеграция с нативной кнопкой «Назад» Telegram
+    if (tg?.BackButton) {
+      tg.BackButton.show();
+      tg.BackButton.onClick(closeProfileEditModal);
+    }
+
+    // Теги интересов отрисовываем асинхронно
+    renderProfileEditTags(u).catch((err) => {
+      console.warn("Failed to render edit tags:", err);
+    });
   }
 
   function closeProfileEditModal() {
     triggerHaptic("light");
     const modal = document.getElementById("profileEditModal");
     if (modal) modal.classList.remove("active");
+
+    if (tg?.BackButton) {
+      tg.BackButton.offClick(closeProfileEditModal);
+      const isDetailsOpen = document.getElementById("detailsSheetOverlay")?.classList.contains("active");
+      const isChatOpen = chatScreenModal && chatScreenModal.style.display === "flex";
+      if (isDetailsOpen) {
+        tg.BackButton.show();
+        tg.BackButton.onClick(closeDetailsSheet);
+      } else if (isChatOpen) {
+        tg.BackButton.show();
+        tg.BackButton.onClick(closeChat);
+      } else {
+        tg.BackButton.hide();
+      }
+    }
   }
 
   function switchProfileEditTab(tabName) {
@@ -4243,7 +4271,11 @@
       }
 
       // Wire edit buttons
-      const handleEdit = () => {
+      const handleEdit = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         triggerHaptic("medium");
         openProfileEditModal();
       };
@@ -4289,13 +4321,7 @@
 
       document.getElementById("btnOpenSupport")?.addEventListener("click", () => {
         triggerHaptic("light");
-        const botUser = window.BOT_USERNAME || "edudating_bot";
-        const supportUrl = `https://t.me/${botUser}`;
-        if (tg && tg.openTelegramLink) {
-          tg.openTelegramLink(supportUrl);
-        } else {
-          window.open(supportUrl, "_blank");
-        }
+        openSupportDeck();
       });
 
       document.getElementById("btnOpenPrivacyPolicy")?.addEventListener("click", () => {
@@ -4331,6 +4357,9 @@
         } else if (tab === "reports") {
           document.getElementById("adminPaneReports")?.classList.add("active");
           loadAdminReports();
+        } else if (tab === "support") {
+          document.getElementById("adminPaneSupport")?.classList.add("active");
+          loadAdminSupportTickets();
         }
       });
     });
@@ -4508,6 +4537,388 @@
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
   }
+
+  // ─── 13. Support Deck Controller ───────────────────────────
+  let selectedSupportCategory = "bug";
+  let selectedSupportFile = null;
+
+  function collectDeviceDiagnostics() {
+    let plat = "web";
+    if (tg?.platform) {
+      plat = tg.platform;
+    } else {
+      const ua = navigator.userAgent.toLowerCase();
+      if (/iphone|ipad|ipod/.test(ua)) plat = "ios";
+      else if (/android/.test(ua)) plat = "android";
+      else if (/macintosh|mac os x/.test(ua)) plat = "macos";
+      else if (/windows/.test(ua)) plat = "windows";
+    }
+
+    return {
+      platform: plat,
+      tg_version: tg?.version || "unknown",
+      tg_color_scheme: tg?.colorScheme || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
+      user_agent: navigator.userAgent || "",
+      screen_width: window.screen?.width || window.innerWidth,
+      screen_height: window.screen?.height || window.innerHeight,
+      viewport_height: window.innerHeight,
+      device_pixel_ratio: window.devicePixelRatio || 1,
+      language: navigator.language || "ru",
+      active_tab: state.activeTab || "profile",
+      client_time: new Date().toISOString()
+    };
+  }
+
+  function updateTelemetryDisplay() {
+    const diag = collectDeviceDiagnostics();
+    const content = document.getElementById("supportTelemetryContent");
+    if (content) {
+      content.innerHTML = `
+        <div><b>Платформа:</b> ${escapeHtml(diag.platform.toUpperCase())}</div>
+        <div><b>Разрешение:</b> ${diag.screen_width}×${diag.screen_height} (viewport: ${diag.viewport_height}px)</div>
+        <div><b>Версия Telegram:</b> ${escapeHtml(diag.tg_version)} (${escapeHtml(diag.tg_color_scheme)})</div>
+        <div><b>Вкладка:</b> ${escapeHtml(diag.active_tab)}</div>
+        <div style="margin-top:4px;word-break:break-all;color:var(--text-muted);font-size:10px;">${escapeHtml(diag.user_agent)}</div>
+      `;
+    }
+  }
+
+  function openSupportDeck() {
+    triggerHaptic("light");
+    const modal = document.getElementById("supportDeckModal");
+    if (!modal) return;
+    modal.classList.add("active");
+    updateTelemetryDisplay();
+    loadSupportHistory();
+  }
+
+  function closeSupportDeck() {
+    triggerHaptic("light");
+    const modal = document.getElementById("supportDeckModal");
+    if (modal) modal.classList.remove("active");
+  }
+
+  async function loadSupportHistory() {
+    const list = document.getElementById("supportHistoryList");
+    const empty = document.getElementById("supportHistoryEmpty");
+    const loading = document.getElementById("supportHistoryLoading");
+    const countBadge = document.getElementById("supportHistoryCount");
+
+    if (!list) return;
+    if (loading) loading.style.display = "flex";
+    if (empty) empty.style.display = "none";
+    list.innerHTML = "";
+
+    try {
+      const data = await apiFetch("/api/webapp/support/tickets");
+      if (loading) loading.style.display = "none";
+
+      if (!data || !data.tickets || data.tickets.length === 0) {
+        if (empty) empty.style.display = "block";
+        if (countBadge) countBadge.style.display = "none";
+        return;
+      }
+
+      if (countBadge) {
+        countBadge.textContent = data.tickets.length;
+        countBadge.style.display = "inline-block";
+      }
+
+      const catEmojis = {
+        bug: "🐛 Ошибка",
+        feature: "💡 Идея",
+        question: "❓ Вопрос",
+        account: "👤 Профиль",
+        other: "💬 Другое"
+      };
+
+      const statusLabels = {
+        open: { text: "🟡 Ожидает ответа", cls: "open" },
+        in_progress: { text: "🔵 В работе", cls: "in_progress" },
+        resolved: { text: "🟢 Решено", cls: "resolved" },
+        closed: { text: "⚫ Закрыто", cls: "closed" }
+      };
+
+      list.innerHTML = data.tickets.map(t => {
+        const st = statusLabels[t.status] || { text: t.status, cls: "open" };
+        const cat = catEmojis[t.category] || t.category;
+        const screenshotHtml = t.screenshot_url
+          ? `<div style="margin-top:6px;"><a href="${t.screenshot_url}" target="_blank" style="font-size:12px;color:var(--primary);text-decoration:none;">📎 Прикрепленный скриншот</a></div>`
+          : "";
+        const replyHtml = t.admin_reply
+          ? `<div class="support-ticket-reply-box">
+              <div class="support-ticket-reply-title">💬 Ответ службы заботы (${t.resolved_at || 'недавно'}):</div>
+              <div class="support-ticket-reply-text">${escapeHtml(t.admin_reply)}</div>
+             </div>`
+          : "";
+
+        return `
+          <div class="support-ticket-item">
+            <div class="support-ticket-item-header">
+              <span class="support-ticket-cat-badge">${cat}</span>
+              <span class="support-ticket-status-pill ${st.cls}">${st.text}</span>
+            </div>
+            <div class="support-ticket-message">${escapeHtml(t.message)}</div>
+            ${screenshotHtml}
+            ${replyHtml}
+            <div style="font-size:10.5px;color:var(--text-muted);margin-top:6px;">🕒 ${t.created_at}</div>
+          </div>
+        `;
+      }).join("");
+
+    } catch (e) {
+      if (loading) loading.style.display = "none";
+      if (list) list.innerHTML = '<div style="text-align:center;padding:20px;color:red;">Не удалось загрузить историю</div>';
+    }
+  }
+
+  async function submitSupportTicket() {
+    const textEl = document.getElementById("supportMessageText");
+    const submitBtn = document.getElementById("supportSubmitBtn");
+    if (!textEl || !submitBtn) return;
+
+    const text = textEl.value.trim();
+    if (text.length < 5) {
+      triggerHaptic("error");
+      if (tg && tg.showAlert) {
+        tg.showAlert("Пожалуйста, опишите проблему подробнее (минимум 5 символов).");
+      } else {
+        alert("Пожалуйста, опишите проблему подробнее (минимум 5 символов).");
+      }
+      textEl.focus();
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span>⏳ Отправка...</span>';
+    triggerHaptic("medium");
+
+    try {
+      const formData = new FormData();
+      formData.append("category", selectedSupportCategory);
+      formData.append("message", text);
+      formData.append("device_info", JSON.stringify(collectDeviceDiagnostics()));
+      if (selectedSupportFile) {
+        formData.append("screenshot", selectedSupportFile);
+      }
+
+      await apiFetch("/api/webapp/support/tickets", {
+        method: "POST",
+        body: formData,
+      });
+
+      triggerHaptic("success");
+      const successMsg = "Спасибо! Ваше обращение принято в службу заботы. Ответ поступит вам в Telegram и отобразится во вкладке «Мои обращения». ❤️";
+      if (tg && tg.showAlert) {
+        tg.showAlert(successMsg);
+      } else {
+        alert(successMsg);
+      }
+
+      // Reset form
+      textEl.value = "";
+      const charCounter = document.getElementById("supportCharCount");
+      if (charCounter) charCounter.textContent = "0";
+      selectedSupportFile = null;
+      const preview = document.getElementById("supportScreenshotPreview");
+      const fileInput = document.getElementById("supportScreenshotInput");
+      if (preview) preview.style.display = "none";
+      if (fileInput) fileInput.value = "";
+
+      // Switch to history tab
+      document.querySelectorAll(".support-tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".support-pane").forEach(p => p.classList.remove("active"));
+      const historyTabBtn = document.querySelector('.support-tab-btn[data-support-tab="history"]');
+      const historyPane = document.getElementById("supportPaneHistory");
+      if (historyTabBtn) historyTabBtn.classList.add("active");
+      if (historyPane) historyPane.classList.add("active");
+      loadSupportHistory();
+
+    } catch (e) {
+      triggerHaptic("error");
+      const err = e.message || "Ошибка отправки обращения. Попробуйте еще раз.";
+      if (tg && tg.showAlert) tg.showAlert(err);
+      else alert(err);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<span>🚀 Отправить в службу заботы</span>';
+    }
+  }
+
+  function setupSupportListeners() {
+    // Support Deck open / close
+    document.getElementById("supportDeckCloseBtn")?.addEventListener("click", closeSupportDeck);
+    const modal = document.getElementById("supportDeckModal");
+    modal?.addEventListener("click", (e) => {
+      if (e.target === modal) closeSupportDeck();
+    });
+
+    // Support tabs
+    document.querySelectorAll(".support-tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        triggerHaptic("light");
+        const tab = btn.dataset.supportTab;
+        document.querySelectorAll(".support-tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".support-pane").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+
+        if (tab === "new") {
+          document.getElementById("supportPaneNew")?.classList.add("active");
+        } else if (tab === "history") {
+          document.getElementById("supportPaneHistory")?.classList.add("active");
+          loadSupportHistory();
+        }
+      });
+    });
+
+    // Category chips
+    document.querySelectorAll(".support-cat-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        triggerHaptic("light");
+        document.querySelectorAll(".support-cat-chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        selectedSupportCategory = chip.dataset.category || "other";
+      });
+    });
+
+    // Char counter
+    const textarea = document.getElementById("supportMessageText");
+    const counter = document.getElementById("supportCharCount");
+    if (textarea && counter) {
+      textarea.addEventListener("input", () => {
+        counter.textContent = textarea.value.length;
+      });
+    }
+
+    // Screenshot file handling
+    const fileInput = document.getElementById("supportScreenshotInput");
+    const preview = document.getElementById("supportScreenshotPreview");
+    const previewImg = document.getElementById("supportScreenshotImg");
+    const removeBtn = document.getElementById("supportScreenshotRemoveBtn");
+
+    fileInput?.addEventListener("change", (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        if (file.size > 10 * 1024 * 1024) {
+          alert("Размер файла не должен превышать 10 МБ");
+          fileInput.value = "";
+          return;
+        }
+        selectedSupportFile = file;
+        const reader = new FileReader();
+        reader.onload = (re) => {
+          if (previewImg) previewImg.src = re.target.result;
+          if (preview) preview.style.display = "inline-block";
+        };
+        reader.readAsDataURL(file);
+        triggerHaptic("light");
+      }
+    });
+
+    removeBtn?.addEventListener("click", () => {
+      selectedSupportFile = null;
+      if (fileInput) fileInput.value = "";
+      if (preview) preview.style.display = "none";
+      if (previewImg) previewImg.src = "";
+      triggerHaptic("light");
+    });
+
+    // Telemetry details accordion toggle
+    const telemToggle = document.getElementById("supportTelemetryToggle");
+    const telemDetails = document.getElementById("supportTelemetryDetails");
+    const telemArrow = document.getElementById("supportTelemetryArrow");
+    telemToggle?.addEventListener("click", () => {
+      if (telemDetails) {
+        const isHidden = telemDetails.style.display === "none";
+        telemDetails.style.display = isHidden ? "block" : "none";
+        if (telemArrow) telemArrow.textContent = isHidden ? "▴" : "▾";
+      }
+    });
+
+    // Submit button
+    document.getElementById("supportSubmitBtn")?.addEventListener("click", submitSupportTicket);
+
+    // Empty state "Написать обращение" button
+    document.getElementById("supportHistoryCreateBtn")?.addEventListener("click", () => {
+      document.querySelector('.support-tab-btn[data-support-tab="new"]')?.click();
+    });
+  }
+
+  // Superadmin Hub: Support tab loader
+  async function loadAdminSupportTickets() {
+    const container = document.getElementById("adminSupportList");
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Загрузка обращений...</div>';
+
+    try {
+      const data = await apiFetch("/api/webapp/admin/support/tickets");
+      if (!data || !data.tickets || data.tickets.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">🎉 Нет обращений в поддержку</div>';
+        return;
+      }
+
+      const catNames = {
+        bug: "🐛 Ошибка",
+        feature: "💡 Идея",
+        question: "❓ Вопрос",
+        account: "👤 Профиль",
+        other: "💬 Другое"
+      };
+
+      container.innerHTML = data.tickets.map(t => {
+        const cat = catNames[t.category] || t.category;
+        const userTitle = t.user_username ? `@${t.user_username}` : `ID ${t.user_id}`;
+        const devSnippet = t.device_info ? (t.device_info.length > 50 ? t.device_info.slice(0, 50) + '...' : t.device_info) : 'Девайс не указан';
+        const replyInfo = t.admin_reply
+          ? `<div style="font-size:12px;color:#059669;margin-bottom:8px;background:rgba(16,185,129,0.1);padding:6px 10px;border-radius:8px;"><b>Ответ:</b> ${escapeHtml(t.admin_reply)}</div>`
+          : "";
+
+        return `
+          <div class="admin-support-card">
+            <div class="admin-support-header">
+              <span>#${t.id.slice(0, 8)} · ${cat}</span>
+              <span class="badge ${t.status === 'open' ? 'badge-warning' : 'badge-success'}">${t.status}</span>
+            </div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px;">
+              ${escapeHtml(t.user_name)} <span style="font-weight:400;color:var(--text-muted);">(${userTitle})</span>
+            </div>
+            <div class="admin-support-text">${escapeHtml(t.message)}</div>
+            ${t.screenshot_url ? `<div style="margin-bottom:8px;"><a href="${t.screenshot_url}" target="_blank" style="font-size:12px;color:var(--primary);">📎 Скриншот</a></div>` : ''}
+            ${replyInfo}
+            <div class="admin-support-meta">
+              <span>🕒 ${t.created_at}</span>
+              <span>📱 ${escapeHtml(devSnippet)}</span>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+              <button class="btn-primary" style="padding:6px 12px;font-size:12px;" onclick="window.replyAdminSupportTicket('${t.id}', '${escapeHtml(t.user_name)}')">
+                💬 Ответить в TG
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+    } catch (e) {
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:red;">Ошибка загрузки обращений</div>';
+    }
+  }
+
+  window.replyAdminSupportTicket = async function(ticketId, userName) {
+    const replyText = prompt(`Ответ для ${userName} (сообщение придет в Telegram):`);
+    if (!replyText || !replyText.trim()) return;
+
+    triggerHaptic("medium");
+    try {
+      await apiFetch(`/api/webapp/admin/support/tickets/${ticketId}/reply`, {
+        method: "POST",
+        body: JSON.stringify({ reply: replyText.trim(), status: "resolved" })
+      });
+      triggerHaptic("success");
+      loadAdminSupportTickets();
+    } catch (e) {
+      alert("Ошибка отправки ответа: " + e.message);
+    }
+  };
 
   // ─── Onboarding Flow Controller (Figma Design System) ──────
   let currentOnboardingSlide = 0;

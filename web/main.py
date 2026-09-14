@@ -14,7 +14,7 @@ from web.routers.admin import (
     auth as admin_auth, dashboard, users, documents, ratings,
     payments as admin_payments, tariffs as admin_tariffs, employers, universities,
     broadcast, tags, reports, health, audit, promos, settings as admin_settings,
-    consents, fake_users,
+    consents, fake_users, support as admin_support,
 )
 from web.routers.employer import (
     auth as employer_auth,
@@ -181,6 +181,7 @@ app.include_router(universities.router, prefix="/admin", tags=["Universities"])
 app.include_router(broadcast.router, prefix="/admin", tags=["Broadcast"])
 app.include_router(tags.router, prefix="/admin", tags=["Tags"])
 app.include_router(reports.router, prefix="/admin", tags=["Reports"])
+app.include_router(admin_support.router, prefix="/admin", tags=["Support"])
 app.include_router(health.router, prefix="/admin", tags=["Health"])
 app.include_router(audit.router, prefix="/admin", tags=["Audit"])
 app.include_router(promos.router, prefix="/admin", tags=["Promos"])

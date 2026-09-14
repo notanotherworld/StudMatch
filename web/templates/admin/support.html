@@ -1,0 +1,293 @@
+{% extends "admin/base.html" %}
+{% block title %}Служба поддержки — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 24px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1 style="display:flex;align-items:center;gap:10px;margin:0 0 6px;">
+        <span>💬 Служба поддержки</span>
+        <span class="badge badge-primary" style="font-size:14px;padding:4px 10px;">Support Deck</span>
+      </h1>
+      <p style="margin:0;color:var(--muted);font-size:14px;">Обращения студентов, техническая телеметрия устройств и ответы напрямую в Telegram</p>
+    </div>
+  </div>
+</div>
+
+{% if request.query_params.get('error') %}
+<div class="card" style="background:rgba(239,68,68,0.15);border:1px solid #ef4444;color:#fca5a5;padding:12px 16px;margin-bottom:20px;border-radius:10px;font-size:14px;">
+  ⚠️ {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+{% if request.query_params.get('success') %}
+<div class="card" style="background:rgba(34,197,94,0.15);border:1px solid #22c55e;color:#86efac;padding:12px 16px;margin-bottom:20px;border-radius:10px;font-size:14px;">
+  ✅ {{ request.query_params.get('success') }}
+</div>
+{% endif %}
+
+<!-- Фильтры по статусам и поиск -->
+<div class="card" style="margin-bottom:20px;padding:16px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+    
+    <!-- Статусы -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="?status=open&category={{ current_category }}&q={{ search_query }}"
+         class="btn {% if current_status == 'open' %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:13px;padding:6px 14px;">
+        ⏳ Ожидают ({{ status_counts.get('open', 0) }})
+      </a>
+      <a href="?status=in_progress&category={{ current_category }}&q={{ search_query }}"
+         class="btn {% if current_status == 'in_progress' %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:13px;padding:6px 14px;">
+        🔵 В работе ({{ status_counts.get('in_progress', 0) }})
+      </a>
+      <a href="?status=resolved&category={{ current_category }}&q={{ search_query }}"
+         class="btn {% if current_status == 'resolved' %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:13px;padding:6px 14px;">
+        🟢 Решённые ({{ status_counts.get('resolved', 0) }})
+      </a>
+      <a href="?status=closed&category={{ current_category }}&q={{ search_query }}"
+         class="btn {% if current_status == 'closed' %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:13px;padding:6px 14px;">
+        ⚫ Закрытые ({{ status_counts.get('closed', 0) }})
+      </a>
+      <a href="?status=all&category={{ current_category }}&q={{ search_query }}"
+         class="btn {% if current_status == 'all' %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size:13px;padding:6px 14px;">
+        📁 Все ({{ total_tickets }})
+      </a>
+    </div>
+
+    <!-- Поиск и фильтр категорий -->
+    <form method="GET" action="/admin/support" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input type="hidden" name="status" value="{{ current_status }}">
+      
+      <select name="category" onchange="this.form.submit()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);padding:7px 12px;border-radius:8px;font-size:13px;">
+        <option value="all" {% if current_category == 'all' %}selected{% endif %}>Все темы</option>
+        <option value="bug" {% if current_category == 'bug' %}selected{% endif %}>🐛 Баг / Ошибка</option>
+        <option value="feature" {% if current_category == 'feature' %}selected{% endif %}>💡 Идея / Фича</option>
+        <option value="question" {% if current_category == 'question' %}selected{% endif %}>❓ Вопрос</option>
+        <option value="account" {% if current_category == 'account' %}selected{% endif %}>👤 Аккаунт / Профиль</option>
+        <option value="other" {% if current_category == 'other' %}selected{% endif %}>💬 Другое</option>
+      </select>
+
+      <div style="display:flex;gap:4px;">
+        <input type="text" name="q" value="{{ search_query }}" placeholder="Поиск по ID, @user, тексту..."
+               style="background:var(--surface);color:var(--text);border:1px solid var(--border);padding:7px 12px;border-radius:8px;font-size:13px;min-width:180px;">
+        <button type="submit" class="btn btn-ghost" style="padding:7px 12px;">🔍</button>
+        {% if search_query or current_category != 'all' %}
+        <a href="?status={{ current_status }}" class="btn btn-ghost" style="padding:7px 10px;" title="Сбросить фильтр">✕</a>
+        {% endif %}
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<!-- Список обращений -->
+{% if ticket_items %}
+<div style="display:flex;flex-direction:column;gap:16px;">
+  {% for item in ticket_items %}
+  {% set t = item.ticket %}
+  {% set dev = item.device %}
+  <div class="card" style="border-left: 4px solid {% if t.status.value == 'open' %}#f59e0b{% elif t.status.value == 'in_progress' %}#3b82f6{% elif t.status.value == 'resolved' %}#10b981{% else %}#6b7280{% endif %};">
+    
+    <!-- Верхняя плашка обращения -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-family:monospace;font-weight:700;color:var(--accent2);font-size:14px;">
+          #{{ t.id|string|truncate(8, True, '') }}
+        </span>
+
+        <!-- Бейдж статуса -->
+        {% if t.status.value == 'open' %}
+          <span class="badge badge-warning">⏳ Ожидает ответа</span>
+        {% elif t.status.value == 'in_progress' %}
+          <span class="badge" style="background:#3b82f6;color:#fff;">🔵 В работе</span>
+        {% elif t.status.value == 'resolved' %}
+          <span class="badge badge-success">🟢 Решено</span>
+        {% else %}
+          <span class="badge" style="background:#4b5563;color:#fff;">⚫ Закрыто</span>
+        {% endif %}
+
+        <!-- Бейдж категории -->
+        {% if t.category == 'bug' %}
+          <span class="badge badge-danger">🐛 Ошибка / Баг</span>
+        {% elif t.category == 'feature' %}
+          <span class="badge" style="background:#8b5cf6;color:#fff;">💡 Идея</span>
+        {% elif t.category == 'question' %}
+          <span class="badge" style="background:#06b6d4;color:#fff;">❓ Вопрос</span>
+        {% elif t.category == 'account' %}
+          <span class="badge" style="background:#ec4899;color:#fff;">👤 Аккаунт</span>
+        {% else %}
+          <span class="badge btn-ghost">💬 Обращение</span>
+        {% endif %}
+
+        <!-- Автор -->
+        <span style="font-size:13px;color:var(--muted);">
+          от 
+          <a href="/admin/users/{{ t.user_id }}" style="color:var(--text);text-decoration:none;font-weight:600;">
+            {% if t.user and t.user.profile and t.user.profile.name %}{{ t.user.profile.name }}{% else %}Пользователь{% endif %}
+          </a>
+          {% if t.user and t.user.tg_username %}
+          <a href="https://t.me/{{ t.user.tg_username }}" target="_blank" style="color:var(--accent2);text-decoration:none;">
+            (@{{ t.user.tg_username }})
+          </a>
+          {% endif %}
+          <span style="font-size:11px;color:var(--muted);">[ID: {{ t.user_id }}]</span>
+        </span>
+      </div>
+
+      <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;">
+        <span>🕒 {{ t.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+      </div>
+    </div>
+
+    <!-- Текст сообщения -->
+    <div style="background:var(--surface2);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:14.5px;line-height:1.5;white-space:pre-wrap;color:var(--text);word-break:break-word;">{{ t.message }}</div>
+
+    <!-- Скриншот (если есть) -->
+    {% if t.screenshot_url %}
+    <div style="margin-bottom:14px;">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;">📎 Прикрепленный скриншот:</div>
+      <a href="{{ t.screenshot_url }}" target="_blank" title="Нажмите, чтобы открыть в полном размере">
+        <img src="{{ t.screenshot_url }}" alt="Скриншот ошибки" style="max-width:240px;max-height:180px;border-radius:8px;border:1px solid var(--border);object-fit:cover;cursor:pointer;transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+      </a>
+    </div>
+    {% endif %}
+
+    <!-- Телеметрия устройства -->
+    {% if dev %}
+    <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span>📱</span>
+        <strong style="text-transform:uppercase;">{{ dev.platform or 'Web' }}</strong>
+      </div>
+      {% if dev.screen_width and dev.screen_height %}
+      <div style="color:var(--muted);">
+        🖥️ Экран: <strong>{{ dev.screen_width }}×{{ dev.screen_height }}</strong> (h: {{ dev.viewport_height or '?' }}px)
+      </div>
+      {% endif %}
+      {% if dev.tg_version %}
+      <div style="color:var(--muted);">
+        🤖 Telegram WebApp: <strong>v{{ dev.tg_version }}</strong>
+      </div>
+      {% endif %}
+      {% if dev.active_tab %}
+      <div style="color:var(--muted);">
+        📍 Вкладка: <strong>{{ dev.active_tab }}</strong>
+      </div>
+      {% endif %}
+      {% if dev.user_agent %}
+      <div style="color:var(--muted);max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ dev.user_agent }}">
+        🌐 {{ dev.user_agent }}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Ранее данный ответ поддержки (если есть) -->
+    {% if t.admin_reply %}
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:12px;font-weight:700;color:#10b981;display:flex;align-items:center;gap:6px;">
+          <span>💬 Ответ администратора:</span>
+        </span>
+        {% if t.resolved_at %}
+        <span style="font-size:11px;color:var(--muted);">{{ t.resolved_at.strftime('%d.%m.%Y %H:%M') }}</span>
+        {% endif %}
+      </div>
+      <div style="font-size:13.5px;color:var(--text);white-space:pre-wrap;line-height:1.45;">{{ t.admin_reply }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Блок действий -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border);">
+      
+      <!-- Быстрый ответ -->
+      <button type="button" class="btn btn-primary" onclick="openReplyModal('{{ t.id }}', '{{ t.user_id }}', '{% if t.user and t.user.profile %}{{ t.user.profile.name|escape }}{% else %}Студент{% endif %}', '{{ t.status.value }}')" style="font-size:13px;padding:6px 14px;">
+        💬 {% if t.admin_reply %}Ответить повторно{% else %}Ответить в Telegram{% endif %}
+      </button>
+
+      <!-- Смена статуса без ответа -->
+      <form method="POST" action="/admin/support/{{ t.id }}/status" style="display:flex;align-items:center;gap:6px;margin:0;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span style="font-size:12px;color:var(--muted);">Статус:</span>
+        <select name="status" onchange="this.form.submit()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);padding:5px 10px;border-radius:6px;font-size:12px;">
+          <option value="open" {% if t.status.value == 'open' %}selected{% endif %}>Ожидает</option>
+          <option value="in_progress" {% if t.status.value == 'in_progress' %}selected{% endif %}>В работе</option>
+          <option value="resolved" {% if t.status.value == 'resolved' %}selected{% endif %}>Решено</option>
+          <option value="closed" {% if t.status.value == 'closed' %}selected{% endif %}>Закрыто</option>
+        </select>
+      </form>
+
+    </div>
+
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:48px 20px;">
+  <div style="font-size:42px;margin-bottom:12px;">🎉</div>
+  <h3 style="margin:0 0 6px;">Обращений не найдено</h3>
+  <p style="color:var(--muted);margin:0;font-size:14px;">В данной категории или по выбранному фильтру тикетов нет.</p>
+</div>
+{% endif %}
+
+<!-- Модальное окно ответа пользователю -->
+<div id="replyModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+  <div class="card" style="max-width:550px;width:100%;background:var(--surface);padding:24px;border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,0.5);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 id="replyModalTitle" style="margin:0;font-size:18px;">💬 Ответ пользователю</h3>
+      <button type="button" onclick="closeReplyModal()" class="btn btn-ghost" style="padding:4px 8px;font-size:16px;">✕</button>
+    </div>
+
+    <form id="replyForm" method="POST" action="">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;">
+          Сообщение (будет мгновенно отправлено ботом в личный чат пользователя):
+        </label>
+        <textarea name="reply" id="replyTextarea" required rows="5" placeholder="Здравствуйте! Мы проверили информацию..." style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;resize:vertical;"></textarea>
+      </div>
+
+      <div style="margin-bottom:18px;display:flex;align-items:center;gap:10px;">
+        <label style="font-size:12px;font-weight:600;color:var(--muted);">Установить статус:</label>
+        <select name="status" id="replyStatusSelect" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:6px 12px;border-radius:6px;font-size:13px;">
+          <option value="resolved" selected>🟢 Решено (рекомендуется)</option>
+          <option value="in_progress">🔵 В работе</option>
+          <option value="closed">⚫ Закрыто</option>
+          <option value="open">🟡 Оставить открытым</option>
+        </select>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" onclick="closeReplyModal()" class="btn btn-ghost">Отмена</button>
+        <button type="submit" class="btn btn-primary">🚀 Отправить в Telegram</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openReplyModal(ticketId, userId, userName, currentStatus) {
+  const modal = document.getElementById('replyModal');
+  const form = document.getElementById('replyForm');
+  const title = document.getElementById('replyModalTitle');
+  const statusSelect = document.getElementById('replyStatusSelect');
+  const textarea = document.getElementById('replyTextarea');
+
+  form.action = '/admin/support/' + ticketId + '/reply';
+  title.textContent = '💬 Ответ для ' + userName + ' (ID: ' + userId + ')';
+  textarea.value = '';
+  statusSelect.value = 'resolved';
+
+  modal.style.display = 'flex';
+  setTimeout(() => textarea.focus(), 100);
+}
+
+function closeReplyModal() {
+  document.getElementById('replyModal').style.display = 'none';
+}
+
+document.getElementById('replyModal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeReplyModal();
+});
+</script>
+{% endblock %}

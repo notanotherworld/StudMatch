@@ -997,6 +997,10 @@
       <span class="nav-icon">🚨</span>
       <span class="nav-text">Жалобы</span>
     </a>
+    <a href="/admin/support" {% if '/support' in request.url.path %}class="active"{% endif %} title="Поддержка (Support Deck)">
+      <span class="nav-icon">💬</span>
+      <span class="nav-text">Поддержка</span>
+    </a>
     <a href="/admin/consents" {% if '/consents' in request.url.path %}class="active"{% endif %} title="Согласия ОПД (152-ФЗ)">
       <span class="nav-icon">📜</span>
       <span class="nav-text">Согласия ОПД</span>
@@ -1140,6 +1144,10 @@
       </a>
       <a href="/admin/reports" class="cmd-item" data-keywords="жалобы репорты нарушения блокировка">
         <div class="cmd-item-left"><span>🚨</span> <span>Жалобы пользователей</span></div>
+        <span class="cmd-item-category">Управление</span>
+      </a>
+      <a href="/admin/support" class="cmd-item" data-keywords="поддержка саппорт тикеты обратная связь helpdesk deck">
+        <div class="cmd-item-left"><span>💬</span> <span>Служба поддержки (Support Deck)</span></div>
         <span class="cmd-item-category">Управление</span>
       </a>
       <a href="/admin/consents" class="cmd-item" data-keywords="согласия опд 152-фз персональные данные экспорт csv">

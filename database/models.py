@@ -87,6 +87,13 @@ class ExportStatus(str, enum.Enum):
     sent = "sent"
 
 
+class TicketStatus(str, enum.Enum):
+    open = "open"
+    in_progress = "in_progress"
+    resolved = "resolved"
+    closed = "closed"
+
+
 # ─────────────────────────────────────────────────────────────
 # Университеты
 # ─────────────────────────────────────────────────────────────
@@ -206,6 +213,9 @@ class User(Base):
     )
     privacy: Mapped[Optional["UserPrivacy"]] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+    support_tickets: Mapped[List["SupportTicket"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
     )
 
 
@@ -638,3 +648,28 @@ class UserPrivacy(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     user: Mapped["User"] = relationship(back_populates="privacy")
+
+
+# ─────────────────────────────────────────────────────────────
+# Служба поддержки (Support Deck)
+# ─────────────────────────────────────────────────────────────
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    category: Mapped[str] = mapped_column(String(50), default="other")  # bug, feature, question, account, other
+    subject: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    screenshot_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    device_info: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON-строка с телеметрией
+    status: Mapped[TicketStatus] = mapped_column(Enum(TicketStatus), default=TicketStatus.open, index=True)
+    admin_reply: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    resolved_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("admins.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="support_tickets")
+    admin: Mapped[Optional["Admin"]] = relationship()
+

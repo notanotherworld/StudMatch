@@ -2149,6 +2149,452 @@ body {
   margin-bottom: 10px;
 }
 
+/* ─── Support Deck (Служба заботы и поддержки) ─────────────── */
+.support-sheet-content {
+  background: var(--bg-card);
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(var(--tg-viewport-height, 100dvh) * 0.92);
+  border-radius: 28px 28px 0 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 20px calc(24px + max(var(--safe-bottom), 16px));
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.support-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.support-header-left {
+  flex: 1;
+}
+
+.support-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #06B6D4 0%, #3B82F6 100%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.8px;
+  margin-bottom: 4px;
+}
+
+.support-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.support-close-btn {
+  background: var(--bg-main, #f1f3f9);
+  border: 1px solid var(--border-light);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.support-close-btn:active {
+  transform: scale(0.92);
+}
+
+.support-tabs {
+  display: flex;
+  background: var(--bg-main, #F1F3F9);
+  padding: 4px;
+  border-radius: 16px;
+  margin-bottom: 16px;
+  gap: 4px;
+}
+
+.support-tab-btn {
+  flex: 1;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.support-tab-btn.active {
+  background: var(--bg-card, #fff);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.support-tab-count {
+  background: #FF4757;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.support-pane {
+  display: none;
+}
+
+.support-pane.active {
+  display: block;
+  animation: fadeIn 0.2s;
+}
+
+.support-field-group {
+  margin-bottom: 14px;
+}
+
+.support-field-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.support-category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.support-cat-chip {
+  background: var(--bg-main, #F8F9FE);
+  border: 1.5px solid var(--border-light);
+  border-radius: 12px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.support-cat-chip:active {
+  transform: scale(0.95);
+}
+
+.support-cat-chip.active {
+  background: rgba(255, 75, 110, 0.08);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 2px 8px rgba(255, 75, 110, 0.15);
+}
+
+.support-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-main, #F8F9FE);
+  border: 1.5px solid var(--border-light);
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-main);
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.support-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(255, 75, 110, 0.12);
+  background: var(--bg-card);
+}
+
+.support-char-counter {
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.support-attach-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.support-attach-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg-main, #F8F9FE);
+  border: 1.5px dashed var(--border-light);
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.support-attach-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.support-attach-btn:active {
+  transform: scale(0.96);
+}
+
+.support-screenshot-preview {
+  position: relative;
+  display: inline-block;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+}
+
+.support-screenshot-preview img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  display: block;
+}
+
+.support-screenshot-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.support-telemetry-box {
+  background: var(--bg-main, #F8F9FE);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+.support-telemetry-header {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.support-telemetry-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.support-telemetry-arrow {
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+
+.support-telemetry-details {
+  padding: 0 14px 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+.support-telemetry-content {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  font-family: monospace;
+  word-break: break-all;
+  padding-top: 8px;
+}
+
+.support-action-row {
+  margin-top: 6px;
+}
+
+.support-action-row .btn-primary {
+  width: 100%;
+  height: 48px;
+  border-radius: 16px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+/* History List */
+.support-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.support-ticket-item {
+  background: var(--bg-main, #F8F9FE);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 14px;
+  transition: transform 0.15s;
+}
+
+.support-ticket-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.support-ticket-status-pill {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.support-ticket-status-pill.open {
+  background: rgba(245, 158, 11, 0.15);
+  color: #D97706;
+}
+
+.support-ticket-status-pill.in_progress {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563EB;
+}
+
+.support-ticket-status-pill.resolved {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.support-ticket-status-pill.closed {
+  background: rgba(107, 114, 128, 0.15);
+  color: #4B5563;
+}
+
+.support-ticket-cat-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.support-ticket-message {
+  font-size: 13.5px;
+  color: var(--text-main);
+  line-height: 1.45;
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.support-ticket-reply-box {
+  background: rgba(16, 185, 129, 0.07);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
+.support-ticket-reply-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #059669;
+  margin-bottom: 4px;
+}
+
+.support-ticket-reply-text {
+  font-size: 12.5px;
+  color: var(--text-main);
+  line-height: 1.4;
+}
+
+.support-history-empty {
+  text-align: center;
+  padding: 36px 16px;
+}
+
+.support-loading-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 30px 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Superadmin Hub Support Card */
+.admin-support-card {
+  background: #F8F9FE;
+  border-radius: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-light);
+}
+
+.admin-support-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-support-text {
+  font-size: 13px;
+  color: var(--text-main);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.admin-support-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* ─── Figma Design System Extras ────────────────────────────── */
 
 .figma-heart-pulse {
@@ -5877,9 +6323,14 @@ img, video, canvas {
 }
 
 /* ─── Unified Profile Edit Modal ────────────────────────────── */
+#profileEditModal {
+  z-index: 260;
+}
+
 .profile-edit-modal-card {
   max-width: 440px;
   max-height: calc(var(--tg-viewport-height, 100dvh) - 30px);
+  z-index: 261;
 }
 
 .profile-edit-tabs {

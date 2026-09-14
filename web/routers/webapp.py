@@ -12,7 +12,7 @@ from urllib.parse import parse_qsl
 
 import os
 import aiohttp
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, Response, Query, WebSocket, WebSocketDisconnect, File, UploadFile
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, Response, Query, WebSocket, WebSocketDisconnect, File, UploadFile, Form
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -29,7 +29,7 @@ from web.dependencies import get_db, SECRET, ALGORITHM
 import jwt
 from database.models import (
     User, Profile, University, Swipe, Match, ChatMessage, SwipeAction, ModeEnum, InterestTag,
-    Report, ReportStatus, UserPrivacy,
+    Report, ReportStatus, UserPrivacy, SupportTicket, TicketStatus,
 )
 from database.crud import (
     get_user, get_profile, get_or_create_profile, get_next_profile, create_swipe,
@@ -2635,6 +2635,265 @@ async def webapp_admin_resolve_report(
 
     report.resolved_at = datetime.now(timezone.utc)
     await db.commit()
+    return {"status": "ok"}
+
+
+# ─── API: Служба поддержки (Support Deck) ──────────────────────
+@router.get("/api/webapp/support/tickets")
+async def webapp_get_support_tickets(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Возвращает историю тикетов поддержки текущего пользователя."""
+    res = await db.execute(
+        select(SupportTicket)
+        .where(SupportTicket.user_id == student.id)
+        .order_by(SupportTicket.created_at.desc())
+    )
+    tickets = res.scalars().all()
+    items = []
+    for t in tickets:
+        items.append({
+            "id": str(t.id),
+            "category": t.category,
+            "subject": t.subject,
+            "message": t.message,
+            "screenshot_url": t.screenshot_url,
+            "status": t.status.value if hasattr(t.status, "value") else str(t.status),
+            "admin_reply": t.admin_reply,
+            "created_at": t.created_at.strftime("%d.%m.%Y %H:%M") if t.created_at else "",
+            "resolved_at": t.resolved_at.strftime("%d.%m.%Y %H:%M") if t.resolved_at else None,
+        })
+    return {"status": "ok", "tickets": items}
+
+
+@router.post("/api/webapp/support/tickets")
+async def webapp_create_support_ticket(
+    request: Request,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Создает обращение в поддержку (поддерживает multipart/form-data со скриншотом и application/json).
+    Отправляет мгновенное уведомление администраторам в Telegram.
+    """
+    from web.utils.uploads import save_avatar_upload
+
+    category = "other"
+    subject = None
+    message = ""
+    device_info = None
+    screenshot_url = None
+
+    content_type = request.headers.get("content-type", "")
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        category = str(form.get("category", "other") or "other")
+        subject = str(form.get("subject", "") or "") or None
+        message = str(form.get("message", "") or "").strip()
+        device_info = str(form.get("device_info", "") or "") or None
+
+        screenshot_file = form.get("screenshot")
+        if screenshot_file and hasattr(screenshot_file, "filename") and screenshot_file.filename:
+            screenshot_url = await save_avatar_upload(screenshot_file)
+    else:
+        try:
+            body = await request.json()
+            category = body.get("category", "other") or "other"
+            subject = body.get("subject")
+            message = str(body.get("message", "") or "").strip()
+            device_info = body.get("device_info")
+            if isinstance(device_info, dict):
+                device_info = json.dumps(device_info, ensure_ascii=False)
+            screenshot_url = body.get("screenshot_url")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Некорректный формат запроса")
+
+    if not message or len(message) < 5:
+        raise HTTPException(status_code=400, detail="Сообщение должно содержать не менее 5 символов")
+
+    user_id = student.id
+    user_tg_username = student.tg_username
+
+    ticket = SupportTicket(
+        user_id=user_id,
+        category=category,
+        subject=subject,
+        message=message,
+        screenshot_url=screenshot_url,
+        device_info=device_info,
+        status=TicketStatus.open,
+    )
+    db.add(ticket)
+    await db.commit()
+    await db.refresh(ticket)
+
+    # Мгновенный алерт администраторам в Telegram
+    try:
+        prof_res = await db.execute(select(Profile).where(Profile.user_id == user_id))
+        user_p = prof_res.scalar_one_or_none()
+
+        from aiogram import Bot
+        bot = Bot(token=settings.BOT_TOKEN)
+        try:
+            cat_names = {
+                "bug": "🐛 Ошибка / Баг",
+                "feature": "💡 Идея / Предложение",
+                "question": "❓ Вопрос по работе",
+                "account": "👤 Профиль / ВУЗ",
+                "other": "💬 Другое обращение",
+            }
+            cat_title = cat_names.get(ticket.category, ticket.category)
+            user_name = user_p.name if (user_p and user_p.name) else f"Студент {user_id}"
+            username_part = f" (@{user_tg_username})" if user_tg_username else ""
+            univer_part = f"\n🏫 ВУЗ: {user_p.major or 'Не указан'}" if user_p else ""
+
+            dev_text = "Не определено"
+            if device_info:
+                try:
+                    dev_data = json.loads(device_info) if isinstance(device_info, str) else device_info
+                    platform = dev_data.get("platform", "web")
+                    res = f"{dev_data.get('screen_width', '?')}x{dev_data.get('screen_height', '?')}"
+                    tg_v = dev_data.get("tg_version", "")
+                    dev_text = f"{platform.upper()} (Экран {res}, TG: {tg_v})"
+                except Exception:
+                    dev_text = str(device_info)[:60]
+
+            domain = (settings.DOMAIN or "https://stud-match.ru").rstrip("/")
+            alert_text = (
+                f"📩 <b>Новое обращение в поддержку #{str(ticket.id)[:8]}</b>\n\n"
+                f"👤 <b>Пользователь:</b> {html.escape(user_name)}{username_part} (<code>{student.id}</code>){univer_part}\n"
+                f"🏷️ <b>Категория:</b> {cat_title}\n"
+                f"📱 <b>Девайс:</b> {html.escape(dev_text)}\n\n"
+                f"📝 <b>Сообщение:</b>\n{html.escape(ticket.message)}\n\n"
+                f"🔗 <a href='{domain}/admin/support'>Открыть в веб-админке</a>"
+            )
+
+            for adm_id in settings.admin_ids:
+                try:
+                    await bot.send_message(adm_id, alert_text, parse_mode="HTML", disable_web_page_preview=True)
+                except Exception as send_err:
+                    logger.warning(f"Failed to send support alert to admin {adm_id}: {send_err}")
+        finally:
+            await bot.session.close()
+    except Exception as e:
+        logger.warning(f"Error in support ticket notification: {e}")
+
+    return {
+        "status": "ok",
+        "ticket": {
+            "id": str(ticket.id),
+            "category": ticket.category,
+            "message": ticket.message,
+            "screenshot_url": ticket.screenshot_url,
+            "status": ticket.status.value,
+            "created_at": ticket.created_at.strftime("%d.%m.%Y %H:%M") if ticket.created_at else "",
+        }
+    }
+
+
+# ─── API: Администрирование поддержки в Superadmin Hub ─────────
+@router.get("/api/webapp/admin/support/tickets")
+async def webapp_admin_get_support_tickets(
+    admin: User = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+    status: Optional[str] = Query(None),
+):
+    """Список тикетов для мобильного Superadmin Hub."""
+    query = (
+        select(SupportTicket)
+        .options(
+            selectinload(SupportTicket.user).selectinload(User.profile),
+        )
+        .order_by(SupportTicket.created_at.desc())
+        .limit(50)
+    )
+    if status and status in ("open", "in_progress", "resolved", "closed"):
+        query = query.where(SupportTicket.status == TicketStatus(status))
+
+    res = await db.execute(query)
+    tickets = res.scalars().all()
+    items = []
+    for t in tickets:
+        u_name = t.user.profile.name if (t.user and t.user.profile) else f"ID {t.user_id}"
+        items.append({
+            "id": str(t.id),
+            "user_id": t.user_id,
+            "user_name": u_name,
+            "user_username": t.user.tg_username if t.user else None,
+            "category": t.category,
+            "message": t.message,
+            "screenshot_url": t.screenshot_url,
+            "device_info": t.device_info,
+            "status": t.status.value if hasattr(t.status, "value") else str(t.status),
+            "admin_reply": t.admin_reply,
+            "created_at": t.created_at.strftime("%d.%m %H:%M") if t.created_at else "",
+        })
+    return {"status": "ok", "tickets": items}
+
+
+class AdminTicketReplyRequest(BaseModel):
+    reply: str
+    status: str = "resolved"  # open, in_progress, resolved, closed
+
+
+@router.post("/api/webapp/admin/support/tickets/{ticket_id}/reply")
+async def webapp_admin_reply_support_ticket(
+    ticket_id: str,
+    payload: AdminTicketReplyRequest,
+    admin: User = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ответ на тикет из Superadmin Hub с отправкой в Telegram пользователю."""
+    try:
+        rep_uuid = uuid.UUID(ticket_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Неверный ID тикета")
+
+    ticket = await db.get(SupportTicket, rep_uuid)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Тикет не найден")
+
+    ticket.admin_reply = payload.reply.strip()
+    if payload.status in ("open", "in_progress", "resolved", "closed"):
+        ticket.status = TicketStatus(payload.status)
+    if ticket.status in (TicketStatus.resolved, TicketStatus.closed):
+        ticket.resolved_at = datetime.now(timezone.utc)
+    ticket.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    if payload.reply.strip():
+        try:
+            from aiogram import Bot
+            bot = Bot(token=settings.BOT_TOKEN)
+            try:
+                cat_names = {
+                    "bug": "🐛 Ошибка / Баг",
+                    "feature": "💡 Идея / Предложение",
+                    "question": "❓ Вопрос по работе",
+                    "account": "👤 Профиль / ВУЗ",
+                    "other": "💬 Другое обращение",
+                }
+                cat_title = cat_names.get(ticket.category, ticket.category)
+                status_labels = {
+                    "open": "🟡 Открыто",
+                    "in_progress": "🔵 В работе",
+                    "resolved": "🟢 Решено",
+                    "closed": "⚫ Закрыто",
+                }
+                st_text = status_labels.get(ticket.status.value, ticket.status.value)
+                msg_text = (
+                    f"💬 <b>Ответ службы заботы StudMatch</b>\n\n"
+                    f"<i>По вашему обращению #{str(ticket.id)[:8]} ({cat_title}):</i>\n\n"
+                    f"{html.escape(payload.reply.strip())}\n\n"
+                    f"Статус: <b>{st_text}</b>"
+                )
+                await bot.send_message(ticket.user_id, msg_text, parse_mode="HTML")
+            finally:
+                await bot.session.close()
+        except Exception as send_err:
+            logger.warning(f"Failed to send ticket reply to student {ticket.user_id}: {send_err}")
+
     return {"status": "ok"}
 
 
