@@ -3760,6 +3760,7 @@ img, video, canvas {
   box-shadow: var(--shadow-sm);
   z-index: 10;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .chat-back-btn {
@@ -3978,13 +3979,15 @@ img, video, canvas {
 
 /* Messages Container */
 .chat-messages-container {
-  flex: 1;
+  flex: 1 1 0%;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 14px 12px;
-  display: flex;
-  flex-direction: column;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  position: relative;
 }
 
 .chat-loading-spinner {
@@ -3999,7 +4002,13 @@ img, video, canvas {
   flex-direction: column;
   gap: 10px;
   min-height: 100%;
-  justify-content: flex-end;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.chat-messages-inner::before {
+  content: "";
+  margin-top: auto;
 }
 
 /* Message Bubbles */
@@ -4116,6 +4125,7 @@ img, video, canvas {
 .chat-typing-row {
   padding: 4px 14px 6px;
   display: flex;
+  flex-shrink: 0;
 }
 
 .chat-typing-bubble {
@@ -4204,6 +4214,57 @@ img, video, canvas {
 }
 .chat-send-btn:not(:disabled):active {
   transform: scale(0.94);
+}
+
+/* Floating Scroll-to-Bottom Button */
+.chat-scroll-bottom-btn {
+  position: absolute;
+  right: 16px;
+  bottom: calc(68px + max(10px, var(--safe-bottom)));
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 45;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.15s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chat-scroll-bottom-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+}
+
+.chat-scroll-bottom-btn:active {
+  transform: scale(0.92);
+}
+
+.chat-scroll-unread-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #FF4757;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-card);
+  box-shadow: 0 2px 6px rgba(255, 71, 87, 0.35);
+  line-height: 1;
 }
 
 /* Match item enhancements */
@@ -4980,6 +5041,7 @@ img, video, canvas {
   font-weight: 700;
   color: #DC2626;
   text-align: center;
+  flex-shrink: 0;
 }
 
 /* ==============================================================================

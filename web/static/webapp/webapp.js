@@ -2654,6 +2654,9 @@
   const chatTypingName = document.getElementById("chatTypingName");
   const chatInputText = document.getElementById("chatInputText");
   const chatSendBtn = document.getElementById("chatSendBtn");
+  const chatScrollBottomBtn = document.getElementById("chatScrollBottomBtn");
+  const chatScrollUnreadBadge = document.getElementById("chatScrollUnreadBadge");
+  let chatUnreadWhileScrolled = 0;
   const chatUnmatchModal = document.getElementById("chatUnmatchModal");
   const closeUnmatchModalBtn = document.getElementById("closeUnmatchModalBtn");
   const confirmUnmatchBtn = document.getElementById("confirmUnmatchBtn");
@@ -2672,6 +2675,9 @@
     if (chatTypingIndicator) chatTypingIndicator.style.display = "none";
     if (chatTgBanner) chatTgBanner.innerHTML = "";
     if (chatPartnerStatus) chatPartnerStatus.textContent = "загрузка...";
+    if (chatScrollBottomBtn) chatScrollBottomBtn.style.display = "none";
+    chatUnreadWhileScrolled = 0;
+    updateScrollBottomBtnBadge();
 
     if (chatInputText) {
       chatInputText.value = "";
@@ -2798,6 +2804,9 @@
   function closeChat() {
     triggerHaptic("light");
     if (chatScreenModal) chatScreenModal.style.display = "none";
+    if (chatScrollBottomBtn) chatScrollBottomBtn.style.display = "none";
+    chatUnreadWhileScrolled = 0;
+    updateScrollBottomBtnBadge();
     const chatBlockedBanner = document.getElementById("chatBlockedBanner");
     if (chatBlockedBanner) chatBlockedBanner.style.display = "none";
     if (chatInputText) {
@@ -2966,14 +2975,38 @@
     `;
   }
 
+  function isChatNearBottom(threshold = 90) {
+    if (!chatMessagesContainer) return true;
+    const dist = chatMessagesContainer.scrollHeight - chatMessagesContainer.scrollTop - chatMessagesContainer.clientHeight;
+    return dist <= threshold;
+  }
+
+  function updateScrollBottomBtnBadge() {
+    if (!chatScrollUnreadBadge) return;
+    if (chatUnreadWhileScrolled > 0) {
+      chatScrollUnreadBadge.textContent = chatUnreadWhileScrolled > 99 ? "99+" : String(chatUnreadWhileScrolled);
+      chatScrollUnreadBadge.style.display = "flex";
+    } else {
+      chatScrollUnreadBadge.style.display = "none";
+    }
+  }
+
   function scrollChatToBottom(smooth = false) {
     if (!chatMessagesContainer) return;
-    requestAnimationFrame(() => {
-      chatMessagesContainer.scrollTo({
-        top: chatMessagesContainer.scrollHeight,
-        behavior: smooth ? "smooth" : "auto"
-      });
-    });
+    const doScroll = () => {
+      if (!chatMessagesContainer) return;
+      if (smooth) {
+        chatMessagesContainer.scrollTo({
+          top: chatMessagesContainer.scrollHeight,
+          behavior: "smooth"
+        });
+      } else {
+        chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+      }
+    };
+    requestAnimationFrame(doScroll);
+    setTimeout(doScroll, 50);
+    setTimeout(doScroll, 200);
   }
 
   // Отправка текстового сообщения
@@ -3004,6 +3037,9 @@
         chatMessagesInner.innerHTML = "";
       }
       chatMessagesInner.insertAdjacentHTML("beforeend", renderMessageHtml(optimisticMsg));
+      chatUnreadWhileScrolled = 0;
+      updateScrollBottomBtnBadge();
+      if (chatScrollBottomBtn) chatScrollBottomBtn.style.display = "none";
       scrollChatToBottom(true);
     }
 
@@ -3098,6 +3134,7 @@
           if (!chatMessagesInner.querySelector(".chat-msg-row") && !chatMessagesInner.querySelector(".chat-system-card")) {
             chatMessagesInner.innerHTML = "";
           }
+          const nearBottom = isChatNearBottom(90);
           chatMessagesInner.insertAdjacentHTML("beforeend", renderMessageHtml({
             id: msg.id,
             text: msg.text,
@@ -3106,7 +3143,16 @@
             is_read: true,
             created_at: msg.created_at,
           }));
-          scrollChatToBottom(true);
+
+          if (nearBottom) {
+            scrollChatToBottom(true);
+          } else {
+            chatUnreadWhileScrolled++;
+            updateScrollBottomBtnBadge();
+            if (chatScrollBottomBtn) {
+              chatScrollBottomBtn.style.display = "flex";
+            }
+          }
         }
         if (chatWebSocket && chatWebSocket.readyState === WebSocket.OPEN) {
           chatWebSocket.send(JSON.stringify({ type: "read" }));
@@ -3126,7 +3172,9 @@
           typingTimer = setTimeout(() => {
             chatTypingIndicator.style.display = "none";
           }, 3000);
-          scrollChatToBottom(true);
+          if (isChatNearBottom(90)) {
+            scrollChatToBottom(true);
+          }
         }
       }
     } else if (data.type === "tg_approval_update") {
@@ -3157,7 +3205,9 @@
           is_mine: false,
           created_at: data.system_message.created_at,
         }));
-        scrollChatToBottom(true);
+        if (isChatNearBottom(90)) {
+          scrollChatToBottom(true);
+        }
       }
 
     } else if (data.type === "user_online") {
@@ -3286,10 +3336,49 @@
         sendChatMessage();
       }
     });
+
+    chatInputText.addEventListener("focus", () => {
+      setTimeout(() => {
+        scrollChatToBottom(true);
+      }, 250);
+    });
   }
 
   if (chatSendBtn) {
     chatSendBtn.addEventListener("click", sendChatMessage);
+  }
+
+  if (chatMessagesContainer) {
+    chatMessagesContainer.addEventListener("scroll", () => {
+      const dist = chatMessagesContainer.scrollHeight - chatMessagesContainer.scrollTop - chatMessagesContainer.clientHeight;
+      if (dist > 120) {
+        if (chatScrollBottomBtn) chatScrollBottomBtn.style.display = "flex";
+      } else if (dist <= 40) {
+        if (chatScrollBottomBtn) chatScrollBottomBtn.style.display = "none";
+        chatUnreadWhileScrolled = 0;
+        updateScrollBottomBtnBadge();
+      }
+    });
+  }
+
+  if (chatScrollBottomBtn) {
+    chatScrollBottomBtn.addEventListener("click", () => {
+      triggerHaptic("light");
+      chatUnreadWhileScrolled = 0;
+      updateScrollBottomBtnBadge();
+      chatScrollBottomBtn.style.display = "none";
+      scrollChatToBottom(true);
+    });
+  }
+
+  if (tg) {
+    tg.onEvent("viewportChanged", () => {
+      if (chatScreenModal && chatScreenModal.style.display === "flex") {
+        if (isChatNearBottom(120)) {
+          scrollChatToBottom(false);
+        }
+      }
+    });
   }
 
   // 12. Deep Linking (startapp=chat_{match_id})
