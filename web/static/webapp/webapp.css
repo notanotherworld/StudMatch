@@ -5225,6 +5225,18 @@ img, video, canvas {
   z-index: 18;
 }
 
+.profile-sheet-card.no-floating {
+  padding-top: 20px;
+}
+
+.profile-sheet-card .sheet-drag-pill {
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.14);
+  margin: 0 auto 16px auto;
+}
+
 /* Floating Action Buttons Cluster */
 .profile-floating-actions {
   position: absolute;

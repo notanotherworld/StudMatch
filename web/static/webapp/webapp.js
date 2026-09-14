@@ -58,6 +58,9 @@
   const matchProfileModal = document.getElementById("matchProfileModal");
   const adminHubModal = document.getElementById("adminHubModal");
   const navButtons = document.querySelectorAll(".nav-tab-btn");
+  const chatScreenModal = document.getElementById("chatScreenModal");
+  let currentChatMatchId = null;
+  let currentChatPartner = null;
 
   // Maintenance DOM Elements
   const maintenanceBanner = document.getElementById("maintenanceBanner");
@@ -442,7 +445,7 @@
           const uid = item.dataset.userId;
           if (uid) {
             triggerHaptic("light");
-            openMatchFullProfile(uid);
+            openDetailsSheet(uid, { source: "story" });
           }
         });
       });
@@ -1544,11 +1547,97 @@
     }
   }
 
-  // 6. Детальная анкета пользователя (Reference 2)
-  function openDetailsSheet(profile) {
+  // 6. Детальная анкета пользователя (Универсальная карточка профиля для всех экранов)
+  async function openDetailsSheet(profileOrId, options = {}) {
     triggerHaptic("medium");
     const body = document.getElementById("detailsSheetBody");
-    if (!body) return;
+    if (!body || !detailsSheetOverlay) return;
+
+    const source = options.source || "feed";
+    let profile = null;
+
+    // Поддержка передачи как объекта анкеты, так и ID пользователя
+    let targetId = null;
+    if (typeof profileOrId === "number" || typeof profileOrId === "string") {
+      targetId = profileOrId;
+    } else if (profileOrId && typeof profileOrId === "object" && (!profileOrId.name || !profileOrId.photos)) {
+      targetId = profileOrId.user_id || profileOrId.id;
+    }
+
+    if (targetId) {
+      body.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:360px;padding:60px 20px;gap:16px;color:var(--text-muted);">
+          <div class="spinner" style="width:38px;height:38px;border:3px solid rgba(108,92,231,0.2);border-top-color:#6C5CE7;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+          <div style="font-size:14px;font-weight:600;color:var(--text-main);">Загрузка анкеты...</div>
+        </div>
+      `;
+      detailsSheetOverlay.classList.add("active");
+
+      // Telegram BackButton интеграция
+      if (tg?.BackButton) {
+        tg.BackButton.show();
+        if (chatScreenModal && chatScreenModal.style.display === "flex") {
+          tg.BackButton.offClick(closeChat);
+        }
+        tg.BackButton.onClick(closeDetailsSheet);
+      }
+
+      try {
+        const res = await apiFetch(`/api/webapp/user/${targetId}`);
+        if (!detailsSheetOverlay.classList.contains("active")) return;
+        if (!res || !res.user) {
+          body.innerHTML = `
+            <div style="text-align:center;padding:60px 20px;color:#EF4444;">
+              <div style="font-size:40px;margin-bottom:12px;">😕</div>
+              <div style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--text-main);">Не удалось загрузить анкету</div>
+              <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Возможно, профиль был скрыт или удалён</p>
+              <button class="btn-secondary" id="closeErrDetailsSheetBtn" style="padding:10px 24px;">Закрыть</button>
+            </div>
+          `;
+          document.getElementById("closeErrDetailsSheetBtn")?.addEventListener("click", closeDetailsSheet);
+          return;
+        }
+        profile = res.user;
+      } catch (err) {
+        if (!detailsSheetOverlay.classList.contains("active")) return;
+        body.innerHTML = `
+          <div style="text-align:center;padding:60px 20px;color:#EF4444;">
+            <div style="font-size:40px;margin-bottom:12px;">⚠️</div>
+            <div style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--text-main);">Ошибка сети</div>
+            <button class="btn-secondary" id="closeErrDetailsSheetBtn" style="padding:10px 24px;">Закрыть</button>
+          </div>
+        `;
+        document.getElementById("closeErrDetailsSheetBtn")?.addEventListener("click", closeDetailsSheet);
+        return;
+      }
+    } else if (profileOrId && typeof profileOrId === "object") {
+      profile = profileOrId;
+    }
+
+    if (!profile) return;
+
+    const targetUserId = profile.user_id || profile.id;
+    const isMe = Boolean(
+      profile.is_me ||
+      (state.currentUser && String(state.currentUser.id) === String(targetUserId))
+    );
+    profile.is_me = isMe;
+
+    const existingMatch = (state.matches || []).find(
+      (m) =>
+        (m.partner && (String(m.partner.id) === String(targetUserId) || String(m.partner.user_id) === String(targetUserId))) ||
+        String(m.user_id) === String(targetUserId)
+    );
+    const hasMatch = Boolean(profile.has_match || existingMatch || source === "match" || source === "chat");
+    profile.has_match = hasMatch;
+    const matchId = profile.match_id || existingMatch?.id || existingMatch?.match_id;
+
+    // Telegram username и разблокировка контактов
+    const tgUsername = profile.tg_username || existingMatch?.partner?.tg_username || existingMatch?.tg_username;
+    const isTgUnlocked = Boolean(profile.is_tg_unlocked || existingMatch?.is_tg_unlocked);
+
+    // Показывать свайпы (Пропустить / Лайк / Суперлайк) ТОЛЬКО при просмотре из ленты свайпов не для себя и без мэтча
+    const showSwipeFloating = (source === "feed" && !isMe && !hasMatch);
 
     const rawPhotos = profile.photos && profile.photos.length > 0
       ? profile.photos
@@ -1575,6 +1664,14 @@
     if (profile.major) subtitleParts.push(profile.major);
     if (profile.year) subtitleParts.push(`${profile.year} курс`);
     const subtitleText = subtitleParts.length > 0 ? subtitleParts.join(" • ") : "Студент StudMatch";
+
+    // Online status indicator
+    let onlineStatusHtml = "";
+    if (profile.is_online) {
+      onlineStatusHtml = `<span class="profile-online-badge" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#10B981;margin-top:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#10B981;display:inline-block;"></span>${escapeHtml(profile.online_status_text || "онлайн")}</span>`;
+    } else if (profile.online_status_text) {
+      onlineStatusHtml = `<span style="font-size:12px;font-weight:500;color:var(--text-muted);display:inline-block;margin-top:3px;">${escapeHtml(profile.online_status_text)}</span>`;
+    }
 
     // Location text
     const locationCity = profile.city || profile.university_city || "Москва";
@@ -1609,11 +1706,135 @@
     }
 
     // Gallery Grid
-    const galleryGridHtml = buildGalleryGridHtml(photos, photosMeta);
+    const galleryGridHtml = buildGalleryGridHtml(photos, photosMeta, isMe);
 
     // About text
     const bioText = profile.goal || profile.about || profile.bio || "";
     const isBioLong = bioText.length > 140;
+
+    // Floating actions markup (skip / like / superlike)
+    const floatingActionsHtml = showSwipeFloating ? `
+      <div class="profile-floating-actions">
+        <button class="floating-action-btn dislike" id="candidateDislikeBtn" title="Пропустить">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="3" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+        <button class="floating-action-btn like" id="candidateLikeBtn" title="Лайк">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+        </button>
+        <button class="floating-action-btn superlike" id="candidateSuperlikeBtn" title="Суперлайк">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="#8B5CF6">
+            <path d="M12 2.5L15.09 8.76L22 9.77L17 14.64L18.18 21.5L12 18.25L5.82 21.5L7 14.64L2 9.77L8.91 8.76L12 2.5Z"/>
+          </svg>
+        </button>
+      </div>
+    ` : "";
+
+    // Header Airplane button
+    const isChatOpenForPartner = Boolean(
+      chatScreenModal &&
+      chatScreenModal.style.display === "flex" &&
+      currentChatPartner &&
+      String(currentChatPartner.id) === String(targetUserId)
+    );
+    const airplaneBtnHtml = isMe ? "" : `
+      <button class="profile-airplane-btn" id="candidateAirplaneBtn" title="${hasMatch ? (isChatOpenForPartner ? 'Вернуться в чат' : 'Открыть чат') : 'Написать сообщение'}">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF4B6E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    `;
+
+    // Action buttons at the bottom of the card
+    let actionButtonsHtml = "";
+    if (isMe) {
+      actionButtonsHtml = `
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="background:rgba(108,92,231,0.08);color:var(--primary, #6C5CE7);padding:12px 16px;border-radius:14px;font-size:13.5px;font-weight:700;text-align:center;">
+            👤 Это ваш профиль
+          </div>
+          <button type="button" class="btn-primary" id="btnEditMyProfileFromDetails" style="width:100%;padding:14px;font-weight:700;border-radius:14px;">
+            ⚙️ Редактировать анкету
+          </button>
+        </div>
+      `;
+    } else if (hasMatch) {
+      const chatBtnText = isChatOpenForPartner ? "💬 Вернуться в чат" : "💬 Чат в приложении";
+
+      if (isTgUnlocked && tgUsername) {
+        const cleanTg = tgUsername.replace(/^@/, "").trim();
+        actionButtonsHtml = `
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <button type="button" class="btn-primary" id="btnOpenTelegramDirectDetails" style="width:100%;background:linear-gradient(135deg, #229ED9, #0088cc);color:#fff;font-weight:700;padding:14px;border-radius:14px;">
+              ✈️ Написать в Telegram (@${escapeHtml(cleanTg)})
+            </button>
+            <button type="button" class="btn-secondary" id="btnOpenChatFromDetails" style="width:100%;padding:13px;border-radius:14px;font-weight:600;">
+              ${chatBtnText}
+            </button>
+          </div>
+        `;
+      } else {
+        actionButtonsHtml = `
+          <button type="button" class="btn-primary" id="btnOpenChatFromDetails" style="width:100%;padding:14px;font-weight:700;border-radius:14px;">
+            ${chatBtnText}
+          </button>
+        `;
+      }
+    } else if (source !== "feed") {
+      actionButtonsHtml = `
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="background:var(--surface-subtle, #f1f5f9);color:var(--text-muted, #64748b);padding:12px 16px;border-radius:14px;font-size:13px;font-weight:500;text-align:center;line-height:1.4;">
+            ✨ Общение станет доступно после взаимного лайка в ленте свайпов
+          </div>
+          <button type="button" class="btn-primary" id="btnGoToExploreFromDetails" style="width:100%;padding:13px;border-radius:14px;font-weight:700;">
+            🔍 Искать анкеты в ленте
+          </button>
+        </div>
+      `;
+    }
+
+    // Additional actions: Rating transfer, Admin toolbar, Report
+    let additionalActionsHtml = "";
+    if (!isMe) {
+      additionalActionsHtml += `
+        <button type="button" class="btn-send-rating" id="sheetSendRatingBtn" data-alias-btn="matchSendRatingBtn">
+          <span class="btn-rating-icon">⭐</span>
+          <span class="btn-rating-text">Отправить рейтинг (+1 б.)</span>
+          <span class="btn-rating-balance" id="sheetRatingBalance">${state.currentUser?.superlike_balance || 0} ⭐</span>
+        </button>
+      `;
+    }
+
+    if (state.currentUser?.is_superadmin || state.currentUser?.id === 149620234) {
+      additionalActionsHtml += `
+        <div class="admin-quick-toolbar" style="padding:12px;background:#f8f9fe;border-radius:14px;border:1px dashed #6c5ce7;">
+          <div style="font-size:11px;font-weight:700;color:#6c5ce7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            👑 Панель управления (Superadmin)
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-primary" id="sheetAdminPremBtn" style="font-size:12px;padding:8px 12px;background:${profile.is_premium ? '#ff7675' : 'linear-gradient(135deg, #FFD700, #FFA500)'};color:#fff;border:none;">
+              ${profile.is_premium ? "💎 Снять Премиум" : "👑 Выдать Премиум (1 год)"}
+            </button>
+            <button class="btn-secondary" id="sheetAdminVerifyBtn" style="font-size:12px;padding:8px 12px;">
+              🎓 ${profile.is_verified ? "Снять статус" : "Верифицировать"}
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    if (!isMe) {
+      additionalActionsHtml += `
+        <button class="sheet-report-btn" id="sheetReportBtn">
+          🚩 Пожаловаться на анкету
+        </button>
+      `;
+    }
 
     body.innerHTML = `
       <div class="profile-view-wrapper">
@@ -1633,26 +1854,9 @@
         </div>
 
         <!-- White Content Card -->
-        <div class="profile-sheet-card">
-          <!-- Floating Action Buttons Cluster (Reference 2) -->
-          <div class="profile-floating-actions">
-            <button class="floating-action-btn dislike" id="candidateDislikeBtn" title="Пропустить">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="3" stroke-linecap="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-            <button class="floating-action-btn like" id="candidateLikeBtn" title="Лайк">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-              </svg>
-            </button>
-            <button class="floating-action-btn superlike" id="candidateSuperlikeBtn" title="Суперлайк">
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="#8B5CF6">
-                <path d="M12 2.5L15.09 8.76L22 9.77L17 14.64L18.18 21.5L12 18.25L5.82 21.5L7 14.64L2 9.77L8.91 8.76L12 2.5Z"/>
-              </svg>
-            </button>
-          </div>
+        <div class="profile-sheet-card ${showSwipeFloating ? '' : 'no-floating'}">
+          ${!showSwipeFloating ? '<div class="sheet-drag-pill"></div>' : ''}
+          ${floatingActionsHtml}
 
           <!-- Header: Name, Age, Subtitle & Airplane Button -->
           <div class="profile-header-row">
@@ -1660,16 +1864,12 @@
               <h2 class="profile-name-title">
                 ${escapeHtml(profile.name || "Студент")}${profile.age ? `, ${profile.age}` : ""}
                 ${profile.is_verified ? "🎓" : ""} ${profile.is_premium ? "💎" : ""}
-                <span class="sheet-rating-badge" id="sheetRatingBadge">⭐ <span id="sheetRatingVal">${profile.rating_score || 0}</span></span>
+                <span class="sheet-rating-badge match-rating-badge" id="sheetRatingBadge" data-alias-badge="matchRatingBadge">⭐ <span id="sheetRatingVal">${profile.rating_score || 0}</span></span>
               </h2>
               <p class="profile-role-subtitle">${escapeHtml(subtitleText)}</p>
+              ${onlineStatusHtml}
             </div>
-            <button class="profile-airplane-btn" id="candidateAirplaneBtn" title="Написать сообщение">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF4B6E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </button>
+            ${airplaneBtnHtml}
           </div>
 
           <!-- Section: Location -->
@@ -1723,39 +1923,25 @@
             </div>
           ` : ""}
 
-          <!-- Rating & Admin & Report Actions -->
+          <!-- Bottom Actions (Adaptive + Rating + Admin + Report) -->
           <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 12px;">
-            <button type="button" class="btn-send-rating" id="sheetSendRatingBtn">
-              <span class="btn-rating-icon">⭐</span>
-              <span class="btn-rating-text">Отправить рейтинг (+1 б.)</span>
-              <span class="btn-rating-balance" id="sheetRatingBalance">${state.currentUser?.superlike_balance || 0} ⭐</span>
-            </button>
-
-            ${state.currentUser?.is_superadmin || state.currentUser?.id === 149620234 ? `
-              <div class="admin-quick-toolbar" style="padding:12px;background:#f8f9fe;border-radius:14px;border:1px dashed #6c5ce7;">
-                <div style="font-size:11px;font-weight:700;color:#6c5ce7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-                  👑 Панель управления (Superadmin)
-                </div>
-                <div style="display:flex;gap:8px;">
-                  <button class="btn-primary" id="sheetAdminPremBtn" style="font-size:12px;padding:8px 12px;background:${profile.is_premium ? '#ff7675' : 'linear-gradient(135deg, #FFD700, #FFA500)'};color:#fff;border:none;">
-                    ${profile.is_premium ? "💎 Снять Премиум" : "👑 Выдать Премиум (1 год)"}
-                  </button>
-                  <button class="btn-secondary" id="sheetAdminVerifyBtn" style="font-size:12px;padding:8px 12px;">
-                    🎓 ${profile.is_verified ? "Снять статус" : "Верифицировать"}
-                  </button>
-                </div>
-              </div>
-            ` : ""}
-
-            <button class="sheet-report-btn" id="sheetReportBtn">
-              🚩 Пожаловаться на анкету
-            </button>
+            ${actionButtonsHtml}
+            ${additionalActionsHtml}
           </div>
         </div>
       </div>
     `;
 
     detailsSheetOverlay.classList.add("active");
+
+    // Telegram BackButton интеграция
+    if (tg?.BackButton) {
+      tg.BackButton.show();
+      if (chatScreenModal && chatScreenModal.style.display === "flex") {
+        tg.BackButton.offClick(closeChat);
+      }
+      tg.BackButton.onClick(closeDetailsSheet);
+    }
 
     // Setup hero slider gestures
     const heroWrap = document.getElementById("candidateHeroWrap");
@@ -1802,31 +1988,76 @@
 
     // Airplane / Direct message button
     document.getElementById("candidateAirplaneBtn")?.addEventListener("click", () => {
-      handleProfileMessageClick(profile);
+      if (isMe) return;
+      if (hasMatch) {
+        if (isChatOpenForPartner) {
+          closeDetailsSheet();
+          return;
+        }
+        closeDetailsSheet();
+        if (matchId) {
+          openChat(matchId);
+        } else {
+          switchTab("matches");
+        }
+      } else if (source === "feed") {
+        handleProfileMessageClick(profile);
+      } else {
+        showAppToast("✨ Общение станет доступно после взаимного лайка в ленте свайпов");
+      }
     });
 
-    // Reaction buttons
-    document.getElementById("candidateDislikeBtn")?.addEventListener("click", () => {
+    // Reaction buttons (Swipe Floating)
+    if (showSwipeFloating) {
+      document.getElementById("candidateDislikeBtn")?.addEventListener("click", () => {
+        closeDetailsSheet();
+        handleSwipeAction(profile, "skip");
+      });
+      document.getElementById("candidateSuperlikeBtn")?.addEventListener("click", () => {
+        closeDetailsSheet();
+        openSuperlikeModal(profile);
+      });
+      document.getElementById("candidateLikeBtn")?.addEventListener("click", () => {
+        closeDetailsSheet();
+        handleSwipeAction(profile, "like");
+      });
+    }
+
+    // Adaptive action buttons
+    document.getElementById("btnEditMyProfileFromDetails")?.addEventListener("click", () => {
       closeDetailsSheet();
-      handleSwipeAction(profile, "skip");
-    });
-    document.getElementById("candidateSuperlikeBtn")?.addEventListener("click", () => {
-      closeDetailsSheet();
-      openSuperlikeModal(profile);
-    });
-    document.getElementById("candidateLikeBtn")?.addEventListener("click", () => {
-      closeDetailsSheet();
-      handleSwipeAction(profile, "like");
+      switchTab("profile");
     });
 
-    // Rating and Report
-    document.getElementById("sheetSendRatingBtn")?.addEventListener("click", () => {
-      const targetUserId = profile.user_id || profile.id;
+    document.getElementById("btnGoToExploreFromDetails")?.addEventListener("click", () => {
+      closeDetailsSheet();
+      switchTab("explore");
+    });
+
+    document.getElementById("btnOpenTelegramDirectDetails")?.addEventListener("click", () => {
+      triggerHaptic("medium");
+      openTelegramContact(tgUsername);
+    });
+
+    document.getElementById("btnOpenChatFromDetails")?.addEventListener("click", () => {
+      closeDetailsSheet();
+      if (isChatOpenForPartner) {
+        return;
+      }
+      if (matchId) {
+        openChat(matchId);
+      } else {
+        switchTab("matches");
+      }
+    });
+
+    // Rating and Report (handles sheetSendRatingBtn and matchSendRatingBtn)
+    (document.getElementById("sheetSendRatingBtn") || document.getElementById("matchSendRatingBtn"))?.addEventListener("click", () => {
       handleSendRatingToUser(targetUserId, (newRating, remainingBalance) => {
         profile.rating_score = newRating;
-        const rVal = document.getElementById("sheetRatingVal");
+        const rVal = document.getElementById("sheetRatingVal") || document.getElementById("matchRatingVal");
         if (rVal) rVal.textContent = newRating;
-        const bTag = document.getElementById("sheetRatingBalance");
+        const bTag = document.getElementById("sheetRatingBalance") || document.getElementById("matchRatingBalance");
         if (bTag) bTag.textContent = `${remainingBalance} ⭐`;
         const topCardRating = document.querySelector(".card.top-card .card-rating-badge span");
         if (topCardRating) topCardRating.textContent = newRating;
@@ -1840,7 +2071,6 @@
 
     // Admin buttons
     if (state.currentUser?.is_superadmin || state.currentUser?.id === 149620234) {
-      const targetUserId = profile.user_id || profile.id;
       document.getElementById("sheetAdminPremBtn")?.addEventListener("click", async () => {
         triggerHaptic("medium");
         await window.adminUserAction(targetUserId, "grant_premium");
@@ -1866,8 +2096,24 @@
   }
 
   function closeDetailsSheet() {
+    triggerHaptic("light");
     detailsSheetOverlay.classList.remove("active");
+    if (chatScreenModal && chatScreenModal.style.display === "flex") {
+      if (tg?.BackButton) {
+        tg.BackButton.show();
+        tg.BackButton.offClick(closeDetailsSheet);
+        tg.BackButton.onClick(closeChat);
+      }
+    } else {
+      if (tg?.BackButton) {
+        tg.BackButton.offClick(closeDetailsSheet);
+        tg.BackButton.hide();
+      }
+    }
   }
+
+  window.openDetailsSheet = openDetailsSheet;
+  window.closeDetailsSheet = closeDetailsSheet;
 
   detailsSheetOverlay?.addEventListener("click", (e) => {
     if (e.target === detailsSheetOverlay) closeDetailsSheet();
@@ -2427,7 +2673,7 @@
             openChat(matchId);
           } else {
             const pid = item.dataset.partnerId;
-            openMatchFullProfile(pid);
+            openDetailsSheet(pid, { source: "match" });
           }
         });
       });
@@ -2436,204 +2682,19 @@
     }
   }
 
-  // 10. Открытие полной анкеты мэтча с защитой контактов Telegram
-  async function openMatchFullProfile(partnerId) {
-    triggerHaptic("medium");
-    const body = document.getElementById("matchProfileBody");
-    if (!body) return;
-    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Загрузка анкеты...</div>';
-    matchProfileModal.classList.add("active");
-
-    try {
-      const data = await apiFetch(`/api/webapp/user/${partnerId}`);
-      if (!data || !data.user) {
-        body.innerHTML = '<div style="text-align:center;padding:30px;color:red;">Не удалось загрузить анкету</div>';
-        return;
-      }
-      const u = data.user;
-      const photos = u.photos && u.photos.length > 0 ? u.photos : ["https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80"];
-      const gallery = photos.map((p) => `<img src="${p}" class="sheet-photo" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />`).join("");
-      const tags = (u.tags || []).map((t) => `<span class="card-tag">${t.emoji} ${t.name}</span>`).join("");
-
-      // Формируем блок действий в зависимости от статуса связи
-      let actionButtonsHtml = "";
-      if (u.is_me) {
-        actionButtonsHtml = `
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <div style="background:var(--surface-subtle, rgba(108,92,231,0.08));color:var(--primary, #6C5CE7);padding:10px 14px;border-radius:12px;font-size:13px;font-weight:600;text-align:center;">
-              👤 Это ваш профиль
-            </div>
-            <button type="button" class="btn-secondary" id="btnEditMyProfileFromModal" style="width:100%;">
-              ⚙️ Редактировать анкету
-            </button>
-          </div>
-        `;
-      } else if (!u.has_match) {
-        actionButtonsHtml = `
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <div style="background:var(--surface-subtle, #f1f5f9);color:var(--text-muted, #64748b);padding:10px 14px;border-radius:12px;font-size:13px;font-weight:500;text-align:center;line-height:1.4;">
-              ✨ Общение станет доступно после взаимного лайка в ленте свайпов
-            </div>
-            <button type="button" class="btn-primary" id="btnGoToExploreFromModal" style="width:100%;">
-              🔍 Искать анкеты в ленте
-            </button>
-          </div>
-        `;
-      } else if (u.is_tg_unlocked && u.tg_username) {
-        const cleanTg = u.tg_username.replace(/^@/, "").trim();
-        actionButtonsHtml = `
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            <button type="button" class="btn-primary" id="btnOpenTelegramDirect" style="width:100%;background:linear-gradient(135deg, #229ED9, #0088cc);color:#fff;font-weight:700;">
-              ✈️ Написать в Telegram (@${escapeHtml(cleanTg)})
-            </button>
-            <button type="button" class="btn-secondary" id="btnOpenChatFromProfile" style="width:100%;">
-              💬 Чат в приложении
-            </button>
-          </div>
-        `;
-      } else {
-        // Взаимная пара есть, но Telegram ещё не подтверждён обоюдно: ТОЛЬКО чат внутри приложения
-        actionButtonsHtml = `
-          <button type="button" class="btn-primary" id="btnOpenChatFromProfile" style="width:100%;">
-            💬 Открыть чат в приложении
-          </button>
-        `;
-      }
-
-      if (!u.is_me) {
-        actionButtonsHtml += `
-          <button type="button" class="btn-send-rating" id="matchSendRatingBtn">
-            <span class="btn-rating-icon">⭐</span>
-            <span class="btn-rating-text">Отправить рейтинг (+1 б.)</span>
-            <span class="btn-rating-balance" id="matchRatingBalance">${state.currentUser?.superlike_balance || 0} ⭐</span>
-          </button>
-        `;
-      }
-
-      body.innerHTML = `
-        <div class="sheet-gallery">${gallery}</div>
-        <div>
-          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">
-            <h2 style="font-size: 24px; font-weight: 800; margin: 0;">
-              ${escapeHtml(u.name)}, ${u.age || ""} ${u.is_verified ? "🎓" : ""} ${u.is_premium ? "💎" : ""}
-            </h2>
-            <span class="sheet-rating-badge" id="matchRatingBadge">⭐ <span id="matchRatingVal">${u.rating_score || 0}</span></span>
-          </div>
-          <p style="font-size: 14px; color: var(--text-muted);">
-            🏛 ${u.university || "ВУЗ"} ${u.major ? `• ${u.major}` : ""} ${u.year ? `• ${u.year} курс` : ""}
-          </p>
-        </div>
-
-        ${u.goal ? `
-          <div class="sheet-section">
-            <div class="sheet-section-title">О себе</div>
-            <p class="sheet-section-text">${escapeHtml(u.goal)}</p>
-          </div>
-        ` : ""}
-
-        ${tags ? `
-          <div class="sheet-section">
-            <div class="sheet-section-title">Интересы</div>
-            <div class="card-tags" style="margin-top:6px;">${tags}</div>
-          </div>
-        ` : ""}
-
-        ${state.currentUser?.is_superadmin || state.currentUser?.id === 149620234 ? `
-          <div class="admin-quick-toolbar" style="margin-top:14px;padding:12px;background:#f8f9fe;border-radius:14px;border:1px dashed #6c5ce7;">
-            <div style="font-size:11px;font-weight:700;color:#6c5ce7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-              👑 Панель управления (Superadmin)
-            </div>
-            <div style="display:flex;gap:8px;">
-              <button class="btn-primary" id="btnAdminMatchPrem-${u.id || u.user_id}" style="font-size:12px;padding:8px 12px;background:${u.is_premium ? '#ff7675' : 'linear-gradient(135deg, #FFD700, #FFA500)'};color:#fff;border:none;">
-                ${u.is_premium ? "💎 Снять Премиум" : "👑 Выдать Премиум (1 год)"}
-              </button>
-              <button class="btn-secondary" id="btnAdminMatchVerify-${u.id || u.user_id}" style="font-size:12px;padding:8px 12px;">
-                🎓 ${u.is_verified ? "Снять статус" : "Верифицировать"}
-              </button>
-            </div>
-          </div>
-        ` : ""}
-
-        <div style="margin-top: 16px;">
-          ${actionButtonsHtml}
-        </div>
-      `;
-
-      document.getElementById("matchSendRatingBtn")?.addEventListener("click", () => {
-        const targetUserId = u.id || u.user_id || partnerId;
-        handleSendRatingToUser(targetUserId, (newRating, remainingBalance) => {
-          u.rating_score = newRating;
-          const rVal = document.getElementById("matchRatingVal");
-          if (rVal) rVal.textContent = newRating;
-          const bTag = document.getElementById("matchRatingBalance");
-          if (bTag) bTag.textContent = `${remainingBalance} ⭐`;
-        });
-      });
-
-      document.getElementById("btnOpenTelegramDirect")?.addEventListener("click", () => {
-        triggerHaptic("medium");
-        openTelegramContact(u.tg_username);
-      });
-
-      document.getElementById("btnOpenChatFromProfile")?.addEventListener("click", () => {
-        matchProfileModal.classList.remove("active");
-        const matchIdToOpen = u.match_id || (state.matches || []).find(m => String(m.user_id) === String(partnerId))?.match_id;
-        if (matchIdToOpen) {
-          openChat(matchIdToOpen);
-        } else {
-          switchTab("matches");
-        }
-      });
-
-      document.getElementById("btnEditMyProfileFromModal")?.addEventListener("click", () => {
-        matchProfileModal.classList.remove("active");
-        switchTab("profile");
-      });
-
-      document.getElementById("btnGoToExploreFromModal")?.addEventListener("click", () => {
-        matchProfileModal.classList.remove("active");
-        switchTab("explore");
-      });
-
-      if (state.currentUser?.is_superadmin || state.currentUser?.id === 149620234) {
-        const targetUserId = u.id || u.user_id;
-        document.getElementById(`btnAdminMatchPrem-${targetUserId}`)?.addEventListener("click", async () => {
-          triggerHaptic("medium");
-          await window.adminUserAction(targetUserId, "grant_premium");
-          u.is_premium = !u.is_premium;
-          const btn = document.getElementById(`btnAdminMatchPrem-${targetUserId}`);
-          if (btn) {
-            btn.innerHTML = u.is_premium ? "💎 Снять Премиум" : "👑 Выдать Премиум (1 год)";
-            btn.style.background = u.is_premium ? "#ff7675" : "linear-gradient(135deg, #FFD700, #FFA500)";
-          }
-          await loadStories();
-        });
-        document.getElementById(`btnAdminMatchVerify-${targetUserId}`)?.addEventListener("click", async () => {
-          triggerHaptic("medium");
-          await window.adminUserAction(targetUserId, "grant_verified");
-          u.is_verified = !u.is_verified;
-          const btn = document.getElementById(`btnAdminMatchVerify-${targetUserId}`);
-          if (btn) {
-            btn.innerHTML = `🎓 ${u.is_verified ? "Снять статус" : "Верифицировать"}`;
-          }
-          await loadStories();
-        });
-      }
-    } catch (e) {
-      body.innerHTML = '<div style="text-align:center;padding:30px;color:red;">Ошибка загрузки анкеты</div>';
-    }
+  // 10. Открытие полной анкеты мэтча (алиас к универсальной карточке openDetailsSheet)
+  async function openMatchFullProfile(partnerId, options = {}) {
+    return openDetailsSheet(partnerId, { source: "match", ...options });
   }
+  window.openMatchFullProfile = openMatchFullProfile;
 
   // ─── 11. In-App Chat Controller & Real-Time Engine ─────────────
-  let currentChatMatchId = null;
-  let currentChatPartner = null;
   let currentChatMatchData = null;
   let chatWebSocket = null;
   let typingTimer = null;
   let isSendingTyping = false;
   let chatPingInterval = null;
 
-  const chatScreenModal = document.getElementById("chatScreenModal");
   const chatBackBtn = document.getElementById("chatBackBtn");
   const chatPartnerHeaderProfile = document.getElementById("chatPartnerHeaderProfile");
   const chatPartnerAvatar = document.getElementById("chatPartnerAvatar");
@@ -3236,7 +3297,7 @@
   if (chatPartnerHeaderProfile) {
     chatPartnerHeaderProfile.addEventListener("click", () => {
       if (currentChatPartner?.id) {
-        openMatchFullProfile(currentChatPartner.id);
+        openDetailsSheet(currentChatPartner.id, { source: "chat" });
       }
     });
   }
@@ -3258,7 +3319,7 @@
     chatActionViewProfile.addEventListener("click", () => {
       if (chatDropdownMenu) chatDropdownMenu.style.display = "none";
       if (currentChatPartner?.id) {
-        openMatchFullProfile(currentChatPartner.id);
+        openDetailsSheet(currentChatPartner.id, { source: "chat" });
       }
     });
   }
@@ -4422,12 +4483,12 @@
     // Full profile modal click handlers
     const detailsBtn = card.querySelector(".btn-career-details");
     detailsBtn?.addEventListener("click", () => {
-      openMatchFullProfile(cand.user_id);
+      openDetailsSheet(cand.user_id, { source: "career" });
     });
 
     const bannerImg = card.querySelector(".career-card-banner");
     bannerImg?.addEventListener("click", () => {
-      openMatchFullProfile(cand.user_id);
+      openDetailsSheet(cand.user_id, { source: "career" });
     });
 
     return card;
@@ -4755,7 +4816,7 @@
       podium.querySelectorAll(".podium-col[data-user-id]").forEach((el) => {
         el.addEventListener("click", () => {
           const uid = parseInt(el.getAttribute("data-user-id"));
-          if (uid) openMatchFullProfile(uid);
+          if (uid) openDetailsSheet(uid, { source: "hall" });
         });
       });
     }
@@ -4799,7 +4860,7 @@
         list.querySelectorAll(".hall-card[data-user-id]").forEach((el) => {
           el.addEventListener("click", () => {
             const uid = parseInt(el.getAttribute("data-user-id"));
-            if (uid) openMatchFullProfile(uid);
+            if (uid) openDetailsSheet(uid, { source: "hall" });
           });
         });
       }
