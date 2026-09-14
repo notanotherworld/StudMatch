@@ -217,7 +217,7 @@ async def run_tests():
     assert "projects" in feed_data
     print(f"✅ WebApp API: GET /api/webapp/projects/feed вернул {len(feed_data['projects'])} проектов.")
 
-    # Создание проекта фаундером через WebApp API
+    # Создание проекта фаундером через WebApp API со строковыми ролями и пустыми полями (как из WebApp формы)
     res_create = client.post(
         "/api/webapp/projects",
         headers={"Authorization": f"Bearer {founder_token}"},
@@ -226,15 +226,17 @@ async def run_tests():
             "pitch": "Сеть студенческих кофепоинтов с коворкингом",
             "description": "Поиск инвестиций и открытие первых точек в корпусах университета.",
             "stage": "idea",
-            "required_roles": ["Бариста", "Управляющий"],
-            "conditions": "equity",
+            "required_roles": "Бариста, Управляющий, SMM",
+            "conditions": "За долю в стартапе (Equity)",
+            "demo_url": "",
+            "pitchdeck_url": "",
         },
     )
     assert res_create.status_code == 200, f"create failed: {res_create.text}"
     created_proj_data = res_create.json()
     assert "project_id" in created_proj_data
     new_proj_id = created_proj_data["project_id"]
-    print(f"✅ WebApp API: POST /api/webapp/projects успешно создал проект (ID: {new_proj_id}).")
+    print(f"✅ WebApp API: POST /api/webapp/projects успешно создал проект с строковыми ролями (ID: {new_proj_id}).")
 
     # Получение списка "Мои проекты"
     res_my = client.get(

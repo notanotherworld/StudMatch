@@ -148,7 +148,13 @@
       await authenticateUser();
       return;
     }
-    return await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (e) {
+      data = { status: "error", detail: `Ошибка ответа сервера (${res.status})` };
+    }
+    return data;
   }
 
   let isAuthenticating = false;
@@ -459,6 +465,16 @@
     }
   }
 
+  function parseRolesList(roles) {
+    if (Array.isArray(roles)) {
+      return roles.map((r) => String(r).trim()).filter(Boolean);
+    }
+    if (typeof roles === "string") {
+      return roles.split(",").map((r) => r.trim()).filter(Boolean);
+    }
+    return [];
+  }
+
   function showAppToast(message, duration = 3000) {
     let toast = document.getElementById("appGlobalToast");
     if (!toast) {
@@ -467,7 +483,37 @@
       toast.className = "app-toast";
       document.body.appendChild(toast);
     }
-    toast.innerHTML = message;
+
+    let displayMsg = message;
+    if (typeof message === "object" && message !== null) {
+      if (Array.isArray(message)) {
+        displayMsg = message.map((m) => {
+          if (typeof m === "object" && m !== null) {
+            const field = m.loc && m.loc.length ? `(${m.loc[m.loc.length - 1]}): ` : "";
+            return `${field}${m.msg || m.message || JSON.stringify(m)}`;
+          }
+          return String(m);
+        }).join("; ");
+      } else if (message.detail) {
+        if (Array.isArray(message.detail)) {
+          displayMsg = message.detail.map((m) => {
+            if (typeof m === "object" && m !== null) {
+              const field = m.loc && m.loc.length ? `(${m.loc[m.loc.length - 1]}): ` : "";
+              return `${field}${m.msg || m.message || JSON.stringify(m)}`;
+            }
+            return String(m);
+          }).join("; ");
+        } else {
+          displayMsg = String(message.detail);
+        }
+      } else if (message.msg || message.message) {
+        displayMsg = message.msg || message.message;
+      } else {
+        displayMsg = JSON.stringify(message);
+      }
+    }
+
+    toast.textContent = displayMsg || "Произошла ошибка";
     toast.classList.add("visible");
     triggerHaptic("success");
 
@@ -1297,10 +1343,7 @@
     const stageInfo = stageMap[project.stage] || { label: "💡 Проект", cls: "stage-idea" };
     const coverUrl = project.cover_url || "/static/webapp/assets/mascot_hero_3d.jpg?v=20260904_29";
 
-    const rolesList = (project.required_roles || "")
-      .split(",")
-      .map((r) => r.trim())
-      .filter(Boolean);
+    const rolesList = parseRolesList(project.required_roles);
     const rolesHtml = rolesList.length > 0
       ? `<div class="project-roles-tags" style="margin:6px 0;">
            ${rolesList.slice(0, 4).map((r) => `<span class="project-role-tag">#${escapeHtml(r)}</span>`).join("")}
@@ -5760,10 +5803,7 @@
     };
     const stageInfo = stageMap[proj.stage] || { label: "💡 Проект", cls: "stage-idea" };
 
-    const rolesList = (proj.required_roles || "")
-      .split(",")
-      .map((r) => r.trim())
-      .filter(Boolean);
+    const rolesList = parseRolesList(proj.required_roles);
     const rolesHtml = rolesList.map((r) => `<span class="project-role-tag">#${escapeHtml(r)}</span>`).join("");
 
     const founder = proj.founder || {};
@@ -5909,7 +5949,7 @@
 
     const rolesContainer = document.getElementById("detailProjectRoles");
     if (rolesContainer) {
-      const roles = (proj.required_roles || "").split(",").map((r) => r.trim()).filter(Boolean);
+      const roles = parseRolesList(proj.required_roles);
       rolesContainer.innerHTML = roles.map((r) => `<span class="project-role-tag">#${escapeHtml(r)}</span>`).join("");
     }
 
@@ -6205,7 +6245,11 @@
       if (descInput) descInput.value = projectToEdit.description || "";
       if (stageSelect) stageSelect.value = projectToEdit.stage || "idea";
       if (condSelect) condSelect.value = projectToEdit.conditions || "За опыт / pet-проект";
-      if (rolesInput) rolesInput.value = projectToEdit.required_roles || "";
+      if (rolesInput) {
+        rolesInput.value = Array.isArray(projectToEdit.required_roles)
+          ? projectToEdit.required_roles.join(", ")
+          : (projectToEdit.required_roles || "");
+      }
       if (demoInput) demoInput.value = projectToEdit.demo_url || "";
       if (deckUrlInput) deckUrlInput.value = projectToEdit.pitchdeck_url || "";
       if (deckNameEl) {
@@ -6237,9 +6281,10 @@
     const description = document.getElementById("projectInputDesc")?.value.trim() || "";
     const stage = document.getElementById("projectInputStage")?.value || "idea";
     const conditions = document.getElementById("projectInputConditions")?.value || "За опыт / pet-проект";
-    const required_roles = document.getElementById("projectInputRoles")?.value.trim() || "";
-    const demo_url = document.getElementById("projectInputDemo")?.value.trim() || "";
-    const pitchdeck_url = document.getElementById("projectInputDeckUrl")?.value.trim() || "";
+    const rawRoles = document.getElementById("projectInputRoles")?.value.trim() || "";
+    const required_roles = rawRoles ? rawRoles.split(",").map((r) => r.trim()).filter(Boolean) : [];
+    const demo_url = document.getElementById("projectInputDemo")?.value.trim() || null;
+    const pitchdeck_url = document.getElementById("projectInputDeckUrl")?.value.trim() || null;
     const saveBtn = document.getElementById("saveProjectBtn");
 
     if (!title) {

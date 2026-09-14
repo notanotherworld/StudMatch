@@ -7,7 +7,7 @@ import hashlib
 import json
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List, Dict, Any, Set, Tuple
+from typing import Optional, List, Dict, Any, Set, Tuple, Union
 from urllib.parse import parse_qsl
 
 import os
@@ -15,7 +15,7 @@ import aiohttp
 from fastapi import APIRouter, Request, Depends, HTTPException, Header, Response, Query, WebSocket, WebSocketDisconnect, File, UploadFile, Form
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc, func
 from sqlalchemy.orm import selectinload
@@ -2058,11 +2058,27 @@ class ProjectCreateRequest(BaseModel):
     pitch: str
     description: str
     stage: Optional[str] = "idea"
-    required_roles: Optional[List[str]] = []
+    required_roles: Optional[Union[List[str], str]] = []
     conditions: Optional[str] = None
     demo_url: Optional[str] = None
     pitchdeck_url: Optional[str] = None
     cover_url: Optional[str] = None
+
+    @field_validator("required_roles", mode="before")
+    @classmethod
+    def parse_required_roles(cls, v):
+        if isinstance(v, str):
+            return [r.strip() for r in v.split(",") if r.strip()]
+        if isinstance(v, list):
+            return [str(r).strip() for r in v if str(r).strip()]
+        return []
+
+    @field_validator("demo_url", "pitchdeck_url", "cover_url", "conditions", mode="before")
+    @classmethod
+    def clean_empty_strings(cls, v):
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 class ProjectSwipeRequest(BaseModel):
