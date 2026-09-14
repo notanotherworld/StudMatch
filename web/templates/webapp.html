@@ -641,6 +641,134 @@
         </button>
       </div>
     </div>
+  <!-- STUDMATCH: Unified Profile Edit Modal (Dating & Career Tabs) -->
+  <div class="modal-overlay" id="profileEditModal">
+    <div class="modal-card profile-edit-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-title-icon">✏️</span>
+          <h3 class="modal-title">Редактирование профиля</h3>
+        </div>
+        <button class="modal-close-btn" id="profileEditCloseBtn" aria-label="Закрыть">✕</button>
+      </div>
+
+      <!-- Tabs: Dating vs Career -->
+      <div class="profile-edit-tabs">
+        <button type="button" class="profile-edit-tab-btn active" data-edit-tab="dating">
+          ❤️ Знакомства
+        </button>
+        <button type="button" class="profile-edit-tab-btn" data-edit-tab="career">
+          💼 Карьера
+        </button>
+      </div>
+
+      <div class="modal-body profile-edit-modal-body">
+        <!-- Tab 1: Dating Profile -->
+        <div class="profile-edit-pane active" id="paneEditDating">
+          <div class="filter-group">
+            <label class="filter-label" for="editDatingName">👤 Имя:</label>
+            <input type="text" id="editDatingName" class="filter-input" placeholder="Ваше имя" maxlength="100" />
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="filter-group">
+              <label class="filter-label" for="editDatingAge">🎂 Возраст:</label>
+              <input type="number" id="editDatingAge" class="filter-input" min="16" max="35" placeholder="18" />
+            </div>
+            <div class="filter-group">
+              <label class="filter-label" for="editDatingYear">🎓 Курс (1–6):</label>
+              <select id="editDatingYear" class="filter-select">
+                <option value="1">1 курс (бакалавриат)</option>
+                <option value="2">2 курс (бакалавриат)</option>
+                <option value="3">3 курс (бакалавриат)</option>
+                <option value="4">4 курс (выпускник)</option>
+                <option value="5">1 курс (магистратура)</option>
+                <option value="6">2 курс (магистратура)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label" for="editDatingMajor">🏛 Факультет / Направление:</label>
+            <input type="text" id="editDatingMajor" class="filter-input" placeholder="Например: Экономика, ИТ, Юриспруденция" maxlength="200" />
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="filter-group">
+              <label class="filter-label">👫 Ваш пол:</label>
+              <div class="gender-filter-pills" id="editDatingGenderPills">
+                <button type="button" class="gender-pill active" data-gender="male">👨 Парень</button>
+                <button type="button" class="gender-pill" data-gender="female">👩 Девушка</button>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">🔍 Кого ищете:</label>
+              <div class="gender-filter-pills" id="editDatingTargetGenderPills">
+                <button type="button" class="gender-pill" data-target="female">👩 Девушек</button>
+                <button type="button" class="gender-pill" data-target="male">👨 Парней</button>
+                <button type="button" class="gender-pill active" data-target="all">✨ Всех</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label" for="editDatingGoal">📝 О себе / Цель знакомства:</label>
+            <textarea id="editDatingGoal" class="career-textarea" rows="3" placeholder="Расскажите о себе, хобби или кого хотите найти..." maxlength="1000"></textarea>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">🏷️ Интересы (выберите теги):</label>
+            <div class="edit-tags-cloud" id="editDatingTagsCloud">
+              <!-- Dynamically populated tags with emoji -->
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label" for="editDatingCustomInterests">✨ Свои интересы (через запятую):</label>
+            <input type="text" id="editDatingCustomInterests" class="filter-input" placeholder="Кофе, настолки, винил, хакатоны..." maxlength="255" />
+          </div>
+        </div>
+
+        <!-- Tab 2: Career Profile -->
+        <div class="profile-edit-pane" id="paneEditCareer">
+          <p class="career-modal-subtitle">
+            Настройте профессиональную анкету для ленты нетворкинга и предложений работодателей.
+          </p>
+
+          <div class="filter-group">
+            <label class="filter-label" for="editCareerGoal">🎯 Карьерная цель / О себе:</label>
+            <textarea id="editCareerGoal" class="career-textarea" rows="3" placeholder="Например: Ищу стажировку Backend разработчиком в Финтех 🚀"></textarea>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label" for="editCareerSkills">💻 Стек и навыки (через запятую):</label>
+            <input type="text" id="editCareerSkills" class="filter-input" placeholder="Python, FastAPI, Docker, SQL, React" />
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label" for="editCareerFormat">🏢 Предпочтительный формат работы:</label>
+            <select id="editCareerFormat" class="filter-select">
+              <option value="Удалённо">🟢 Удалённо</option>
+              <option value="Гибрид">🟡 Гибридный формат</option>
+              <option value="Офис">🏢 Только офис</option>
+              <option value="Стажировка">🎓 Летняя/осенняя стажировка</option>
+              <option value="Проект / Хакатон">🚀 Проектная работа / Хакатоны</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label" for="editCareerPortfolio">🔗 Ссылка на резюме / GitHub / Behance:</label>
+            <input type="url" id="editCareerPortfolio" class="filter-input" placeholder="https://github.com/username или ссылка на hh.ru" />
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-primary" id="saveProfileEditBtn" style="width: 100%; padding: 14px; font-weight: 700; border-radius: 14px;">
+          💾 Сохранить изменения
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Maintenance Info Modal / Stub -->

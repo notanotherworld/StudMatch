@@ -32,7 +32,7 @@ from database.models import (
     Report, ReportStatus, UserPrivacy,
 )
 from database.crud import (
-    get_user, get_profile, get_next_profile, create_swipe,
+    get_user, get_profile, get_or_create_profile, get_next_profile, create_swipe,
     get_user_matches, get_incoming_likes, get_incoming_likes_count,
     deduct_superlike, get_match_by_id, get_chat_messages, create_chat_message,
     mark_chat_messages_as_read, get_unread_messages_count, get_last_chat_message,
@@ -1262,8 +1262,14 @@ async def webapp_profile(
     career_avatar_url = resolve_photo_url(p.career_avatar_file_id) if (p and p.career_avatar_file_id) else None
 
     tags = []
-    if p and p.interest_ids:
-        tag_res = await db.execute(select(InterestTag).where(InterestTag.id.in_(p.interest_ids)))
+    tag_ids = p.interest_ids if (p and p.interest_ids) else []
+    if isinstance(tag_ids, str):
+        try:
+            tag_ids = json.loads(tag_ids)
+        except Exception:
+            tag_ids = []
+    if tag_ids:
+        tag_res = await db.execute(select(InterestTag).where(InterestTag.id.in_(tag_ids)))
         for t in tag_res.scalars().all():
             tags.append({"id": t.id, "name": t.name, "emoji": t.emoji})
 
@@ -1317,6 +1323,11 @@ async def webapp_profile(
             "goal": p.goal if p else "",
             "custom_interests": p.custom_interests if p else "",
             "tags": tags,
+            "interest_ids": (
+                json.loads(p.interest_ids) if (p and isinstance(p.interest_ids, str)) else (list(p.interest_ids) if (p and p.interest_ids) else [])
+            ),
+            "gender": p.gender if p else None,
+            "target_gender": p.target_gender if p else "all",
             "photos": photo_urls,
             "raw_photos": raw_photos,
             "career_avatar_url": career_avatar_url,
@@ -1338,6 +1349,140 @@ async def webapp_profile(
             },
         }
     }
+
+
+# ─── API: Редактирование профиля студента ───────────────────
+class ProfileUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    age: Optional[int] = None
+    year: Optional[int] = None
+    major: Optional[str] = None
+    goal: Optional[str] = None
+    custom_interests: Optional[str] = None
+    interest_ids: Optional[List[int]] = None
+    gender: Optional[str] = None
+    target_gender: Optional[str] = None
+    career_goal: Optional[str] = None
+    career_custom_skills: Optional[str] = None
+    career_work_format: Optional[str] = None
+    career_portfolio_url: Optional[str] = None
+
+
+@router.get("/api/webapp/tags")
+async def webapp_get_tags(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Список всех доступных тегов интересов."""
+    res = await db.execute(select(InterestTag).order_by(InterestTag.id))
+    tags = [{"id": t.id, "name": t.name, "emoji": t.emoji} for t in res.scalars().all()]
+    return {"status": "ok", "tags": tags}
+
+
+@router.post("/api/webapp/profile")
+@router.put("/api/webapp/profile")
+async def webapp_update_profile(
+    body: ProfileUpdateRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновление личных данных анкеты студента из миниаппа."""
+    p = student.profile if "profile" in student.__dict__ else None
+    if p is None:
+        p = await get_profile(db, student.id)
+    if not p:
+        p = await get_or_create_profile(db, user_id=student.id)
+
+    if body.name is not None:
+        clean_name = body.name.strip()
+        if not clean_name:
+            raise HTTPException(status_code=400, detail="Имя не может быть пустым")
+        if len(clean_name) > 100:
+            raise HTTPException(status_code=400, detail="Имя слишком длинное (макс. 100 символов)")
+        p.name = clean_name
+
+    if body.age is not None:
+        if body.age < 16 or body.age > 35:
+            raise HTTPException(status_code=400, detail="Возраст должен быть от 16 до 35 лет")
+        p.age = body.age
+
+    if body.year is not None:
+        if body.year < 1 or body.year > 6:
+            raise HTTPException(status_code=400, detail="Курс должен быть от 1 до 6")
+        p.year = body.year
+
+    if body.major is not None:
+        p.major = body.major.strip()[:200]
+
+    if body.goal is not None:
+        p.goal = body.goal.strip()[:2000]
+
+    if body.custom_interests is not None:
+        p.custom_interests = body.custom_interests.strip()[:500]
+
+    if body.gender is not None:
+        if body.gender in ("male", "female"):
+            p.gender = body.gender
+
+    if body.target_gender is not None:
+        if body.target_gender in ("male", "female", "all"):
+            p.target_gender = body.target_gender
+
+    if body.interest_ids is not None:
+        if body.interest_ids:
+            res_tags = await db.execute(select(InterestTag.id).where(InterestTag.id.in_(body.interest_ids)))
+            p.interest_ids = list(res_tags.scalars().all())
+        else:
+            p.interest_ids = []
+
+    # Карьерная анкета
+    if body.career_goal is not None:
+        p.career_goal = body.career_goal.strip()[:2000]
+    if body.career_custom_skills is not None:
+        p.career_custom_skills = body.career_custom_skills.strip()[:500]
+    if body.career_work_format is not None:
+        p.career_work_format = body.career_work_format.strip()[:100]
+    if body.career_portfolio_url is not None:
+        p.career_portfolio_url = body.career_portfolio_url.strip()[:500]
+
+    if p.career_goal or p.career_custom_skills:
+        p.career_is_complete = True
+
+    p.is_complete = bool(p.name and p.year and p.major and (p.photos or p.avatar_file_id))
+    await db.commit()
+    await db.refresh(p)
+
+    raw_interest_ids = p.interest_ids
+    if isinstance(raw_interest_ids, str):
+        try:
+            raw_interest_ids = json.loads(raw_interest_ids)
+        except Exception:
+            raw_interest_ids = []
+    elif not isinstance(raw_interest_ids, list):
+        raw_interest_ids = list(raw_interest_ids) if raw_interest_ids else []
+
+    return {
+        "status": "ok",
+        "message": "Анкета успешно сохранена",
+        "profile": {
+            "name": p.name,
+            "age": p.age,
+            "year": p.year,
+            "major": p.major,
+            "goal": p.goal,
+            "custom_interests": p.custom_interests,
+            "interest_ids": raw_interest_ids,
+            "gender": p.gender,
+            "target_gender": p.target_gender,
+            "career_goal": p.career_goal,
+            "career_custom_skills": p.career_custom_skills,
+            "career_work_format": p.career_work_format,
+            "career_portfolio_url": p.career_portfolio_url,
+            "career_is_complete": p.career_is_complete,
+            "is_complete": p.is_complete,
+        }
+    }
+
 
 
 # ─── API: Загрузка и удаление фото профиля ──────────────────
@@ -1984,8 +2129,14 @@ async def webapp_get_user_details(
         career_photos = [DEFAULT_FALLBACK_AVATAR]
 
     tags = []
-    if p and p.interest_ids:
-        tag_res = await db.execute(select(InterestTag).where(InterestTag.id.in_(p.interest_ids)))
+    tag_ids = p.interest_ids if (p and p.interest_ids) else []
+    if isinstance(tag_ids, str):
+        try:
+            tag_ids = json.loads(tag_ids)
+        except Exception:
+            tag_ids = []
+    if tag_ids:
+        tag_res = await db.execute(select(InterestTag).where(InterestTag.id.in_(tag_ids)))
         for t in tag_res.scalars().all():
             tags.append({"id": t.id, "name": t.name, "emoji": t.emoji})
 

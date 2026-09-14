@@ -5876,6 +5876,128 @@ img, video, canvas {
   background: #FEE2E2;
 }
 
+/* ─── Unified Profile Edit Modal ────────────────────────────── */
+.profile-edit-modal-card {
+  max-width: 440px;
+  max-height: calc(var(--tg-viewport-height, 100dvh) - 30px);
+}
 
+.profile-edit-tabs {
+  display: flex;
+  background: #F1F3F8;
+  border-radius: 16px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
 
+.profile-edit-tab-btn {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
 
+.profile-edit-tab-btn:hover {
+  color: var(--text-main);
+}
+
+.profile-edit-tab-btn.active {
+  background: #FFFFFF;
+  color: var(--text-main);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+.profile-edit-modal-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  padding-right: 4px;
+}
+
+.profile-edit-pane {
+  display: none;
+}
+
+.profile-edit-pane.active {
+  display: block;
+}
+
+.edit-tags-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  max-height: 140px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  background: #F9FAFB;
+}
+
+.edit-tag-chip {
+  padding: 5px 11px;
+  border-radius: 20px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.edit-tag-chip:active {
+  transform: scale(0.95);
+}
+
+.edit-tag-chip.selected {
+  background: var(--primary-gradient, linear-gradient(135deg, #FF6584 0%, #6C5CE7 100%));
+  color: #FFFFFF;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+}
+
+.career-modal-subtitle {
+  font-size: 13px;
+  color: #64748B;
+  line-height: 1.45;
+  margin-bottom: 14px;
+  background: #F8FAFC;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+}
+
+.career-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border-light);
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+  background: #FDFDFD;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.career-textarea:focus {
+  border-color: var(--primary);
+}

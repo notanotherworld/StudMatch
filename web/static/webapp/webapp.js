@@ -2026,7 +2026,7 @@
     // Adaptive action buttons
     document.getElementById("btnEditMyProfileFromDetails")?.addEventListener("click", () => {
       closeDetailsSheet();
-      switchTab("profile");
+      openProfileEditModal("dating");
     });
 
     document.getElementById("btnGoToExploreFromDetails")?.addEventListener("click", () => {
@@ -2304,6 +2304,7 @@
     });
 
     setupPrivacyListeners();
+    setupProfileEditListeners();
   }
 
   // 7.1. Модальное окно настроек приватности профиля
@@ -2529,6 +2530,266 @@
 
     // Save button
     document.getElementById("savePrivacyBtn")?.addEventListener("click", savePrivacySettings);
+  }
+
+  // 7.2. Модальное окно редактирования профиля (Знакомства + Карьера)
+  let cachedInterestTags = null;
+
+  async function openProfileEditModal(initialTab = null) {
+    triggerHaptic("medium");
+    const modal = document.getElementById("profileEditModal");
+    if (!modal) return;
+
+    const u = state.currentUser || {};
+
+    // 1. Установка активной вкладки (dating или career)
+    let activeTab = initialTab;
+    if (!activeTab) {
+      activeTab = (u.mode === "career") ? "career" : "dating";
+    }
+    switchProfileEditTab(activeTab);
+
+    // 2. Заполнение полей Знакомств
+    const nameInput = document.getElementById("editDatingName");
+    const ageInput = document.getElementById("editDatingAge");
+    const yearSelect = document.getElementById("editDatingYear");
+    const majorInput = document.getElementById("editDatingMajor");
+    const goalInput = document.getElementById("editDatingGoal");
+    const customInterestsInput = document.getElementById("editDatingCustomInterests");
+
+    if (nameInput) nameInput.value = u.name || "";
+    if (ageInput) ageInput.value = u.age || "";
+    if (yearSelect) yearSelect.value = String(u.year || 1);
+    if (majorInput) majorInput.value = u.major || "";
+    if (goalInput) goalInput.value = u.goal || "";
+    if (customInterestsInput) customInterestsInput.value = u.custom_interests || "";
+
+    // Пол (Gender pills)
+    const userGender = u.gender || "male";
+    document.querySelectorAll("#editDatingGenderPills .gender-pill").forEach((pill) => {
+      pill.classList.toggle("active", pill.dataset.gender === userGender);
+    });
+
+    // Кого ищете (Target gender pills)
+    const targetGender = u.target_gender || "all";
+    document.querySelectorAll("#editDatingTargetGenderPills .gender-pill").forEach((pill) => {
+      pill.classList.toggle("active", pill.dataset.target === targetGender);
+    });
+
+    // Теги интересов
+    await renderProfileEditTags(u);
+
+    // 3. Заполнение полей Карьеры
+    const careerGoalInput = document.getElementById("editCareerGoal");
+    const careerSkillsInput = document.getElementById("editCareerSkills");
+    const careerFormatSelect = document.getElementById("editCareerFormat");
+    const careerPortfolioInput = document.getElementById("editCareerPortfolio");
+
+    if (careerGoalInput) careerGoalInput.value = u.career_goal || "";
+    if (careerSkillsInput) careerSkillsInput.value = u.career_custom_skills || "";
+    if (careerFormatSelect) careerFormatSelect.value = u.career_work_format || "Удалённо";
+    if (careerPortfolioInput) careerPortfolioInput.value = u.career_portfolio_url || "";
+
+    modal.classList.add("active");
+  }
+
+  function closeProfileEditModal() {
+    triggerHaptic("light");
+    const modal = document.getElementById("profileEditModal");
+    if (modal) modal.classList.remove("active");
+  }
+
+  function switchProfileEditTab(tabName) {
+    document.querySelectorAll(".profile-edit-tab-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.editTab === tabName);
+    });
+    const datingPane = document.getElementById("paneEditDating");
+    const careerPane = document.getElementById("paneEditCareer");
+    if (datingPane) datingPane.classList.toggle("active", tabName === "dating");
+    if (careerPane) careerPane.classList.toggle("active", tabName === "career");
+  }
+
+  async function renderProfileEditTags(u) {
+    const cloud = document.getElementById("editDatingTagsCloud");
+    if (!cloud) return;
+
+    if (!cachedInterestTags) {
+      try {
+        const res = await apiFetch("/api/webapp/tags");
+        if (res && res.tags) {
+          cachedInterestTags = res.tags;
+        }
+      } catch (err) {
+        console.warn("Failed to load interest tags:", err);
+      }
+    }
+
+    const tags = cachedInterestTags || [];
+    const currentTagIds = new Set();
+    if (Array.isArray(u.interest_ids)) {
+      u.interest_ids.forEach((id) => currentTagIds.add(Number(id)));
+    } else if (Array.isArray(u.tags)) {
+      u.tags.forEach((t) => {
+        if (typeof t === "object" && t.id) currentTagIds.add(Number(t.id));
+      });
+    }
+
+    if (tags.length === 0) {
+      cloud.innerHTML = `<span style="font-size:12px;color:var(--text-muted);padding:4px;">Теги загружаются...</span>`;
+      return;
+    }
+
+    cloud.innerHTML = tags.map((t) => {
+      const isSelected = currentTagIds.has(Number(t.id));
+      return `
+        <button type="button" class="edit-tag-chip ${isSelected ? 'selected' : ''}" data-tag-id="${t.id}">
+          ${escapeHtml(t.emoji || "✨")} ${escapeHtml(t.name)}
+        </button>
+      `;
+    }).join("");
+
+    cloud.querySelectorAll(".edit-tag-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        triggerHaptic("light");
+        chip.classList.toggle("selected");
+      });
+    });
+  }
+
+  async function saveProfileEdit() {
+    triggerHaptic("medium");
+    const saveBtn = document.getElementById("saveProfileEditBtn");
+
+    const name = document.getElementById("editDatingName")?.value.trim() || "";
+    const ageRaw = document.getElementById("editDatingAge")?.value;
+    const yearRaw = document.getElementById("editDatingYear")?.value;
+    const major = document.getElementById("editDatingMajor")?.value.trim() || "";
+    const goal = document.getElementById("editDatingGoal")?.value.trim() || "";
+    const customInterests = document.getElementById("editDatingCustomInterests")?.value.trim() || "";
+
+    const activeGenderBtn = document.querySelector("#editDatingGenderPills .gender-pill.active");
+    const gender = activeGenderBtn?.dataset.gender || "male";
+
+    const activeTargetBtn = document.querySelector("#editDatingTargetGenderPills .gender-pill.active");
+    const targetGender = activeTargetBtn?.dataset.target || "all";
+
+    const selectedTagIds = Array.from(document.querySelectorAll("#editDatingTagsCloud .edit-tag-chip.selected"))
+      .map((chip) => parseInt(chip.dataset.tagId, 10))
+      .filter((id) => !isNaN(id));
+
+    // Валидация полей
+    if (!name) {
+      showAppToast("Укажите ваше имя");
+      return;
+    }
+
+    const age = parseInt(ageRaw, 10);
+    if (isNaN(age) || age < 16 || age > 35) {
+      showAppToast("Возраст должен быть от 16 до 35 лет");
+      return;
+    }
+
+    const year = parseInt(yearRaw, 10) || 1;
+
+    // Карьерные поля
+    const careerGoal = document.getElementById("editCareerGoal")?.value.trim() || "";
+    const careerSkills = document.getElementById("editCareerSkills")?.value.trim() || "";
+    const careerFormat = document.getElementById("editCareerFormat")?.value || "Удалённо";
+    const careerPortfolio = document.getElementById("editCareerPortfolio")?.value.trim() || "";
+
+    const payload = {
+      name: name,
+      age: age,
+      year: year,
+      major: major,
+      goal: goal,
+      custom_interests: customInterests,
+      interest_ids: selectedTagIds,
+      gender: gender,
+      target_gender: targetGender,
+      career_goal: careerGoal,
+      career_custom_skills: careerSkills,
+      career_work_format: careerFormat,
+      career_portfolio_url: careerPortfolio,
+    };
+
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = "⏳ Сохраняем...";
+    }
+
+    try {
+      const res = await apiFetch("/api/webapp/profile", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      if (res && res.status === "ok") {
+        triggerHaptic("success");
+        showAppToast("Анкета успешно сохранена! ✨");
+
+        // Обновляем локальный стейт текущего пользователя
+        if (state.currentUser && res.profile) {
+          Object.assign(state.currentUser, res.profile);
+        }
+
+        closeProfileEditModal();
+        await loadProfile();
+      } else {
+        triggerHaptic("error");
+        showAppToast(res?.detail || "Не удалось сохранить анкету");
+      }
+    } catch (err) {
+      console.error("Save profile error:", err);
+      triggerHaptic("error");
+      showAppToast("Ошибка соединения при сохранении");
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "💾 Сохранить изменения";
+      }
+    }
+  }
+
+  function setupProfileEditListeners() {
+    document.getElementById("profileEditCloseBtn")?.addEventListener("click", closeProfileEditModal);
+
+    const modal = document.getElementById("profileEditModal");
+    modal?.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        closeProfileEditModal();
+      }
+    });
+
+    // Tab buttons
+    document.querySelectorAll(".profile-edit-tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        triggerHaptic("light");
+        const tab = btn.dataset.editTab;
+        if (tab) switchProfileEditTab(tab);
+      });
+    });
+
+    // Gender pills
+    document.querySelectorAll("#editDatingGenderPills .gender-pill").forEach((pill) => {
+      pill.addEventListener("click", () => {
+        triggerHaptic("light");
+        document.querySelectorAll("#editDatingGenderPills .gender-pill").forEach((p) => p.classList.remove("active"));
+        pill.classList.add("active");
+      });
+    });
+
+    // Target gender pills
+    document.querySelectorAll("#editDatingTargetGenderPills .gender-pill").forEach((pill) => {
+      pill.addEventListener("click", () => {
+        triggerHaptic("light");
+        document.querySelectorAll("#editDatingTargetGenderPills .gender-pill").forEach((p) => p.classList.remove("active"));
+        pill.classList.add("active");
+      });
+    });
+
+    // Save button
+    document.getElementById("saveProfileEditBtn")?.addEventListener("click", saveProfileEdit);
   }
 
   function openSuperlikeModal(profile) {
@@ -3984,13 +4245,7 @@
       // Wire edit buttons
       const handleEdit = () => {
         triggerHaptic("medium");
-        const botUser = window.BOT_USERNAME || "edudating_bot";
-        const editUrl = `https://t.me/${botUser}?start=edit_profile`;
-        if (tg && tg.openTelegramLink) {
-          tg.openTelegramLink(editUrl);
-        } else {
-          window.open(editUrl, "_blank");
-        }
+        openProfileEditModal();
       };
       document.getElementById("btnMyEditTop")?.addEventListener("click", handleEdit);
       document.getElementById("btnMyEditQuick")?.addEventListener("click", handleEdit);

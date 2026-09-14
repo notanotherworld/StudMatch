@@ -282,7 +282,7 @@ def test_webapp_get_user_details_endpoint():
     import asyncio
     from database.session import engine, AsyncSessionLocal
     from database.models import Base, User, Profile, University
-    from database.crud import update_user_privacy
+    from database.crud import update_user_privacy, get_profile
     from web.routers.webapp import webapp_get_user_details
 
     async def _test():
@@ -299,21 +299,31 @@ def test_webapp_get_user_details_endpoint():
 
             # User 1 (current student)
             u1 = await db.get(User, 848303456)
+            p1 = await get_profile(db, 848303456)
             if not u1:
                 u1 = User(id=848303456, tg_username="alex", is_active=True, university_id=999)
                 p1 = Profile(user_id=848303456, name="Алексей", age=20, year=2, photos=["photo_1"])
                 db.add_all([u1, p1])
             else:
                 u1.is_active = True
+                if p1:
+                    p1.name = "Алексей"
+                    p1.age = 20
+                    p1.year = 2
 
             # User 2 (target student)
             u2 = await db.get(User, 5240488942)
+            p2 = await get_profile(db, 5240488942)
             if not u2:
                 u2 = User(id=5240488942, tg_username="elena", is_active=True, university_id=999)
                 p2 = Profile(user_id=5240488942, name="Елена", age=21, year=3, photos=["photo_elena_1", "photo_elena_2"])
                 db.add_all([u2, p2])
             else:
                 u2.is_active = True
+                if p2:
+                    p2.name = "Елена"
+                    p2.age = 21
+                    p2.year = 3
 
             await db.commit()
 
@@ -346,6 +356,94 @@ def test_webapp_get_user_details_endpoint():
     print("  ✅ [14] Endpoint /api/webapp/user/{user_id} (детальная карточка и приватность): УСПЕШНО")
 
 
+def test_webapp_profile_update_and_tags():
+    import asyncio
+    from fastapi import HTTPException
+    from database.session import engine, AsyncSessionLocal
+    from database.models import Base, User, Profile, InterestTag
+    from web.routers.webapp import (
+        webapp_get_tags,
+        webapp_update_profile,
+        ProfileUpdateRequest,
+    )
+
+    async def _test():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        async with AsyncSessionLocal() as db:
+            # 1. Test get tags
+            tag = await db.get(InterestTag, 1)
+            if not tag:
+                tag = InterestTag(id=1, name="IT и Кодинг", emoji="💻")
+                db.add(tag)
+                await db.commit()
+
+            res_tags = await webapp_get_tags(student=None, db=db)
+            assert res_tags["status"] == "ok"
+            assert isinstance(res_tags["tags"], list)
+            assert any(t["id"] == 1 for t in res_tags["tags"])
+
+            # 2. Test valid profile update
+            user_test = await db.get(User, 777888999)
+            if not user_test:
+                user_test = User(id=777888999, tg_username="test_updater", is_active=True)
+                db.add(user_test)
+                await db.commit()
+
+            req = ProfileUpdateRequest(
+                name="Алексей Тестовый",
+                age=22,
+                year=4,
+                major="Компьютерные науки",
+                goal="Ищу команду для стартапа",
+                custom_interests="AI, ML",
+                interest_ids=[1],
+                gender="male",
+                target_gender="female",
+                career_goal="Стать Senior Python разработчиком",
+                career_custom_skills="FastAPI, Docker, Postgres",
+                career_work_format="Удалённо",
+                career_portfolio_url="https://github.com/test",
+            )
+            res_update = await webapp_update_profile(body=req, student=user_test, db=db)
+            assert res_update["status"] == "ok"
+            p = res_update["profile"]
+            assert p["name"] == "Алексей Тестовый"
+            assert p["age"] == 22
+            assert p["year"] == 4
+            assert p["major"] == "Компьютерные науки"
+            assert p["goal"] == "Ищу команду для стартапа"
+            assert p["custom_interests"] == "AI, ML"
+            assert 1 in p["interest_ids"]
+            assert p["gender"] == "male"
+            assert p["target_gender"] == "female"
+            assert p["career_goal"] == "Стать Senior Python разработчиком"
+            assert p["career_custom_skills"] == "FastAPI, Docker, Postgres"
+            assert p["career_work_format"] == "Удалённо"
+            assert p["career_portfolio_url"] == "https://github.com/test"
+            assert p["career_is_complete"] is True
+
+            # 3. Test empty name validation
+            req_empty_name = ProfileUpdateRequest(name="   ")
+            try:
+                await webapp_update_profile(body=req_empty_name, student=user_test, db=db)
+                assert False, "Should raise HTTPException for empty name"
+            except HTTPException as exc:
+                assert exc.status_code == 400
+
+            # 4. Test invalid age validation
+            req_bad_age = ProfileUpdateRequest(age=12)
+            try:
+                await webapp_update_profile(body=req_bad_age, student=user_test, db=db)
+                assert False, "Should raise HTTPException for age < 16"
+            except HTTPException as exc:
+                assert exc.status_code == 400
+
+    asyncio.run(_test())
+    print("  ✅ [15] Endpoint /api/webapp/profile & /tags (редактирование анкеты Знакомств и Карьеры): УСПЕШНО")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚀 ТЕСТИРОВАНИЕ КРИПТОГРАФИИ И БЕЗОПАСНОСТИ STUDMATCH WEBAPP")
@@ -357,9 +455,11 @@ if __name__ == "__main__":
     test_maintenance_mode_webapp()
     test_in_app_chat_contract()
     test_webapp_get_user_details_endpoint()
+    test_webapp_profile_update_and_tags()
     print("=" * 60)
-    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (14 из 14)!")
+    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (15 из 15)!")
     print("=" * 60)
+
 
 
 
