@@ -2088,7 +2088,8 @@ class ProjectSwipeRequest(BaseModel):
 
 
 class FounderCandidateSwipeRequest(BaseModel):
-    candidate_id: int
+    candidate_id: Optional[int] = None
+    candidate_user_id: Optional[int] = None
     action: str  # "like", "skip"
 
 
@@ -2103,20 +2104,48 @@ async def webapp_projects_feed(
     q: Optional[str] = None,
     stage: Optional[str] = "all",
     role: Optional[str] = "all",
+    catalog: bool = False,
     student: User = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Лента студенческих проектов и стартапов:
     Возвращает карточки проектов для свайп-колоды и каталога с фильтрацией.
+    При catalog=True возвращаются все проекты (включая свои и те, на которые уже был свайп).
     """
+    exclude_swiped = not catalog
+    exclude_own = not catalog
+
     projects = await get_projects_feed(
         db=db,
         viewer_user_id=student.id,
         q=q,
         stage=stage,
         role=role,
+        exclude_swiped=exclude_swiped,
+        exclude_own=exclude_own,
     )
+
+    # Получаем список ID проектов, на которые текущий студент уже откликнулся/свайпнул
+    swiped_stmt = select(Swipe.to_project_id).where(
+        and_(
+            Swipe.from_user_id == student.id,
+            Swipe.to_project_id.isnot(None),
+        )
+    )
+    swiped_res = await db.execute(swiped_stmt)
+    swiped_pids = set(swiped_res.scalars().all())
+
+    # Получаем список ID проектов, по которым уже есть взаимный Match
+    matched_stmt = select(Match.project_id).where(
+        and_(
+            Match.mode == ModeEnum.projects,
+            or_(Match.user1_id == student.id, Match.user2_id == student.id),
+            Match.project_id.isnot(None),
+        )
+    )
+    matched_res = await db.execute(matched_stmt)
+    matched_pids = set(matched_res.scalars().all())
 
     cards = []
     for proj in projects:
@@ -2125,16 +2154,32 @@ async def webapp_projects_feed(
         founder_photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
         avatar_url = resolve_photo_url(founder_photos[0]) if founder_photos else DEFAULT_FALLBACK_AVATAR
         uni_name = (u.university.short_name or u.university.name) if (u and u.university) else ""
+        is_my_proj = proj.user_id == student.id
+        is_swiped = proj.id in swiped_pids
+        is_matched = proj.id in matched_pids
 
         cards.append({
             "id": str(proj.id),
+            "user_id": proj.user_id,
             "founder_id": proj.user_id,
+            "is_my_project": is_my_proj,
+            "is_swiped": is_swiped,
+            "is_matched": is_matched,
             "founder_name": p.name if (p and p.name) else "Фаундер",
             "founder_university": uni_name,
             "founder_avatar": avatar_url,
             "founder_role": p.project_role if p else None,
             "founder_rating": round(p.rating_score or 0.0, 1) if p else 0.0,
             "founder_verified": bool(u.is_verified) if u else False,
+            "founder": {
+                "id": proj.user_id,
+                "name": p.name if (p and p.name) else "Фаундер",
+                "university": uni_name,
+                "avatar_url": avatar_url,
+                "role": p.project_role if p else None,
+                "rating": round(p.rating_score or 0.0, 1) if p else 0.0,
+                "verified": bool(u.is_verified) if u else False,
+            },
             "title": proj.title,
             "pitch": proj.pitch,
             "description": proj.description,
@@ -2409,6 +2454,10 @@ async def webapp_founder_swipe_candidate(
     except ValueError:
         raise HTTPException(status_code=400, detail="Неверный ID проекта")
 
+    cand_id = payload.candidate_id or payload.candidate_user_id
+    if not cand_id:
+        raise HTTPException(status_code=400, detail="Не указан ID кандидата")
+
     project = await get_project(db, p_uuid)
     if not project or project.user_id != student.id:
         raise HTTPException(status_code=403, detail="Доступ запрещён: вы не автор проекта")
@@ -2417,19 +2466,19 @@ async def webapp_founder_swipe_candidate(
     is_match = await founder_swipe_candidate(
         db=db,
         founder_id=student.id,
-        candidate_id=payload.candidate_id,
+        candidate_id=cand_id,
         project_id=p_uuid,
         action=action,
     )
 
     match_id_str = None
     if is_match:
-        m = await get_match_between_users(db, student.id, payload.candidate_id, ModeEnum.projects)
+        m = await get_match_between_users(db, student.id, cand_id, ModeEnum.projects)
         if m:
             match_id_str = str(m.id)
 
-        # Уведомление кандидату в Telegram
-        cand = await get_user(db, payload.candidate_id)
+        # Уведомление кандидату в Telegram с кнопками
+        cand = await get_user(db, cand_id)
         founder_name = student.profile.name if student.profile and student.profile.name else "Фаундер"
         if cand:
             msg = (
@@ -2439,16 +2488,28 @@ async def webapp_founder_swipe_candidate(
             )
             try:
                 from aiogram import Bot
+                from aiogram.utils.keyboard import InlineKeyboardBuilder
+                from aiogram.types import WebAppInfo
                 bot = Bot(token=settings.BOT_TOKEN)
-                await bot.send_message(cand.id, msg, parse_mode="HTML")
+                kb_builder = InlineKeyboardBuilder()
+                if student.tg_username:
+                    clean_u = student.tg_username.lstrip("@")
+                    kb_builder.button(text=f"✈️ Telegram фаундера (@{clean_u})", url=f"https://t.me/{clean_u}")
+                kb_builder.button(
+                    text="💬 Открыть чат в приложении",
+                    web_app=WebAppInfo(url=f"{settings.webapp_url}?startapp=chat_{student.id}")
+                )
+                kb_builder.adjust(1)
+                await bot.send_message(cand.id, msg, parse_mode="HTML", reply_markup=kb_builder.as_markup())
                 await bot.session.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to send candidate acceptance message: {e}")
 
     return {
         "status": "ok",
         "is_match": is_match,
         "match_id": match_id_str,
+        "match": {"id": match_id_str, "match_id": match_id_str} if match_id_str else None,
     }
 
 

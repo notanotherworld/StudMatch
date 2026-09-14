@@ -263,6 +263,51 @@ async def run_tests():
     assert prof_data["project_role"] == "Senior UI/UX Lead"
     print("✅ WebApp API: POST /api/webapp/profile/project успешно обновил проектную анкету.")
 
+    # 10. Проверка режима «Каталог» (catalog=true): фаундер должен видеть СВОИ проекты в каталоге
+    res_cat = client.get(
+        "/api/webapp/projects/feed?catalog=true",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert res_cat.status_code == 200, f"catalog failed: {res_cat.text}"
+    cat_data = res_cat.json()
+    founder_projects = [p for p in cat_data["projects"] if p["is_my_project"]]
+    assert len(founder_projects) >= 1, "Фаундер не видит свои проекты в каталоге!"
+    assert founder_projects[0]["founder"]["name"] == founder.profile.name
+    print(f"✅ WebApp API: GET /api/webapp/projects/feed?catalog=true вернул свои проекты с is_my_project=True.")
+
+    # 11. Отклик кандидата на новый проект и принятие фаундером через candidate_user_id
+    res_swipe_cand = client.post(
+        "/api/webapp/projects/swipe",
+        headers={"Authorization": f"Bearer {candidate_token}"},
+        json={"project_id": new_proj_id, "action": "like", "comment": "Хочу помочь с дизайном!"},
+    )
+    assert res_swipe_cand.status_code == 200
+
+    # Проверяем принятие отклика фаундером с ключом candidate_user_id (как шлёт WebApp фронтенд)
+    res_accept = client.post(
+        f"/api/webapp/projects/{new_proj_id}/swipe_candidate",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={"candidate_user_id": candidate.id, "action": "like"},
+    )
+    assert res_accept.status_code == 200, f"accept failed: {res_accept.text}"
+    accept_data = res_accept.json()
+    assert accept_data["status"] == "ok"
+    assert accept_data["is_match"] is True
+    assert accept_data["match_id"] is not None
+    assert accept_data["match"]["id"] == accept_data["match_id"]
+    print("✅ WebApp API: POST /api/webapp/projects/{id}/swipe_candidate успешно принял кандидата через candidate_user_id.")
+
+    # 12. Проверка, что в каталоге кандидата проект теперь отображается с is_matched=True
+    res_cand_cat = client.get(
+        "/api/webapp/projects/feed?catalog=true",
+        headers={"Authorization": f"Bearer {candidate_token}"},
+    )
+    assert res_cand_cat.status_code == 200
+    matched_projs = [p for p in res_cand_cat.json()["projects"] if p["id"] == new_proj_id]
+    assert len(matched_projs) == 1
+    assert matched_projs[0]["is_matched"] is True
+    print("✅ WebApp API: в каталоге кандидата проект отображается с is_matched=True.")
+
 
     await engine.dispose()
     if os.path.exists(TEST_DB_PATH):

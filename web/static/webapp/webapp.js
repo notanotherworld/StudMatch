@@ -5747,7 +5747,7 @@
     `;
 
     try {
-      let url = `/api/webapp/projects/feed?stage=${encodeURIComponent(projectsActiveStage)}&role=${encodeURIComponent(projectsActiveRole)}`;
+      let url = `/api/webapp/projects/feed?catalog=true&stage=${encodeURIComponent(projectsActiveStage)}&role=${encodeURIComponent(projectsActiveRole)}`;
       if (projectsSearchQuery.trim()) {
         url += `&q=${encodeURIComponent(projectsSearchQuery.trim())}`;
       }
@@ -5821,16 +5821,29 @@
     const rolesHtml = rolesList.map((r) => `<span class="project-role-tag">#${escapeHtml(r)}</span>`).join("");
 
     const founder = proj.founder || {};
-    const founderAvatar = founder.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
-    const founderUni = [founder.university, founder.year ? `${founder.year} курс` : ""].filter(Boolean).join(" • ");
+    const founderName = founder.name || proj.founder_name || "Фаундер";
+    const founderAvatar = founder.avatar_url || proj.founder_avatar || "/static/webapp/assets/mascot_hero_3d.jpg";
+    const founderUni = [founder.university || proj.founder_university, founder.year ? `${founder.year} курс` : ""].filter(Boolean).join(" • ");
 
-    const isMyProject = state.currentUser && (String(state.currentUser.id) === String(proj.founder?.id || proj.user_id));
+    const isMyProject = Boolean(proj.is_my_project) || (state.currentUser && (String(state.currentUser.id) === String(founder.id || proj.founder_id || proj.user_id)));
 
     let actionBtnHtml = "";
     if (isMyProject) {
       actionBtnHtml = `
-        <button class="btn-project-apply" style="background:rgba(245,158,11,0.2);color:#F59E0B;" data-action="edit">
+        <button class="btn-project-apply" style="background:rgba(245,158,11,0.15);color:#F59E0B;border:1px solid rgba(245,158,11,0.35);font-weight:700;" data-action="edit">
           ✏️ Мой проект
+        </button>
+      `;
+    } else if (proj.is_matched) {
+      actionBtnHtml = `
+        <button class="btn-project-apply connected" disabled style="background:#10B981;color:#FFFFFF;cursor:default;">
+          🎉 В команде
+        </button>
+      `;
+    } else if (proj.is_swiped) {
+      actionBtnHtml = `
+        <button class="btn-project-apply connected" disabled style="background:#E2E8F0;color:#64748B;cursor:default;">
+          ✓ Заявка отправлена
         </button>
       `;
     } else {
@@ -5862,9 +5875,9 @@
 
       <div class="project-catalog-card-footer">
         <div class="project-catalog-founder-wrap">
-          <img src="${escapeHtml(founderAvatar)}" class="project-catalog-founder-avatar" alt="${escapeHtml(founder.name)}" onerror="this.src='/static/webapp/assets/mascot_hero_3d.jpg';" />
+          <img src="${escapeHtml(founderAvatar)}" class="project-catalog-founder-avatar" alt="${escapeHtml(founderName)}" onerror="this.src='/static/webapp/assets/mascot_hero_3d.jpg';" />
           <div class="project-catalog-founder-info">
-            <span class="project-catalog-founder-name">${escapeHtml(founder.name)}</span>
+            <span class="project-catalog-founder-name">${escapeHtml(founderName)}</span>
             ${founderUni ? `<span class="project-catalog-founder-uni">${escapeHtml(founderUni)}</span>` : ""}
           </div>
         </div>
@@ -6187,9 +6200,14 @@
           try {
             await apiFetch(`/api/webapp/projects/${projectId}/swipe_candidate`, {
               method: "POST",
-              body: JSON.stringify({ candidate_user_id: cand.user_id, action: "skip" }),
+              body: JSON.stringify({
+                candidate_id: cand.user_id,
+                candidate_user_id: cand.user_id,
+                action: "skip",
+              }),
             });
             row.remove();
+            loadMyProjects();
             if (listEl.children.length === 0) {
               openFounderCandidatesModal(projectId, projectTitle);
             }
@@ -6207,21 +6225,33 @@
           try {
             const mRes = await apiFetch(`/api/webapp/projects/${projectId}/swipe_candidate`, {
               method: "POST",
-              body: JSON.stringify({ candidate_user_id: cand.user_id, action: "like" }),
+              body: JSON.stringify({
+                candidate_id: cand.user_id,
+                candidate_user_id: cand.user_id,
+                action: "like",
+              }),
             });
             if (mRes && mRes.status === "ok") {
               row.remove();
               modal.style.display = "none";
+              loadMyProjects();
+              const matchId = mRes.match_id || mRes.match?.id || mRes.match?.match_id;
               showMatchPopup({
                 name: cand.name,
                 photo_url: cand.avatar_url,
-                match_id: mRes.match?.id || mRes.match?.match_id
+                match_id: matchId,
               });
+              showAppToast(`🎉 ${cand.name} принят(а) в команду!`);
+            } else {
+              acceptBtn.disabled = false;
+              acceptBtn.innerHTML = "🤝 В команду!";
+              showAppToast(mRes?.detail || "Не удалось принять кандидата");
             }
           } catch (e) {
             console.error("Accept candidate error:", e);
             acceptBtn.disabled = false;
             acceptBtn.innerHTML = "🤝 В команду!";
+            showAppToast("Ошибка при принятии кандидата");
           }
         });
 

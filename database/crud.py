@@ -1657,15 +1657,24 @@ async def get_projects_feed(
     role: Optional[str] = None,
     limit: int = 30,
     offset: int = 0,
+    exclude_swiped: bool = True,
+    exclude_own: bool = True,
 ) -> List[Project]:
-    swiped_stmt = select(Swipe.to_project_id).where(
-        and_(
-            Swipe.from_user_id == viewer_user_id,
-            Swipe.to_project_id.isnot(None),
+    where_conditions = [Project.is_active.is_(True)]
+    if exclude_own:
+        where_conditions.append(Project.user_id != viewer_user_id)
+
+    if exclude_swiped:
+        swiped_stmt = select(Swipe.to_project_id).where(
+            and_(
+                Swipe.from_user_id == viewer_user_id,
+                Swipe.to_project_id.isnot(None),
+            )
         )
-    )
-    swiped_res = await db.execute(swiped_stmt)
-    swiped_project_ids = set(swiped_res.scalars().all())
+        swiped_res = await db.execute(swiped_stmt)
+        swiped_project_ids = set(swiped_res.scalars().all())
+        if swiped_project_ids:
+            where_conditions.append(Project.id.not_in(swiped_project_ids))
 
     stmt = (
         select(Project)
@@ -1673,16 +1682,8 @@ async def get_projects_feed(
             selectinload(Project.user).selectinload(User.profile),
             selectinload(Project.user).selectinload(User.university),
         )
-        .where(
-            and_(
-                Project.is_active.is_(True),
-                Project.user_id != viewer_user_id,
-            )
-        )
+        .where(and_(*where_conditions))
     )
-
-    if swiped_project_ids:
-        stmt = stmt.where(Project.id.not_in(swiped_project_ids))
 
     if q and q.strip():
         q_term = f"%{q.strip()}%"
@@ -1740,16 +1741,30 @@ async def founder_swipe_candidate(
     Фаундер свайпает кандидата. Если action in (like, superlike), создается мэтч по проекту!
     """
     now = datetime.now(timezone.utc)
-    db.add(
-        Swipe(
-            from_user_id=founder_id,
-            to_user_id=candidate_id,
-            to_project_id=project_id,
-            mode=ModeEnum.projects,
-            action=action,
-            created_at=now,
+    existing_swipe = await db.scalar(
+        select(Swipe).where(
+            and_(
+                Swipe.from_user_id == founder_id,
+                Swipe.to_user_id == candidate_id,
+                Swipe.mode == ModeEnum.projects,
+            )
         )
     )
+    if existing_swipe:
+        existing_swipe.to_project_id = project_id
+        existing_swipe.action = action
+        existing_swipe.created_at = now
+    else:
+        db.add(
+            Swipe(
+                from_user_id=founder_id,
+                to_user_id=candidate_id,
+                to_project_id=project_id,
+                mode=ModeEnum.projects,
+                action=action,
+                created_at=now,
+            )
+        )
 
     is_match = False
     if action in (SwipeAction.like, SwipeAction.superlike):
