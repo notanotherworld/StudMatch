@@ -195,8 +195,8 @@
                 localStorage.setItem("studmatch_token", savedToken);
                 updateHeaderUser();
                 retryCount = 0;
-                if (state.currentUser?.mode === "career") {
-                  await setMode("career");
+                if (state.currentUser?.mode) {
+                  await setMode(state.currentUser.mode, false);
                 } else if (state.feed.length === 0) {
                   await loadFeed();
                 }
@@ -288,8 +288,8 @@
         state.currentUser = data.user;
         localStorage.setItem("studmatch_token", data.token);
         updateHeaderUser();
-        if (state.currentUser?.mode === "career") {
-          await setMode("career");
+        if (state.currentUser?.mode) {
+          await setMode(state.currentUser.mode, false);
         } else if (state.feed.length === 0) {
           await loadFeed();
         }
@@ -360,6 +360,8 @@
     document.getElementById("pillDating")?.classList.toggle("active", curMode === "dating");
     document.getElementById("pillCareer")?.classList.toggle("active", curMode === "career");
     document.getElementById("pillProjects")?.classList.toggle("active", curMode === "projects");
+    document.body.classList.toggle("career-theme", curMode === "career");
+    document.body.classList.toggle("projects-theme", curMode === "projects");
   }
 
   // 2. Навигация по табам
@@ -716,12 +718,22 @@
     }
   }
 
-  async function setMode(targetMode) {
+  async function setMode(targetMode, syncServer = true) {
+    if (!["dating", "career", "projects"].includes(targetMode)) {
+      targetMode = "dating";
+    }
+
+    try {
+      localStorage.setItem("studmatch_mode", targetMode);
+    } catch (e) {}
+
     // 1. Мгновенное визуальное переключение пилюль (Optimistic UI)
     document.getElementById("pillDating")?.classList.toggle("active", targetMode === "dating");
     document.getElementById("pillCareer")?.classList.toggle("active", targetMode === "career");
     document.getElementById("pillProjects")?.classList.toggle("active", targetMode === "projects");
-    triggerHaptic("medium");
+    if (syncServer) {
+      triggerHaptic("medium");
+    }
 
     if (state.currentUser) {
       state.currentUser.mode = targetMode;
@@ -784,16 +796,18 @@
       await loadFeed();
     }
 
-    try {
-      const res = await apiFetch("/api/webapp/profile/mode", {
-        method: "POST",
-        body: JSON.stringify({ mode: targetMode }),
-      });
-      if (res && res.status === "ok") {
-        if (state.currentUser) state.currentUser.mode = res.mode;
+    if (syncServer) {
+      try {
+        const res = await apiFetch("/api/webapp/profile/mode", {
+          method: "POST",
+          body: JSON.stringify({ mode: targetMode }),
+        });
+        if (res && res.status === "ok") {
+          if (state.currentUser) state.currentUser.mode = res.mode;
+        }
+      } catch (e) {
+        console.warn("Set mode API warning:", e);
       }
-    } catch (e) {
-      console.warn("Set mode API warning:", e);
     }
   }
 
@@ -6842,6 +6856,24 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
+    try {
+      const savedMode = localStorage.getItem("studmatch_mode");
+      if (savedMode && ["dating", "career", "projects"].includes(savedMode)) {
+        document.getElementById("pillDating")?.classList.toggle("active", savedMode === "dating");
+        document.getElementById("pillCareer")?.classList.toggle("active", savedMode === "career");
+        document.getElementById("pillProjects")?.classList.toggle("active", savedMode === "projects");
+        document.body.classList.toggle("career-theme", savedMode === "career");
+        document.body.classList.toggle("projects-theme", savedMode === "projects");
+        if (savedMode === "projects") {
+          const projectsSubnav = document.getElementById("projectsSubnavToggle");
+          if (projectsSubnav) projectsSubnav.style.display = "flex";
+        } else if (savedMode === "career") {
+          const careerSubnav = document.getElementById("careerSubnavToggle");
+          if (careerSubnav) careerSubnav.style.display = "flex";
+        }
+      }
+    } catch (e) {}
+
     setupNavigation();
     setupCareerListeners();
     setupProjectsListeners();

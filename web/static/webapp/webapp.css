@@ -195,6 +195,24 @@ body {
   padding: 5px 11px;
 }
 
+.header-mode-toggle #pillDating.active {
+  background: linear-gradient(135deg, #FF6584 0%, #6C5CE7 100%);
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(108, 92, 231, 0.3);
+}
+
+.header-mode-toggle #pillCareer.active {
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.35);
+}
+
+.header-mode-toggle #pillProjects.active {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(245, 158, 11, 0.35);
+}
+
 .header-mode-toggle .mode-pill-btn.active span {
   max-width: 85px;
   opacity: 1;
