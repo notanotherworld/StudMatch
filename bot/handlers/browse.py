@@ -1600,7 +1600,7 @@ async def fcand_accept_callback(callback: CallbackQuery, user: User, db: AsyncSe
     if candidate.tg_username:
         clean_u = candidate.tg_username.lstrip("@")
         b_founder.button(text=f"✈️ Telegram кандидата (@{clean_u})", url=f"https://t.me/{clean_u}")
-    b_founder.button(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=settings.webapp_url))
+    b_founder.button(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=f"{settings.webapp_url}?startapp=chat_{cand_id}"))
     b_founder.adjust(1)
 
     await callback.message.answer(
@@ -1614,7 +1614,7 @@ async def fcand_accept_callback(callback: CallbackQuery, user: User, db: AsyncSe
     if user.tg_username:
         clean_fu = user.tg_username.lstrip("@")
         b_cand.button(text=f"✈️ Telegram фаундера (@{clean_fu})", url=f"https://t.me/{clean_fu}")
-    b_cand.button(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=settings.webapp_url))
+    b_cand.button(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=f"{settings.webapp_url}?startapp=chat_{user.id}"))
     b_cand.adjust(1)
 
     try:

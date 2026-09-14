@@ -287,6 +287,7 @@ def test_webapp_get_user_details_endpoint():
 
     async def _test():
         async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
 
         async with AsyncSessionLocal() as db:
@@ -444,6 +445,47 @@ def test_webapp_profile_update_and_tags():
     print("  ✅ [15] Endpoint /api/webapp/profile & /tags (редактирование анкеты Знакомств и Карьеры): УСПЕШНО")
 
 
+def test_webapp_chat_deep_link_resolution():
+    """Тестирование открытия диалога в WebApp как по Match UUID, так и по Telegram User ID собеседника."""
+    import asyncio
+    from database.session import AsyncSessionLocal
+    from database.models import User, Match, ModeEnum
+    from web.routers.webapp import webapp_get_match_messages
+
+    async def _test():
+        async with AsyncSessionLocal() as db:
+            user1 = await db.get(User, 848303456)
+            user2 = await db.get(User, 5240488942)
+            assert user1 and user2
+
+            # Создаем взаимный мэтч для теста
+            match = Match(
+                user1_id=user1.id,
+                user2_id=user2.id,
+                mode=ModeEnum.dating,
+                user1_tg_approved=True,
+                user2_tg_approved=True,
+            )
+            db.add(match)
+            await db.commit()
+            await db.refresh(match)
+
+            # 1. Запрос по Match UUID (стандартный формат)
+            res_uuid = await webapp_get_match_messages(match_id=str(match.id), student=user1, db=db)
+            assert res_uuid["status"] == "ok"
+            assert res_uuid["partner"]["id"] == user2.id
+            assert res_uuid["match_id"] == str(match.id)
+
+            # 2. Запрос по Telegram User ID собеседника (формат deep link startapp=chat_USERID)
+            res_userid = await webapp_get_match_messages(match_id=str(user2.id), student=user1, db=db)
+            assert res_userid["status"] == "ok"
+            assert res_userid["partner"]["id"] == user2.id
+            assert res_userid["match_id"] == str(match.id)
+
+    asyncio.run(_test())
+    print("  ✅ [16] Открытие диалога WebApp по UUID матча и по Telegram ID собеседника: УСПЕШНО")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚀 ТЕСТИРОВАНИЕ КРИПТОГРАФИИ И БЕЗОПАСНОСТИ STUDMATCH WEBAPP")
@@ -456,8 +498,9 @@ if __name__ == "__main__":
     test_in_app_chat_contract()
     test_webapp_get_user_details_endpoint()
     test_webapp_profile_update_and_tags()
+    test_webapp_chat_deep_link_resolution()
     print("=" * 60)
-    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (15 из 15)!")
+    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (16 из 16)!")
     print("=" * 60)
 
 

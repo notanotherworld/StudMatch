@@ -200,6 +200,8 @@
                 }
                 await loadStories();
                 openOnboarding(false);
+                checkStartParamDeepLink();
+                fetchInitialBadges();
                 return;
               }
             }
@@ -4027,26 +4029,63 @@
     });
   }
 
-  // 12. Deep Linking (startapp=chat_{match_id})
+  // 12. Deep Linking (startapp=chat_{match_id} / chat_{user_id})
   function checkStartParamDeepLink() {
     let startParam = "";
     try {
-      if (tg?.initDataUnsafe?.start_param) {
+      // 1. Приоритетно проверяем URL query параметры (при клике на инлайн-кнопку WebAppInfo)
+      const urlParams = new URLSearchParams(window.location.search);
+      startParam = urlParams.get("startapp") || urlParams.get("tgWebAppStartParam") || urlParams.get("chat") || "";
+
+      // 2. Если в search пусто, проверяем hash (передается Telegram WebApp)
+      if (!startParam && window.location.hash) {
+        const hashStr = window.location.hash.slice(1);
+        const hashParams = new URLSearchParams(hashStr);
+        startParam = hashParams.get("startapp") || hashParams.get("tgWebAppStartParam") || hashParams.get("chat") || "";
+        if (!startParam && hashParams.get("tgWebAppData")) {
+          try {
+            const initDataStr = hashParams.get("tgWebAppData");
+            const initDataParams = new URLSearchParams(initDataStr);
+            startParam = initDataParams.get("start_param") || "";
+          } catch (err) {}
+        }
+      }
+
+      // 3. Если все еще пусто, проверяем Telegram WebApp initDataUnsafe
+      if (!startParam && tg?.initDataUnsafe?.start_param) {
         startParam = tg.initDataUnsafe.start_param;
-      } else {
-        const urlParams = new URLSearchParams(window.location.search);
-        startParam = urlParams.get("startapp") || urlParams.get("tgWebAppStartParam") || "";
       }
     } catch (e) {
       console.warn("[DeepLink] Error reading start param:", e);
     }
 
-    if (startParam && startParam.startsWith("chat_")) {
-      const matchId = startParam.replace("chat_", "").trim();
-      if (matchId) {
-        console.log("[DeepLink] Opening chat from startapp:", matchId);
-        openChat(matchId);
+    if (!startParam) return;
+
+    // Поддерживаем форматы: "chat_UUID", "chat_USERID", "user_USERID", "UUID", "USERID"
+    let targetChatId = "";
+    if (typeof startParam === "string") {
+      startParam = startParam.trim();
+      if (startParam.startsWith("chat_")) {
+        targetChatId = startParam.replace("chat_", "").trim();
+      } else if (startParam.startsWith("user_")) {
+        targetChatId = startParam.replace("user_", "").trim();
+      } else if (startParam.length >= 8 && (startParam.includes("-") || !isNaN(startParam))) {
+        targetChatId = startParam;
       }
+    }
+
+    if (targetChatId) {
+      console.log("[DeepLink] Opening chat from deep link target:", targetChatId);
+      // Очищаем параметры из URL, чтобы при ручном обновлении страницы не зацикливалось
+      try {
+        const cleanUrl = window.location.pathname + (window.location.hash || "");
+        window.history.replaceState({}, document.title, cleanUrl);
+      } catch (e) {}
+
+      // Открываем диалог (небольшая задержка 100мс для завершения отрисовки DOM)
+      setTimeout(() => {
+        openChat(targetChatId);
+      }, 100);
     }
   }
 

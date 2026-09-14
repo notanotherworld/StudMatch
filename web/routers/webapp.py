@@ -718,12 +718,23 @@ async def webapp_get_match_messages(
     db: AsyncSession = Depends(get_db),
 ):
     """История сообщений диалога с автоматической пометкой прочтения."""
+    match = None
+    match_uuid = None
     try:
         match_uuid = uuid.UUID(match_id)
+        match = await get_match_by_id(db, match_uuid)
     except Exception:
-        raise HTTPException(status_code=400, detail="Неверный ID матча")
+        pass
 
-    match = await get_match_by_id(db, match_uuid)
+    if not match:
+        try:
+            partner_user_id = int(match_id)
+            match = await get_match_between_users(db, student.id, partner_user_id)
+            if match:
+                match_uuid = match.id
+        except Exception:
+            pass
+
     if not match:
         raise HTTPException(status_code=404, detail="Мэтч не найден")
     if student.id not in (match.user1_id, match.user2_id):
@@ -843,12 +854,23 @@ async def webapp_send_message(
     if not text:
         raise HTTPException(status_code=400, detail="Сообщение не может быть пустым")
 
+    match = None
+    match_uuid = None
     try:
         match_uuid = uuid.UUID(match_id)
+        match = await get_match_by_id(db, match_uuid)
     except Exception:
-        raise HTTPException(status_code=400, detail="Неверный ID матча")
+        pass
 
-    match = await get_match_by_id(db, match_uuid)
+    if not match:
+        try:
+            partner_user_id = int(match_id)
+            match = await get_match_between_users(db, student.id, partner_user_id)
+            if match:
+                match_uuid = match.id
+        except Exception:
+            pass
+
     if not match:
         raise HTTPException(status_code=404, detail="Мэтч не найден")
     if student.id not in (match.user1_id, match.user2_id):
