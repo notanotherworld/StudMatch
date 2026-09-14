@@ -2895,6 +2895,12 @@ body.career-theme #pillCareer.active {
   padding: 8px 14px;
   gap: 8px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.career-search-box:focus-within {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 .career-search-input {
@@ -2907,7 +2913,7 @@ body.career-theme #pillCareer.active {
   font-family: inherit;
   -webkit-user-select: text;
   user-select: text;
-  caret-color: var(--primary, #6C5CE7);
+  caret-color: var(--primary, #2563EB);
 }
 
 .career-search-input::placeholder {
@@ -2930,17 +2936,21 @@ body.career-theme #pillCareer.active {
   align-items: center;
   justify-content: center;
   border-radius: 14px;
-  background: #EFF6FF;
-  border: 1.5px solid #DBEAFE;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1.5px solid rgba(37, 99, 235, 0.2);
   color: #2563EB;
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.2s ease;
 }
 
+.career-filter-btn:hover {
+  background: rgba(37, 99, 235, 0.14);
+}
+
 .career-filter-btn:active {
   transform: scale(0.95);
-  background: #DBEAFE;
+  background: rgba(37, 99, 235, 0.2);
 }
 
 /* Category Chips */
@@ -2959,50 +2969,59 @@ body.career-theme #pillCareer.active {
 
 .career-category-chip {
   flex-shrink: 0;
-  padding: 8px 14px;
+  padding: 7px 14px;
   border-radius: 20px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
-  border: 1px solid #E2E8F0;
+  border: 1.5px solid #E2E8F0;
   background: #FFFFFF;
   color: #475569;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.career-category-chip:hover {
+  border-color: #CBD5E1;
 }
 
 .career-category-chip.active {
-  background: #2563EB;
-  color: #FFFFFF;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1D4ED8;
   border-color: #2563EB;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
 }
 
 /* Interactive Composer Card */
 .career-composer-card {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   background: #FFFFFF;
-  border: 1.5px solid #E2E8F0;
-  border-radius: 18px;
-  padding: 12px 14px;
+  border: 1.5px dashed rgba(37, 99, 235, 0.45);
+  border-radius: 20px;
+  padding: 14px 16px;
   cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.2s;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.03);
+}
+
+.career-composer-card:hover {
+  border-color: #2563EB;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.12);
 }
 
 .career-composer-card:active {
   transform: scale(0.98);
-  border-color: #93C5FD;
 }
 
 .composer-avatar-wrap {
   width: 44px;
   height: 44px;
-  border-radius: 50%;
+  border-radius: 14px;
   overflow: hidden;
   flex-shrink: 0;
-  border: 2px solid #DBEAFE;
+  border: 2px solid rgba(37, 99, 235, 0.2);
 }
 
 .composer-avatar {
@@ -3019,14 +3038,14 @@ body.career-theme #pillCareer.active {
 }
 
 .composer-prompt-title {
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 700;
   color: #0F172A;
 }
 
 .composer-prompt-sub {
   font-size: 12px;
-  color: #2563EB;
+  color: #64748B;
   font-weight: 500;
 }
 
@@ -3041,13 +3060,18 @@ body.career-theme #pillCareer.active {
 /* Candidate Card */
 .career-card {
   background: #FFFFFF;
-  border: 1.5px solid #E2E8F0;
+  border: 1px solid #E2E8F0;
   border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
   display: flex;
   flex-direction: column;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.career-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
 .career-card-header {
@@ -3055,30 +3079,35 @@ body.career-theme #pillCareer.active {
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px 10px;
+  gap: 10px;
 }
 
 .career-card-author {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .career-card-avatar {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #EFF6FF;
+  border: 2px solid rgba(37, 99, 235, 0.15);
   flex-shrink: 0;
 }
 
 .career-card-name {
-  font-size: 16px;
+  font-size: 15.5px;
   font-weight: 800;
   color: #0F172A;
   display: flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .career-badge-verified {
@@ -3090,17 +3119,21 @@ body.career-theme #pillCareer.active {
   font-size: 12px;
   color: #64748B;
   margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .career-badge-format {
-  padding: 5px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 700;
-  background: #EFF6FF;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: rgba(37, 99, 235, 0.09);
   color: #1D4ED8;
-  border: 1px solid #DBEAFE;
+  border: 1px solid rgba(37, 99, 235, 0.2);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .career-card-banner {
@@ -3121,8 +3154,8 @@ body.career-theme #pillCareer.active {
 .career-card-goal {
   font-size: 14px;
   line-height: 1.45;
-  color: #334155;
-  font-weight: 500;
+  color: #1E293B;
+  font-weight: 600;
 }
 
 .career-skills-chips {
@@ -3133,11 +3166,11 @@ body.career-theme #pillCareer.active {
 
 .career-skill-chip {
   padding: 4px 10px;
-  border-radius: 10px;
-  font-size: 11px;
+  border-radius: 8px;
+  font-size: 11.5px;
   font-weight: 600;
   background: #F8FAFC;
-  color: #1E293B;
+  color: #475569;
   border: 1px solid #E2E8F0;
 }
 
@@ -3149,15 +3182,16 @@ body.career-theme #pillCareer.active {
   font-weight: 700;
   color: #2563EB;
   text-decoration: none;
-  padding: 6px 12px;
+  padding: 7px 12px;
   border-radius: 10px;
-  background: #EFF6FF;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.15);
   width: fit-content;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .career-portfolio-link:hover {
-  background: #DBEAFE;
+  background: rgba(37, 99, 235, 0.14);
 }
 
 .career-card-actions {
@@ -3165,24 +3199,30 @@ body.career-theme #pillCareer.active {
   gap: 8px;
   padding: 10px 16px 14px;
   border-top: 1px solid #F1F5F9;
+  width: 100%;
 }
 
 .btn-career-connect {
-  flex: 1;
+  flex: 1.3;
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 11px 14px;
-  border-radius: 14px;
-  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12.5px;
   font-weight: 700;
   background: linear-gradient(135deg, #2563EB, #1D4ED8);
   color: #FFFFFF;
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
-  transition: all 0.2s ease;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.25);
+  transition: all 0.15s ease;
+}
+
+.btn-career-connect:hover {
+  filter: brightness(1.04);
 }
 
 .btn-career-connect:active {
@@ -3192,7 +3232,7 @@ body.career-theme #pillCareer.active {
 .btn-career-connect.connected {
   background: #10B981 !important;
   color: #FFFFFF !important;
-  box-shadow: none !important;
+  box-shadow: 0 3px 10px rgba(16, 185, 129, 0.25) !important;
   cursor: default !important;
 }
 
@@ -3204,19 +3244,29 @@ body.career-theme #pillCareer.active {
 }
 
 .btn-career-details {
-  padding: 11px 14px;
-  border-radius: 14px;
-  font-size: 13px;
+  flex: 1;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   background: #F8FAFC;
   color: #334155;
-  border: 1px solid #E2E8F0;
+  border: 1.5px solid #E2E8F0;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
+}
+
+.btn-career-details:hover {
+  background: #F1F5F9;
+  border-color: #CBD5E1;
 }
 
 .btn-career-details:active {
-  background: #E2E8F0;
+  transform: scale(0.97);
 }
 
 /* Career Edit Modal */
@@ -3285,42 +3335,49 @@ body.career-theme #pillCareer.active {
   line-height: 1.4;
 }
 
-/* ─── Career Subnav Toggle (Swipes vs Feed) ─────────────────── */
+/* ─── Career Subnav Toggle (Clean, Modern, Segmented) ───────── */
 .career-subnav-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #EFF6FF;
-  border: 1px solid #DBEAFE;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
   border-radius: 16px;
   padding: 3px;
-  margin: 2px 14px 6px;
-  gap: 4px;
+  margin: 2px 14px 8px;
+  gap: 3px;
   z-index: 10;
   flex-shrink: 0;
 }
 
 .career-subnav-btn {
   flex: 1;
-  padding: 8px 12px;
-  border-radius: 12px;
+  padding: 9px 6px;
+  min-height: 40px;
+  border-radius: 13px;
   border: none;
   background: transparent;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12.5px;
+  font-weight: 600;
   color: #64748B;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.career-subnav-btn:hover {
+  color: #334155;
 }
 
 .career-subnav-btn.active {
-  background: #2563EB;
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
   color: #FFFFFF;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28);
 }
 
 /* Scroll handling when in Career Feed View */
