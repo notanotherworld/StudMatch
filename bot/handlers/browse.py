@@ -29,7 +29,11 @@ router = Router()
 
 
 async def _build_profile_caption(
-    profile: Profile, tags_map: dict[int, InterestTag], user: Optional[User] = None, mode: Optional[ModeEnum] = None
+    profile: Profile,
+    tags_map: dict[int, InterestTag],
+    user: Optional[User] = None,
+    mode: Optional[ModeEnum] = None,
+    db: Optional[AsyncSession] = None,
 ) -> str:
     """Формируем лаконичный и гармоничный текст карточки студента."""
     user_obj = user or (profile.__dict__.get("user") if hasattr(profile, "__dict__") else None)
@@ -61,8 +65,10 @@ async def _build_profile_caption(
             is_boost = True
 
     univ_str = "РУДН"
-    if user_obj and getattr(user_obj, "university", None) and getattr(user_obj.university, "short_name", None):
-        univ_str = user_obj.university.short_name
+    if user_obj:
+        univ = user_obj.__dict__.get("university") if hasattr(user_obj, "__dict__") else getattr(user_obj, "university", None)
+        if univ:
+            univ_str = getattr(univ, "short_name", None) or getattr(univ, "name", "РУДН")
 
     age_val = getattr(profile, "age", None)
     if not age_val:
@@ -86,7 +92,14 @@ async def _build_profile_caption(
     is_verified = bool(user_obj and getattr(user_obj, "email_verified", False))
     ver_badge = " 🎓" if is_verified else ""
 
-    target_privacy = getattr(user_obj, "privacy", None)
+    target_privacy = user_obj.__dict__.get("privacy") if (user_obj and hasattr(user_obj, "__dict__")) else None
+    if not target_privacy and user_obj and db:
+        from database.crud import get_or_create_user_privacy
+        try:
+            target_privacy = await get_or_create_user_privacy(db, user_obj.id)
+        except Exception:
+            target_privacy = None
+
     hide_age = getattr(target_privacy, "hide_age", False) if target_privacy else False
     hide_course = getattr(target_privacy, "hide_course", False) if target_privacy else False
 
@@ -258,8 +271,9 @@ async def send_next_card(
             elif inc_action == SwipeAction.like:
                 badge = "❤️ <b>Пользователь поставил(а) тебе лайк!</b>\n\n"
 
+    cand_user = profile.__dict__.get("user") if hasattr(profile, "__dict__") else None
     base_caption = await _build_profile_caption(
-        profile, tags_map, user=getattr(profile, "user", None), mode=user.mode
+        profile, tags_map, user=cand_user, mode=user.mode, db=db
     )
     caption = f"{badge}{base_caption}"
 
@@ -437,7 +451,7 @@ async def open_user_profile(callback: CallbackQuery, user: User, db: AsyncSessio
             for tag in result.scalars().all():
                 tags_map[tag.id] = tag
 
-        caption = await _build_profile_caption(target.profile, tags_map, user=target)
+        caption = await _build_profile_caption(target.profile, tags_map, user=target, db=db)
         reply_kb = swipe_card_keyboard(target.id, superlikes_count=user.superlike_balance)
         media_caption = _safe_media_caption(caption)
 
@@ -601,7 +615,7 @@ async def view_match_profile(callback: CallbackQuery, user: User, db: AsyncSessi
             except Exception:
                 pass
 
-        caption = await _build_profile_caption(partner.profile, tags_map, user=partner, mode=partner.mode)
+        caption = await _build_profile_caption(partner.profile, tags_map, user=partner, mode=partner.mode, db=db)
         full_caption = f"🫂 <b>Анкета твоего мэтча:</b>\n\n" + caption
         media_caption = _safe_media_caption(full_caption)
 
@@ -830,7 +844,7 @@ async def show_incoming_likes_entry(event: Message | CallbackQuery, user: User, 
         except Exception:
             pass
 
-    card_text = await _build_profile_caption(cand_profile, tags_map, user=candidate, mode=candidate.mode)
+    card_text = await _build_profile_caption(cand_profile, tags_map, user=candidate, mode=candidate.mode, db=db)
     action_label = "⭐️ <b>Поставил(а) суперлайк</b>" if like.action == SwipeAction.superlike else "❤️ <b>Поставил(а) лайк</b>"
     comment_block = f"\n\n💌 <i>«{html.escape(like.comment)}»</i>" if like.comment else ""
 
@@ -915,7 +929,7 @@ async def send_like_notification(
         except Exception:
             pass
 
-    body_caption = await _build_profile_caption(profile, tags_map, user=from_user, mode=mode)
+    body_caption = await _build_profile_caption(profile, tags_map, user=from_user, mode=mode, db=db)
 
     if action == SwipeAction.superlike:
         header = (

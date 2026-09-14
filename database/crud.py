@@ -410,7 +410,10 @@ async def get_top_profiles(
 
     result = await db.execute(
         select(Profile)
-        .options(selectinload(Profile.user))
+        .options(
+            selectinload(Profile.user).selectinload(User.university),
+            selectinload(Profile.user).selectinload(User.privacy),
+        )
         .join(User, Profile.user_id == User.id)
         .where(
             and_(
@@ -661,7 +664,10 @@ async def get_next_profile(
 
     base_query = (
         select(Profile)
-        .options(selectinload(Profile.user).selectinload(User.university))
+        .options(
+            selectinload(Profile.user).selectinload(User.university),
+            selectinload(Profile.user).selectinload(User.privacy),
+        )
         .join(User, Profile.user_id == User.id)
         .order_by(
             priority.desc(),

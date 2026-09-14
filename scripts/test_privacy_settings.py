@@ -234,6 +234,31 @@ async def test_bot_caption_hiding_age_and_course():
     assert "21" not in caption_minimal
     assert "3 курс" not in caption_minimal
 
+    # 5. Пользователь без загруженного privacy в __dict__ (не должно падать с MissingGreenlet)
+    user_no_priv = User(id=4002, mode=ModeEnum.dating)
+    p_no_priv = Profile(user_id=4002, name="Максим", age=22, year=4)
+    caption_safe = await _build_profile_caption(p_no_priv, tags_map={}, user=user_no_priv)
+    assert "Максим" in caption_safe
+    assert "22" in caption_safe
+    assert "4 курс" in caption_safe
+
+    # 6. Загрузка через get_next_profile с eager loading user.privacy
+    async with AsyncSessionLocal() as db:
+        u_db = User(id=4003, is_active=True, university_id=1)
+        p_db = Profile(user_id=4003, name="Ольга", is_complete=True, is_visible=True, age=23, year=5)
+        db.add_all([u_db, p_db])
+        await db.commit()
+        await update_user_privacy(db, 4003, hide_age=True)
+
+        from database.crud import get_next_profile
+        fetched = await get_next_profile(db, viewer_id=1001)
+        if fetched:
+            user_inst = fetched.__dict__.get("user")
+            if user_inst:
+                assert "privacy" in user_inst.__dict__
+            cap = await _build_profile_caption(fetched, tags_map={}, user=user_inst, db=db)
+            assert cap is not None
+
 
 @pytest.mark.asyncio
 async def test_webapp_privacy_endpoints():
