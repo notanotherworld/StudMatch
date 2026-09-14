@@ -2,23 +2,30 @@
 Создание анкеты — 5 вопросов + фото (FSM).
 """
 import html
+import uuid
 from typing import Optional, List, Dict, Any, Set
 from aiogram import Router, F
 from aiogram.filters import StateFilter, CommandObject
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, WebAppInfo
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from bot.states.fsm import ProfileState, CareerProfileState
+from bot.config import settings
+from bot.states.fsm import ProfileState, CareerProfileState, ProjectProfileState, ProjectCreateState
 from bot.keyboards.swipe import (
     age_keyboard, year_keyboard, interests_keyboard, main_menu_keyboard, mode_keyboard,
     rudn_institutes_keyboard, RUDN_INSTITUTES, cancel_reply_keyboard,
     gender_keyboard, target_gender_keyboard,
     career_skills_keyboard, career_work_format_keyboard, CAREER_SKILLS_LIST,
+    project_stage_keyboard, project_conditions_keyboard, founder_candidate_keyboard,
 )
-from database.crud import get_or_create_profile, update_profile, update_career_profile
-from database.models import User, InterestTag, ModeEnum
+from database.crud import (
+    get_or_create_profile, update_profile, update_career_profile,
+    create_project, get_user_projects, get_project, update_project, delete_project,
+    get_project_candidates, founder_swipe_candidate,
+)
+from database.models import User, InterestTag, ModeEnum, Project, SwipeAction
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 router = Router()
@@ -102,6 +109,17 @@ async def cancel_profile_callback(callback: CallbackQuery, state: FSMContext, us
         CareerProfileState.waiting_career_portfolio,
         CareerProfileState.waiting_career_work_format,
         CareerProfileState.waiting_career_photo,
+        ProjectProfileState.waiting_project_role,
+        ProjectProfileState.waiting_project_skills,
+        ProjectProfileState.waiting_project_bio,
+        ProjectCreateState.waiting_title,
+        ProjectCreateState.waiting_pitch,
+        ProjectCreateState.waiting_description,
+        ProjectCreateState.waiting_stage,
+        ProjectCreateState.waiting_roles,
+        ProjectCreateState.waiting_conditions,
+        ProjectCreateState.waiting_demo_url,
+        ProjectCreateState.waiting_deck,
     ),
     F.text.func(
         lambda t: bool(
@@ -118,6 +136,7 @@ async def cancel_profile_callback(callback: CallbackQuery, state: FSMContext, us
         )
     ),
 )
+
 async def cancel_or_route_menu_during_profile(message: Message, state: FSMContext, user: User, db: AsyncSession):
     """Перехват кнопок меню и команды Отмена во время заполнения анкеты."""
     text_val = message.text.strip()
@@ -953,3 +972,417 @@ async def process_career_photo_fallback(message: Message):
         "📷 Пожалуйста, отправь деловое фото (изображением) или нажми <b>❌ Отмена</b>.",
         parse_mode="HTML",
     )
+
+
+# ─────────────────────────────────────────────────────────────
+# Проектный профиль студента (FSM)
+# ─────────────────────────────────────────────────────────────
+@router.callback_query(F.data == "settings:edit_project_profile")
+async def start_project_profile_creation(callback: CallbackQuery, state: FSMContext, user: User, db: AsyncSession):
+    await callback.answer()
+    if not user.profile or not user.profile.name:
+        await state.update_data(project_after=True)
+        await start_profile_creation(callback.message, state)
+        return
+
+    await state.set_state(ProjectProfileState.waiting_project_role)
+    await state.update_data(user_id=user.id)
+
+    builder = InlineKeyboardBuilder()
+    roles_examples = [
+        "💻 Frontend-разработчик", "⚙️ Backend-разработчик", "📱 Mobile (iOS/Android)",
+        "🎨 UI/UX дизайнер", "🚀 Product Manager", "📈 Маркетинг / Growth",
+        "📊 Data Scientist / AI", "💼 Кофаундер / Бизнес",
+    ]
+    for r in roles_examples:
+        clean_r = r.split(" ", 1)[1] if " " in r else r
+        builder.button(text=r, callback_data=f"prole:{clean_r}")
+    builder.button(text="❌ Отмена", callback_data="profile:cancel")
+    builder.adjust(2, 2, 2, 2, 1)
+
+    await callback.message.answer(
+        "💡 <b>Проектный профиль: Шаг 1 из 3 — Твоя роль в проектах</b>\n\n"
+        "Кем ты хочешь быть в студенческих стартапах и хакатон-командах?\n"
+        "Выбери подходящую роль из списка или напиши свою текстом:\n\n"
+        "<i>Например: Frontend-разработчик, UI/UX дизайнер, Product Manager</i>",
+        parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+    )
+
+
+@router.callback_query(F.data.startswith("prole:"), ProjectProfileState.waiting_project_role)
+async def process_project_role_callback(callback: CallbackQuery, state: FSMContext):
+    role = callback.data.split("prole:")[1]
+    await state.update_data(project_role=role)
+    await callback.answer(f"Роль: {role}")
+    await state.set_state(ProjectProfileState.waiting_project_skills)
+    await callback.message.answer(
+        f"✅ Твоя роль: <b>{html.escape(role)}</b>\n\n"
+        "💡 <b>Шаг 2 из 3 — Стек технологий и навыки</b>\n\n"
+        "Перечисли ключевые технологии, языки, инструменты или навыки через запятую:\n"
+        "<i>Например: React, TypeScript, Tailwind CSS, REST API, Figma, Git</i>",
+        parse_mode="HTML",
+        reply_markup=cancel_reply_keyboard(),
+    )
+
+
+@router.message(ProjectProfileState.waiting_project_role)
+async def process_project_role_text(message: Message, state: FSMContext):
+    text_val = (message.text or "").strip()
+    if len(text_val) < 2 or len(text_val) > 100:
+        await message.answer("Пожалуйста, укажи роль от 2 до 100 символов (например: Python Backend Developer):")
+        return
+    await state.update_data(project_role=text_val)
+    await state.set_state(ProjectProfileState.waiting_project_skills)
+    await message.answer(
+        f"✅ Твоя роль: <b>{html.escape(text_val)}</b>\n\n"
+        "💡 <b>Шаг 2 из 3 — Стек технологий и навыки</b>\n\n"
+        "Перечисли ключевые технологии, языки, инструменты или навыки через запятую:\n"
+        "<i>Например: Python, FastAPI, PostgreSQL, Docker, Redis, Git</i>",
+        parse_mode="HTML",
+        reply_markup=cancel_reply_keyboard(),
+    )
+
+
+@router.message(ProjectProfileState.waiting_project_skills)
+async def process_project_skills_text(message: Message, state: FSMContext):
+    text_val = (message.text or "").strip()
+    if len(text_val) < 2 or len(text_val) > 300:
+        await message.answer("Пожалуйста, опиши навыки от 2 до 300 символов:")
+        return
+    await state.update_data(project_skills=text_val)
+    await state.set_state(ProjectProfileState.waiting_project_bio)
+    await message.answer(
+        "💡 <b>Шаг 3 из 3 — Опыт и цели в проектах</b>\n\n"
+        "Расскажи немного о себе: в каких проектах или кейс-чемпионатах участвовал(а), "
+        "какие идеи интересны и сколько времени готов(а) уделять команде:\n"
+        "<i>(до 500 символов)</i>",
+        parse_mode="HTML",
+        reply_markup=cancel_reply_keyboard(),
+    )
+
+
+@router.message(ProjectProfileState.waiting_project_bio)
+async def process_project_bio_text(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    text_val = (message.text or "").strip()
+    data = await state.get_data()
+    role = data.get("project_role", "Участник команды")
+    skills = data.get("project_skills", "Не указаны")
+
+    await update_profile(
+        db,
+        user.id,
+        project_role=role,
+        project_skills=skills,
+        project_bio=text_val[:500] if text_val else None,
+        project_is_complete=True,
+    )
+    await state.clear()
+
+    await message.answer(
+        "🎉 <b>Твой проектный профиль успешно заполнен!</b>\n\n"
+        "Теперь другие студенты и фаундеры смогут звать тебя в команды, "
+        "а ты сможешь откликаться на стартапы в ленте «💡 Проекты».",
+        parse_mode="HTML",
+        reply_markup=main_menu_keyboard(),
+    )
+    from bot.handlers.settings import show_my_profile
+    await show_my_profile(message, user, db, view_mode="projects")
+
+
+# ─────────────────────────────────────────────────────────────
+# Пошаговое создание проекта / стартапа (FSM)
+# ─────────────────────────────────────────────────────────────
+@router.callback_query(F.data == "projects:create")
+@router.message(F.text.in_({"/create_project", "➕ Создать проект"}))
+async def start_project_creation(event: Message | CallbackQuery, state: FSMContext, user: User):
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+        message = event.message
+    else:
+        message = event
+
+    await state.clear()
+    await state.set_state(ProjectCreateState.waiting_title)
+
+    await message.answer(
+        "🚀 <b>Создание проекта: Шаг 1 из 7 — Название проекта</b>\n\n"
+        "Введи яркое и понятное название твоего проекта, стартапа или команды (до 100 символов):\n"
+        "<i>Например: EcoCampus, UniRent, AI Study Mate</i>",
+        parse_mode="HTML",
+        reply_markup=cancel_reply_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "projects:cancel")
+async def cancel_project_creation(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer("Создание проекта отменено")
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(
+        "❌ <b>Создание проекта отменено.</b>",
+        parse_mode="HTML",
+        reply_markup=main_menu_keyboard(),
+    )
+
+
+@router.message(ProjectCreateState.waiting_title)
+async def process_project_title(message: Message, state: FSMContext):
+    text_val = (message.text or "").strip()
+    if len(text_val) < 2 or len(text_val) > 100:
+        await message.answer("Название проекта должно быть от 2 до 100 символов. Попробуй ещё раз:")
+        return
+    await state.update_data(project_title=text_val)
+    await state.set_state(ProjectCreateState.waiting_pitch)
+    await message.answer(
+        f"✅ Название: <b>{html.escape(text_val)}</b>\n\n"
+        "🎯 <b>Шаг 2 из 7 — Питч в одну строку</b>\n\n"
+        "Опиши суть проекта одним предложением (до 150 символов):\n"
+        "<i>Например: Платформа для совместной аренды квартир студентами без посредников</i>",
+        parse_mode="HTML",
+        reply_markup=cancel_reply_keyboard(),
+    )
+
+
+@router.message(ProjectCreateState.waiting_pitch)
+async def process_project_pitch(message: Message, state: FSMContext):
+    text_val = (message.text or "").strip()
+    if len(text_val) < 5 or len(text_val) > 150:
+        await message.answer("Питч должен быть от 5 до 150 символов. Попробуй ещё раз:")
+        return
+    await state.update_data(project_pitch=text_val)
+    await state.set_state(ProjectCreateState.waiting_description)
+    await message.answer(
+        "📝 <b>Шаг 3 из 7 — Подробное описание</b>\n\n"
+        "Какую проблему решает проект? Кто целевая аудитория? Что уже сделано? (до 1000 символов):",
+        parse_mode="HTML",
+        reply_markup=cancel_reply_keyboard(),
+    )
+
+
+@router.message(ProjectCreateState.waiting_description)
+async def process_project_description(message: Message, state: FSMContext):
+    text_val = (message.text or "").strip()
+    if len(text_val) < 10 or len(text_val) > 1000:
+        await message.answer("Описание должно быть от 10 до 1000 символов. Попробуй ещё раз:")
+        return
+    await state.update_data(project_description=text_val)
+    await state.set_state(ProjectCreateState.waiting_stage)
+    await message.answer(
+        "📊 <b>Шаг 4 из 7 — Стадия проекта</b>\n\n"
+        "На каком этапе находится проект сейчас? Выбери вариант:",
+        parse_mode="HTML",
+        reply_markup=project_stage_keyboard(),
+    )
+
+
+@router.callback_query(F.data.startswith("pstage:"), ProjectCreateState.waiting_stage)
+async def process_project_stage(callback: CallbackQuery, state: FSMContext):
+    stage_val = callback.data.split("pstage:")[1]
+    await state.update_data(project_stage=stage_val)
+    await callback.answer()
+    await state.set_state(ProjectCreateState.waiting_roles)
+    await callback.message.answer(
+        "👥 <b>Шаг 5 из 7 — Кого ты ищешь в команду?</b>\n\n"
+        "Укажи нужные роли и специализации через запятую:\n"
+        "<i>Например: Frontend React, UI/UX дизайнер, Маркетолог</i>",
+        parse_mode="HTML",
+        reply_markup=cancel_reply_keyboard(),
+    )
+
+
+@router.message(ProjectCreateState.waiting_roles)
+async def process_project_roles(message: Message, state: FSMContext):
+    text_val = (message.text or "").strip()
+    roles = [r.strip() for r in text_val.split(",") if r.strip()]
+    if not roles:
+        roles = ["Участник команды"]
+    await state.update_data(project_roles=roles)
+    await state.set_state(ProjectCreateState.waiting_conditions)
+    await message.answer(
+        "🤝 <b>Шаг 6 из 7 — Условия участия</b>\n\n"
+        "Какие условия предлагаются участникам команды?",
+        parse_mode="HTML",
+        reply_markup=project_conditions_keyboard(),
+    )
+
+
+@router.callback_query(F.data.startswith("pcond:"), ProjectCreateState.waiting_conditions)
+async def process_project_conditions(callback: CallbackQuery, state: FSMContext):
+    cond_val = callback.data.split("pcond:")[1]
+    await state.update_data(project_conditions=cond_val)
+    await callback.answer()
+    await state.set_state(ProjectCreateState.waiting_demo_url)
+    await callback.message.answer(
+        "🔗 <b>Шаг 7 из 7 — Ссылка на проект / демо / сайт</b>\n\n"
+        "Отправь ссылку на сайт, репозиторий или прототип Figma.\n"
+        "Если ссылки пока нет — отправь <b>-</b> (пропустить):",
+        parse_mode="HTML",
+        reply_markup=cancel_reply_keyboard(),
+    )
+
+
+@router.message(ProjectCreateState.waiting_demo_url)
+async def process_project_demo_url(message: Message, state: FSMContext, user: User, db: AsyncSession):
+    text_val = (message.text or "").strip()
+    demo_url = None
+    if text_val and text_val not in {"-", "нет", "пропустить", "none"}:
+        demo_url = text_val
+
+    data = await state.get_data()
+    title = data.get("project_title", "Мой проект")
+    pitch = data.get("project_pitch", "")
+    description = data.get("project_description", "")
+    stage = data.get("project_stage", "idea")
+    roles = data.get("project_roles", [])
+    conditions = data.get("project_conditions", "exp")
+
+    # Создаем проект в базе
+    new_project = await create_project(
+        db,
+        user_id=user.id,
+        title=title,
+        pitch=pitch,
+        description=description,
+        stage=stage,
+        required_roles=roles,
+        conditions=conditions,
+        demo_url=demo_url,
+    )
+    await state.clear()
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📂 Мои проекты", callback_data="projects:my")
+    builder.button(text="🔍 Смотреть ленту проектов", callback_data="top:swipe_next")
+    builder.button(text="🚀 Открыть приложение", web_app=WebAppInfo(url=settings.webapp_url))
+    builder.adjust(1)
+
+    await message.answer(
+        f"🎉 <b>Проект «{html.escape(new_project.title)}» успешно опубликован!</b>\n\n"
+        f"Стартап уже виден студентам в ленте свайпов «💡 Проекты».\n"
+        f"Как только кто-то откликнется, тебе придёт мгновенное уведомление в этот бот с анкетой кандидата! 🚀",
+        parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Список "Мои проекты" и кандидаты
+# ─────────────────────────────────────────────────────────────
+@router.callback_query(F.data == "projects:my")
+@router.message(F.text.in_({"/my_projects", "📂 Мои проекты"}))
+async def show_my_projects(event: Message | CallbackQuery, user: User, db: AsyncSession):
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+        message = event.message
+    else:
+        message = event
+
+    projects = await get_user_projects(db, user.id)
+    if not projects:
+        b = InlineKeyboardBuilder()
+        b.button(text="➕ Создать проект", callback_data="projects:create")
+        b.button(text="🏠 Главное меню", callback_data="settings:main_menu")
+        b.adjust(1)
+        await message.answer(
+            "📂 <b>У тебя пока нет созданных проектов</b>\n\n"
+            "Создай свой первый стартап или проект, чтобы собрать команду единомышленников и начать поиск соратников!",
+            parse_mode="HTML",
+            reply_markup=b.as_markup(),
+        )
+        return
+
+    lines = []
+    builder = InlineKeyboardBuilder()
+
+    for idx, p in enumerate(projects, start=1):
+        candidates = await get_project_candidates(db, p.id)
+        cand_count = len(candidates)
+        cand_badge = f"🔥 <b>{cand_count} новых откликов!</b>" if cand_count > 0 else "0 откликов"
+        lines.append(f"{idx}. <b>{html.escape(p.title)}</b> ({p.stage}) — {cand_badge}")
+
+        p_hex = p.id.hex
+        if cand_count > 0:
+            builder.button(text=f"👥 Отклики «{p.title[:12]}» ({cand_count})", callback_data=f"fcand:list:{p_hex}")
+        builder.button(text=f"🗑 Удалить «{p.title[:12]}»", callback_data=f"projects:delete:{p_hex}")
+
+    builder.button(text="➕ Создать ещё проект", callback_data="projects:create")
+    builder.button(text="💡 Смотреть ленту проектов", callback_data="top:swipe_next")
+    builder.adjust(1)
+
+    text = (
+        f"📂 <b>Твои проекты ({len(projects)}):</b>\n\n" +
+        "\n".join(lines) +
+        "\n\n<i>Нажми кнопку ниже для просмотра входящих откликов или управления:</i>"
+    )
+    await message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
+
+
+@router.callback_query(F.data.startswith("fcand:list:"))
+async def view_project_candidates(callback: CallbackQuery, user: User, db: AsyncSession):
+    proj_id_str = callback.data.split("fcand:list:")[1]
+    try:
+        proj_id = uuid.UUID(proj_id_str)
+    except ValueError:
+        await callback.answer("Ошибка проекта.", show_alert=True)
+        return
+
+    project = await get_project(db, proj_id)
+    if not project or project.user_id != user.id:
+        await callback.answer("Проект не найден.", show_alert=True)
+        return
+
+    candidates = await get_project_candidates(db, proj_id)
+    if not candidates:
+        await callback.answer("Новых откликов пока нет.", show_alert=True)
+        return
+
+    await callback.answer()
+    await callback.message.answer(
+        f"👥 <b>Отклики на проект «{html.escape(project.title)}» ({len(candidates)}):</b>",
+        parse_mode="HTML",
+    )
+
+    for cand_user, swipe in candidates[:5]:
+        p = cand_user.profile
+        cand_name = p.name if (p and p.name) else "Студент"
+        cand_role = p.project_role if (p and p.project_role) else "Участник"
+        cand_skills = p.project_skills if (p and p.project_skills) else "Не указаны"
+        cand_bio = p.project_bio if (p and p.project_bio) else ""
+        cand_univ = cand_user.university.short_name if cand_user.university else "РУДН"
+        cand_year = f"{p.year} курс" if (p and p.year) else ""
+
+        action_badge = "⭐️ <b>Супер-отклик!</b>" if swipe.action == SwipeAction.superlike else "❤️ Отклик"
+        cand_text = (
+            f"{action_badge}\n"
+            f"👤 <b>{html.escape(cand_name)}</b> ({cand_univ}{f', {cand_year}' if cand_year else ''})\n"
+            f"🎯 <b>Роль:</b> {html.escape(cand_role)}\n"
+            f"💻 <b>Стек:</b> {html.escape(cand_skills)}\n"
+        )
+        if cand_bio:
+            cand_text += f"💬 <b>О себе:</b> {html.escape(cand_bio)}\n"
+
+        kb = founder_candidate_keyboard(project.id, cand_user.id)
+        await callback.message.answer(cand_text, parse_mode="HTML", reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("projects:delete:"))
+async def process_project_delete(callback: CallbackQuery, user: User, db: AsyncSession):
+    proj_id_str = callback.data.split("projects:delete:")[1]
+    try:
+        proj_id = uuid.UUID(proj_id_str)
+    except ValueError:
+        await callback.answer("Ошибка проекта.", show_alert=True)
+        return
+
+    ok = await delete_project(db, proj_id, user.id)
+    if ok:
+        await callback.answer("Проект успешно удалён!", show_alert=True)
+    else:
+        await callback.answer("Не удалось удалить проект.", show_alert=True)
+
+    await show_my_projects(callback, user, db)
+

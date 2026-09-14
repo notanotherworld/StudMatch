@@ -29,7 +29,7 @@ from web.dependencies import get_db, SECRET, ALGORITHM
 import jwt
 from database.models import (
     User, Profile, University, Swipe, Match, ChatMessage, SwipeAction, ModeEnum, InterestTag,
-    Report, ReportStatus, UserPrivacy, SupportTicket, TicketStatus,
+    Report, ReportStatus, UserPrivacy, SupportTicket, TicketStatus, Project,
 )
 from database.crud import (
     get_user, get_profile, get_or_create_profile, get_next_profile, create_swipe,
@@ -40,6 +40,8 @@ from database.crud import (
     transfer_superlike_rating, update_user_last_active,
     get_or_create_user_privacy, update_user_privacy, toggle_photo_privacy,
     is_user_online_visible_to, get_user_online_status_text_for,
+    create_project, get_project, get_user_projects, update_project, delete_project,
+    get_projects_feed, get_project_candidates, founder_swipe_candidate,
 )
 
 logger = logging.getLogger(__name__)
@@ -1336,6 +1338,10 @@ async def webapp_profile(
             "career_work_format": p.career_work_format if p else "",
             "career_portfolio_url": p.career_portfolio_url if p else "",
             "career_is_complete": p.career_is_complete if p else False,
+            "project_role": p.project_role if p else "",
+            "project_skills": p.project_skills if p else "",
+            "project_bio": p.project_bio if p else "",
+            "project_is_complete": p.project_is_complete if p else False,
             "rating_score": round(p.rating_score or 0.0, 1) if p else 0.0,
             "is_superadmin": is_superadmin,
             "privacy": {
@@ -1366,6 +1372,9 @@ class ProfileUpdateRequest(BaseModel):
     career_custom_skills: Optional[str] = None
     career_work_format: Optional[str] = None
     career_portfolio_url: Optional[str] = None
+    project_role: Optional[str] = None
+    project_skills: Optional[str] = None
+    project_bio: Optional[str] = None
 
 
 @router.get("/api/webapp/tags")
@@ -1447,6 +1456,17 @@ async def webapp_update_profile(
 
     if p.career_goal or p.career_custom_skills:
         p.career_is_complete = True
+
+    # Проектная анкета
+    if body.project_role is not None:
+        p.project_role = body.project_role.strip()[:100]
+    if body.project_skills is not None:
+        p.project_skills = body.project_skills.strip()[:1000]
+    if body.project_bio is not None:
+        p.project_bio = body.project_bio.strip()[:2000]
+
+    if p.project_role and (p.project_skills or p.project_bio):
+        p.project_is_complete = True
 
     p.is_complete = bool(p.name and p.year and p.major and (p.photos or p.avatar_file_id))
     await db.commit()
@@ -1713,8 +1733,12 @@ async def webapp_toggle_mode(
     student: User = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    """Смена активного режима студента."""
-    new_mode = ModeEnum.career if payload.mode == "career" else ModeEnum.dating
+    if payload.mode == "career":
+        new_mode = ModeEnum.career
+    elif payload.mode == "projects":
+        new_mode = ModeEnum.projects
+    else:
+        new_mode = ModeEnum.dating
     student.mode = new_mode
     await db.commit()
     return {"status": "ok", "mode": new_mode.value}
@@ -1873,7 +1897,7 @@ async def webapp_career_feed(
         "it": ["python", "java", "c++", "c#", "frontend", "backend", "fullstack", "react", "vue", "docker", "devops", "sql", "код", "разраб", "web dev", "web-dev", "flutter", "ios", "android", "разработ"],
         "design": ["дизайн", "design", "ux", "ui", "figma", "иллюстра", "3d", "blender", "photoshop", "графич", "моушн"],
         "marketing": ["маркетинг", "marketing", "smm", "target", "реклама", "pr", "контент", "копирайт", "трафик", "seo", "бренд"],
-        "management": ["менеджмент", "management", "pm", "управлен", "продакт", "проджект", "лидер", "бизнес", "стартап", "sales", "продаж"],
+        "management": ["менеджмент", "management", "pm", "управлен", "продакт", "проджект", "лидер", "бизнес", "sales", "продаж"],
         "data": ["data", "данн", "аналит", "ml", "ai", "machine learning", "datascience", "sql", "pandas", "bi", "нейросет"],
     }
 
@@ -1987,9 +2011,9 @@ async def webapp_career_feed(
             "university": (u.university.short_name or u.university.name) if u.university else "",
             "photos": photo_urls,
             "avatar_url": photo_urls[0],
-            "career_goal": p.career_goal or "Открыт к предложениям и новым проектам 🚀",
+            "career_goal": p.career_goal or "Открыт к вакансиям и стажировкам в компаниях 💼",
             "career_skills": skills[:8],
-            "career_work_format": p.career_work_format or "Удалённо / Проекты",
+            "career_work_format": p.career_work_format or "Удалённо / Офис",
             "career_portfolio_url": p.career_portfolio_url,
             "rating_score": round(p.rating_score or 0.0, 1),
             "is_verified": bool(u.is_verified),
@@ -2003,6 +2027,416 @@ async def webapp_career_feed(
         "status": "ok",
         "count": len(cards),
         "candidates": cards,
+    }
+
+
+# ─── API: Проекты и стартапы (Желтая лента «Проекты») ───
+class ProjectCreateRequest(BaseModel):
+    title: str
+    pitch: str
+    description: str
+    stage: Optional[str] = "idea"
+    required_roles: Optional[List[str]] = []
+    conditions: Optional[str] = None
+    demo_url: Optional[str] = None
+    pitchdeck_url: Optional[str] = None
+    cover_url: Optional[str] = None
+
+
+class ProjectSwipeRequest(BaseModel):
+    project_id: str
+    action: str  # "like", "superlike", "skip"
+    comment: Optional[str] = None
+
+
+class FounderCandidateSwipeRequest(BaseModel):
+    candidate_id: int
+    action: str  # "like", "skip"
+
+
+class ProjectProfileUpdateRequest(BaseModel):
+    project_role: Optional[str] = None
+    project_skills: Optional[str] = None
+    project_bio: Optional[str] = None
+
+
+@router.get("/api/webapp/projects/feed")
+async def webapp_projects_feed(
+    q: Optional[str] = None,
+    stage: Optional[str] = "all",
+    role: Optional[str] = "all",
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Лента студенческих проектов и стартапов:
+    Возвращает карточки проектов для свайп-колоды и каталога с фильтрацией.
+    """
+    projects = await get_projects_feed(
+        db=db,
+        viewer_user_id=student.id,
+        q=q,
+        stage=stage,
+        role=role,
+    )
+
+    cards = []
+    for proj in projects:
+        u = proj.user
+        p = u.profile if u else None
+        founder_photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
+        avatar_url = resolve_photo_url(founder_photos[0]) if founder_photos else DEFAULT_FALLBACK_AVATAR
+        uni_name = (u.university.short_name or u.university.name) if (u and u.university) else ""
+
+        cards.append({
+            "id": str(proj.id),
+            "founder_id": proj.user_id,
+            "founder_name": p.name if (p and p.name) else "Фаундер",
+            "founder_university": uni_name,
+            "founder_avatar": avatar_url,
+            "founder_role": p.project_role if p else None,
+            "founder_rating": round(p.rating_score or 0.0, 1) if p else 0.0,
+            "founder_verified": bool(u.is_verified) if u else False,
+            "title": proj.title,
+            "pitch": proj.pitch,
+            "description": proj.description,
+            "stage": proj.stage,
+            "required_roles": proj.required_roles or [],
+            "conditions": proj.conditions or "По договорённости",
+            "demo_url": proj.demo_url,
+            "pitchdeck_url": proj.pitchdeck_url,
+            "cover_url": proj.cover_url or avatar_url,
+            "created_at": proj.created_at.isoformat() if proj.created_at else None,
+        })
+
+    return {
+        "status": "ok",
+        "count": len(cards),
+        "projects": cards,
+    }
+
+
+@router.post("/api/webapp/projects/swipe")
+async def webapp_projects_swipe(
+    payload: ProjectSwipeRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Свайп проекта кандидатом (Хочу в команду / Скип / Суперлайк)."""
+    try:
+        p_uuid = uuid.UUID(payload.project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный ID проекта")
+
+    project = await get_project(db, p_uuid)
+    if not project or not project.is_active:
+        raise HTTPException(status_code=404, detail="Проект не найден или скрыт")
+
+    if project.user_id == student.id:
+        raise HTTPException(status_code=400, detail="Нельзя свайпать собственный проект")
+
+    action_map = {
+        "like": SwipeAction.like,
+        "superlike": SwipeAction.superlike,
+        "skip": SwipeAction.skip,
+    }
+    action = action_map.get(payload.action.lower(), SwipeAction.skip)
+
+    await create_swipe(
+        db,
+        from_id=student.id,
+        to_id=project.user_id,
+        action=action,
+        mode=ModeEnum.projects,
+        comment=payload.comment,
+        to_project_id=p_uuid,
+    )
+
+    if action in (SwipeAction.like, SwipeAction.superlike):
+        cand_name = student.profile.name if student.profile and student.profile.name else "Студент"
+        cand_major = student.profile.major if student.profile and student.profile.major else ""
+        note = f"\n💬 <i>«{html.escape(payload.comment)}»</i>" if payload.comment else ""
+        msg = (
+            f"💡 <b>Новый отклик в проект «{html.escape(project.title)}»!</b>\n\n"
+            f"👤 <b>{html.escape(cand_name)}</b> ({html.escape(cand_major)})\n"
+            f"хочет присоединиться к вашей команде.{note}\n\n"
+            f"👉 Откройте раздел «Мои проекты» в WebApp или боте, чтобы посмотреть анкету и принять отклик!"
+        )
+        try:
+            from aiogram import Bot
+            bot = Bot(token=settings.BOT_TOKEN)
+            await bot.send_message(project.user_id, msg, parse_mode="HTML")
+            await bot.session.close()
+        except Exception:
+            pass
+
+    return {"status": "ok", "action": action.value}
+
+
+@router.get("/api/webapp/projects/my")
+async def webapp_get_my_projects(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Список проектов текущего пользователя с количеством откликов."""
+    projects = await get_user_projects(db, student.id, only_active=False)
+    data = []
+    for proj in projects:
+        candidates = await get_project_candidates(db, proj.id)
+        data.append({
+            "id": str(proj.id),
+            "title": proj.title,
+            "pitch": proj.pitch,
+            "description": proj.description,
+            "stage": proj.stage,
+            "required_roles": proj.required_roles or [],
+            "conditions": proj.conditions,
+            "demo_url": proj.demo_url,
+            "pitchdeck_url": proj.pitchdeck_url,
+            "cover_url": proj.cover_url,
+            "is_active": proj.is_active,
+            "candidates_count": len(candidates),
+            "created_at": proj.created_at.isoformat() if proj.created_at else None,
+        })
+    return {"status": "ok", "projects": data}
+
+
+@router.post("/api/webapp/projects")
+async def webapp_create_project(
+    payload: ProjectCreateRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Создать новый проект (максимум 3 активных проекта на пользователя)."""
+    my_active = await get_user_projects(db, student.id, only_active=True)
+    if len(my_active) >= 3:
+        raise HTTPException(status_code=400, detail="Вы можете создать максимум 3 активных проекта")
+
+    if not payload.title.strip() or not payload.pitch.strip() or not payload.description.strip():
+        raise HTTPException(status_code=400, detail="Заполните название, краткий питч и описание проекта")
+
+    project = await create_project(
+        db=db,
+        user_id=student.id,
+        title=payload.title,
+        pitch=payload.pitch,
+        description=payload.description,
+        stage=payload.stage or "idea",
+        required_roles=payload.required_roles or [],
+        conditions=payload.conditions,
+        demo_url=payload.demo_url,
+        pitchdeck_url=payload.pitchdeck_url,
+        cover_url=payload.cover_url,
+    )
+    return {"status": "ok", "project_id": str(project.id)}
+
+
+@router.put("/api/webapp/projects/{project_id}")
+async def webapp_update_project(
+    project_id: str,
+    payload: ProjectCreateRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Редактировать существующий проект."""
+    try:
+        p_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный ID проекта")
+
+    updated = await update_project(
+        db=db,
+        project_id=p_uuid,
+        user_id=student.id,
+        title=payload.title.strip(),
+        pitch=payload.pitch.strip(),
+        description=payload.description.strip(),
+        stage=payload.stage or "idea",
+        required_roles=payload.required_roles or [],
+        conditions=payload.conditions,
+        demo_url=payload.demo_url,
+        pitchdeck_url=payload.pitchdeck_url,
+        cover_url=payload.cover_url,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Проект не найден или нет прав")
+    return {"status": "ok", "project_id": str(updated.id)}
+
+
+@router.delete("/api/webapp/projects/{project_id}")
+async def webapp_delete_project(
+    project_id: str,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Удалить проект."""
+    try:
+        p_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный ID проекта")
+
+    deleted = await delete_project(db, p_uuid, student.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Проект не найден или нет прав")
+    return {"status": "ok"}
+
+
+@router.post("/api/webapp/projects/upload_deck")
+async def webapp_upload_project_deck(
+    file: UploadFile = File(...),
+    student: User = Depends(get_current_student),
+):
+    """Загрузка PDF-питчдека или презентации для проекта."""
+    raw_ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else "pdf"
+    if raw_ext not in ("pdf", "png", "jpg", "jpeg"):
+        raise HTTPException(status_code=400, detail="Поддерживаются форматы PDF, PNG, JPG")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Максимальный размер файла — 20 МБ")
+
+    try:
+        from bot.utils.minio_client import upload_document
+        url = await upload_document(file_bytes, file.filename, student.id)
+        return {"status": "ok", "url": url}
+    except Exception as e:
+        logger.warning(f"MinIO upload error: {e}. Fallback to local storage.")
+        local_dir = os.path.abspath("web/static/uploads/projects")
+        os.makedirs(local_dir, exist_ok=True)
+        fname = f"{student.id}_{uuid.uuid4().hex[:8]}.{raw_ext}"
+        local_path = os.path.join(local_dir, fname)
+        with open(local_path, "wb") as f:
+            f.write(file_bytes)
+        return {"status": "ok", "url": f"/static/uploads/projects/{fname}"}
+
+
+@router.get("/api/webapp/projects/{project_id}/candidates")
+async def webapp_get_project_candidates(
+    project_id: str,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Кандидаты, откликнувшиеся на проект (колода для фаундера)."""
+    try:
+        p_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный ID проекта")
+
+    project = await get_project(db, p_uuid)
+    if not project or project.user_id != student.id:
+        raise HTTPException(status_code=403, detail="Доступ запрещён: вы не автор проекта")
+
+    candidates_with_swipes = await get_project_candidates(db, p_uuid)
+    data = []
+    for cand_user, swipe in candidates_with_swipes:
+        p = cand_user.profile
+        if not p:
+            continue
+        c_photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
+        photo_urls = [resolve_photo_url(pid) for pid in c_photos if resolve_photo_url(pid)] or [DEFAULT_FALLBACK_AVATAR]
+        uni_name = (cand_user.university.short_name or cand_user.university.name) if cand_user.university else ""
+
+        data.append({
+            "user_id": cand_user.id,
+            "name": p.name or "Студент",
+            "age": p.age,
+            "year": p.year,
+            "major": p.major or "",
+            "university": uni_name,
+            "avatar_url": photo_urls[0],
+            "photos": photo_urls,
+            "project_role": p.project_role or p.major,
+            "project_skills": p.project_skills or p.career_custom_skills or "",
+            "project_bio": p.project_bio or p.career_goal or p.goal or "",
+            "comment": swipe.comment,
+            "action": swipe.action.value,
+            "swiped_at": swipe.created_at.isoformat() if swipe.created_at else None,
+            "rating_score": round(p.rating_score or 0.0, 1),
+            "is_verified": bool(cand_user.is_verified),
+        })
+
+    return {"status": "ok", "candidates": data}
+
+
+@router.post("/api/webapp/projects/{project_id}/swipe_candidate")
+async def webapp_founder_swipe_candidate(
+    project_id: str,
+    payload: FounderCandidateSwipeRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Фаундер одобряет (лайкает) или пропускает кандидата."""
+    try:
+        p_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный ID проекта")
+
+    project = await get_project(db, p_uuid)
+    if not project or project.user_id != student.id:
+        raise HTTPException(status_code=403, detail="Доступ запрещён: вы не автор проекта")
+
+    action = SwipeAction.like if payload.action.lower() == "like" else SwipeAction.skip
+    is_match = await founder_swipe_candidate(
+        db=db,
+        founder_id=student.id,
+        candidate_id=payload.candidate_id,
+        project_id=p_uuid,
+        action=action,
+    )
+
+    match_id_str = None
+    if is_match:
+        m = await get_match_between_users(db, student.id, payload.candidate_id, ModeEnum.projects)
+        if m:
+            match_id_str = str(m.id)
+
+        # Уведомление кандидату в Telegram
+        cand = await get_user(db, payload.candidate_id)
+        founder_name = student.profile.name if student.profile and student.profile.name else "Фаундер"
+        if cand:
+            msg = (
+                f"🎉 <b>Вас приняли в команду проекта «{html.escape(project.title)}»!</b>\n\n"
+                f"Фаундер <b>{html.escape(founder_name)}</b> ответил взаимностью на ваш отклик.\n"
+                f"Чат команды уже открыт в WebApp СтудМэч! 🚀"
+            )
+            try:
+                from aiogram import Bot
+                bot = Bot(token=settings.BOT_TOKEN)
+                await bot.send_message(cand.id, msg, parse_mode="HTML")
+                await bot.session.close()
+            except Exception:
+                pass
+
+    return {
+        "status": "ok",
+        "is_match": is_match,
+        "match_id": match_id_str,
+    }
+
+
+@router.post("/api/webapp/profile/project")
+async def webapp_update_project_profile(
+    payload: ProjectProfileUpdateRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновление проектной анкеты студента."""
+    p = await get_or_create_profile(db, student.id)
+    if payload.project_role is not None:
+        p.project_role = payload.project_role.strip()
+    if payload.project_skills is not None:
+        p.project_skills = payload.project_skills.strip()
+    if payload.project_bio is not None:
+        p.project_bio = payload.project_bio.strip()
+
+    p.project_is_complete = bool(p.project_role and (p.project_skills or p.project_bio))
+    await db.commit()
+    return {
+        "status": "ok",
+        "project_role": p.project_role,
+        "project_skills": p.project_skills,
+        "project_bio": p.project_bio,
+        "project_is_complete": p.project_is_complete,
     }
 
 

@@ -20,6 +20,7 @@ from database.models import (
     User, Profile, University, EmailToken, Achievement,
     Swipe, Match, ChatMessage, Admin, Employer, EmployerProfileAccess, Payment, Report,
     VerifiedStatus, SwipeAction, ModeEnum, PaymentStatus, PaymentProduct, UserPrivacy,
+    Project,
 )
 
 
@@ -402,11 +403,12 @@ async def get_top_profiles(
     swiped_ids.add(viewer_id)
 
     now = datetime.now(timezone.utc)
-    is_complete_cond = (
-        Profile.career_is_complete == True
-        if mode == ModeEnum.career
-        else Profile.is_complete == True
-    )
+    if mode == ModeEnum.career:
+        is_complete_cond = (Profile.career_is_complete == True)
+    elif mode == ModeEnum.projects:
+        is_complete_cond = or_(Profile.project_is_complete == True, Profile.is_complete == True)
+    else:
+        is_complete_cond = (Profile.is_complete == True)
 
     result = await db.execute(
         select(Profile)
@@ -516,11 +518,12 @@ async def get_next_profile(
                 )
             )
 
-    is_complete_cond = (
-        Profile.career_is_complete == True
-        if current_mode == ModeEnum.career
-        else Profile.is_complete == True
-    )
+    if current_mode == ModeEnum.career:
+        is_complete_cond = (Profile.career_is_complete == True)
+    elif current_mode == ModeEnum.projects:
+        is_complete_cond = or_(Profile.project_is_complete == True, Profile.is_complete == True)
+    else:
+        is_complete_cond = (Profile.is_complete == True)
 
     # Исключение жалоб
     reported_subq = exists(
@@ -755,28 +758,37 @@ async def create_swipe(
     action: SwipeAction,
     mode: ModeEnum = ModeEnum.dating,
     comment: Optional[str] = None,
+    to_project_id: Optional[uuid.UUID] = None,
 ) -> bool:
     """
-    Сохранить свайп с учётом режима (Dating / Career).
+    Сохранить свайп с учётом режима (Dating / Career / Projects).
     Возвращает True если это взаимный лайк (мэтч).
     При повторном свайпе (даже skip) обновляет created_at для корректной работы кулдауна.
     """
     try:
         now = datetime.now(timezone.utc)
         current_mode = mode or ModeEnum.dating
-        # Проверяем, не было ли уже свайпа в этом режиме (или legacy без режима)
+        # Проверяем, не было ли уже свайпа в этом режиме
+        if to_project_id:
+            match_cond = and_(
+                Swipe.from_user_id == from_id,
+                Swipe.to_project_id == to_project_id,
+            )
+        else:
+            match_cond = and_(
+                Swipe.from_user_id == from_id,
+                Swipe.to_user_id == to_id,
+                or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
+            )
+
         existing = await db.execute(
-            select(Swipe).where(
-                and_(
-                    Swipe.from_user_id == from_id,
-                    Swipe.to_user_id == to_id,
-                    or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
-                )
-            ).order_by(Swipe.created_at.desc()).limit(1)
+            select(Swipe).where(match_cond).order_by(Swipe.created_at.desc()).limit(1)
         )
         existing_swipe = existing.scalar_one_or_none()
         if existing_swipe:
             existing_swipe.mode = current_mode
+            if to_project_id:
+                existing_swipe.to_project_id = to_project_id
             if existing_swipe.action == action and action in (SwipeAction.like, SwipeAction.superlike):
                 return False
             existing_swipe.action = action
@@ -790,6 +802,7 @@ async def create_swipe(
                         Swipe(
                             from_user_id=from_id,
                             to_user_id=to_id,
+                            to_project_id=to_project_id,
                             mode=current_mode,
                             action=action,
                             comment=comment,
@@ -798,15 +811,8 @@ async def create_swipe(
                     )
                     await db.flush()
             except IntegrityError:
-                # В случае одновременного запроса (гонка) запись уже создана другим процессом
                 existing = await db.execute(
-                    select(Swipe).where(
-                        and_(
-                            Swipe.from_user_id == from_id,
-                            Swipe.to_user_id == to_id,
-                            Swipe.mode == current_mode,
-                        )
-                    ).order_by(Swipe.created_at.desc()).limit(1)
+                    select(Swipe).where(match_cond).order_by(Swipe.created_at.desc()).limit(1)
                 )
                 existing_swipe = existing.scalar_one_or_none()
                 if existing_swipe:
@@ -1558,3 +1564,216 @@ async def update_employer_candidate_status(
         await db.commit()
         await db.refresh(access)
     return access
+
+
+# ─────────────────────────────────────────────────────────────
+# Projects CRUD
+# ─────────────────────────────────────────────────────────────
+async def create_project(
+    db: AsyncSession,
+    user_id: int,
+    title: str,
+    pitch: str,
+    description: str,
+    stage: str = "idea",
+    required_roles: Optional[List[str]] = None,
+    conditions: Optional[str] = None,
+    demo_url: Optional[str] = None,
+    pitchdeck_url: Optional[str] = None,
+    cover_url: Optional[str] = None,
+) -> Project:
+    project = Project(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        title=title.strip(),
+        pitch=pitch.strip(),
+        description=description.strip(),
+        stage=stage or "idea",
+        required_roles=required_roles or [],
+        conditions=conditions,
+        demo_url=demo_url,
+        pitchdeck_url=pitchdeck_url,
+        cover_url=cover_url,
+        is_active=True,
+    )
+    db.add(project)
+    await db.commit()
+    await db.refresh(project)
+    return project
+
+
+async def get_project(db: AsyncSession, project_id: uuid.UUID) -> Optional[Project]:
+    result = await db.execute(
+        select(Project)
+        .options(
+            selectinload(Project.user).selectinload(User.profile),
+            selectinload(Project.user).selectinload(User.university),
+        )
+        .where(Project.id == project_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_user_projects(db: AsyncSession, user_id: int, only_active: bool = False) -> List[Project]:
+    stmt = select(Project).where(Project.user_id == user_id)
+    if only_active:
+        stmt = stmt.where(Project.is_active.is_(True))
+    stmt = stmt.order_by(Project.created_at.desc())
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def update_project(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    user_id: int,
+    **kwargs,
+) -> Optional[Project]:
+    project = await get_project(db, project_id)
+    if not project or project.user_id != user_id:
+        return None
+    for k, v in kwargs.items():
+        if hasattr(project, k):
+            setattr(project, k, v)
+    await db.commit()
+    await db.refresh(project)
+    return project
+
+
+async def delete_project(db: AsyncSession, project_id: uuid.UUID, user_id: int) -> bool:
+    project = await get_project(db, project_id)
+    if not project or project.user_id != user_id:
+        return False
+    await db.delete(project)
+    await db.commit()
+    return True
+
+
+async def get_projects_feed(
+    db: AsyncSession,
+    viewer_user_id: int,
+    q: Optional[str] = None,
+    stage: Optional[str] = None,
+    role: Optional[str] = None,
+    limit: int = 30,
+    offset: int = 0,
+) -> List[Project]:
+    swiped_stmt = select(Swipe.to_project_id).where(
+        and_(
+            Swipe.from_user_id == viewer_user_id,
+            Swipe.to_project_id.isnot(None),
+        )
+    )
+    swiped_res = await db.execute(swiped_stmt)
+    swiped_project_ids = set(swiped_res.scalars().all())
+
+    stmt = (
+        select(Project)
+        .options(
+            selectinload(Project.user).selectinload(User.profile),
+            selectinload(Project.user).selectinload(User.university),
+        )
+        .where(
+            and_(
+                Project.is_active.is_(True),
+                Project.user_id != viewer_user_id,
+            )
+        )
+    )
+
+    if swiped_project_ids:
+        stmt = stmt.where(Project.id.not_in(swiped_project_ids))
+
+    if q and q.strip():
+        q_term = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Project.title.ilike(q_term),
+                Project.pitch.ilike(q_term),
+                Project.description.ilike(q_term),
+            )
+        )
+
+    if stage and stage != "all":
+        stmt = stmt.where(Project.stage == stage)
+
+    stmt = stmt.order_by(Project.created_at.desc()).offset(offset).limit(limit)
+    result = await db.execute(stmt)
+    projects = list(result.scalars().all())
+
+    if role and role != "all":
+        role_lower = role.lower()
+        projects = [
+            p for p in projects
+            if any(role_lower in (r or "").lower() for r in (p.required_roles or []))
+        ]
+
+    return projects
+
+
+async def get_project_candidates(db: AsyncSession, project_id: uuid.UUID) -> List[Tuple[User, Swipe]]:
+    """Студенты, которые лайкнули проект и ожидают решения фаундера."""
+    stmt = (
+        select(User, Swipe)
+        .join(Swipe, Swipe.from_user_id == User.id)
+        .options(selectinload(User.profile), selectinload(User.university))
+        .where(
+            and_(
+                Swipe.to_project_id == project_id,
+                Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+            )
+        )
+        .order_by(Swipe.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    return list(result.all())
+
+
+async def founder_swipe_candidate(
+    db: AsyncSession,
+    founder_id: int,
+    candidate_id: int,
+    project_id: uuid.UUID,
+    action: SwipeAction,
+) -> bool:
+    """
+    Фаундер свайпает кандидата. Если action in (like, superlike), создается мэтч по проекту!
+    """
+    now = datetime.now(timezone.utc)
+    db.add(
+        Swipe(
+            from_user_id=founder_id,
+            to_user_id=candidate_id,
+            to_project_id=project_id,
+            mode=ModeEnum.projects,
+            action=action,
+            created_at=now,
+        )
+    )
+
+    is_match = False
+    if action in (SwipeAction.like, SwipeAction.superlike):
+        match_stmt = select(Match).where(
+            and_(
+                Match.mode == ModeEnum.projects,
+                Match.project_id == project_id,
+                or_(
+                    and_(Match.user1_id == founder_id, Match.user2_id == candidate_id),
+                    and_(Match.user1_id == candidate_id, Match.user2_id == founder_id),
+                ),
+            )
+        )
+        existing_match = (await db.execute(match_stmt)).scalar_one_or_none()
+        if not existing_match:
+            new_match = Match(
+                user1_id=founder_id,
+                user2_id=candidate_id,
+                mode=ModeEnum.projects,
+                project_id=project_id,
+                user1_tg_approved=True,
+            )
+            db.add(new_match)
+            is_match = True
+
+    await db.commit()
+    return is_match

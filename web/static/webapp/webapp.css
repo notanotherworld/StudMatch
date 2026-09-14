@@ -3314,6 +3314,656 @@ body.career-theme.feed-view-active .app-content {
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4) !important;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   STUDMATCH: Projects & Startups Design System (Yellow Theme)
+   ═══════════════════════════════════════════════════════════════ */
+
+body.projects-theme {
+  --primary: #F59E0B;
+  --primary-hover: #D97706;
+  --primary-rgb: 245, 158, 11;
+  --bg-primary: #FFFDF5;
+  --bg-card: #FFFFFF;
+}
+
+body.projects-theme .header-brand .brand-title {
+  background: linear-gradient(135deg, #D97706, #F59E0B);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+body.projects-theme #pillProjects.active {
+  background: linear-gradient(135deg, #F59E0B, #D97706) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4) !important;
+}
+
+/* Projects Subnav */
+.projects-subnav-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  border-radius: 16px;
+  padding: 3px;
+  margin: 2px 14px 6px;
+  gap: 4px;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.projects-subnav-btn {
+  flex: 1;
+  padding: 8px 8px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  color: #78350F;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.projects-subnav-btn.active {
+  background: #F59E0B;
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+/* Scroll handling when in Projects Feed View */
+body.projects-theme.feed-view-active #screen-explore {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y !important;
+  height: 100% !important;
+}
+
+body.projects-theme.feed-view-active .app-content {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* Projects Views Container */
+.projects-feed-view, .projects-my-view {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 12px 100px;
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* Search Bar */
+.projects-search-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.projects-search-box {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: #FFFFFF;
+  border: 1.5px solid #FDE68A;
+  border-radius: 16px;
+  padding: 8px 14px;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.06);
+}
+
+.projects-search-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #0F172A;
+  width: 100%;
+  font-family: inherit;
+  caret-color: #F59E0B;
+}
+
+.projects-search-clear-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: #94A3B8;
+  cursor: pointer;
+}
+
+.projects-create-quick-btn {
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #F59E0B, #D97706);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+/* Stages and Roles Bars */
+.projects-stages-bar, .projects-roles-bar {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.projects-stages-bar::-webkit-scrollbar,
+.projects-roles-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.project-stage-chip, .project-role-chip {
+  padding: 6px 12px;
+  background: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.project-stage-chip.active {
+  background: #FEF3C7;
+  border-color: #F59E0B;
+  color: #B45309;
+}
+
+.project-role-chip.active {
+  background: #EFF6FF;
+  border-color: #3B82F6;
+  color: #1D4ED8;
+}
+
+/* Composer Card */
+.projects-composer-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #FFFBEB, #FEF3C7);
+  border: 1.5px dashed #F59E0B;
+  border-radius: 18px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.projects-composer-card:active {
+  transform: scale(0.98);
+}
+
+.projects-composer-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.2);
+  flex-shrink: 0;
+}
+
+.projects-composer-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.projects-composer-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.projects-composer-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400E;
+}
+
+.projects-composer-sub {
+  font-size: 12px;
+  color: #B45309;
+}
+
+/* Project Cards in Catalog */
+.project-catalog-card {
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 16px;
+  border: 1px solid #F1F5F9;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  transition: transform 0.15s ease;
+}
+
+.project-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.project-stage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.project-stage-badge.stage-idea {
+  background: #F3E8FF;
+  color: #7E22CE;
+}
+
+.project-stage-badge.stage-mvp {
+  background: #EFF6FF;
+  color: #1D4ED8;
+}
+
+.project-stage-badge.stage-launched {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+.project-stage-badge.stage-hackathon {
+  background: #FFEDD5;
+  color: #C2410C;
+}
+
+.project-card-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: #0F172A;
+  margin: 0;
+}
+
+.project-card-pitch {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.4;
+  margin: 0;
+  font-weight: 500;
+}
+
+.project-roles-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.project-role-tag {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 8px;
+}
+
+.project-card-founder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #F1F5F9;
+}
+
+.project-founder-avatar-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.project-founder-name-sm {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748B;
+}
+
+.project-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-project-action {
+  flex: 1;
+  padding: 11px;
+  border-radius: 12px;
+  border: none;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-project-apply {
+  background: linear-gradient(135deg, #F59E0B, #D97706);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
+}
+
+.btn-project-apply.applied {
+  background: #10B981 !important;
+  color: #FFFFFF !important;
+  box-shadow: none !important;
+}
+
+.btn-project-view {
+  background: #F8FAFC;
+  color: #334155;
+  border: 1px solid #E2E8F0;
+}
+
+/* My Projects */
+.projects-my-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.projects-my-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0F172A;
+  margin: 0;
+}
+
+.projects-my-subtitle {
+  font-size: 12px;
+  color: #64748B;
+  margin: 2px 0 0;
+}
+
+.btn-primary-sm {
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #F59E0B, #D97706);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.my-project-card {
+  background: #FFFFFF;
+  border-radius: 18px;
+  padding: 16px;
+  border: 1.5px solid #F1F5F9;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.my-project-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.my-project-candidates-badge {
+  background: #FEF3C7;
+  color: #B45309;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+/* Pitchdeck Upload */
+.pitchdeck-upload-box {
+  border: 2px dashed #CBD5E1;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  background: #F8FAFC;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.pitchdeck-upload-box:hover {
+  border-color: #F59E0B;
+  background: #FFFBEB;
+}
+
+/* Project Details Modal */
+.project-details-card {
+  max-width: 460px;
+  border-radius: 24px;
+  padding: 20px;
+}
+
+.project-founder-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #F1F5F9;
+}
+
+.project-founder-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #FEF3C7;
+}
+
+.project-founder-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.project-founder-uni {
+  font-size: 12px;
+  color: #64748B;
+  margin: 2px 0 0;
+}
+
+.project-pitch-banner {
+  background: #FFFBEB;
+  border-left: 4px solid #F59E0B;
+  padding: 10px 14px;
+  border-radius: 0 12px 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #92400E;
+  margin: 12px 0;
+}
+
+.project-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.project-detail-section .section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #94A3B8;
+  margin: 0;
+}
+
+.project-detail-desc {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.project-conditions-badge {
+  display: inline-flex;
+  background: #F1F5F9;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 10px;
+  width: fit-content;
+}
+
+.project-links-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.project-link-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  text-decoration: none;
+}
+
+.project-link-btn.pdf-btn {
+  background: #FEF3C7;
+  border-color: #FDE68A;
+  color: #92400E;
+  font-weight: 700;
+}
+
+.project-details-footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* Candidate Card in Founder Inbox */
+.founder-candidates-card {
+  max-width: 480px;
+  border-radius: 24px;
+  padding: 20px;
+}
+
+.candidate-app-item {
+  background: #F8FAFC;
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid #E2E8F0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.candidate-app-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.candidate-app-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.candidate-app-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.candidate-app-uni {
+  font-size: 12px;
+  color: #64748B;
+  margin: 2px 0 0;
+}
+
+.candidate-app-comment {
+  background: #FFFFFF;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #334155;
+  border: 1px solid #E2E8F0;
+  font-style: italic;
+}
+
+.candidate-app-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Swipe card specifics for projects */
+.swipe-card.project-card-swipe .action-btn.like {
+  background: linear-gradient(135deg, #F59E0B, #D97706) !important;
+  border-color: #FBBF24 !important;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4) !important;
+}
+
+.swipe-project-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: rgba(245, 158, 11, 0.9);
+  color: #FFFFFF;
+  backdrop-filter: blur(8px);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  z-index: 5;
+}
+
 /* ─── App Global Toast Notification ─────────────────────────── */
 .app-toast {
   position: fixed;

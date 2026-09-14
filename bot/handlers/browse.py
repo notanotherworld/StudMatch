@@ -3,6 +3,7 @@
 Действия: ❤️ Лайк, 👎 Дизлайк, ⭐ Суперлайк, 💌 Письмо.
 """
 import html
+import uuid
 from typing import Optional
 from aiogram import Router, F
 from aiogram.filters import StateFilter
@@ -17,15 +18,77 @@ from bot.config import settings
 from bot.keyboards.swipe import (
     swipe_card_keyboard, career_swipe_card_keyboard, main_menu_keyboard,
     letter_received_keyboard, match_keyboard, incoming_like_keyboard,
+    project_swipe_card_keyboard, founder_candidate_keyboard,
 )
 from bot.states.fsm import LetterState
-from database.crud import get_next_profile, create_swipe, get_user, deduct_superlike, get_match_between_users, transfer_superlike_rating
-from database.models import User, Profile, InterestTag, SwipeAction, ModeEnum, Swipe
+from database.crud import (
+    get_next_profile, create_swipe, get_user, deduct_superlike,
+    get_match_between_users, transfer_superlike_rating,
+    get_projects_feed, get_project, founder_swipe_candidate,
+)
+from database.models import User, Profile, InterestTag, SwipeAction, ModeEnum, Swipe, Project
 
 import logging
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+
+STAGE_LABELS = {
+    "idea": "💡 Идея",
+    "mvp": "🛠 MVP / Прототип",
+    "launched": "🚀 Запущен / Работает",
+    "hackathon": "🏆 Хакатон",
+}
+CONDITIONS_LABELS = {
+    "exp": "🌱 За опыт / pet-проект",
+    "equity": "📈 За долю (Equity)",
+    "grant": "🏆 Грант / Хакатон",
+    "paid": "💰 Оплачиваемый проект",
+}
+
+
+def _build_project_caption(project: Project) -> str:
+    """Формирует привлекательный и информативный текст карточки проекта."""
+    founder = getattr(project, "user", None)
+    founder_name = html.escape(founder.profile.name if (founder and founder.profile and founder.profile.name) else "Фаундер")
+    founder_univ = founder.university.short_name if (founder and founder.university) else "РУДН"
+    founder_year = f"{founder.profile.year} курс" if (founder and founder.profile and founder.profile.year) else ""
+    founder_info = f"{founder_name} ({founder_univ}{f', {founder_year}' if founder_year else ''})"
+
+    stage_str = STAGE_LABELS.get(project.stage, project.stage or "💡 Идея")
+    cond_str = CONDITIONS_LABELS.get(project.conditions, project.conditions or "Не указаны")
+
+    parts = [
+        f"💡 <b>{html.escape(project.title)}</b>",
+        f"📊 Стадия: <b>{stage_str}</b>",
+        f"🤝 Условия: <b>{cond_str}</b>",
+        f"👤 Фаундер: <b>{founder_info}</b>",
+        f"\n🎯 <b>Питч:</b>\n{html.escape(project.pitch)}",
+        f"\n📝 <b>О проекте:</b>\n{html.escape(project.description)}",
+    ]
+
+    roles = project.required_roles
+    if isinstance(roles, str):
+        try:
+            import json
+            roles = json.loads(roles)
+        except Exception:
+            roles = [r.strip() for r in roles.split(",") if r.strip()]
+
+    if roles and isinstance(roles, list):
+        roles_text = ", ".join(f"#{html.escape(str(r).strip())}" for r in roles if str(r).strip())
+        if roles_text:
+            parts.append(f"\n👥 <b>Ищем в команду:</b>\n{roles_text}")
+
+    if project.demo_url:
+        parts.append(f"\n🔗 <b>Демо / Прототип:</b>\n{html.escape(project.demo_url)}")
+
+    if project.pitchdeck_url:
+        parts.append(f"📄 <b>Презентация (Pitch Deck):</b>\n{html.escape(project.pitchdeck_url)}")
+
+    return "\n".join(parts)
+
 
 
 async def _build_profile_caption(
@@ -141,6 +204,24 @@ async def _build_profile_caption(
             parts.append(f"\n🔗 <b>Портфолио / Резюме:</b>\n{html.escape(profile.career_portfolio_url)}")
 
         return "\n".join(parts)
+    elif card_mode == ModeEnum.projects:
+        role_text = html.escape(profile.project_role or "Участник команды")
+        skills_text = html.escape(profile.project_skills or "Не указаны")
+        bio_text = html.escape(profile.project_bio or "Ищет интересные проекты")
+
+        parts = []
+        if top_line:
+            parts.append(top_line.strip())
+        parts.append(identity_line)
+        parts.append("💡 <b>Проекты и стартапы</b>")
+        if major:
+            parts.append(f"🏛 {major}")
+        parts.append(f"⭐ {rating_str}")
+        parts.append(f"\n🎯 <b>Роль:</b>\n{role_text}")
+        parts.append(f"\n💻 <b>Стек и навыки:</b>\n{skills_text}")
+        parts.append(f"\n💬 <b>О себе / Опыт:</b>\n{bio_text}")
+
+        return "\n".join(parts)
     else:
         g_str = "Парень" if profile.gender == "male" else ("Девушка" if profile.gender == "female" else None)
         tg_str = "Девушек" if profile.target_gender == "female" else ("Парней" if profile.target_gender == "male" else ("Всех" if profile.target_gender == "all" else None))
@@ -218,6 +299,52 @@ async def send_next_card(
     db: AsyncSession,
 ) -> None:
     """Получить и отправить следующую единичную анкету пользователя."""
+    if user.mode == ModeEnum.projects:
+        projects = await get_projects_feed(db, viewer_user_id=user.id, limit=1)
+        if not projects:
+            from aiogram.utils.keyboard import InlineKeyboardBuilder
+            b = InlineKeyboardBuilder()
+            b.button(text="➕ Создать свой проект", callback_data="projects:create")
+            b.button(text="📂 Мои проекты", callback_data="projects:my")
+            b.button(text="🏠 Главное меню", callback_data="settings:main_menu")
+            b.adjust(1)
+            await bot.send_message(
+                chat_id,
+                "🔍 <b>В ленте проектов сейчас нет новых предложений</b>\n\n"
+                "Ты просмотрел все доступные проекты или пока нет новых публикаций.\n"
+                "Опубликуй свой стартап или проект, чтобы собрать команду единомышленников! 🚀",
+                parse_mode="HTML",
+                reply_markup=b.as_markup(),
+            )
+            return
+
+        project = projects[0]
+        caption = _build_project_caption(project)
+        kb = project_swipe_card_keyboard(project.id)
+        media_caption = _safe_media_caption(caption)
+
+        photo_input = _get_photo_input(project.cover_url)
+        if photo_input:
+            try:
+                await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=photo_input,
+                    caption=media_caption,
+                    parse_mode="HTML",
+                    reply_markup=kb,
+                )
+                return
+            except Exception as pe:
+                logger.warning(f"send_photo failed for project {project.id}: {pe}")
+
+        await bot.send_message(
+            chat_id=chat_id,
+            text=caption,
+            parse_mode="HTML",
+            reply_markup=kb,
+        )
+        return
+
     profile = await get_next_profile(db, viewer_id=user.id, mode=user.mode)
 
     if not profile:
@@ -398,14 +525,28 @@ async def start_swiping(message: Message, user: User, db: AsyncSession, state: F
     if state:
         await state.clear()
 
-    if user.mode == ModeEnum.career:
+    if user.mode == ModeEnum.projects:
+        if not user.profile or not user.profile.project_is_complete:
+            from aiogram.utils.keyboard import InlineKeyboardBuilder
+            b = InlineKeyboardBuilder()
+            b.button(text="💡 Заполнить проектный профиль", callback_data="settings:edit_project_profile")
+            b.button(text="➕ Создать проект", callback_data="projects:create")
+            b.adjust(1)
+            await message.answer(
+                "❌ <b>Твой профиль в режиме «💡 Проекты» ещё не заполнен!</b>\n\n"
+                "Укажи свою роль и стек или опубликуй свой стартап, чтобы начать поиск единомышленников.",
+                parse_mode="HTML",
+                reply_markup=b.as_markup(),
+            )
+            return
+    elif user.mode == ModeEnum.career:
         if not user.profile or not user.profile.career_is_complete:
             from aiogram.utils.keyboard import InlineKeyboardBuilder
             b = InlineKeyboardBuilder()
             b.button(text="🚀 Заполнить анкету Карьеры", callback_data="settings:edit_career_profile")
             b.adjust(1)
             await message.answer(
-                "❌ <b>Твоя профессиональная анкета «🎯 Карьера» ещё не заполнена!</b>\n\n"
+                "❌ <b>Твой профессиональная анкета «🎯 Карьера» ещё не заполнена!</b>\n\n"
                 "Заполни свои навыки, стек и цели, чтобы начать карьерный нетворкинг и быть заметным для работодателей.",
                 parse_mode="HTML",
                 reply_markup=b.as_markup(),
@@ -417,6 +558,7 @@ async def start_swiping(message: Message, user: User, db: AsyncSession, state: F
             return
 
     await send_next_card(message.bot, message.chat.id, user, db)
+
 
 
 @router.callback_query(F.data == "top:swipe_next")
@@ -1187,6 +1329,335 @@ async def swipe_callback(callback: CallbackQuery, user: User, db: AsyncSession):
 
     # Автоматически отправляем СЛЕДУЮЩУЮ анкету!
     await send_next_card(callback.bot, callback.message.chat.id, user, db)
+
+
+# ─── Свайпы проектов и отклики ──────────────────────────────────
+@router.callback_query(F.data.startswith("pswipe:like:"))
+async def pswipe_like_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    proj_id_str = callback.data.split("pswipe:like:")[1]
+    try:
+        proj_id = uuid.UUID(proj_id_str)
+    except ValueError:
+        await callback.answer("Ошибка идентификатора проекта.", show_alert=True)
+        return
+
+    project = await get_project(db, proj_id)
+    if not project:
+        await callback.answer("Проект больше не найден.", show_alert=True)
+        return
+
+    if project.user_id == user.id:
+        await callback.answer("Нельзя откликаться на собственный проект!", show_alert=True)
+        return
+
+    await create_swipe(
+        db,
+        from_id=user.id,
+        to_id=project.user_id,
+        action=SwipeAction.like,
+        mode=ModeEnum.projects,
+        to_project_id=project.id,
+    )
+
+    await callback.answer("🚀 Отклик отправлен фаундеру!", show_alert=True)
+
+    # Уведомление создателю проекта
+    founder_id = project.user_id
+    cand_name = user.profile.name if (user.profile and user.profile.name) else "Студент"
+    cand_role = user.profile.project_role if (user.profile and user.profile.project_role) else "Участник"
+    cand_skills = user.profile.project_skills if (user.profile and user.profile.project_skills) else "Не указаны"
+    cand_bio = user.profile.project_bio if (user.profile and user.profile.project_bio) else ""
+    cand_univ = user.university.short_name if user.university else "РУДН"
+    cand_year = f"{user.profile.year} курс" if (user.profile and user.profile.year) else ""
+
+    notify_text = (
+        f"💡 <b>Новый отклик на твой проект «{html.escape(project.title)}»!</b>\n\n"
+        f"👤 <b>{html.escape(cand_name)}</b> ({cand_univ}{f', {cand_year}' if cand_year else ''})\n"
+        f"🎯 <b>Роль:</b> {html.escape(cand_role)}\n"
+        f"💻 <b>Стек:</b> {html.escape(cand_skills)}\n"
+    )
+    if cand_bio:
+        notify_text += f"💬 <b>О себе:</b> {html.escape(cand_bio)}\n"
+    notify_text += "\n<i>Принять кандидата в команду?</i>"
+
+    kb = founder_candidate_keyboard(project.id, user.id)
+
+    try:
+        photo_input = _get_photo_input(user.profile.avatar_file_id) if user.profile else None
+        if photo_input:
+            await callback.bot.send_photo(
+                chat_id=founder_id,
+                photo=photo_input,
+                caption=_safe_media_caption(notify_text),
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+        else:
+            await callback.bot.send_message(
+                chat_id=founder_id,
+                text=notify_text,
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+    except Exception as e:
+        logger.warning(f"Failed to notify founder {founder_id} of applicant: {e}")
+
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await send_next_card(callback.bot, callback.message.chat.id, user, db)
+
+
+@router.callback_query(F.data.startswith("pswipe:skip:"))
+async def pswipe_skip_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    proj_id_str = callback.data.split("pswipe:skip:")[1]
+    try:
+        proj_id = uuid.UUID(proj_id_str)
+    except ValueError:
+        await callback.answer("Ошибка идентификатора проекта.", show_alert=True)
+        return
+
+    project = await get_project(db, proj_id)
+    if project:
+        await create_swipe(
+            db,
+            from_id=user.id,
+            to_id=project.user_id,
+            action=SwipeAction.skip,
+            mode=ModeEnum.projects,
+            to_project_id=project.id,
+        )
+
+    await callback.answer("⏭ Пропущено")
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await send_next_card(callback.bot, callback.message.chat.id, user, db)
+
+
+@router.callback_query(F.data.startswith("pswipe:superlike:"))
+async def pswipe_superlike_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    proj_id_str = callback.data.split("pswipe:superlike:")[1]
+    try:
+        proj_id = uuid.UUID(proj_id_str)
+    except ValueError:
+        await callback.answer("Ошибка идентификатора проекта.", show_alert=True)
+        return
+
+    if (user.superlike_balance or 0) <= 0:
+        await callback.answer("У тебя закончились суперлайки ⭐️", show_alert=True)
+        return
+
+    project = await get_project(db, proj_id)
+    if not project:
+        await callback.answer("Проект больше не найден.", show_alert=True)
+        return
+
+    if project.user_id == user.id:
+        await callback.answer("Нельзя откликаться на собственный проект!", show_alert=True)
+        return
+
+    ok = await deduct_superlike(db, user.id)
+    if not ok:
+        await callback.answer("Нет суперлайков!", show_alert=True)
+        return
+
+    await create_swipe(
+        db,
+        from_id=user.id,
+        to_id=project.user_id,
+        action=SwipeAction.superlike,
+        mode=ModeEnum.projects,
+        to_project_id=project.id,
+    )
+
+    await callback.answer("⭐️ Супер-отклик отправлен фаундеру!", show_alert=True)
+
+    founder_id = project.user_id
+    cand_name = user.profile.name if (user.profile and user.profile.name) else "Студент"
+    cand_role = user.profile.project_role if (user.profile and user.profile.project_role) else "Участник"
+    cand_skills = user.profile.project_skills if (user.profile and user.profile.project_skills) else "Не указаны"
+    cand_bio = user.profile.project_bio if (user.profile and user.profile.project_bio) else ""
+    cand_univ = user.university.short_name if user.university else "РУДН"
+    cand_year = f"{user.profile.year} курс" if (user.profile and user.profile.year) else ""
+
+    notify_text = (
+        f"⭐️ <b>СУПЕР-ОТКЛИК на твой проект «{html.escape(project.title)}»!</b>\n"
+        f"<i>Кандидат выделил твой стартап Суперлайком и горит идеей!</i> 🔥\n\n"
+        f"👤 <b>{html.escape(cand_name)}</b> ({cand_univ}{f', {cand_year}' if cand_year else ''})\n"
+        f"🎯 <b>Роль:</b> {html.escape(cand_role)}\n"
+        f"💻 <b>Стек:</b> {html.escape(cand_skills)}\n"
+    )
+    if cand_bio:
+        notify_text += f"💬 <b>О себе:</b> {html.escape(cand_bio)}\n"
+    notify_text += "\n<i>Принять кандидата в команду?</i>"
+
+    kb = founder_candidate_keyboard(project.id, user.id)
+
+    try:
+        photo_input = _get_photo_input(user.profile.avatar_file_id) if user.profile else None
+        if photo_input:
+            await callback.bot.send_photo(
+                chat_id=founder_id,
+                photo=photo_input,
+                caption=_safe_media_caption(notify_text),
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+        else:
+            await callback.bot.send_message(
+                chat_id=founder_id,
+                text=notify_text,
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+    except Exception as e:
+        logger.warning(f"Failed to notify founder of superlike applicant: {e}")
+
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await send_next_card(callback.bot, callback.message.chat.id, user, db)
+
+
+@router.callback_query(F.data.startswith("pswipe:details:"))
+async def pswipe_details_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    proj_id_str = callback.data.split("pswipe:details:")[1]
+    try:
+        proj_id = uuid.UUID(proj_id_str)
+    except ValueError:
+        await callback.answer("Ошибка идентификатора проекта.", show_alert=True)
+        return
+
+    project = await get_project(db, proj_id)
+    if not project:
+        await callback.answer("Проект больше не найден.", show_alert=True)
+        return
+
+    await callback.answer()
+    caption = _build_project_caption(project)
+
+    b = InlineKeyboardBuilder()
+    b.button(text="🚀 Хочу в команду!", callback_data=f"pswipe:like:{project.id.hex}")
+    b.button(text="⏭ Скип", callback_data=f"pswipe:skip:{project.id.hex}")
+    b.button(text="⭐ Супер-отклик", callback_data=f"pswipe:superlike:{project.id.hex}")
+    if project.pitchdeck_url:
+        b.button(text="📄 Pitch Deck (PDF)", url=project.pitchdeck_url)
+    if project.demo_url:
+        b.button(text="🔗 Демо / Сайт", url=project.demo_url)
+    b.adjust(2, 1, 2)
+
+    await callback.message.answer(
+        f"📄 <b>Подробности проекта:</b>\n\n{caption}",
+        parse_mode="HTML",
+        reply_markup=b.as_markup(),
+    )
+
+
+@router.callback_query(F.data.startswith("fcand:accept:"))
+async def fcand_accept_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    parts = callback.data.split(":")
+    proj_id_str = parts[2]
+    cand_id = int(parts[3])
+    try:
+        proj_id = uuid.UUID(proj_id_str)
+    except ValueError:
+        await callback.answer("Ошибка проекта.", show_alert=True)
+        return
+
+    project = await get_project(db, proj_id)
+    candidate = await get_user(db, cand_id)
+    if not project or not candidate:
+        await callback.answer("Данные не найдены.", show_alert=True)
+        return
+
+    if project.user_id != user.id:
+        await callback.answer("Это не твой проект.", show_alert=True)
+        return
+
+    await founder_swipe_candidate(
+        db,
+        founder_id=user.id,
+        candidate_id=cand_id,
+        project_id=proj_id,
+        action=SwipeAction.like,
+    )
+
+    cand_name = candidate.profile.name if candidate.profile else "Студент"
+    founder_name = user.profile.name if user.profile else "Фаундер"
+
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+    await callback.answer("🤝 Кандидат принят в команду!")
+
+    b_founder = InlineKeyboardBuilder()
+    if candidate.tg_username:
+        clean_u = candidate.tg_username.lstrip("@")
+        b_founder.button(text=f"✈️ Telegram кандидата (@{clean_u})", url=f"https://t.me/{clean_u}")
+    b_founder.button(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=settings.webapp_url))
+    b_founder.adjust(1)
+
+    await callback.message.answer(
+        f"🎉 <b>Отлично! Ты принял(а) {html.escape(cand_name)} в команду проекта «{html.escape(project.title)}»!</b>\n\n"
+        f"Взаимный контакт открыт. Начните совместную работу прямо сейчас! 🚀",
+        parse_mode="HTML",
+        reply_markup=b_founder.as_markup(),
+    )
+
+    b_cand = InlineKeyboardBuilder()
+    if user.tg_username:
+        clean_fu = user.tg_username.lstrip("@")
+        b_cand.button(text=f"✈️ Telegram фаундера (@{clean_fu})", url=f"https://t.me/{clean_fu}")
+    b_cand.button(text="💬 Открыть чат в приложении", web_app=WebAppInfo(url=settings.webapp_url))
+    b_cand.adjust(1)
+
+    try:
+        await callback.bot.send_message(
+            cand_id,
+            f"🎉 <b>Твой отклик на проект «{html.escape(project.title)}» принят!</b>\n\n"
+            f"Фаундер <b>{html.escape(founder_name)}</b> одобрил(а) твою кандидатуру и ждёт тебя в команде!\n\n"
+            f"Свяжитесь для обсуждения задач и старта: 👇",
+            parse_mode="HTML",
+            reply_markup=b_cand.as_markup(),
+        )
+    except Exception as e:
+        logger.warning(f"Failed to notify candidate {cand_id}: {e}")
+
+
+@router.callback_query(F.data.startswith("fcand:skip:"))
+async def fcand_skip_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    parts = callback.data.split(":")
+    proj_id_str = parts[2]
+    cand_id = int(parts[3])
+    try:
+        proj_id = uuid.UUID(proj_id_str)
+    except ValueError:
+        await callback.answer("Ошибка проекта.", show_alert=True)
+        return
+
+    await founder_swipe_candidate(
+        db,
+        founder_id=user.id,
+        candidate_id=cand_id,
+        project_id=proj_id,
+        action=SwipeAction.skip,
+    )
+    await callback.answer("Кандидат отклонён")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.message.answer(
+        "⏭ <i>Кандидат пропущен. Ты всегда можешь найти новых участников в разделе «📂 Мои проекты».</i>",
+        parse_mode="HTML",
+    )
+
 
 
 # ─── Отправка письма с анкеты ───────────────────────────

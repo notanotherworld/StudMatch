@@ -348,9 +348,10 @@
   }
 
   function updateHeaderUser() {
-    const isCareer = state.currentUser?.mode === "career";
-    document.getElementById("pillDating")?.classList.toggle("active", !isCareer);
-    document.getElementById("pillCareer")?.classList.toggle("active", isCareer);
+    const curMode = state.currentUser?.mode || "dating";
+    document.getElementById("pillDating")?.classList.toggle("active", curMode === "dating");
+    document.getElementById("pillCareer")?.classList.toggle("active", curMode === "career");
+    document.getElementById("pillProjects")?.classList.toggle("active", curMode === "projects");
   }
 
   // 2. Навигация по табам
@@ -365,6 +366,7 @@
     // Figma Mode Switcher Pills
     document.getElementById("pillDating")?.addEventListener("click", () => setMode("dating"));
     document.getElementById("pillCareer")?.addEventListener("click", () => setMode("career"));
+    document.getElementById("pillProjects")?.addEventListener("click", () => setMode("projects"));
 
     // Кнопка открытия фильтров в шапке
     const openFiltersBtn = document.getElementById("openFiltersBtn");
@@ -588,7 +590,12 @@
 
     const deckWrapper = document.querySelector(".deck-container");
     const careerView = document.getElementById("careerFeedView");
+    const projectsFeedView = document.getElementById("projectsFeedView");
+    const projectsMyView = document.getElementById("projectsMyView");
     const exploreScreen = document.getElementById("screen-explore");
+
+    if (projectsFeedView) projectsFeedView.style.display = "none";
+    if (projectsMyView) projectsMyView.style.display = "none";
 
     if (view === "swipe") {
       document.body.classList.remove("feed-view-active");
@@ -612,10 +619,60 @@
     }
   }
 
+  let currentProjectsView = "swipe";
+
+  function setProjectsSubnavView(view) {
+    currentProjectsView = view;
+    triggerHaptic("light");
+    document.getElementById("btnProjectsSubnavSwipe")?.classList.toggle("active", view === "swipe");
+    document.getElementById("btnProjectsSubnavFeed")?.classList.toggle("active", view === "feed");
+    document.getElementById("btnProjectsSubnavMy")?.classList.toggle("active", view === "my");
+
+    const deckWrapper = document.querySelector(".deck-container");
+    const careerView = document.getElementById("careerFeedView");
+    const projectsFeedView = document.getElementById("projectsFeedView");
+    const projectsMyView = document.getElementById("projectsMyView");
+    const exploreScreen = document.getElementById("screen-explore");
+
+    if (careerView) careerView.style.display = "none";
+
+    if (view === "swipe") {
+      document.body.classList.remove("feed-view-active");
+      if (deckWrapper) deckWrapper.style.display = "flex";
+      if (projectsFeedView) projectsFeedView.style.display = "none";
+      if (projectsMyView) projectsMyView.style.display = "none";
+      if (exploreScreen) exploreScreen.style.overflowY = "hidden";
+      state.feed = [];
+      state.currentCardIndex = 0;
+      loadFeed();
+    } else if (view === "feed") {
+      document.body.classList.add("feed-view-active");
+      if (deckWrapper) deckWrapper.style.display = "none";
+      if (projectsFeedView) projectsFeedView.style.display = "block";
+      if (projectsMyView) projectsMyView.style.display = "none";
+      if (exploreScreen) {
+        exploreScreen.style.overflowY = "auto";
+        exploreScreen.style.webkitOverflowScrolling = "touch";
+      }
+      loadProjectsFeed();
+    } else if (view === "my") {
+      document.body.classList.add("feed-view-active");
+      if (deckWrapper) deckWrapper.style.display = "none";
+      if (projectsFeedView) projectsFeedView.style.display = "none";
+      if (projectsMyView) projectsMyView.style.display = "block";
+      if (exploreScreen) {
+        exploreScreen.style.overflowY = "auto";
+        exploreScreen.style.webkitOverflowScrolling = "touch";
+      }
+      loadMyProjects();
+    }
+  }
+
   async function setMode(targetMode) {
     // 1. Мгновенное визуальное переключение пилюль (Optimistic UI)
     document.getElementById("pillDating")?.classList.toggle("active", targetMode === "dating");
     document.getElementById("pillCareer")?.classList.toggle("active", targetMode === "career");
+    document.getElementById("pillProjects")?.classList.toggle("active", targetMode === "projects");
     triggerHaptic("medium");
 
     if (state.currentUser) {
@@ -625,30 +682,53 @@
     // Мгновенное обновление текста и иконки режима в профиле
     const modeLabel = document.getElementById("profileModeLabel");
     if (modeLabel) {
-      modeLabel.textContent = targetMode === "career" ? "💼 Карьера" : "💘 Знакомства";
+      if (targetMode === "career") modeLabel.textContent = "💼 Карьера";
+      else if (targetMode === "projects") modeLabel.textContent = "💡 Проекты";
+      else modeLabel.textContent = "💘 Знакомства";
     }
     const modeStat = document.getElementById("profileModeStat");
     if (modeStat) {
-      modeStat.textContent = targetMode === "career" ? "💼" : "💘";
+      if (targetMode === "career") modeStat.textContent = "💼";
+      else if (targetMode === "projects") modeStat.textContent = "💡";
+      else modeStat.textContent = "💘";
     }
 
     const brandTitle = document.querySelector(".header-brand .brand-title");
     const careerSubnav = document.getElementById("careerSubnavToggle");
+    const projectsSubnav = document.getElementById("projectsSubnavToggle");
     const exploreScreen = document.getElementById("screen-explore");
     const deckWrapper = document.querySelector(".deck-container");
     const careerView = document.getElementById("careerFeedView");
+    const projectsFeedView = document.getElementById("projectsFeedView");
+    const projectsMyView = document.getElementById("projectsMyView");
 
     if (targetMode === "career") {
       document.body.classList.add("career-theme");
+      document.body.classList.remove("projects-theme");
       if (brandTitle) brandTitle.textContent = "StudMatch";
       if (careerSubnav) careerSubnav.style.display = "flex";
+      if (projectsSubnav) projectsSubnav.style.display = "none";
+      if (projectsFeedView) projectsFeedView.style.display = "none";
+      if (projectsMyView) projectsMyView.style.display = "none";
       setCareerSubnavView(currentCareerView || "swipe");
+    } else if (targetMode === "projects") {
+      document.body.classList.add("projects-theme");
+      document.body.classList.remove("career-theme");
+      if (brandTitle) brandTitle.textContent = "StudMatch";
+      if (careerSubnav) careerSubnav.style.display = "none";
+      if (projectsSubnav) projectsSubnav.style.display = "flex";
+      if (careerView) careerView.style.display = "none";
+      setProjectsSubnavView(currentProjectsView || "swipe");
     } else {
       document.body.classList.remove("career-theme");
+      document.body.classList.remove("projects-theme");
       document.body.classList.remove("feed-view-active");
       if (brandTitle) brandTitle.textContent = "StudMatch";
       if (careerSubnav) careerSubnav.style.display = "none";
+      if (projectsSubnav) projectsSubnav.style.display = "none";
       if (careerView) careerView.style.display = "none";
+      if (projectsFeedView) projectsFeedView.style.display = "none";
+      if (projectsMyView) projectsMyView.style.display = "none";
       if (deckWrapper) deckWrapper.style.display = "flex";
       if (exploreScreen) exploreScreen.style.overflowY = "hidden";
       state.feed = [];
@@ -671,7 +751,9 @@
 
   async function toggleMode() {
     if (!state.currentUser) return;
-    const nextMode = state.currentUser.mode === "career" ? "dating" : "career";
+    const modes = ["dating", "career", "projects"];
+    const curIdx = modes.indexOf(state.currentUser.mode);
+    const nextMode = modes[(curIdx + 1) % modes.length];
     await setMode(nextMode);
   }
 
@@ -680,17 +762,22 @@
   // 3. Загрузка ленты свайпов (Feed)
   async function loadFeed() {
     try {
-      console.log("[StudMatch] Loading feed profiles...");
-      const data = await apiFetch("/api/webapp/feed");
+      console.log("[StudMatch] Loading feed profiles/projects...");
+      const isProjectsMode = state.currentUser?.mode === "projects";
+      const feedUrl = isProjectsMode ? "/api/webapp/projects/feed" : "/api/webapp/feed";
+      const data = await apiFetch(feedUrl);
       console.log("[StudMatch] Feed received:", data);
-      if (data && data.profiles) {
-        state.feed = data.profiles;
-        state.currentCardIndex = 0;
-        if (state.feed.length === 0) {
-          deckEmpty.style.display = "flex";
-        } else {
-          renderCardStack();
-        }
+
+      const items = isProjectsMode
+        ? (data?.projects || []).map((p) => ({ ...p, is_project: true }))
+        : (data?.profiles || []);
+
+      state.feed = items;
+      state.currentCardIndex = 0;
+      if (state.feed.length === 0) {
+        deckEmpty.style.display = "flex";
+      } else {
+        renderCardStack();
       }
     } catch (err) {
       console.error("[StudMatch] Feed error:", err);
@@ -712,14 +799,21 @@
     isFetchingMore = true;
     try {
       console.log("[StudMatch] Prefetching more cards for infinite swipe stream...");
-      const data = await apiFetch("/api/webapp/feed");
-      if (data && Array.isArray(data.profiles) && data.profiles.length > 0) {
+      const isProjectsMode = state.currentUser?.mode === "projects";
+      const feedUrl = isProjectsMode ? "/api/webapp/projects/feed" : "/api/webapp/feed";
+      const data = await apiFetch(feedUrl);
+
+      const incomingList = isProjectsMode
+        ? (data?.projects || []).map((p) => ({ ...p, is_project: true }))
+        : (data?.profiles || []);
+
+      if (Array.isArray(incomingList) && incomingList.length > 0) {
         // Отрезаем уже свайпнутые карточки для экономии памяти
         const remaining = state.feed.slice(state.currentCardIndex);
-        const remainingIds = new Set(remaining.map((p) => p.user_id));
+        const remainingIds = new Set(remaining.map((p) => (p.is_project ? p.id : p.user_id)));
 
         // Добавляем только новые карточки, которых еще нет в остатке колоды
-        const freshProfiles = data.profiles.filter((p) => !remainingIds.has(p.user_id));
+        const freshProfiles = incomingList.filter((p) => !remainingIds.has(p.is_project ? p.id : p.user_id));
 
         if (freshProfiles.length > 0) {
           state.feed = remaining.concat(freshProfiles);
@@ -727,7 +821,7 @@
           renderCardStack();
         } else if (remaining.length === 0) {
           // Если колода была пуста (например, при малом пуле анкет 1-2 человека)
-          state.feed = data.profiles;
+          state.feed = incomingList;
           state.currentCardIndex = 0;
           renderCardStack();
         }
@@ -758,13 +852,15 @@
 
     // Рендерим до 3 карточек в стеке
     const visibleCards = remaining.slice(0, 3).reverse();
-    visibleCards.forEach((profile, index) => {
+    visibleCards.forEach((item, index) => {
       const isTop = index === visibleCards.length - 1;
-      const cardEl = createCardElement(profile, isTop);
+      const cardEl = (item.is_project || state.currentUser?.mode === "projects")
+        ? createProjectCardElement(item, isTop)
+        : createCardElement(item, isTop);
       deckContainer.appendChild(cardEl);
 
       if (isTop) {
-        initCardDrag(cardEl, profile);
+        initCardDrag(cardEl, item);
       }
     });
   }
@@ -1087,7 +1183,11 @@
       state.isSwiping = false;
 
       renderCardStack();
-      sendSwipe(profile.user_id, action, comment, profile);
+      if (profile.is_project || state.currentUser?.mode === "projects") {
+        sendProjectSwipe(profile.id, action, comment, profile);
+      } else {
+        sendSwipe(profile.user_id, action, comment, profile);
+      }
 
       // Фоновая подгрузка следующих анкет, когда в стеке осталось мало карточек
       const remainingCount = state.feed.length - state.currentCardIndex;
@@ -1134,6 +1234,161 @@
       console.error("Swipe API error:", e);
     } finally {
       pendingSwipeIds.delete(targetId);
+    }
+  }
+
+  async function sendProjectSwipe(projectId, action, comment = null, project = null) {
+    const key = `proj_${projectId}`;
+    if (pendingSwipeIds.has(key)) {
+      console.warn("⚠️ Project swipe already in flight:", projectId);
+      return;
+    }
+    pendingSwipeIds.add(key);
+    try {
+      const res = await apiFetch("/api/webapp/projects/swipe", {
+        method: "POST",
+        body: JSON.stringify({ project_id: projectId, action: action, comment: comment }),
+      });
+      if (res && res.is_match) {
+        showMatchPopup(
+          {
+            name: project?.founder?.name || "Фаундер стартапа",
+            photos: [project?.founder?.avatar_url],
+            match_id: res.match?.id || res.match?.match_id,
+          },
+          project
+        );
+      }
+    } catch (e) {
+      console.error("Project swipe error:", e);
+    } finally {
+      pendingSwipeIds.delete(key);
+    }
+  }
+
+  function handleProjectSwipeAction(project, action, comment = null) {
+    if (state.isSwiping) return;
+    const topCard = deckContainer.querySelector(".swipe-card:last-child");
+    if (!topCard) return;
+
+    if (action === "like") {
+      finishSwipe(topCard, project, "like", 500, 0);
+    } else if (action === "superlike") {
+      finishSwipe(topCard, project, "superlike", 0, -600, comment);
+    } else {
+      finishSwipe(topCard, project, "skip", -500, 0);
+    }
+  }
+
+  function createProjectCardElement(project, isTop) {
+    const card = document.createElement("div");
+    card.className = "swipe-card project-card-swipe";
+    card.dataset.projectId = project.id;
+    card.dataset.userId = "proj_" + project.id;
+
+    const stageMap = {
+      idea: { label: "💡 Идея", cls: "stage-idea" },
+      mvp: { label: "🛠 MVP", cls: "stage-mvp" },
+      launched: { label: "🚀 Запущен", cls: "stage-launched" },
+      hackathon: { label: "🏆 Хакатон", cls: "stage-hackathon" },
+    };
+    const stageInfo = stageMap[project.stage] || { label: "💡 Проект", cls: "stage-idea" };
+    const coverUrl = project.cover_url || "/static/webapp/assets/mascot_hero_3d.jpg?v=20260904_29";
+
+    const rolesList = (project.required_roles || "")
+      .split(",")
+      .map((r) => r.trim())
+      .filter(Boolean);
+    const rolesHtml = rolesList.length > 0
+      ? `<div class="project-roles-tags" style="margin:6px 0;">
+           ${rolesList.slice(0, 4).map((r) => `<span class="project-role-tag">#${escapeHtml(r)}</span>`).join("")}
+         </div>`
+      : "";
+
+    const founder = project.founder || {};
+    const founderAvatar = founder.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+    const founderUni = [founder.university, founder.year ? `${founder.year} курс` : ""].filter(Boolean).join(" • ");
+
+    card.innerHTML = `
+      <img src="${escapeHtml(coverUrl)}" class="card-photo-bg" alt="${escapeHtml(project.title)}" onerror="this.onerror=null;this.src='/static/webapp/assets/mascot_hero_3d.jpg';" />
+      <div class="card-gradient-overlay" style="background: linear-gradient(180deg, rgba(15,23,42,0.1) 0%, rgba(15,23,42,0.85) 60%, rgba(15,23,42,0.98) 100%);"></div>
+
+      <div class="stamp like-stamp" style="border-color:#F59E0B;color:#F59E0B;">В КОМАНДУ</div>
+      <div class="stamp nope-stamp">SKIP</div>
+      <div class="stamp super-stamp" style="border-color:#D97706;color:#D97706;">ПИТЧ</div>
+
+      <div class="card-top-bar" style="margin-top: 10px;">
+        <div class="card-tags-top">
+          <span class="project-stage-badge ${stageInfo.cls}">${stageInfo.label}</span>
+          ${project.conditions ? `<span class="card-tag" style="background:rgba(245,158,11,0.2);color:#FBBF24;border:1px solid rgba(245,158,11,0.4);">🤝 ${escapeHtml(project.conditions)}</span>` : ""}
+        </div>
+      </div>
+
+      <div class="card-info-bottom">
+        <div class="card-title-row">
+          <span class="card-name" style="font-size:22px;color:#F59E0B;">${escapeHtml(project.title)}</span>
+          <button class="action-btn info" data-action="info" title="Подробнее" style="margin-left:auto;background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.4);">ℹ️</button>
+        </div>
+
+        <div style="font-size:14px;font-weight:700;color:#F8FAFC;margin:4px 0;line-height:1.3;">
+          ${escapeHtml(project.pitch)}
+        </div>
+
+        ${rolesHtml}
+
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1);">
+          <img src="${escapeHtml(founderAvatar)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid #F59E0B;" alt="${escapeHtml(founder.name)}" />
+          <div style="font-size:12px;color:#CBD5E1;">
+            <b>Фаундер:</b> ${escapeHtml(founder.name)} ${founderUni ? `(${escapeHtml(founderUni)})` : ""}
+          </div>
+        </div>
+
+        <div class="card-actions-row" style="margin-top:12px;">
+          <button class="action-btn dislike" data-action="skip" title="Пропустить">
+            <svg class="action-btn-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="3.5" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          <button class="action-btn superlike" data-action="superlike" title="Откликнуться с питчем" style="background:linear-gradient(135deg, #F59E0B, #D97706);">
+            <svg class="action-btn-icon" width="26" height="26" viewBox="0 0 24 24" fill="white">
+              <path d="M12 2.5L15.09 8.76L22 9.77L17 14.64L18.18 21.5L12 18.25L5.82 21.5L7 14.64L2 9.77L8.91 8.76L12 2.5Z"/>
+            </svg>
+          </button>
+          <button class="action-btn like" data-action="like" title="Хочу в команду!" style="background:linear-gradient(135deg, #F59E0B, #B45309);">
+            <svg class="action-btn-icon" width="24" height="24" viewBox="0 0 24 24" fill="white">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+
+    card.querySelectorAll(".action-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        if (action === "info") {
+          openProjectDetailsModal(project);
+        } else if (action === "superlike") {
+          openProjectSuperlikeModal(project);
+        } else {
+          handleProjectSwipeAction(project, action);
+        }
+      });
+    });
+
+    card.addEventListener("click", () => {
+      openProjectDetailsModal(project);
+    });
+
+    return card;
+  }
+
+  function openProjectSuperlikeModal(project) {
+    const comment = prompt("💡 Расскажи фаундеру, какую роль ты хочешь занять в проекте и какой у тебя опыт:");
+    if (comment && comment.trim()) {
+      handleProjectSwipeAction(project, "superlike", comment.trim());
     }
   }
 
@@ -1706,6 +1961,23 @@
       `;
     }
 
+    // Projects & Startups information
+    let projectHtml = "";
+    if (profile.project_role || profile.project_skills || profile.project_bio) {
+      projectHtml = `
+        <div class="profile-card-section">
+          <div class="profile-section-title-row">
+            <h4 class="profile-section-title">💡 Проекты и стартапы</h4>
+          </div>
+          <div class="profile-career-box" style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2);">
+            ${profile.project_role ? `<div class="profile-career-item"><b>Роль в проектах:</b> ${escapeHtml(profile.project_role)}</div>` : ""}
+            ${profile.project_skills ? `<div class="profile-career-item"><b>Стек / Навыки:</b> ${escapeHtml(profile.project_skills)}</div>` : ""}
+            ${profile.project_bio ? `<div class="profile-career-item"><b>О себе:</b> ${escapeHtml(profile.project_bio)}</div>` : ""}
+          </div>
+        </div>
+      `;
+    }
+
     // Gallery Grid
     const galleryGridHtml = buildGalleryGridHtml(photos, photosMeta, isMe);
 
@@ -1912,6 +2184,9 @@
 
           <!-- Section: Career (if exists) -->
           ${careerHtml}
+
+          <!-- Section: Projects (if exists) -->
+          ${projectHtml}
 
           <!-- Section: Gallery -->
           ${photos.length > 0 ? `
@@ -2546,10 +2821,12 @@
 
     const u = state.currentUser || {};
 
-    // 1. Установка активной вкладки (dating или career)
+    // 1. Установка активной вкладки (dating, career или projects)
     let activeTab = initialTab;
     if (!activeTab) {
-      activeTab = (u.mode === "career") ? "career" : "dating";
+      if (u.mode === "career") activeTab = "career";
+      else if (u.mode === "projects") activeTab = "projects";
+      else activeTab = "dating";
     }
     switchProfileEditTab(activeTab);
 
@@ -2590,6 +2867,15 @@
     if (careerSkillsInput) careerSkillsInput.value = u.career_custom_skills || "";
     if (careerFormatSelect) careerFormatSelect.value = u.career_work_format || "Удалённо";
     if (careerPortfolioInput) careerPortfolioInput.value = u.career_portfolio_url || "";
+
+    // 4. Заполнение полей Проектов
+    const projectRoleInput = document.getElementById("editProjectRole");
+    const projectSkillsInput = document.getElementById("editProjectSkills");
+    const projectBioInput = document.getElementById("editProjectBio");
+
+    if (projectRoleInput) projectRoleInput.value = u.project_role || "";
+    if (projectSkillsInput) projectSkillsInput.value = u.project_skills || "";
+    if (projectBioInput) projectBioInput.value = u.project_bio || "";
 
     // Мгновенно активируем и отображаем модальное окно
     modal.classList.add("active");
@@ -2633,8 +2919,10 @@
     });
     const datingPane = document.getElementById("paneEditDating");
     const careerPane = document.getElementById("paneEditCareer");
+    const projectsPane = document.getElementById("paneEditProjects");
     if (datingPane) datingPane.classList.toggle("active", tabName === "dating");
     if (careerPane) careerPane.classList.toggle("active", tabName === "career");
+    if (projectsPane) projectsPane.classList.toggle("active", tabName === "projects");
   }
 
   async function renderProfileEditTags(u) {
@@ -2725,6 +3013,11 @@
     const careerFormat = document.getElementById("editCareerFormat")?.value || "Удалённо";
     const careerPortfolio = document.getElementById("editCareerPortfolio")?.value.trim() || "";
 
+    // Проектные поля
+    const projectRole = document.getElementById("editProjectRole")?.value.trim() || "";
+    const projectSkills = document.getElementById("editProjectSkills")?.value.trim() || "";
+    const projectBio = document.getElementById("editProjectBio")?.value.trim() || "";
+
     const payload = {
       name: name,
       age: age,
@@ -2739,6 +3032,9 @@
       career_custom_skills: careerSkills,
       career_work_format: careerFormat,
       career_portfolio_url: careerPortfolio,
+      project_role: projectRole,
+      project_skills: projectSkills,
+      project_bio: projectBio,
     };
 
     if (saveBtn) {
@@ -5337,6 +5633,777 @@
     }
   }
 
+  // ─── StudMatch Projects & Startups Controller ───
+  let projectsActiveStage = "all";
+  let projectsActiveRole = "all";
+  let projectsSearchQuery = "";
+  let projectsSearchTimeout = null;
+
+  async function loadProjectsFeed() {
+    const feedContainer = document.getElementById("projectsFeedList");
+    if (!feedContainer) return;
+
+    feedContainer.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--text-muted);">
+        <div style="font-size:36px;margin-bottom:12px;animation:figmaHeartPulse 1s infinite;">💡</div>
+        <div style="font-size:14px;font-weight:600;color:#F59E0B;">Загрузка проектов и стартапов...</div>
+      </div>
+    `;
+
+    try {
+      let url = `/api/webapp/projects/feed?stage=${encodeURIComponent(projectsActiveStage)}&role=${encodeURIComponent(projectsActiveRole)}`;
+      if (projectsSearchQuery.trim()) {
+        url += `&q=${encodeURIComponent(projectsSearchQuery.trim())}`;
+      }
+
+      const res = await apiFetch(url);
+      if (!res || !res.projects || res.projects.length === 0) {
+        feedContainer.innerHTML = `
+          <div class="career-empty-state">
+            <div class="career-empty-icon">💡</div>
+            <h3 class="career-empty-title">Проекты не найдены</h3>
+            <p class="career-empty-desc">
+              Попробуйте изменить стадию, роль или сбросить поисковый фильтр.
+            </p>
+            <button class="btn-primary" id="resetProjectsFiltersBtn" style="background:#F59E0B;margin-top:10px;width:auto;padding:10px 20px;">
+              🔄 Показать все проекты
+            </button>
+          </div>
+        `;
+        document.getElementById("resetProjectsFiltersBtn")?.addEventListener("click", () => {
+          projectsActiveStage = "all";
+          projectsActiveRole = "all";
+          projectsSearchQuery = "";
+          const searchInput = document.getElementById("projectsSearchInput");
+          if (searchInput) searchInput.value = "";
+          document.querySelectorAll("#projectsStageChips .project-stage-chip").forEach((c) => {
+            c.classList.toggle("active", c.dataset.stage === "all");
+          });
+          document.querySelectorAll("#projectsRoleChips .project-role-chip").forEach((c) => {
+            c.classList.toggle("active", c.dataset.role === "all");
+          });
+          loadProjectsFeed();
+        });
+        return;
+      }
+
+      feedContainer.innerHTML = "";
+      res.projects.forEach((proj) => {
+        const card = renderProjectCatalogCard(proj);
+        feedContainer.appendChild(card);
+      });
+    } catch (e) {
+      console.error("[StudMatch] Projects feed error:", e);
+      feedContainer.innerHTML = `
+        <div class="career-empty-state">
+          <div class="career-empty-icon">⚠️</div>
+          <h3 class="career-empty-title">Ошибка загрузки проектов</h3>
+          <p class="career-empty-desc">Не удалось связаться с сервером. Попробуйте еще раз.</p>
+          <button class="btn-primary" id="retryProjectsFeedBtn" style="background:#F59E0B;margin-top:10px;width:auto;padding:10px 20px;">
+            🔄 Повторить
+          </button>
+        </div>
+      `;
+      document.getElementById("retryProjectsFeedBtn")?.addEventListener("click", () => loadProjectsFeed());
+    }
+  }
+
+  function renderProjectCatalogCard(proj) {
+    const card = document.createElement("div");
+    card.className = "project-catalog-card";
+    card.dataset.projectId = proj.id;
+
+    const stageMap = {
+      idea: { label: "💡 Идея", cls: "stage-idea" },
+      mvp: { label: "🛠 MVP / Прототип", cls: "stage-mvp" },
+      launched: { label: "🚀 Запущен", cls: "stage-launched" },
+      hackathon: { label: "🏆 Хакатон", cls: "stage-hackathon" },
+    };
+    const stageInfo = stageMap[proj.stage] || { label: "💡 Проект", cls: "stage-idea" };
+
+    const rolesList = (proj.required_roles || "")
+      .split(",")
+      .map((r) => r.trim())
+      .filter(Boolean);
+    const rolesHtml = rolesList.map((r) => `<span class="project-role-tag">#${escapeHtml(r)}</span>`).join("");
+
+    const founder = proj.founder || {};
+    const founderAvatar = founder.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+    const founderUni = [founder.university, founder.year ? `${founder.year} курс` : ""].filter(Boolean).join(" • ");
+
+    const isMyProject = state.currentUser && (String(state.currentUser.id) === String(proj.founder?.id || proj.user_id));
+
+    let actionBtnHtml = "";
+    if (isMyProject) {
+      actionBtnHtml = `
+        <button class="btn-project-apply" style="background:rgba(245,158,11,0.2);color:#F59E0B;" data-action="edit">
+          ✏️ Мой проект
+        </button>
+      `;
+    } else {
+      actionBtnHtml = `
+        <button class="btn-project-apply" data-action="apply">
+          🚀 Хочу в команду!
+        </button>
+      `;
+    }
+
+    card.innerHTML = `
+      <div class="project-catalog-card-header">
+        <div>
+          <span class="project-stage-badge ${stageInfo.cls}">${stageInfo.label}</span>
+          <h4 class="project-catalog-card-title">${escapeHtml(proj.title)}</h4>
+        </div>
+        ${proj.conditions ? `<span class="project-conditions-badge">${escapeHtml(proj.conditions)}</span>` : ""}
+      </div>
+
+      <div class="project-catalog-card-pitch">
+        ${escapeHtml(proj.pitch)}
+      </div>
+
+      <p class="project-catalog-card-desc">
+        ${escapeHtml(proj.description || "")}
+      </p>
+
+      ${rolesHtml ? `<div class="project-roles-tags">${rolesHtml}</div>` : ""}
+
+      <div class="project-catalog-card-footer">
+        <div class="project-catalog-founder-wrap">
+          <img src="${escapeHtml(founderAvatar)}" class="project-catalog-founder-avatar" alt="${escapeHtml(founder.name)}" onerror="this.src='/static/webapp/assets/mascot_hero_3d.jpg';" />
+          <div class="project-catalog-founder-info">
+            <span class="project-catalog-founder-name">${escapeHtml(founder.name)}</span>
+            ${founderUni ? `<span class="project-catalog-founder-uni">${escapeHtml(founderUni)}</span>` : ""}
+          </div>
+        </div>
+        <div class="project-catalog-card-btns">
+          <button class="btn-project-details" data-action="details">
+            📄 Подробнее
+          </button>
+          ${actionBtnHtml}
+        </div>
+      </div>
+    `;
+
+    card.querySelector("[data-action='details']")?.addEventListener("click", () => {
+      openProjectDetailsModal(proj);
+    });
+
+    const applyBtn = card.querySelector("[data-action='apply']");
+    applyBtn?.addEventListener("click", async () => {
+      triggerHaptic("medium");
+      applyBtn.disabled = true;
+      applyBtn.innerHTML = "⏳ Отправка...";
+      try {
+        const res = await apiFetch("/api/webapp/projects/swipe", {
+          method: "POST",
+          body: JSON.stringify({ project_id: proj.id, action: "like" }),
+        });
+        if (res && res.status === "ok") {
+          triggerHaptic("success");
+          applyBtn.className = "btn-project-apply connected";
+          applyBtn.innerHTML = "✓ Заявка отправлена!";
+          if (res.is_match) {
+            showMatchPopup({
+              name: proj.founder?.name || "Фаундер стартапа",
+              photo_url: proj.founder?.avatar_url,
+              match_id: res.match?.id || res.match?.match_id
+            }, proj);
+          }
+        } else {
+          applyBtn.disabled = false;
+          applyBtn.innerHTML = "🚀 Хочу в команду!";
+        }
+      } catch (err) {
+        console.error("Apply project error:", err);
+        applyBtn.disabled = false;
+        applyBtn.innerHTML = "🚀 Хочу в команду!";
+      }
+    });
+
+    const editBtn = card.querySelector("[data-action='edit']");
+    editBtn?.addEventListener("click", () => {
+      openProjectCreateModal(proj);
+    });
+
+    return card;
+  }
+
+  function openProjectDetailsModal(proj) {
+    const modal = document.getElementById("projectDetailsModal");
+    if (!modal) return;
+    triggerHaptic("medium");
+
+    const stageMap = {
+      idea: { label: "💡 Идея", cls: "stage-idea" },
+      mvp: { label: "🛠 MVP / Прототип", cls: "stage-mvp" },
+      launched: { label: "🚀 Запущен", cls: "stage-launched" },
+      hackathon: { label: "🏆 Хакатон", cls: "stage-hackathon" },
+    };
+    const stageInfo = stageMap[proj.stage] || { label: "💡 Проект", cls: "stage-idea" };
+
+    const stageBadge = document.getElementById("detailProjectStageBadge");
+    if (stageBadge) {
+      stageBadge.className = `project-stage-badge ${stageInfo.cls}`;
+      stageBadge.textContent = stageInfo.label;
+    }
+
+    const titleEl = document.getElementById("detailProjectTitle");
+    if (titleEl) titleEl.textContent = proj.title || "Без названия";
+
+    const founder = proj.founder || {};
+    const avatarEl = document.getElementById("detailFounderAvatar");
+    if (avatarEl) {
+      avatarEl.src = founder.avatar_url || "/static/webapp/assets/mascot_hero_3d.jpg";
+    }
+    const nameEl = document.getElementById("detailFounderName");
+    if (nameEl) nameEl.textContent = founder.name || "Фаундер";
+    const uniEl = document.getElementById("detailFounderUni");
+    if (uniEl) {
+      uniEl.textContent = [founder.university, founder.year ? `${founder.year} курс` : "", founder.major].filter(Boolean).join(" • ");
+    }
+
+    const pitchEl = document.getElementById("detailProjectPitch");
+    if (pitchEl) pitchEl.textContent = proj.pitch || "";
+
+    const descEl = document.getElementById("detailProjectDesc");
+    if (descEl) descEl.textContent = proj.description || "";
+
+    const rolesContainer = document.getElementById("detailProjectRoles");
+    if (rolesContainer) {
+      const roles = (proj.required_roles || "").split(",").map((r) => r.trim()).filter(Boolean);
+      rolesContainer.innerHTML = roles.map((r) => `<span class="project-role-tag">#${escapeHtml(r)}</span>`).join("");
+    }
+
+    const condEl = document.getElementById("detailProjectConditions");
+    if (condEl) condEl.textContent = proj.conditions || "По договорённости";
+
+    const demoLink = document.getElementById("detailDemoLink");
+    if (demoLink) {
+      if (proj.demo_url) {
+        demoLink.href = proj.demo_url;
+        demoLink.style.display = "inline-flex";
+      } else {
+        demoLink.style.display = "none";
+      }
+    }
+
+    const deckLink = document.getElementById("detailDeckLink");
+    if (deckLink) {
+      if (proj.pitchdeck_url) {
+        deckLink.href = proj.pitchdeck_url;
+        deckLink.style.display = "inline-flex";
+      } else {
+        deckLink.style.display = "none";
+      }
+    }
+
+    const footer = document.getElementById("detailActionsFooter");
+    const isMe = state.currentUser && (String(state.currentUser.id) === String(proj.founder?.id || proj.user_id));
+    if (footer) {
+      if (isMe) {
+        footer.innerHTML = `
+          <button class="btn-primary" id="detailEditProjectBtn" style="background:linear-gradient(135deg, #F59E0B, #D97706);width:100%;">
+            ✏️ Редактировать проект
+          </button>
+        `;
+        document.getElementById("detailEditProjectBtn")?.addEventListener("click", () => {
+          modal.style.display = "none";
+          openProjectCreateModal(proj);
+        });
+      } else {
+        footer.innerHTML = `
+          <button class="btn-secondary" id="detailSkipBtn">✕ Пропустить</button>
+          <button class="btn-primary" id="detailLikeBtn" style="background: linear-gradient(135deg, #F59E0B, #D97706);">
+            👍 Хочу в команду!
+          </button>
+        `;
+        document.getElementById("detailSkipBtn")?.addEventListener("click", () => {
+          modal.style.display = "none";
+          sendProjectSwipe(proj.id, "skip", null, proj);
+        });
+        document.getElementById("detailLikeBtn")?.addEventListener("click", () => {
+          modal.style.display = "none";
+          sendProjectSwipe(proj.id, "like", null, proj);
+        });
+      }
+    }
+
+    modal.style.display = "flex";
+  }
+
+  async function loadMyProjects() {
+    const listContainer = document.getElementById("projectsMyList");
+    if (!listContainer) return;
+
+    listContainer.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--text-muted);">
+        <div style="font-size:36px;margin-bottom:12px;animation:figmaHeartPulse 1s infinite;">📂</div>
+        <div style="font-size:14px;font-weight:600;color:#F59E0B;">Загрузка ваших проектов...</div>
+      </div>
+    `;
+
+    try {
+      const res = await apiFetch("/api/webapp/projects/my");
+      if (!res || !res.projects || res.projects.length === 0) {
+        listContainer.innerHTML = `
+          <div class="career-empty-state">
+            <div class="career-empty-icon">💡</div>
+            <h3 class="career-empty-title">У вас пока нет проектов</h3>
+            <p class="career-empty-desc">
+              Создайте свой стартап, проект или команду для хакатона и найдите лучших единомышленников в StudMatch!
+            </p>
+            <button class="btn-primary" id="btnCreateFirstProject" style="background:linear-gradient(135deg, #F59E0B, #D97706);margin-top:10px;width:auto;padding:12px 24px;">
+              🚀 Создать первый проект
+            </button>
+          </div>
+        `;
+        document.getElementById("btnCreateFirstProject")?.addEventListener("click", () => {
+          openProjectCreateModal();
+        });
+        return;
+      }
+
+      listContainer.innerHTML = "";
+      res.projects.forEach((proj) => {
+        const item = document.createElement("div");
+        item.className = "project-my-card";
+        item.dataset.projectId = proj.id;
+
+        const candCount = proj.candidates_count || 0;
+        const candLabel = candCount === 1 ? "1 отклик" : `${candCount} откликов`;
+
+        item.innerHTML = `
+          <div class="project-my-card-header">
+            <div>
+              <h4 class="project-my-card-title">${escapeHtml(proj.title)}</h4>
+              <span class="project-stage-badge" style="margin-top:4px;">${escapeHtml(proj.stage.toUpperCase())}</span>
+            </div>
+            <button class="project-my-cand-badge" data-action="candidates">
+              👥 ${candLabel}
+            </button>
+          </div>
+          <p class="project-my-card-pitch">${escapeHtml(proj.pitch)}</p>
+          <div class="project-my-card-actions">
+            <button class="btn-secondary-sm" data-action="edit">✏️ Изменить</button>
+            <button class="btn-secondary-sm" data-action="candidates">👥 Отклики (${candCount})</button>
+            <button class="btn-secondary-sm" style="color:#EF4444;" data-action="delete">🗑 Удалить</button>
+          </div>
+        `;
+
+        item.querySelectorAll("[data-action='candidates']").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            openFounderCandidatesModal(proj.id, proj.title);
+          });
+        });
+
+        item.querySelector("[data-action='edit']")?.addEventListener("click", () => {
+          openProjectCreateModal(proj);
+        });
+
+        item.querySelector("[data-action='delete']")?.addEventListener("click", async () => {
+          if (!confirm(`Вы действительно хотите удалить проект «${proj.title}»?`)) return;
+          try {
+            triggerHaptic("warning");
+            const dRes = await apiFetch(`/api/webapp/projects/${proj.id}`, { method: "DELETE" });
+            if (dRes && dRes.status === "ok") {
+              triggerHaptic("success");
+              showAppToast("Проект успешно удалён");
+              loadMyProjects();
+            }
+          } catch (delErr) {
+            console.error("Delete project error:", delErr);
+            showAppToast("Ошибка при удалении проекта");
+          }
+        });
+
+        listContainer.appendChild(item);
+      });
+    } catch (e) {
+      console.error("[StudMatch] Load my projects error:", e);
+      listContainer.innerHTML = `
+        <div class="career-empty-state">
+          <div class="career-empty-icon">⚠️</div>
+          <h3 class="career-empty-title">Ошибка сети</h3>
+          <p class="career-empty-desc">Не удалось загрузить ваши проекты.</p>
+        </div>
+      `;
+    }
+  }
+
+  async function openFounderCandidatesModal(projectId, projectTitle) {
+    const modal = document.getElementById("founderCandidatesModal");
+    const titleEl = document.getElementById("candidatesModalTitle");
+    const listEl = document.getElementById("founderCandidatesList");
+    if (!modal || !listEl) return;
+
+    if (titleEl) titleEl.textContent = `Отклики: ${projectTitle}`;
+    listEl.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--text-muted);">
+        <div style="font-size:36px;margin-bottom:12px;animation:figmaHeartPulse 1s infinite;">👥</div>
+        <div style="font-size:14px;font-weight:600;color:#F59E0B;">Загрузка кандидатов...</div>
+      </div>
+    `;
+    modal.style.display = "flex";
+
+    try {
+      const res = await apiFetch(`/api/webapp/projects/${projectId}/candidates`);
+      if (!res || !res.candidates || res.candidates.length === 0) {
+        listEl.innerHTML = `
+          <div class="career-empty-state">
+            <div class="career-empty-icon">✨</div>
+            <h3 class="career-empty-title">Пока нет новых откликов</h3>
+            <p class="career-empty-desc">
+              Как только студенты проявят интерес к проекту, их заявки и профили появятся здесь.
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = "";
+      res.candidates.forEach((cand) => {
+        const row = document.createElement("div");
+        row.className = "founder-candidate-card";
+
+        const candUni = [cand.university, cand.year ? `${cand.year} курс` : "", cand.major].filter(Boolean).join(" • ");
+
+        row.innerHTML = `
+          <div class="founder-candidate-header">
+            <img src="${escapeHtml(cand.avatar_url)}" class="founder-candidate-avatar" alt="${escapeHtml(cand.name)}" onerror="this.src='/static/webapp/assets/mascot_hero_3d.jpg';" />
+            <div class="founder-candidate-info">
+              <h4 class="founder-candidate-name">${escapeHtml(cand.name)}</h4>
+              ${candUni ? `<p class="founder-candidate-uni">${escapeHtml(candUni)}</p>` : ""}
+            </div>
+          </div>
+
+          ${cand.project_role ? `<div class="founder-candidate-badge">🎯 Роль: ${escapeHtml(cand.project_role)}</div>` : ""}
+          ${cand.project_skills ? `<div class="founder-candidate-skills">💻 <b>Стек:</b> ${escapeHtml(cand.project_skills)}</div>` : ""}
+          ${cand.project_bio ? `<p class="founder-candidate-bio">"${escapeHtml(cand.project_bio)}"</p>` : ""}
+          ${cand.comment ? `<div class="founder-candidate-pitch-box">💬 <b>Питч:</b> ${escapeHtml(cand.comment)}</div>` : ""}
+
+          <div class="founder-candidate-actions">
+            <button class="btn-secondary-sm" data-action="skip">✕ Пропустить</button>
+            <button class="btn-primary-sm" style="background:linear-gradient(135deg, #F59E0B, #D97706);" data-action="accept">🤝 В команду!</button>
+          </div>
+        `;
+
+        const skipBtn = row.querySelector("[data-action='skip']");
+        skipBtn?.addEventListener("click", async () => {
+          triggerHaptic("light");
+          row.style.opacity = "0.4";
+          try {
+            await apiFetch(`/api/webapp/projects/${projectId}/swipe_candidate`, {
+              method: "POST",
+              body: JSON.stringify({ candidate_user_id: cand.user_id, action: "skip" }),
+            });
+            row.remove();
+            if (listEl.children.length === 0) {
+              openFounderCandidatesModal(projectId, projectTitle);
+            }
+          } catch (e) {
+            console.error("Skip candidate error:", e);
+            row.style.opacity = "1";
+          }
+        });
+
+        const acceptBtn = row.querySelector("[data-action='accept']");
+        acceptBtn?.addEventListener("click", async () => {
+          triggerHaptic("success");
+          acceptBtn.disabled = true;
+          acceptBtn.innerHTML = "⏳ Принимаем...";
+          try {
+            const mRes = await apiFetch(`/api/webapp/projects/${projectId}/swipe_candidate`, {
+              method: "POST",
+              body: JSON.stringify({ candidate_user_id: cand.user_id, action: "like" }),
+            });
+            if (mRes && mRes.status === "ok") {
+              row.remove();
+              modal.style.display = "none";
+              showMatchPopup({
+                name: cand.name,
+                photo_url: cand.avatar_url,
+                match_id: mRes.match?.id || mRes.match?.match_id
+              });
+            }
+          } catch (e) {
+            console.error("Accept candidate error:", e);
+            acceptBtn.disabled = false;
+            acceptBtn.innerHTML = "🤝 В команду!";
+          }
+        });
+
+        listEl.appendChild(row);
+      });
+    } catch (e) {
+      console.error("[StudMatch] Load candidates error:", e);
+      listEl.innerHTML = `<div class="career-empty-state"><p class="career-empty-desc">Ошибка загрузки кандидатов</p></div>`;
+    }
+  }
+
+  function openProjectCreateModal(projectToEdit = null) {
+    const modal = document.getElementById("projectCreateModal");
+    if (!modal) return;
+    triggerHaptic("medium");
+
+    const titleEl = document.getElementById("projectModalTitle");
+    const editIdInput = document.getElementById("projectEditId");
+    const titleInput = document.getElementById("projectInputTitle");
+    const pitchInput = document.getElementById("projectInputPitch");
+    const descInput = document.getElementById("projectInputDesc");
+    const stageSelect = document.getElementById("projectInputStage");
+    const condSelect = document.getElementById("projectInputConditions");
+    const rolesInput = document.getElementById("projectInputRoles");
+    const demoInput = document.getElementById("projectInputDemo");
+    const deckUrlInput = document.getElementById("projectInputDeckUrl");
+    const deckNameEl = document.getElementById("projectDeckFileName");
+    const saveBtn = document.getElementById("saveProjectBtn");
+
+    if (projectToEdit) {
+      if (titleEl) titleEl.textContent = "Редактировать проект";
+      if (editIdInput) editIdInput.value = projectToEdit.id;
+      if (titleInput) titleInput.value = projectToEdit.title || "";
+      if (pitchInput) pitchInput.value = projectToEdit.pitch || "";
+      if (descInput) descInput.value = projectToEdit.description || "";
+      if (stageSelect) stageSelect.value = projectToEdit.stage || "idea";
+      if (condSelect) condSelect.value = projectToEdit.conditions || "За опыт / pet-проект";
+      if (rolesInput) rolesInput.value = projectToEdit.required_roles || "";
+      if (demoInput) demoInput.value = projectToEdit.demo_url || "";
+      if (deckUrlInput) deckUrlInput.value = projectToEdit.pitchdeck_url || "";
+      if (deckNameEl) {
+        deckNameEl.textContent = projectToEdit.pitchdeck_url ? "✓ Презентация прикреплена" : "Прикрепить презентацию / питчдек (PDF до 20MB)";
+      }
+      if (saveBtn) saveBtn.textContent = "💾 Сохранить изменения";
+    } else {
+      if (titleEl) titleEl.textContent = "Новый проект";
+      if (editIdInput) editIdInput.value = "";
+      if (titleInput) titleInput.value = "";
+      if (pitchInput) pitchInput.value = "";
+      if (descInput) descInput.value = "";
+      if (stageSelect) stageSelect.value = "idea";
+      if (condSelect) condSelect.value = "За опыт / pet-проект";
+      if (rolesInput) rolesInput.value = "";
+      if (demoInput) demoInput.value = "";
+      if (deckUrlInput) deckUrlInput.value = "";
+      if (deckNameEl) deckNameEl.textContent = "Прикрепить презентацию / питчдек (PDF до 20MB)";
+      if (saveBtn) saveBtn.textContent = "🚀 Опубликовать проект";
+    }
+
+    modal.style.display = "flex";
+  }
+
+  async function saveProject() {
+    const editId = document.getElementById("projectEditId")?.value;
+    const title = document.getElementById("projectInputTitle")?.value.trim() || "";
+    const pitch = document.getElementById("projectInputPitch")?.value.trim() || "";
+    const description = document.getElementById("projectInputDesc")?.value.trim() || "";
+    const stage = document.getElementById("projectInputStage")?.value || "idea";
+    const conditions = document.getElementById("projectInputConditions")?.value || "За опыт / pet-проект";
+    const required_roles = document.getElementById("projectInputRoles")?.value.trim() || "";
+    const demo_url = document.getElementById("projectInputDemo")?.value.trim() || "";
+    const pitchdeck_url = document.getElementById("projectInputDeckUrl")?.value.trim() || "";
+    const saveBtn = document.getElementById("saveProjectBtn");
+
+    if (!title) {
+      showAppToast("Укажите название проекта");
+      return;
+    }
+    if (!pitch) {
+      showAppToast("Укажите краткий питч проекта");
+      return;
+    }
+    if (!description) {
+      showAppToast("Опишите ваш проект и цели");
+      return;
+    }
+
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = "⏳ Сохранение...";
+    }
+
+    const payload = {
+      title,
+      pitch,
+      description,
+      stage,
+      conditions,
+      required_roles,
+      demo_url,
+      pitchdeck_url,
+    };
+
+    try {
+      let res = null;
+      if (editId) {
+        res = await apiFetch(`/api/webapp/projects/${editId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await apiFetch("/api/webapp/projects", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+
+      if (res && res.status === "ok") {
+        triggerHaptic("success");
+        showAppToast(editId ? "Проект успешно обновлён! ✨" : "Проект успешно опубликован! 🚀");
+        document.getElementById("projectCreateModal").style.display = "none";
+        if (currentProjectsView === "feed") {
+          loadProjectsFeed();
+        } else if (currentProjectsView === "my") {
+          loadMyProjects();
+        } else {
+          loadFeed();
+        }
+      } else {
+        showAppToast(res?.detail || "Не удалось сохранить проект");
+      }
+    } catch (err) {
+      console.error("Save project error:", err);
+      showAppToast("Ошибка сети при сохранении проекта");
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = editId ? "💾 Сохранить изменения" : "🚀 Опубликовать проект";
+      }
+    }
+  }
+
+  function setupProjectsListeners() {
+    // 1. Projects Subnav toggle buttons
+    document.getElementById("btnProjectsSubnavSwipe")?.addEventListener("click", () => {
+      setProjectsSubnavView("swipe");
+    });
+    document.getElementById("btnProjectsSubnavFeed")?.addEventListener("click", () => {
+      setProjectsSubnavView("feed");
+    });
+    document.getElementById("btnProjectsSubnavMy")?.addEventListener("click", () => {
+      setProjectsSubnavView("my");
+    });
+
+    // 2. Stage chips
+    document.querySelectorAll("#projectsStageChips .project-stage-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        triggerHaptic("light");
+        document.querySelectorAll("#projectsStageChips .project-stage-chip").forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+        projectsActiveStage = chip.dataset.stage || "all";
+        loadProjectsFeed();
+      });
+    });
+
+    // 3. Role chips
+    document.querySelectorAll("#projectsRoleChips .project-role-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        triggerHaptic("light");
+        document.querySelectorAll("#projectsRoleChips .project-role-chip").forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+        projectsActiveRole = chip.dataset.role || "all";
+        loadProjectsFeed();
+      });
+    });
+
+    // 4. Search input with debounce
+    const searchInput = document.getElementById("projectsSearchInput");
+    const clearBtn = document.getElementById("projectsSearchClearBtn");
+
+    searchInput?.addEventListener("input", (e) => {
+      const val = e.target.value;
+      if (clearBtn) clearBtn.style.display = val ? "block" : "none";
+      if (projectsSearchTimeout) clearTimeout(projectsSearchTimeout);
+      projectsSearchTimeout = setTimeout(() => {
+        projectsSearchQuery = val;
+        loadProjectsFeed();
+      }, 350);
+    });
+
+    clearBtn?.addEventListener("click", () => {
+      if (searchInput) searchInput.value = "";
+      clearBtn.style.display = "none";
+      projectsSearchQuery = "";
+      loadProjectsFeed();
+    });
+
+    // 5. Create project triggers
+    document.getElementById("openProjectCreateBtn")?.addEventListener("click", () => openProjectCreateModal());
+    document.getElementById("projectsComposerCard")?.addEventListener("click", () => openProjectCreateModal());
+    document.getElementById("btnMyCreateProject")?.addEventListener("click", () => openProjectCreateModal());
+
+    // 6. Project Create Modal close & save
+    document.getElementById("projectCreateCloseBtn")?.addEventListener("click", () => {
+      document.getElementById("projectCreateModal").style.display = "none";
+    });
+    document.getElementById("saveProjectBtn")?.addEventListener("click", saveProject);
+
+    // 7. Pitchdeck File Upload Trigger
+    const uploadTrigger = document.getElementById("projectDeckUploadTrigger");
+    const fileInput = document.getElementById("projectInputDeckFile");
+    const deckFileName = document.getElementById("projectDeckFileName");
+    const deckUrlInput = document.getElementById("projectInputDeckUrl");
+
+    uploadTrigger?.addEventListener("click", () => {
+      fileInput?.click();
+    });
+
+    fileInput?.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (file.size > 20 * 1024 * 1024) {
+        showAppToast("Файл слишком большой (максимум 20MB)");
+        fileInput.value = "";
+        return;
+      }
+
+      if (deckFileName) deckFileName.textContent = `⏳ Загрузка ${file.name}...`;
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const initData = window.Telegram?.WebApp?.initData || "";
+        const token = localStorage.getItem("studmatch_token") || "";
+
+        const headers = {};
+        if (initData) headers["X-Telegram-Init-Data"] = initData;
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const resp = await fetch("/api/webapp/projects/upload_deck", {
+          method: "POST",
+          headers,
+          body: formData,
+        });
+
+        const resData = await resp.json();
+        if (resp.ok && resData.url) {
+          triggerHaptic("success");
+          if (deckUrlInput) deckUrlInput.value = resData.url;
+          if (deckFileName) deckFileName.textContent = `✓ ${resData.filename || file.name}`;
+          showAppToast("Презентация прикреплена! 📄");
+        } else {
+          throw new Error(resData.detail || "Upload error");
+        }
+      } catch (err) {
+        console.error("Upload deck error:", err);
+        triggerHaptic("error");
+        if (deckFileName) deckFileName.textContent = "Ошибка загрузки. Попробуйте еще раз";
+        showAppToast("Не удалось загрузить файл");
+      }
+    });
+
+    // 8. Project Details Modal close
+    document.getElementById("projectDetailsCloseBtn")?.addEventListener("click", () => {
+      document.getElementById("projectDetailsModal").style.display = "none";
+    });
+
+    // 9. Founder Candidates Modal close
+    document.getElementById("founderCandidatesCloseBtn")?.addEventListener("click", () => {
+      document.getElementById("founderCandidatesModal").style.display = "none";
+    });
+  }
+
   // ─── Hall of Fame (Зал Славы) Logic ─────────────────────────
   let hallOfFameScope = "all"; // 'all' | 'university'
   let hallOfFameData = null;
@@ -5693,6 +6760,7 @@
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();
     setupCareerListeners();
+    setupProjectsListeners();
     setupMaintenanceListeners();
     setupHallOfFameListeners();
     if (window.MAINTENANCE_DATA) {

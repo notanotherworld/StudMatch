@@ -201,16 +201,47 @@ MIGRATION_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON support_tickets (user_id);",
     "CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets (status);",
     "CREATE INDEX IF NOT EXISTS idx_support_tickets_created_at ON support_tickets (created_at);",
+    # 026_projects_mode_and_tables
+    "ALTER TYPE modeenum ADD VALUE IF NOT EXISTS 'projects';",
+    """
+    CREATE TABLE IF NOT EXISTS projects (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(200) NOT NULL,
+        pitch VARCHAR(300) NOT NULL,
+        description TEXT NOT NULL,
+        stage VARCHAR(50) NOT NULL DEFAULT 'idea',
+        required_roles VARCHAR[],
+        conditions VARCHAR(100),
+        demo_url VARCHAR(300),
+        pitchdeck_url TEXT,
+        cover_url VARCHAR(300),
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects (user_id);",
+    "CREATE INDEX IF NOT EXISTS idx_projects_active_created ON projects (is_active, created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_projects_stage ON projects (stage);",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS project_role VARCHAR(100);",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS project_skills TEXT;",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS project_bio TEXT;",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS project_is_complete BOOLEAN DEFAULT FALSE;",
+    "ALTER TABLE swipes ADD COLUMN IF NOT EXISTS to_project_id UUID REFERENCES projects(id) ON DELETE CASCADE;",
+    "CREATE INDEX IF NOT EXISTS idx_swipes_to_project_id ON swipes (to_project_id);",
+    "ALTER TABLE matches ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE SET NULL;",
+    "CREATE INDEX IF NOT EXISTS idx_matches_project_id ON matches (project_id);",
     # Установка версии alembic
     """
     DO $$
     BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version') THEN
             ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64);
-            UPDATE alembic_version SET version_num = '029_support_tickets';
+            UPDATE alembic_version SET version_num = '026_projects_mode_and_tables';
         ELSE
             CREATE TABLE alembic_version (version_num VARCHAR(64) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));
-            INSERT INTO alembic_version (version_num) VALUES ('029_support_tickets');
+            INSERT INTO alembic_version (version_num) VALUES ('026_projects_mode_and_tables');
         END IF;
     END $$;
     """

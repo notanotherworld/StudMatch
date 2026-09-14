@@ -407,13 +407,26 @@ async def view_career_profile_callback(callback: CallbackQuery, user: User, db: 
     await show_my_profile(callback.message, user, db, view_mode="career")
 
 
+@router.callback_query(F.data == "profile:view_projects")
+async def view_projects_profile_callback(callback: CallbackQuery, user: User, db: AsyncSession):
+    await callback.answer()
+    await show_my_profile(callback.message, user, db, view_mode="projects")
+
+
 @router.callback_query(F.data.startswith("mode:"))
 async def set_mode(callback: CallbackQuery, user: User, db: AsyncSession, state: FSMContext = None):
     mode_str = callback.data.split(":")[1]
-    mode = ModeEnum.career if mode_str == "career" else ModeEnum.dating
-    await set_user_mode(db, user.id, mode)
+    if mode_str == "career":
+        mode = ModeEnum.career
+        label = "🎯 Карьера"
+    elif mode_str == "projects":
+        mode = ModeEnum.projects
+        label = "💡 Проекты"
+    else:
+        mode = ModeEnum.dating
+        label = "❤️ Знакомства"
 
-    label = "🎯 Карьера" if mode == ModeEnum.career else "❤️ Знакомства"
+    await set_user_mode(db, user.id, mode)
     await callback.answer(f"Режим изменён: {label}")
     await callback.message.edit_reply_markup(reply_markup=None)
 
@@ -431,10 +444,27 @@ async def set_mode(callback: CallbackQuery, user: User, db: AsyncSession, state:
         )
         return
 
-    extra_text = (
-        "\n\n💼 <i>Компании видят топ-50. Чем выше ты в этом списке, тем чаще они пишут тебе первыми. Все получится 🤲🏻</i>"
-        if mode == ModeEnum.career else ""
-    )
+    if mode == ModeEnum.projects and (not user.profile or not user.profile.project_is_complete):
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        builder.button(text="💡 Заполнить проектный профиль", callback_data="settings:edit_project_profile")
+        builder.button(text="➕ Создать свой проект", callback_data="projects:create")
+        builder.adjust(1)
+        await callback.message.answer(
+            f"✅ Режим изменён на <b>{label}</b>\n\n"
+            "⚠️ <b>Твой проектный профиль ещё не заполнен!</b>\n"
+            "Укажи свою роль и навыки для участия в стартапах или создай свой проект для поиска команды.",
+            parse_mode="HTML",
+            reply_markup=builder.as_markup(),
+        )
+        return
+
+    extra_text = ""
+    if mode == ModeEnum.career:
+        extra_text = "\n\n💼 <i>Компании видят топ-50. Чем выше ты в этом списке, тем чаще они пишут тебе первыми.</i>"
+    elif mode == ModeEnum.projects:
+        extra_text = "\n\n💡 <i>Здесь студенты объединяются в стартапы, хакатон-команды и находят кофаундеров!</i>"
+
     await callback.message.answer(
         f"✅ Режим изменён на <b>{label}</b>{extra_text}",
         parse_mode="HTML",
@@ -822,6 +852,7 @@ async def show_my_profile(
     identity_line = ", ".join(identity_parts)
 
     is_career_view = (view_mode == "career") or (view_mode == "current" and user.mode == ModeEnum.career)
+    is_projects_view = (view_mode == "projects") or (view_mode == "current" and user.mode == ModeEnum.projects)
 
     # Верхняя строка премиума
     top_line = "Premium 💎\n" if user.is_premium else ""
@@ -845,7 +876,35 @@ async def show_my_profile(
 
     status_block = "\n".join(account_info)
 
-    if is_career_view:
+    if is_projects_view:
+        # Проектная анкета
+        photo_file_id = profile.avatar_file_id
+        role_text = html.escape(profile.project_role or "Не указана")
+        skills_text = html.escape(profile.project_skills or "Не указаны")
+        bio_text = html.escape(profile.project_bio or "Не указано")
+        status_line = "✅ Заполнен" if profile.project_is_complete else "⚠️ Не заполнен"
+
+        from database.crud import get_user_projects
+        user_projects = await get_user_projects(db, user.id)
+        proj_count = len(user_projects)
+
+        parts = []
+        if top_line:
+            parts.append(top_line.strip())
+        parts.append(identity_line)
+        parts.append(f"💡 <b>Проекты и стартапы</b> ({status_line})")
+        if major:
+            parts.append(f"🏛 {major}")
+        parts.append(f"⭐ Рейтинг: <b>{score_val:.0f} б.</b>")
+        parts.append(f"\n🎯 <b>Роль в проектах:</b>\n{role_text}")
+        parts.append(f"\n💻 <b>Стек и навыки:</b>\n{skills_text}")
+        parts.append(f"\n💬 <b>О себе:</b>\n{bio_text}")
+        parts.append(f"\n📂 <b>Активных проектов:</b> {proj_count} шт.")
+        parts.append(f"\n📊 <b>Твой аккаунт:</b>\n{status_block}")
+
+        text = "\n".join(parts)
+        current_view_param = "projects"
+    elif is_career_view:
         # Карьерная анкета
         photo_file_id = profile.career_avatar_file_id or profile.avatar_file_id
         skills_text = html.escape(profile.career_custom_skills or "Не указаны")

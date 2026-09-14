@@ -69,3 +69,23 @@ class PromoState(StatesGroup):
     """Ввод промокода."""
     waiting_promo_code = State()
 
+
+class ProjectProfileState(StatesGroup):
+    """Настройка проектного профиля студента."""
+    waiting_project_role = State()
+    waiting_project_skills = State()
+    waiting_project_bio = State()
+
+
+class ProjectCreateState(StatesGroup):
+    """Пошаговое создание проекта/стартапа в боте."""
+    waiting_title = State()
+    waiting_pitch = State()
+    waiting_description = State()
+    waiting_stage = State()
+    waiting_roles = State()
+    waiting_conditions = State()
+    waiting_demo_url = State()
+    waiting_deck = State()
+
+

@@ -20,9 +20,10 @@ def consent_keyboard() -> InlineKeyboardMarkup:
 
 def mode_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="🎯 Карьера", callback_data="mode:career")
     builder.button(text="❤️ Знакомства", callback_data="mode:dating")
-    builder.adjust(2)
+    builder.button(text="🎯 Карьера", callback_data="mode:career")
+    builder.button(text="💡 Проекты", callback_data="mode:projects")
+    builder.adjust(3)
     return builder.as_markup()
 
 
@@ -322,17 +323,31 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
     p = user.profile
     dating_ok = "✅" if (p and p.is_complete) else "⚠️"
     career_ok = "✅" if (p and p.career_is_complete) else "⚠️"
+    projects_ok = "✅" if (p and p.project_is_complete) else "⚠️"
 
     is_career = (current_view == "career") or (current_view == "current" and user.mode == ModeEnum.career)
-    mode_label = "🎯 Карьера" if user.mode == ModeEnum.career else "❤️ Знакомства"
+    is_projects = (current_view == "projects") or (current_view == "current" and user.mode == ModeEnum.projects)
+
+    if user.mode == ModeEnum.career:
+        mode_label = "🎯 Карьера"
+    elif user.mode == ModeEnum.projects:
+        mode_label = "💡 Проекты"
+    else:
+        mode_label = "❤️ Знакомства"
+
     builder = InlineKeyboardBuilder()
 
-    # 1. Знакомства / Карьера (в 2 колонки)
+    # 1. Знакомства / Карьера / Проекты (в 3 колонки)
     builder.button(text=f"❤️ Знакомства {dating_ok}", callback_data="profile:view_dating")
     builder.button(text=f"🎯 Карьера {career_ok}", callback_data="profile:view_career")
+    builder.button(text=f"💡 Проекты {projects_ok}", callback_data="profile:view_projects")
 
-    # 2. Кнопки смены фото и редактирования анкеты в зависимости от открытой вкладки
-    if is_career:
+    # 2. Кнопки в зависимости от открытой вкладки
+    if is_projects:
+        builder.button(text="📂 Мои проекты", callback_data="projects:my")
+        builder.button(text="➕ Создать проект", callback_data="projects:create")
+        builder.button(text="✏️ Профиль в проектах", callback_data="settings:edit_project_profile")
+    elif is_career:
         builder.button(text="💼 Изменить фото для Карьеры", callback_data="settings:edit_career_photo")
         builder.button(text="✏️ Редактировать Карьеру", callback_data="settings:edit_career_profile")
     else:
@@ -360,10 +375,17 @@ def my_profile_keyboard(user: User, current_view: str = "current") -> InlineKeyb
     # 9. Пригласить друзей
     builder.button(text="🪢 Пригласить друзей (+3 ⭐️)", callback_data="settings:ref_link")
 
-    if show_verify:
-        builder.adjust(2, 2, 1, 1, 1, 1, 1, 1, 1)
+    adj = [3]
+    if is_projects:
+        adj.append(3)
     else:
-        builder.adjust(2, 2, 1, 1, 1, 1, 1, 1)
+        adj.append(2)
+    adj.append(1)
+    if show_verify:
+        adj.append(1)
+    adj.extend([1, 1, 1, 1, 1])
+
+    builder.adjust(*adj)
     return builder.as_markup()
 
 
@@ -609,3 +631,51 @@ def cancel_reply_keyboard() -> ReplyKeyboardMarkup:
 
 def remove_keyboard() -> ReplyKeyboardRemove:
     return ReplyKeyboardRemove()
+
+
+def project_swipe_card_keyboard(project_id) -> InlineKeyboardMarkup:
+    """Клавиатура свайпа проекта в боте."""
+    p_id_str = project_id.hex if hasattr(project_id, "hex") else str(project_id).replace("-", "")
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🚀 Хочу в команду!", callback_data=f"pswipe:like:{p_id_str}")
+    builder.button(text="⏭ Скип", callback_data=f"pswipe:skip:{p_id_str}")
+    builder.button(text="⭐ Супер-отклик", callback_data=f"pswipe:superlike:{p_id_str}")
+    builder.button(text="📄 Подробнее", callback_data=f"pswipe:details:{p_id_str}")
+    builder.adjust(2, 2)
+    return builder.as_markup()
+
+
+def project_stage_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура выбора стадии проекта при создании."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="💡 Идея", callback_data="pstage:idea")
+    builder.button(text="🛠 MVP / Прототип", callback_data="pstage:mvp")
+    builder.button(text="🚀 Запущен", callback_data="pstage:launched")
+    builder.button(text="🏆 Хакатон", callback_data="pstage:hackathon")
+    builder.button(text="❌ Отмена", callback_data="projects:cancel")
+    builder.adjust(2, 2, 1)
+    return builder.as_markup()
+
+
+def project_conditions_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура выбора условий участия в проекте."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🌱 За опыт / pet-проект", callback_data="pcond:exp")
+    builder.button(text="📈 За долю (Equity)", callback_data="pcond:equity")
+    builder.button(text="🏆 Грант / Хакатон", callback_data="pcond:grant")
+    builder.button(text="💰 Оплачиваемый проект", callback_data="pcond:paid")
+    builder.button(text="❌ Отмена", callback_data="projects:cancel")
+    builder.adjust(2, 2, 1)
+    return builder.as_markup()
+
+
+def founder_candidate_keyboard(project_id, candidate_user_id: int) -> InlineKeyboardMarkup:
+    """Клавиатура решения фаундера по кандидату."""
+    p_id_str = project_id.hex if hasattr(project_id, "hex") else str(project_id).replace("-", "")
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🤝 В команду! (Принять)", callback_data=f"fcand:accept:{p_id_str}:{candidate_user_id}")
+    builder.button(text="⏭ Пропустить", callback_data=f"fcand:skip:{p_id_str}:{candidate_user_id}")
+    builder.adjust(1, 1)
+    return builder.as_markup()
+
+

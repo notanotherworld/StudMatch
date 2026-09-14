@@ -44,6 +44,10 @@
           <img src="/static/webapp/assets/icon_career.svg?v=20260904_29" class="mode-pill-icon" alt="" />
           <span>Карьера</span>
         </button>
+        <button class="mode-pill-btn" id="pillProjects" data-mode="projects">
+          <img src="/static/webapp/assets/icon_projects.png?v=20260914_01" class="mode-pill-icon" alt="" />
+          <span>Проекты</span>
+        </button>
       </div>
 
       <div class="header-actions">
@@ -103,6 +107,19 @@
           </button>
           <button class="career-subnav-btn" id="btnCareerSubnavFeed" data-career-view="feed">
             📋 Лента резюме
+          </button>
+        </div>
+
+        <!-- Projects Subnav Switcher: Swipes vs Feed vs My Projects -->
+        <div class="projects-subnav-toggle" id="projectsSubnavToggle" style="display: none;">
+          <button class="projects-subnav-btn active" id="btnProjectsSubnavSwipe" data-projects-view="swipe">
+            🎴 Свайпы проектов
+          </button>
+          <button class="projects-subnav-btn" id="btnProjectsSubnavFeed" data-projects-view="feed">
+            💡 Каталог стартапов
+          </button>
+          <button class="projects-subnav-btn" id="btnProjectsSubnavMy" data-projects-view="my">
+            📂 Мои проекты
           </button>
         </div>
 
@@ -172,13 +189,80 @@
               <img id="composerUserAvatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" class="composer-avatar" alt="Вы" />
             </div>
             <div class="composer-prompt">
-              <span class="composer-prompt-title">Ищешь работу, проект или команду?</span>
-              <span class="composer-prompt-sub">Опубликовать статус и стек в StudMatch ✏️</span>
+              <span class="composer-prompt-title">Ищешь работу или стажировку в компании?</span>
+              <span class="composer-prompt-sub">Опубликовать резюме и стек в StudMatch 💼</span>
             </div>
           </div>
 
           <!-- Candidate Feed List -->
           <div class="career-feed-list" id="careerFeedList">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- STUDMATCH: Projects & Startups Feed View -->
+        <div class="projects-feed-view" id="projectsFeedView" style="display: none;">
+          <!-- Search & Action Bar -->
+          <div class="projects-search-bar">
+            <div class="projects-search-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="projectsSearchInput" class="projects-search-input" placeholder="Поиск проектов, стартапов, стека..." />
+              <button class="projects-search-clear-btn" id="projectsSearchClearBtn" style="display:none;">✕</button>
+            </div>
+            <button class="projects-create-quick-btn" id="openProjectCreateBtn" title="Создать проект">
+              <span>+ Проект</span>
+            </button>
+          </div>
+
+          <!-- Stage Chips -->
+          <div class="projects-stages-bar" id="projectsStageChips">
+            <button class="project-stage-chip active" data-stage="all">🔥 Все стадии</button>
+            <button class="project-stage-chip" data-stage="idea">💡 Идея</button>
+            <button class="project-stage-chip" data-stage="mvp">🛠 MVP</button>
+            <button class="project-stage-chip" data-stage="launched">🚀 Запущен</button>
+            <button class="project-stage-chip" data-stage="hackathon">🏆 Хакатон</button>
+          </div>
+
+          <!-- Role Chips -->
+          <div class="projects-roles-bar" id="projectsRoleChips">
+            <button class="project-role-chip active" data-role="all">Все роли</button>
+            <button class="project-role-chip" data-role="it">💻 IT & Код</button>
+            <button class="project-role-chip" data-role="design">🎨 Дизайн</button>
+            <button class="project-role-chip" data-role="marketing">📈 Маркетинг</button>
+            <button class="project-role-chip" data-role="ai">🤖 AI / Data</button>
+            <button class="project-role-chip" data-role="founder">🤝 Co-founder</button>
+          </div>
+
+          <!-- Interactive Create Project Banner / Composer -->
+          <div class="projects-composer-card" id="projectsComposerCard">
+            <div class="projects-composer-icon-wrap">
+              <img src="/static/webapp/assets/icon_projects.png?v=20260914_01" class="projects-composer-icon" alt="Проекты" />
+            </div>
+            <div class="projects-composer-prompt">
+              <span class="projects-composer-title">Есть идея стартапа или проект на хакатон?</span>
+              <span class="projects-composer-sub">Собери команду мечты среди студентов СтудМэч ✨</span>
+            </div>
+          </div>
+
+          <!-- Projects Feed List -->
+          <div class="projects-feed-list" id="projectsFeedList">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- STUDMATCH: My Projects View -->
+        <div class="projects-my-view" id="projectsMyView" style="display: none;">
+          <div class="projects-my-header">
+            <div>
+              <h3 class="projects-my-title">Мои проекты и стартапы</h3>
+              <p class="projects-my-subtitle">Управляйте своими проектами и откликами кандидатов</p>
+            </div>
+            <button class="btn-primary-sm" id="btnMyCreateProject">+ Новый проект</button>
+          </div>
+          <div class="projects-my-list" id="projectsMyList">
             <!-- Rendered by JS -->
           </div>
         </div>
@@ -730,7 +814,7 @@
             <option value="Гибрид">🟡 Гибридный формат</option>
             <option value="Офис">🏢 Только офис</option>
             <option value="Стажировка">🎓 Летняя/осенняя стажировка</option>
-            <option value="Проект / Хакатон">🚀 Проектная работа / Хакатоны</option>
+            <option value="Парт-тайм">⏱ Частичная занятость / парт-тайм</option>
           </select>
         </div>
 
@@ -758,13 +842,16 @@
         <button class="modal-close-btn" id="profileEditCloseBtn" aria-label="Закрыть">✕</button>
       </div>
 
-      <!-- Tabs: Dating vs Career -->
+      <!-- Tabs: Dating vs Career vs Projects -->
       <div class="profile-edit-tabs">
         <button type="button" class="profile-edit-tab-btn active" data-edit-tab="dating">
           ❤️ Знакомства
         </button>
         <button type="button" class="profile-edit-tab-btn" data-edit-tab="career">
           💼 Карьера
+        </button>
+        <button type="button" class="profile-edit-tab-btn" data-edit-tab="projects">
+          💡 Проекты
         </button>
       </div>
 
@@ -858,7 +945,7 @@
               <option value="Гибрид">🟡 Гибридный формат</option>
               <option value="Офис">🏢 Только офис</option>
               <option value="Стажировка">🎓 Летняя/осенняя стажировка</option>
-              <option value="Проект / Хакатон">🚀 Проектная работа / Хакатоны</option>
+              <option value="Парт-тайм">⏱ Частичная занятость / парт-тайм</option>
             </select>
           </div>
 
@@ -867,12 +954,183 @@
             <input type="url" id="editCareerPortfolio" class="filter-input" placeholder="https://github.com/username или ссылка на hh.ru" />
           </div>
         </div>
+
+        <!-- Tab 3: Projects Profile -->
+        <div class="profile-edit-pane" id="paneEditProjects">
+          <p class="career-modal-subtitle">
+            Укажите вашу проектную роль и стек, чтобы находить единомышленников и команды для стартапов и хакатонов.
+          </p>
+
+          <div class="filter-group">
+            <label class="filter-label" for="editProjectRole">💡 Ваша роль в проектах:</label>
+            <input type="text" id="editProjectRole" class="filter-input" placeholder="Например: Фаундер, Frontend-разработчик, UI/UX дизайнер" maxlength="100" />
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label" for="editProjectSkills">🛠️ Стек и навыки (через запятую):</label>
+            <input type="text" id="editProjectSkills" class="filter-input" placeholder="React, Node.js, Figma, AI/LLM, No-code" />
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label" for="editProjectBio">🚀 Опыт и проектные интересы:</label>
+            <textarea id="editProjectBio" class="career-textarea" rows="3" placeholder="Расскажите о созданных проектах, идеях или кого ищете в команду..."></textarea>
+          </div>
+        </div>
       </div>
 
       <div class="modal-footer">
         <button class="btn-primary" id="saveProfileEditBtn" style="width: 100%; padding: 14px; font-weight: 700; border-radius: 14px;">
           💾 Сохранить изменения
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STUDMATCH: Create / Edit Project Modal -->
+  <div class="modal-overlay" id="projectCreateModal" style="display: none;">
+    <div class="modal-card project-create-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-title-icon">💡</span>
+          <h3 class="modal-title" id="projectModalTitle">Создать проект</h3>
+        </div>
+        <button class="modal-close-btn" id="projectCreateCloseBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="projectEditId" value="" />
+
+        <div class="filter-group">
+          <label class="filter-label">🏷 Название проекта / стартапа *:</label>
+          <input type="text" id="projectInputTitle" class="filter-input" placeholder="Например: CampusPay, AI-репетитор, EcoCup" maxlength="200" required />
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">⚡ Краткий питч (одна строка) *:</label>
+          <input type="text" id="projectInputPitch" class="filter-input" placeholder="Коротко и емко: какую проблему решает проект?" maxlength="300" required />
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">📝 Подробное описание идеи и задач *:</label>
+          <textarea id="projectInputDesc" class="career-textarea" rows="4" placeholder="Расскажите подробнее о проекте, текущем прогрессе и целях команды..."></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="filter-group">
+            <label class="filter-label">🚀 Стадия проекта:</label>
+            <select id="projectInputStage" class="filter-select">
+              <option value="idea">💡 Идея</option>
+              <option value="mvp">🛠 MVP / Прототип</option>
+              <option value="launched">🚀 Запущен</option>
+              <option value="hackathon">🏆 Хакатон</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">🤝 Условия участия:</label>
+            <select id="projectInputConditions" class="filter-select">
+              <option value="За опыт / pet-проект">🌱 За опыт / pet-проект</option>
+              <option value="За долю в стартапе (Equity)">📈 За долю (Equity)</option>
+              <option value="Грант / Хакатон">🏆 Грант / Хакатон</option>
+              <option value="Оплачиваемый проект">💰 Оплачиваемо</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">👥 Кого ищете в команду (через запятую):</label>
+          <input type="text" id="projectInputRoles" class="filter-input" placeholder="Frontend React, Backend Python, UI/UX дизайнер, Маркетолог" />
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">🔗 Ссылка на демо / сайт / GitHub:</label>
+          <input type="url" id="projectInputDemo" class="filter-input" placeholder="https://github.com/project или https://myproject.ru" />
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">📄 Презентация / Питчдек (PDF):</label>
+          <input type="file" id="projectInputDeckFile" accept="application/pdf,image/png,image/jpeg" style="display:none;" />
+          <div class="pitchdeck-upload-box" id="projectDeckUploadTrigger">
+            <span class="upload-icon">📎</span>
+            <span id="projectDeckFileName">Прикрепить презентацию / питчдек (PDF до 20MB)</span>
+          </div>
+          <input type="hidden" id="projectInputDeckUrl" value="" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="saveProjectBtn" style="background: linear-gradient(135deg, #F59E0B, #D97706); width: 100%;">
+          🚀 Опубликовать проект
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STUDMATCH: Project Details Sheet Modal -->
+  <div class="modal-overlay" id="projectDetailsModal" style="display: none;">
+    <div class="modal-card project-details-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="project-stage-badge" id="detailProjectStageBadge">💡 Идея</span>
+          <h3 class="modal-title" id="detailProjectTitle">Название проекта</h3>
+        </div>
+        <button class="modal-close-btn" id="projectDetailsCloseBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="project-founder-header">
+          <img id="detailFounderAvatar" src="/static/webapp/assets/mascot_hero_3d.jpg" class="project-founder-avatar" alt="Фаундер" />
+          <div class="project-founder-info">
+            <h4 id="detailFounderName" class="project-founder-name">Имя Фаундера</h4>
+            <p id="detailFounderUni" class="project-founder-uni">Вуз / Факультет</p>
+          </div>
+        </div>
+
+        <div class="project-pitch-banner" id="detailProjectPitch">
+          Краткий слоган проекта
+        </div>
+
+        <div class="project-detail-section">
+          <h5 class="section-label">О проекте</h5>
+          <p id="detailProjectDesc" class="project-detail-desc"></p>
+        </div>
+
+        <div class="project-detail-section">
+          <h5 class="section-label">Открытые роли в команду</h5>
+          <div id="detailProjectRoles" class="project-roles-tags"></div>
+        </div>
+
+        <div class="project-detail-section">
+          <h5 class="section-label">Условия участия</h5>
+          <span id="detailProjectConditions" class="project-conditions-badge">По договорённости</span>
+        </div>
+
+        <div class="project-links-row" id="detailProjectLinks">
+          <a href="#" target="_blank" class="project-link-btn" id="detailDemoLink" style="display:none;">
+            🌐 Открыть демо / сайт
+          </a>
+          <a href="#" target="_blank" class="project-link-btn pdf-btn" id="detailDeckLink" style="display:none;">
+            📄 Скачать питчдек (PDF)
+          </a>
+        </div>
+      </div>
+      <div class="modal-footer project-details-footer" id="detailActionsFooter">
+        <button class="btn-secondary" id="detailSkipBtn">✕ Пропустить</button>
+        <button class="btn-primary" id="detailLikeBtn" style="background: linear-gradient(135deg, #F59E0B, #D97706);">
+          👍 Хочу в команду!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STUDMATCH: Founder Candidates Inbox Modal -->
+  <div class="modal-overlay" id="founderCandidatesModal" style="display: none;">
+    <div class="modal-card founder-candidates-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-title-icon">👥</span>
+          <h3 class="modal-title" id="candidatesModalTitle">Отклики в команду</h3>
+        </div>
+        <button class="modal-close-btn" id="founderCandidatesCloseBtn">✕</button>
+      </div>
+      <div class="modal-body" id="founderCandidatesList">
+        <!-- Rendered by JS -->
       </div>
     </div>
   </div>

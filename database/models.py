@@ -24,6 +24,7 @@ import enum
 class ModeEnum(str, enum.Enum):
     career = "career"
     dating = "dating"
+    projects = "projects"
 
 
 class SwipeAction(str, enum.Enum):
@@ -217,6 +218,9 @@ class User(Base):
     support_tickets: Mapped[List["SupportTicket"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    projects: Mapped[List["Project"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 # ─────────────────────────────────────────────────────────────
@@ -271,11 +275,50 @@ class Profile(Base):
     career_work_format: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)      # Удалённо / Офис / Гибрид
     career_is_complete: Mapped[bool] = mapped_column(Boolean, default=False)                   # Анкета карьеры заполнена
 
+    # Проектная анкета (Проекты и стартапы)
+    project_role: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)     # "Фаундер", "Frontend-разработчик" и т.д.
+    project_skills: Mapped[Optional[str]] = mapped_column(Text, nullable=True)         # Стек/навыки для проектов
+    project_bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)            # О себе / проектный опыт
+    project_is_complete: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     user: Mapped["User"] = relationship(back_populates="profile")
+
+
+# ─────────────────────────────────────────────────────────────
+# Проекты и стартапы студентов
+# ─────────────────────────────────────────────────────────────
+class Project(Base):
+    __tablename__ = "projects"
+    __table_args__ = (
+        Index("idx_projects_active_created", "is_active", "created_at"),
+        Index("idx_projects_stage", "stage"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    pitch: Mapped[str] = mapped_column(String(300), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    stage: Mapped[str] = mapped_column(String(50), default="idea", server_default="idea")  # "idea", "mvp", "launched", "hackathon"
+    required_roles: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String), nullable=True)  # ["Frontend", "Design"]
+    conditions: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # "experience", "equity", "pet", "grant", "paid"
+    demo_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    pitchdeck_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    cover_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="projects")
+    swipes: Mapped[List["Swipe"]] = relationship(
+        back_populates="project", foreign_keys="Swipe.to_project_id", cascade="all, delete-orphan"
+    )
 
 
 # ─────────────────────────────────────────────────────────────
@@ -333,6 +376,7 @@ class Swipe(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     from_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
     to_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
+    to_project_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True)
     mode: Mapped[ModeEnum] = mapped_column(Enum(ModeEnum), default=ModeEnum.dating, server_default="dating", nullable=False)
     action: Mapped[SwipeAction] = mapped_column(Enum(SwipeAction))
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -340,6 +384,7 @@ class Swipe(Base):
 
     from_user: Mapped["User"] = relationship(foreign_keys=[from_user_id], back_populates="swipes_given")
     to_user: Mapped["User"] = relationship(foreign_keys=[to_user_id], back_populates="swipes_received")
+    project: Mapped[Optional["Project"]] = relationship(foreign_keys=[to_project_id], back_populates="swipes")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -356,11 +401,14 @@ class Match(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user1_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
     user2_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
+    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
     mode: Mapped[ModeEnum] = mapped_column(Enum(ModeEnum))
     user1_tg_approved: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     user2_tg_approved: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     tg_unlocked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    project: Mapped[Optional["Project"]] = relationship(foreign_keys=[project_id])
 
     @property
     def is_tg_unlocked(self) -> bool:
