@@ -633,11 +633,27 @@ async def notify_partner_about_message(
 
 @router.get("/api/webapp/matches")
 async def webapp_matches(
+    mode: Optional[str] = None,
     student: User = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    """Список всех взаимных мэтчей и диалогов студента."""
-    matches = await get_user_matches(db, student.id)
+    """Список взаимных мэтчей и диалогов студента, отфильтрованных по режиму."""
+    req_mode_str = mode
+    if not req_mode_str:
+        if hasattr(student, "mode") and student.mode:
+            req_mode_str = student.mode.value if hasattr(student.mode, "value") else str(student.mode)
+        else:
+            req_mode_str = "dating"
+
+    mode_enum = None
+    if req_mode_str == "career":
+        mode_enum = ModeEnum.career
+    elif req_mode_str == "projects":
+        mode_enum = ModeEnum.projects
+    elif req_mode_str == "dating":
+        mode_enum = ModeEnum.dating
+
+    matches = await get_user_matches(db, student.id, mode=mode_enum)
     result = []
 
     for m, partner in matches:
@@ -679,6 +695,9 @@ async def webapp_matches(
         result.append({
             "match_id": str(m.id),
             "user_id": partner.id,
+            "mode": m.mode.value if hasattr(m.mode, "value") else str(m.mode),
+            "project_id": str(m.project_id) if m.project_id else None,
+            "project_title": m.project.title if (m.project and m.project.title) else None,
             "name": raw_name,
             # ПРЯМОЙ TELEGRAM ДОСТУПЕН ТОЛЬКО ПОСЛЕ ОБОЮДНОГО СОГЛАСИЯ!
             "tg_username": partner.tg_username if is_tg_unlocked else None,
@@ -729,7 +748,10 @@ async def webapp_get_match_messages(
     if not match:
         try:
             partner_user_id = int(match_id)
-            match = await get_match_between_users(db, student.id, partner_user_id)
+            cur_mode = student.mode if hasattr(student, "mode") else None
+            match = await get_match_between_users(db, student.id, partner_user_id, mode=cur_mode)
+            if not match:
+                match = await get_match_between_users(db, student.id, partner_user_id)
             if match:
                 match_uuid = match.id
         except Exception:
@@ -865,7 +887,10 @@ async def webapp_send_message(
     if not match:
         try:
             partner_user_id = int(match_id)
-            match = await get_match_between_users(db, student.id, partner_user_id)
+            cur_mode = student.mode if hasattr(student, "mode") else None
+            match = await get_match_between_users(db, student.id, partner_user_id, mode=cur_mode)
+            if not match:
+                match = await get_match_between_users(db, student.id, partner_user_id)
             if match:
                 match_uuid = match.id
         except Exception:
@@ -2681,7 +2706,10 @@ async def webapp_get_user_details(
     is_tg_unlocked = False
 
     if not is_me:
-        m = await get_match_between_users(db, student.id, target.id)
+        cur_mode = student.mode if hasattr(student, "mode") else None
+        m = await get_match_between_users(db, student.id, target.id, mode=cur_mode)
+        if not m:
+            m = await get_match_between_users(db, student.id, target.id)
         if m:
             has_match = True
             match_id = str(m.id)

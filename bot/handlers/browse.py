@@ -653,13 +653,25 @@ async def show_my_matches(event: Message | CallbackQuery, user: User, db: AsyncS
 
     try:
         from database.crud import get_user_matches
-        matches = await get_user_matches(db, user.id)
+        cur_mode = user.mode if hasattr(user, "mode") and user.mode else ModeEnum.dating
+        matches = await get_user_matches(db, user.id, mode=cur_mode)
 
         if not matches:
-            empty_text = (
-                "🫂 <b>У тебя пока нет мэтчей</b>\n\n"
-                "Продолжай смотреть анкеты в разделе <b>«🔍 Смотреть анкеты»</b> — взаимная симпатия появится совсем скоро! 🔥"
-            )
+            if cur_mode == ModeEnum.career:
+                empty_text = (
+                    "💼 <b>У тебя пока нет деловых контактов</b>\n\n"
+                    "Смотри резюме и карьерные анкеты в разделе <b>«🔍 Смотреть анкеты»</b> — контакты появятся совсем скоро! 🔥"
+                )
+            elif cur_mode == ModeEnum.projects:
+                empty_text = (
+                    "💡 <b>У тебя пока нет проектных контактов</b>\n\n"
+                    "Смотри проекты и команды в разделе <b>«🔍 Смотреть анкеты»</b> — контакты появятся совсем скоро! 🚀"
+                )
+            else:
+                empty_text = (
+                    "🫂 <b>У тебя пока нет мэтчей</b>\n\n"
+                    "Продолжай смотреть анкеты в разделе <b>«🔍 Смотреть анкеты»</b> — взаимная симпатия появится совсем скоро! 🔥"
+                )
             builder = InlineKeyboardBuilder()
             builder.button(text="🔍 Смотреть анкеты", callback_data="top:swipe_next")
             await bot.send_message(
@@ -682,6 +694,11 @@ async def show_my_matches(event: Message | CallbackQuery, user: User, db: AsyncS
             ver_badge = " 🎓" if getattr(partner, "email_verified", False) else ""
             prem_badge = " 💎" if getattr(partner, "is_premium", False) else ""
 
+            proj_badge = ""
+            if getattr(m, "project", None) and m.project.title:
+                p_title = html.escape(m.project.title)
+                proj_badge = f"\n   └ 💡 Проект: <i>«{p_title}»</i>"
+
             if m.is_tg_unlocked:
                 if partner.tg_username:
                     clean_username = partner.tg_username.lstrip("@")
@@ -693,7 +710,7 @@ async def show_my_matches(event: Message | CallbackQuery, user: User, db: AsyncS
                 p_contact = "🔒 Telegram скрыт"
                 clean_username = ""
 
-            lines.append(f"{idx}. <b>{p_name}</b>{ver_badge}{prem_badge} ({p_year}) — <b>{p_contact}</b> <i>({date_str})</i>")
+            lines.append(f"{idx}. <b>{p_name}</b>{ver_badge}{prem_badge} ({p_year}) — <b>{p_contact}</b> <i>({date_str})</i>{proj_badge}")
 
             # Кнопка просмотра анкеты
             button_label = raw_name if len(raw_name) <= 12 else raw_name[:11] + "…"
@@ -712,8 +729,15 @@ async def show_my_matches(event: Message | CallbackQuery, user: User, db: AsyncS
         row_widths = [2] * len(matches) + [1]
         builder.adjust(*row_widths)
 
+        if cur_mode == ModeEnum.career:
+            header_text = f"💼 <b>Твои деловые контакты ({len(matches)}):</b>\n\n"
+        elif cur_mode == ModeEnum.projects:
+            header_text = f"💡 <b>Команды проектов ({len(matches)}):</b>\n\n"
+        else:
+            header_text = f"🫂 <b>Твои взаимные мэтчи ({len(matches)}):</b>\n\n"
+
         text = (
-            f"🫂 <b>Твои взаимные мэтчи ({len(matches)}):</b>\n\n" +
+            header_text +
             "\n".join(lines) +
             "\n\nНажми <b>👤 {Имя}</b>, чтобы открыть анкету, или <b>💬 Чат</b>, чтобы перейти к общению!"
         )

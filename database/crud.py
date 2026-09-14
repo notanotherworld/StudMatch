@@ -918,30 +918,33 @@ async def create_swipe(
         return False
 
 
-async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, User]]:
-    """Получить список всех мэтчей пользователя с деталями о партнере (с авто-восстановлением взаимных лайков)."""
+async def get_user_matches(
+    db: AsyncSession, user_id: int, mode: Optional[ModeEnum] = None
+) -> List[Tuple[Match, User]]:
+    """Получить список всех мэтчей пользователя с деталями о партнере (с фильтрацией по режиму)."""
     # 1. Автоматический бекфилл/исправление: находим все взаимные лайки, у которых нет записи в matches
     try:
-        my_likes_res = await db.execute(
-            select(Swipe.to_user_id).where(
-                and_(
-                    Swipe.from_user_id == user_id,
-                    Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
-                )
-            )
-        )
+        current_mode = mode or ModeEnum.dating
+        likes_cond = [
+            Swipe.from_user_id == user_id,
+            Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+        ]
+        if mode:
+            likes_cond.append(Swipe.mode == current_mode)
+
+        my_likes_res = await db.execute(select(Swipe.to_user_id).where(and_(*likes_cond)))
         my_liked_ids = [uid for uid in my_likes_res.scalars().all() if uid and uid != user_id]
 
         if my_liked_ids:
-            mutual_res = await db.execute(
-                select(Swipe.from_user_id).where(
-                    and_(
-                        Swipe.from_user_id.in_(my_liked_ids),
-                        Swipe.to_user_id == user_id,
-                        Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
-                    )
-                )
-            )
+            mutual_cond = [
+                Swipe.from_user_id.in_(my_liked_ids),
+                Swipe.to_user_id == user_id,
+                Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+            ]
+            if mode:
+                mutual_cond.append(Swipe.mode == current_mode)
+
+            mutual_res = await db.execute(select(Swipe.from_user_id).where(and_(*mutual_cond)))
             mutual_ids = [uid for uid in mutual_res.scalars().all() if uid and uid != user_id]
 
             if mutual_ids:
@@ -955,16 +958,18 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
                     if partner_id not in valid_partner_ids:
                         continue
 
-                    exist_match = await db.scalar(
-                        select(Match).where(
-                            or_(
-                                and_(Match.user1_id == user_id, Match.user2_id == partner_id),
-                                and_(Match.user1_id == partner_id, Match.user2_id == user_id),
-                            )
+                    match_check_cond = [
+                        or_(
+                            and_(Match.user1_id == user_id, Match.user2_id == partner_id),
+                            and_(Match.user1_id == partner_id, Match.user2_id == user_id),
                         )
-                    )
+                    ]
+                    if mode:
+                        match_check_cond.append(Match.mode == current_mode)
+
+                    exist_match = await db.scalar(select(Match).where(and_(*match_check_cond)))
                     if not exist_match:
-                        db.add(Match(id=uuid.uuid4(), user1_id=user_id, user2_id=partner_id, mode=ModeEnum.dating))
+                        db.add(Match(id=uuid.uuid4(), user1_id=user_id, user2_id=partner_id, mode=current_mode))
                 await db.commit()
     except Exception as e:
         await db.rollback()
@@ -974,9 +979,13 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
     try:
         query = (
             select(Match)
+            .options(selectinload(Match.project))
             .where(or_(Match.user1_id == user_id, Match.user2_id == user_id))
-            .order_by(Match.created_at.desc())
         )
+        if mode:
+            query = query.where(Match.mode == mode)
+        query = query.order_by(Match.created_at.desc())
+
         result = await db.execute(query)
         matches = list(result.scalars().all())
 
@@ -1008,14 +1017,18 @@ async def get_user_matches(db: AsyncSession, user_id: int) -> List[Tuple[Match, 
                 partners_map[u.id] = u
 
         partner_matches = []
-        added_partners = set()
+        added_keys = set()
         for m in matches:
             partner_id = m.user2_id if m.user1_id == user_id else m.user1_id
-            if partner_id in added_partners or partner_id == user_id:
+            if partner_id == user_id:
+                continue
+            # Составной ключ: разделяет диалоги одного партнёра по режимам и проектам
+            match_key = (partner_id, m.mode, m.project_id)
+            if match_key in added_keys:
                 continue
             partner = partners_map.get(partner_id)
             if partner and getattr(partner, "is_active", True):
-                added_partners.add(partner_id)
+                added_keys.add(match_key)
                 partner_matches.append((m, partner))
         return partner_matches
     except Exception as e:
@@ -1037,10 +1050,14 @@ async def get_match_between_users(
     db: AsyncSession, user1_id: int, user2_id: int, mode: Optional[ModeEnum] = None
 ) -> Optional[Match]:
     """Найти существующий матч между двумя пользователями."""
-    query = select(Match).where(
-        or_(
-            and_(Match.user1_id == user1_id, Match.user2_id == user2_id),
-            and_(Match.user1_id == user2_id, Match.user2_id == user1_id),
+    query = (
+        select(Match)
+        .options(selectinload(Match.project))
+        .where(
+            or_(
+                and_(Match.user1_id == user1_id, Match.user2_id == user2_id),
+                and_(Match.user1_id == user2_id, Match.user2_id == user1_id),
+            )
         )
     )
     if mode:

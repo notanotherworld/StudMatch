@@ -587,9 +587,10 @@
 
   async function fetchInitialBadges() {
     try {
+      const curMode = state.currentUser?.mode || localStorage.getItem("studmatch_mode") || "dating";
       const [likesData, matchesData] = await Promise.allSettled([
         apiFetch("/api/webapp/incoming_likes"),
-        apiFetch("/api/webapp/matches"),
+        apiFetch(`/api/webapp/matches?mode=${encodeURIComponent(curMode)}`),
       ]);
 
       let likesCount = 0;
@@ -599,6 +600,7 @@
 
       let matchesCount = 0;
       if (matchesData.status === "fulfilled" && matchesData.value && matchesData.value.matches) {
+        state.matches = matchesData.value.matches;
         matchesCount = matchesData.value.matches.reduce((sum, m) => sum + (m.unread_count || 0), 0);
       }
 
@@ -794,6 +796,10 @@
       state.feed = [];
       state.currentCardIndex = 0;
       await loadFeed();
+    }
+
+    if (state.activeTab === "matches") {
+      loadMatches();
     }
 
     if (syncServer) {
@@ -1841,8 +1847,10 @@
   function handleProfileMessageClick(profile) {
     triggerHaptic("medium");
     const targetUserId = profile.user_id || profile.id;
+    const curMode = state.currentUser?.mode || localStorage.getItem("studmatch_mode") || "dating";
     const existingMatch = (state.matches || []).find(
-      (m) => (m.partner && (m.partner.id === targetUserId || m.partner.user_id === targetUserId)) || m.user_id === targetUserId
+      (m) => ((m.partner && (m.partner.id === targetUserId || m.partner.user_id === targetUserId)) || m.user_id === targetUserId) &&
+             (!m.mode || m.mode === curMode)
     );
     if (existingMatch) {
       closeDetailsSheet();
@@ -3252,16 +3260,46 @@
     if (!container) return;
     container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">Загрузка...</div>';
 
+    const curMode = state.currentUser?.mode || localStorage.getItem("studmatch_mode") || "dating";
+
+    // Обновляем заголовок и подзаголовок экрана в зависимости от режима
+    const titleEl = document.querySelector("#screen-matches .section-title");
+    const descEl = document.querySelector("#screen-matches .section-desc");
+    if (titleEl) {
+      if (curMode === "career") titleEl.textContent = "Деловые контакты";
+      else if (curMode === "projects") titleEl.textContent = "Команды проектов";
+      else titleEl.textContent = "Взаимные мэтчи";
+    }
+    if (descEl) {
+      if (curMode === "career") descEl.textContent = "Общайтесь с будущими коллегами и единомышленниками";
+      else if (curMode === "projects") descEl.textContent = "Обсуждайте задачи и запуск проектов";
+      else descEl.textContent = "Начните общение с понравившимися студентами";
+    }
+
     try {
-      const data = await apiFetch("/api/webapp/matches");
+      const data = await apiFetch(`/api/webapp/matches?mode=${encodeURIComponent(curMode)}`);
       if (!data || !data.matches || data.matches.length === 0) {
         state.matches = [];
         updateNavBadges({ matches: 0 });
+
+        let emptyIcon = "🫂";
+        let emptyTitle = "Пока нет мэтчей";
+        let emptyText = "Продолжайте свайпать в ленте, чтобы найти пару!";
+        if (curMode === "career") {
+          emptyIcon = "💼";
+          emptyTitle = "Пока нет контактов";
+          emptyText = "Ищите резюме и откликайтесь на вакансии в «Карьере»!";
+        } else if (curMode === "projects") {
+          emptyIcon = "💡";
+          emptyTitle = "Пока нет проектных чатов";
+          emptyText = "Ищите проекты или собирайте команду в «Проектах»!";
+        }
+
         container.innerHTML = `
           <div style="text-align:center;padding:40px 20px;">
-            <div style="font-size:48px;margin-bottom:12px;">🫂</div>
-            <h3 style="font-size:18px;font-weight:800;margin-bottom:6px;">Пока нет мэтчей</h3>
-            <p style="font-size:13px;color:var(--text-muted);">Продолжайте свайпать в ленте, чтобы найти пару!</p>
+            <div style="font-size:48px;margin-bottom:12px;">${emptyIcon}</div>
+            <h3 style="font-size:18px;font-weight:800;margin-bottom:6px;">${emptyTitle}</h3>
+            <p style="font-size:13px;color:var(--text-muted);">${emptyText}</p>
           </div>
         `;
         return;
@@ -3290,6 +3328,10 @@
             ? `<span class="match-status-pill unlocked">✈️ TG</span>`
             : `<span class="match-status-pill chat">💬 Чат</span>`;
 
+          const projectPill = m.project_title
+            ? `<div class="match-proj-badge" style="font-size:11.5px;color:var(--accent-projects,#eab308);font-weight:600;margin-top:2px;display:flex;align-items:center;gap:4px;">💡 ${escapeHtml(m.project_title)}</div>`
+            : "";
+
           return `
             <div class="match-item" data-match-id="${m.match_id}" data-partner-id="${m.user_id}">
               <div class="match-avatar-wrap">
@@ -3302,6 +3344,7 @@
                   <span class="match-name">${escapeHtml(m.name)}${verified}${prem}</span>
                   ${statusBadge}
                 </div>
+                ${projectPill}
                 <div class="match-univ">${m.university || "ВУЗ"} ${m.year ? `• ${m.year} курс` : ""}</div>
                 <div class="match-last-msg">${lastMsgText}</div>
               </div>
