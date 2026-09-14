@@ -172,16 +172,45 @@ MIGRATION_STATEMENTS = [
     );
     """,
     "CREATE INDEX IF NOT EXISTS idx_user_privacy_user_id ON user_privacy_settings (user_id);",
+    # 029_support_tickets
+    """
+    DO $$ 
+    BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ticketstatus') THEN
+            CREATE TYPE ticketstatus AS ENUM ('open', 'in_progress', 'resolved', 'closed');
+        END IF;
+    END $$;
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS support_tickets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        category VARCHAR(50) NOT NULL DEFAULT 'other',
+        subject VARCHAR(200),
+        message TEXT NOT NULL,
+        screenshot_url VARCHAR(500),
+        device_info TEXT,
+        status ticketstatus NOT NULL DEFAULT 'open',
+        admin_reply TEXT,
+        resolved_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        resolved_at TIMESTAMP WITH TIME ZONE
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON support_tickets (user_id);",
+    "CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets (status);",
+    "CREATE INDEX IF NOT EXISTS idx_support_tickets_created_at ON support_tickets (created_at);",
     # Установка версии alembic
     """
     DO $$
     BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version') THEN
             ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64);
-            UPDATE alembic_version SET version_num = '028_user_privacy_settings';
+            UPDATE alembic_version SET version_num = '029_support_tickets';
         ELSE
             CREATE TABLE alembic_version (version_num VARCHAR(64) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));
-            INSERT INTO alembic_version (version_num) VALUES ('028_user_privacy_settings');
+            INSERT INTO alembic_version (version_num) VALUES ('029_support_tickets');
         END IF;
     END $$;
     """
@@ -190,6 +219,9 @@ MIGRATION_STATEMENTS = [
 
 async def ensure_database_schema(engine: AsyncEngine) -> None:
     """Выполняет DDL-скрипты добавления новых колонок при старте без остановки приложения."""
+    if engine.dialect.name == "sqlite":
+        return
+
     for stmt in MIGRATION_STATEMENTS:
         try:
             async with engine.connect() as conn:
