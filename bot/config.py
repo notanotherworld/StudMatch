@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List
+from pydantic import field_validator
+from typing import List, Any
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -42,6 +43,36 @@ class Settings(BaseSettings):
     YOOKASSA_SHOP_ID: str = ""
     YOOKASSA_SECRET_KEY: str = ""
     YOOKASSA_RETURN_URL: str = "https://yourdomain.com/payment/success"
+
+    @field_validator("YOOKASSA_SHOP_ID", mode="before")
+    @classmethod
+    def clean_yookassa_shop_id(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        s = str(v).strip().strip("\"'").strip()
+        if "#" in s:
+            s = s.split("#")[0].strip().strip("\"'").strip()
+        return s
+
+    @field_validator("YOOKASSA_SECRET_KEY", mode="before")
+    @classmethod
+    def clean_yookassa_secret_key(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        s = str(v).strip().strip("\"'").strip()
+        if "#" in s:
+            s = s.split("#")[0].strip().strip("\"'").strip()
+        return s
+
+    @field_validator("YOOKASSA_RETURN_URL", mode="before")
+    @classmethod
+    def clean_yookassa_return_url(cls, v: Any) -> str:
+        if not v:
+            return "https://yourdomain.com/payment/success"
+        s = str(v).strip().strip("\"'").strip()
+        if "#" in s:
+            s = s.split("#")[0].strip().strip("\"'").strip()
+        return s
 
     # Web
     SECRET_KEY: str = "change_me"
