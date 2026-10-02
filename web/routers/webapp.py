@@ -4029,16 +4029,27 @@ async def webapp_create_pack_payment(
         amount_rub=float(pack["price"]),
     )
 
-    # Проверяем, настроена ли боевая интеграция ЮКассы
+    # Проверяем, настроена ли боевая/тестовая интеграция ЮКассы (исключая плейсхолдеры)
+    shop_id_val = str(getattr(settings, "YOOKASSA_SHOP_ID", "") or "").strip()
+    secret_key_val = str(getattr(settings, "YOOKASSA_SECRET_KEY", "") or "").strip()
     has_yk = bool(
-        getattr(settings, "YOOKASSA_SHOP_ID", None)
-        and getattr(settings, "YOOKASSA_SECRET_KEY", None)
-        and str(settings.YOOKASSA_SHOP_ID).strip() != ""
+        shop_id_val
+        and secret_key_val
+        and not shop_id_val.startswith("your_")
+        and not secret_key_val.startswith("your_")
+    )
+
+    is_dev_or_test = (
+        _DEBUG
+        or getattr(settings, "DEBUG", False)
+        or os.getenv("DEBUG", "false").lower() == "true"
+        or os.getenv("TESTING", "false").lower() == "true"
+        or str(settings.DATABASE_URL).startswith("sqlite")
     )
 
     if has_yk:
-        Configuration.account_id = settings.YOOKASSA_SHOP_ID
-        Configuration.secret_key = settings.YOOKASSA_SECRET_KEY
+        Configuration.account_id = shop_id_val
+        Configuration.secret_key = secret_key_val
 
         payment_data = {
             "amount": {"value": f"{pack['price']}.00", "currency": "RUB"},
@@ -4076,21 +4087,32 @@ async def webapp_create_pack_payment(
                 "payment_id": str(payment.id),
             }
         except Exception as e:
-            logger.error(f"Error creating YooKassa payment in WebApp: {e}")
+            logger.error(f"Error creating YooKassa payment in WebApp: {e}", exc_info=True)
+            if is_dev_or_test:
+                # В dev-режиме авто-симулируем успешную оплату при ошибке интеграции
+                test_yk_id = f"demo_yk_{payment.id}"
+                from sqlalchemy import update
+                await db.execute(
+                    update(Payment)
+                    .where(Payment.id == payment.id)
+                    .values(yookassa_payment_id=test_yk_id)
+                )
+                await db.commit()
+                await confirm_payment(db, test_yk_id)
+
+                return {
+                    "status": "success",
+                    "ok": True,
+                    "auto_completed": True,
+                    "payment_id": str(payment.id),
+                    "message": f"🎉 Пакет «{pack['title']}» успешно зачислен (демо-симуляция)!",
+                }
             return {
                 "status": "error",
                 "ok": False,
-                "message": "⚠️ Ошибка связи с платёжным шлюзом. Попробуйте позже.",
+                "message": f"⚠️ Ошибка связи с платёжным шлюзом: {e}",
             }
     else:
-        # Проверяем, разрешен ли dev/test режим для демо-начисления
-        is_dev_or_test = (
-            _DEBUG
-            or getattr(settings, "DEBUG", False)
-            or os.getenv("DEBUG", "false").lower() == "true"
-            or os.getenv("TESTING", "false").lower() == "true"
-            or str(settings.DATABASE_URL).startswith("sqlite")
-        )
         if not is_dev_or_test:
             logger.error("[SECURITY] YooKassa is not configured in production, rejecting create-pack payment request")
             return {
