@@ -14,7 +14,7 @@ from web.routers.admin import (
     auth as admin_auth, dashboard, users, documents, ratings,
     payments as admin_payments, tariffs as admin_tariffs, employers, universities,
     broadcast, tags, reports, health, audit, promos, settings as admin_settings,
-    consents, fake_users, support as admin_support,
+    consents, fake_users, support as admin_support, economy as admin_economy,
 )
 from web.routers.employer import (
     auth as employer_auth,
@@ -24,6 +24,7 @@ from web.routers.employer import (
     settings as employer_settings,
 )
 from web.dependencies import generate_csrf_token, get_db
+from bot.config import settings
 
 
 import logging
@@ -41,7 +42,7 @@ async def lifespan(app: FastAPI):
 
 # OpenAPI только в dev (не в prod) — убираем /docs из production (#12)
 import os
-_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+_DEBUG = getattr(settings, "DEBUG", False) or os.getenv("DEBUG", "false").lower() == "true"
 
 app = FastAPI(
     title="СтудМэч Admin",
@@ -176,6 +177,7 @@ app.include_router(documents.router, prefix="/admin", tags=["Documents"])
 app.include_router(ratings.router, prefix="/admin", tags=["Ratings"])
 app.include_router(admin_payments.router, prefix="/admin", tags=["Payments"])
 app.include_router(admin_tariffs.router, prefix="/admin", tags=["Tariffs"])
+app.include_router(admin_economy.router, prefix="/admin", tags=["Economy"])
 app.include_router(employers.router, prefix="/admin", tags=["Employers"])
 app.include_router(universities.router, prefix="/admin", tags=["Universities"])
 app.include_router(broadcast.router, prefix="/admin", tags=["Broadcast"])

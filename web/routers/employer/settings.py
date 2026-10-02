@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
-from web.dependencies import get_db, get_current_employer, verify_password, hash_password
+from web.dependencies import get_db, get_current_employer, verify_password, hash_password, check_csrf
 from database.models import Employer
 
 router = APIRouter()
@@ -36,7 +36,7 @@ async def settings_page(
     )
 
 
-@router.post("/settings/profile")
+@router.post("/settings/profile", dependencies=[Depends(check_csrf)])
 async def update_profile(
     request: Request,
     contact_name: str = Form(...),
@@ -63,7 +63,7 @@ async def update_profile(
     return RedirectResponse("/employer/settings?success=Профиль+успешно+обновлен", status_code=302)
 
 
-@router.post("/settings/password")
+@router.post("/settings/password", dependencies=[Depends(check_csrf)])
 async def change_password(
     request: Request,
     current_password: str = Form(...),

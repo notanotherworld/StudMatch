@@ -15,7 +15,7 @@ from bot.middlewares.throttling import ThrottlingMiddleware, CallbackThrottlingM
 from bot.middlewares.maintenance import MaintenanceMiddleware
 from bot.middlewares.media_group import MediaGroupMiddleware
 from bot.middlewares.retry import create_resilient_bot_session
-from bot.handlers import start, auth, profile, browse, settings as settings_handler, rating, payments, reports as reports_handler, promo as promo_handler
+from bot.handlers import start, auth, profile, browse, settings as settings_handler, rating, payments, reports as reports_handler, promo as promo_handler, shop as shop_handler, quests as quests_handler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,8 +30,18 @@ async def main() -> None:
     from database.migrations import ensure_database_schema
     await ensure_database_schema(engine)
 
-    # FSM хранилище в Redis
-    storage = RedisStorage.from_url(settings.REDIS_URL)
+    # FSM хранилище в Redis (с fallback на MemoryStorage при отсутствии Redis в dev-режиме)
+    try:
+        import redis.asyncio as aioredis
+        r_test = aioredis.from_url(settings.REDIS_URL)
+        await asyncio.wait_for(r_test.ping(), timeout=1.5)
+        await r_test.aclose()
+        storage = RedisStorage.from_url(settings.REDIS_URL)
+        logger.info("📦 Подключено хранилище Redis FSM")
+    except Exception as e:
+        from aiogram.fsm.storage.memory import MemoryStorage
+        storage = MemoryStorage()
+        logger.warning(f"⚠️ Redis недоступен ({e}), переключено на MemoryStorage для FSM")
 
     session = create_resilient_bot_session(timeout=30.0, max_retries=3)
     bot = Bot(
@@ -55,6 +65,8 @@ async def main() -> None:
     dp.include_router(auth.router)
     dp.include_router(profile.router)
     dp.include_router(browse.router)
+    dp.include_router(shop_handler.router)
+    dp.include_router(quests_handler.router)
     dp.include_router(settings_handler.router)
     dp.include_router(promo_handler.router)
     dp.include_router(rating.router)

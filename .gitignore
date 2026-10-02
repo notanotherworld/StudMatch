@@ -53,3 +53,6 @@ htmlcov/
 .agents/
 skills-lock.json
 
+# ── Temporary / Scratch ─────────────────────────────────────────
+scratch/
+

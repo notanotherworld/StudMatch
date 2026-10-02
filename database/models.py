@@ -13,6 +13,20 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.session import Base
+from sqlalchemy.ext.compiler import compiles
+import json
+import sqlite3
+
+sqlite3.register_adapter(list, json.dumps)
+sqlite3.register_converter("JSON", json.loads)
+
+@compiles(ARRAY, "sqlite")
+def compile_array_sqlite(type_, compiler, **kw):
+    return "JSON"
+
+@compiles(UUID, "sqlite")
+def compile_uuid_sqlite(type_, compiler, **kw):
+    return "VARCHAR(36)"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -69,6 +83,12 @@ class PaymentProduct(str, enum.Enum):
     superlike_10 = "superlike_10"
     boost_24h = "boost_24h"
     premium_1m = "premium_1m"
+    starter_pack_99 = "starter_pack_99"
+    credits_100 = "credits_100"
+    credits_300 = "credits_300"
+    credits_700 = "credits_700"
+    credits_1500 = "credits_1500"
+    credits_3000 = "credits_3000"
 
 
 class PaymentStatus(str, enum.Enum):
@@ -145,8 +165,16 @@ class User(Base):
     auto_match_mode: Mapped[Optional[str]] = mapped_column(String(20), default="instant", nullable=True)  # instant, delayed, none
     mode: Mapped[ModeEnum] = mapped_column(Enum(ModeEnum), default=ModeEnum.dating)
     superlike_balance: Mapped[int] = mapped_column(Integer, default=0)
+    credits_balance: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    streak_days: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    last_streak_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    streak_freeze_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    equipped_frame: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     boost_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     premium_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    has_bought_starter_pack: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    last_fortune_spin_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    fortune_spins_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     flood_ban_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     is_flagged_spammer: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     last_banned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -220,6 +248,28 @@ class User(Base):
     )
     projects: Mapped[List["Project"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
+    )
+    economy_transactions: Mapped[List["EconomyTransaction"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    daily_quests: Mapped[List["UserDailyQuest"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    permanent_quests: Mapped[List["UserPermanentQuest"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    inventory: Mapped[List["UserInventoryItem"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    received_gifts: Mapped[List["UserReceivedGift"]] = relationship(
+        foreign_keys="UserReceivedGift.recipient_id",
+        back_populates="recipient",
+        cascade="all, delete-orphan",
+        order_by="UserReceivedGift.created_at.desc()",
+    )
+    sent_gifts: Mapped[List["UserReceivedGift"]] = relationship(
+        foreign_keys="UserReceivedGift.sender_id",
+        back_populates="sender",
     )
 
 
@@ -720,4 +770,141 @@ class SupportTicket(Base):
 
     user: Mapped["User"] = relationship(back_populates="support_tickets")
     admin: Mapped[Optional["Admin"]] = relationship()
+
+
+# ─────────────────────────────────────────────────────────────
+# Внутренняя экономика: Каталог товаров магазина
+# ─────────────────────────────────────────────────────────────
+class ShopItem(Base):
+    __tablename__ = "shop_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    category: Mapped[str] = mapped_column(String(30), default="consumable", index=True)  # consumable, insurance, subscription, cosmetic
+    price_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    price_rub: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    icon: Mapped[str] = mapped_column(String(20), default="🛍")
+    bonus_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # superlike, rewind, boost, freeze, premium, frame
+    bonus_value: Mapped[int] = mapped_column(Integer, default=1)
+    duration_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ─────────────────────────────────────────────────────────────
+# Внутренняя экономика: История транзакций («Зачёты» 🎓)
+# ─────────────────────────────────────────────────────────────
+class EconomyTransaction(Base):
+    __tablename__ = "economy_transactions"
+    __table_args__ = (
+        Index("idx_econ_tx_user_created", "user_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)  # +/- сумма зачётов
+    balance_after: Mapped[int] = mapped_column(Integer, nullable=False)
+    tx_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)  # streak, quest, onboarding, referral, purchase, refund, donate, admin
+    reference_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    description: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    user: Mapped["User"] = relationship(back_populates="economy_transactions")
+
+
+# ─────────────────────────────────────────────────────────────
+# Внутренняя экономика: Ежедневные задания (Дейлики)
+# ─────────────────────────────────────────────────────────────
+class UserDailyQuest(Base):
+    __tablename__ = "user_daily_quests"
+    __table_args__ = (
+        UniqueConstraint("user_id", "quest_date", "quest_key", name="uq_user_daily_quest"),
+        Index("idx_daily_quests_user_date", "user_id", "quest_date"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    quest_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    quest_key: Mapped[str] = mapped_column(String(50), nullable=False)  # swipes_15, likes_5, chat_1
+    current_progress: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    target_progress: Mapped[int] = mapped_column(Integer, default=1)
+    reward_credits: Mapped[int] = mapped_column(Integer, default=10)
+    is_claimed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="daily_quests")
+
+
+# ─────────────────────────────────────────────────────────────
+# Внутренняя экономика: Инвентарь и купленные предметы
+# ─────────────────────────────────────────────────────────────
+class UserInventoryItem(Base):
+    __tablename__ = "user_inventory"
+    __table_args__ = (
+        Index("idx_inventory_user_code", "user_id", "item_code"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    item_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_equipped: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="inventory")
+
+
+# ─────────────────────────────────────────────────────────────
+# Внутренняя экономика: Постоянные общие задания (Ачивки)
+# ─────────────────────────────────────────────────────────────
+class UserPermanentQuest(Base):
+    __tablename__ = "user_permanent_quests"
+    __table_args__ = (
+        UniqueConstraint("user_id", "quest_key", name="uq_user_permanent_quest"),
+        Index("idx_perm_quests_user", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    quest_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    current_progress: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    target_progress: Mapped[int] = mapped_column(Integer, default=1)
+    reward_credits: Mapped[int] = mapped_column(Integer, default=50)
+    reward_badge: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    is_claimed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="permanent_quests")
+
+
+# ─────────────────────────────────────────────────────────────
+# Студенческие подарки и знаки внимания
+# ─────────────────────────────────────────────────────────────
+class UserReceivedGift(Base):
+    __tablename__ = "user_received_gifts"
+    __table_args__ = (
+        Index("idx_gifts_recipient_created", "recipient_id", "created_at"),
+        Index("idx_gifts_sender_created", "sender_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sender_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    recipient_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    gift_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    gift_title: Mapped[str] = mapped_column(String(100), nullable=False)
+    gift_icon: Mapped[str] = mapped_column(String(20), nullable=False)
+    message: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    is_anonymous: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    sender: Mapped[Optional["User"]] = relationship(foreign_keys=[sender_id], back_populates="sent_gifts")
+    recipient: Mapped["User"] = relationship(foreign_keys=[recipient_id], back_populates="received_gifts")
+
+
+
 

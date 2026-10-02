@@ -11,12 +11,25 @@ from database.session import AsyncSessionLocal
 from database.models import SystemSetting
 
 _redis_pool: Optional[aioredis.Redis] = None
+_redis_disabled_until: float = 0.0
 
 
-def get_redis_client() -> aioredis.Redis:
-    global _redis_pool
+def get_redis_client() -> Optional[aioredis.Redis]:
+    global _redis_pool, _redis_disabled_until
+    import time
+    if time.time() < _redis_disabled_until:
+        return None
     if _redis_pool is None:
-        _redis_pool = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        try:
+            _redis_pool = aioredis.from_url(
+                settings.REDIS_URL,
+                decode_responses=True,
+                socket_connect_timeout=0.3,
+                socket_timeout=0.3,
+            )
+        except Exception:
+            _redis_disabled_until = time.time() + 30.0
+            return None
     return _redis_pool
 
 
@@ -25,14 +38,17 @@ async def get_system_setting(key: str, default: str = "") -> str:
     Получить значение настройки с 0ms задержкой через Redis cache.
     Если в кэше нет — читает из БД и кэширует на 5 минут.
     """
+    global _redis_disabled_until
+    import time
     cache_key = f"sys_setting:{key}"
     try:
         r = get_redis_client()
-        cached = await r.get(cache_key)
-        if cached is not None:
-            return cached
+        if r is not None:
+            cached = await r.get(cache_key)
+            if cached is not None:
+                return cached
     except Exception:
-        pass
+        _redis_disabled_until = time.time() + 30.0
 
     # Читаем из БД
     async with AsyncSessionLocal() as db:
@@ -42,9 +58,10 @@ async def get_system_setting(key: str, default: str = "") -> str:
 
     try:
         r = get_redis_client()
-        await r.setex(cache_key, 300, val)
+        if r is not None:
+            await r.setex(cache_key, 300, val)
     except Exception:
-        pass
+        _redis_disabled_until = time.time() + 30.0
 
     return val
 

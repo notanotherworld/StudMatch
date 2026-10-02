@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}СтудМэч HR — Кабинет рекрутера{% endblock %}</title>
+<meta name="csrf-token" content="{{ csrf_token or request.state.csrf_token or '' }}">
 <link rel="icon" type="image/jpeg" href="/static/img/logo.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -705,6 +706,62 @@
   }
 
   document.addEventListener('DOMContentLoaded', initTheme);
+
+  // Universal CSRF Token Injection for HR cabinet
+  (function() {
+    const metaCsrf = document.querySelector('meta[name="csrf-token"]');
+    if (!metaCsrf || !metaCsrf.content) return;
+    const csrfVal = metaCsrf.content;
+
+    const injectCsrf = () => {
+      document.querySelectorAll('form').forEach(form => {
+        if (form.method && form.method.toUpperCase() === 'POST') {
+          let input = form.querySelector('input[name="csrf_token"]');
+          if (!input) {
+            input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'csrf_token';
+            form.appendChild(input);
+          }
+          if (!input.value) input.value = csrfVal;
+        }
+      });
+    };
+
+    injectCsrf();
+    document.addEventListener('DOMContentLoaded', injectCsrf);
+
+    document.addEventListener('submit', function(e) {
+      if (e.target && e.target.tagName === 'FORM' && (e.target.method || '').toUpperCase() === 'POST') {
+        let input = e.target.querySelector('input[name="csrf_token"]');
+        if (!input) {
+          input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'csrf_token';
+          e.target.appendChild(input);
+        }
+        if (!input.value) input.value = csrfVal;
+      }
+    }, true);
+
+    const origFetch = window.fetch;
+    window.fetch = function(url, options = {}) {
+      options = options || {};
+      const method = (options.method || 'GET').toUpperCase();
+      if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+        if (!options.headers) {
+          options.headers = { 'X-CSRF-Token': csrfVal };
+        } else if (options.headers instanceof Headers) {
+          if (!options.headers.has('X-CSRF-Token')) options.headers.set('X-CSRF-Token', csrfVal);
+        } else if (Array.isArray(options.headers)) {
+          options.headers.push(['X-CSRF-Token', csrfVal]);
+        } else {
+          options.headers['X-CSRF-Token'] = options.headers['X-CSRF-Token'] || csrfVal;
+        }
+      }
+      return origFetch(url, options);
+    };
+  })();
 </script>
 {% block extra_scripts %}{% endblock %}
 </body>

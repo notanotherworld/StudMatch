@@ -176,12 +176,17 @@ async def _build_profile_caption(
         identity_parts.append(year_str)
     identity_line = ", ".join(identity_parts)
 
-    # Верхняя плашка статуса (только если есть активный премиум или буст)
+    # Верхняя плашка статуса (премиум, буст, статусная рамка)
     top_badges = []
     if is_prem:
         top_badges.append("Premium 💎")
     if is_boost:
         top_badges.append("В топе 🌪")
+    if user_obj and getattr(user_obj, "equipped_frame", None):
+        from bot.services.economy_service import get_frame_title
+        f_title = get_frame_title(user_obj.equipped_frame)
+        if f_title:
+            top_badges.append(f_title)
     top_line = (" · ".join(top_badges) + "\n") if top_badges else ""
 
     if card_mode == ModeEnum.career:
@@ -1255,6 +1260,37 @@ async def process_incoming_skip(callback: CallbackQuery, user: User, db: AsyncSe
     )
 
 
+# ─── Обработка отката свайпа («Шпора») ─────────────────────────
+@router.callback_query(F.data == "swipe:rewind")
+async def handle_swipe_rewind(callback: CallbackQuery, user: User, db: AsyncSession):
+    """Откат последнего свайпа (Шпора 🔄)."""
+    from database.crud import rewind_last_swipe
+    success, msg, reverted_id = await rewind_last_swipe(db, user.id)
+    if not success:
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🎓 Купить «Шпору» (10 🎓)", callback_data="shop:buy:rewind")
+        builder.button(text="🏪 В магазин", callback_data="shop:main")
+        builder.adjust(1)
+        await callback.answer("У тебя нет «Шпоры» для отката свайпа.", show_alert=True)
+        await callback.message.answer(
+            "🔄 <b>Откат свайпа («Шпора»)</b>\n\n"
+            "«Шпора» позволяет вернуть случайно пропущенную или дизлайкнутую анкету назад в просмотр.\n\n"
+            "У тебя нет «Шпор» в инвентаре. Ты можешь приобрести её прямо сейчас за <b>10 🎓</b>:",
+            parse_mode="HTML",
+            reply_markup=builder.as_markup(),
+        )
+        return
+
+    await callback.answer("🔄 Свайп отменён!")
+    await callback.message.answer(msg, parse_mode="HTML")
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    # Показываем анкету снова
+    await send_next_card(callback.bot, callback.message.chat.id, user, db)
+
+
 # ─── Обработка свайпов (Callback) ─────────────────────────────
 @router.callback_query(F.data.startswith("swipe:"))
 async def swipe_callback(callback: CallbackQuery, user: User, db: AsyncSession):
@@ -1265,8 +1301,12 @@ async def swipe_callback(callback: CallbackQuery, user: User, db: AsyncSession):
     swipe:superlike:{target_id}
     """
     try:
-        _, action_str, target_id_str = callback.data.split(":")
-        target_id = int(target_id_str)
+        parts = callback.data.split(":")
+        if len(parts) < 3:
+            await callback.answer()
+            return
+        action_str = parts[1]
+        target_id = int(parts[2])
     except (ValueError, IndexError):
         await callback.answer("Ошибка запроса.", show_alert=True)
         return
@@ -1277,10 +1317,19 @@ async def swipe_callback(callback: CallbackQuery, user: User, db: AsyncSession):
         return
 
     if action_str == "superlike":
-        if (user.superlikes_count or 0) <= 0:
-            await callback.answer(
-                "⭐ У вас закончились суперлайки!\nОформите Премиум или докупите их в магазине.",
-                show_alert=True
+        sl_balance = getattr(user, "superlike_balance", 0) or 0
+        if sl_balance <= 0:
+            builder = InlineKeyboardBuilder()
+            builder.button(text="⭐️ 1 суперлайк — 15 🎓", callback_data="shop:buy:superlike_1")
+            builder.button(text="⭐️ 5 суперлайков — 65 🎓", callback_data="shop:buy:superlike_5")
+            builder.button(text="🏪 В магазин", callback_data="shop:main")
+            builder.adjust(1)
+            await callback.answer("⭐ У тебя закончились суперлайки!", show_alert=True)
+            await callback.message.answer(
+                "⭐ <b>Закончились суперлайки?</b>\n\n"
+                "Ты можешь мгновенно приобрести суперлайк за накопленные 🎓 «Зачёты» или оформить Премиум в Магазине:",
+                parse_mode="HTML",
+                reply_markup=builder.as_markup(),
             )
             return
         ok = await deduct_superlike(db, user.id)
@@ -1292,6 +1341,12 @@ async def swipe_callback(callback: CallbackQuery, user: User, db: AsyncSession):
         action = SwipeAction.like
     else:
         action = SwipeAction.skip
+
+    # Трекинг дейликов
+    from database.crud import track_daily_quest_event
+    await track_daily_quest_event(db, user.id, "swipes_15")
+    if action in (SwipeAction.like, SwipeAction.superlike):
+        await track_daily_quest_event(db, user.id, "likes_5")
 
     is_match = await create_swipe(db, from_id=user.id, to_id=target_id, action=action, mode=user.mode)
 

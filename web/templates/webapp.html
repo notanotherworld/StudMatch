@@ -20,6 +20,7 @@
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
+    window.IS_DEV = {{ 'true' if is_dev else 'false' }};
     window.MAINTENANCE_DATA = {
       isActive: {{ 'true' if is_maintenance else 'false' }},
       message: {{ maintenance_message|tojson }}
@@ -50,7 +51,11 @@
         </button>
       </div>
 
-      <div class="header-actions">
+      <div class="header-actions" style="display:flex;align-items:center;gap:6px;">
+        <button class="header-icon-btn economy-store-btn" id="openShopBtn" title="Магазин и Зачётка">
+          <span class="economy-icon">🎓</span>
+          <span class="economy-credits-pill" id="headerCreditsBadge">0</span>
+        </button>
         <button class="header-icon-btn hall-of-fame-btn" id="openHallOfFameBtn" title="Зал славы">
           <img src="/static/webapp/assets/trophy_hall_of_fame.webp?v=20260909_02" alt="Зал славы" class="hall-header-trophy-img" />
         </button>
@@ -514,6 +519,9 @@
           </div>
 
           <div class="chat-header-actions">
+            <button class="chat-gift-btn" id="chatSendGiftBtn" title="Отправить подарок" aria-label="Отправить подарок" style="background:none;border:none;font-size:18px;cursor:pointer;padding:6px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:transform 0.15s ease;">
+              🎁
+            </button>
             <button class="chat-menu-btn" id="chatMenuBtn" aria-label="Опции диалога">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <circle cx="12" cy="5" r="2" />
@@ -1231,6 +1239,483 @@
 
     </div>
   </div>
+
+  <!-- Shop, Quests & Economy Bottom Sheet Modal -->
+  <div class="bottom-sheet-overlay shop-overlay" id="shopModal" style="display:none;">
+    <div class="bottom-sheet-content shop-modal-content">
+      <!-- Tactile Drag Handle -->
+      <div class="shop-drag-handle-wrap">
+        <div class="shop-drag-handle"></div>
+      </div>
+      
+      <!-- Modal Header -->
+      <div class="shop-modal-header">
+        <div class="shop-header-title-wrap">
+          <div class="shop-title-badge">
+            <span class="shop-gold-dot"></span>
+            <span>КАМПУС-МАРКЕТ</span>
+          </div>
+          <h2 class="shop-modal-title">Магазин и Зачётка</h2>
+        </div>
+        <button class="shop-close-btn" id="closeShopModalBtn" title="Закрыть" aria-label="Закрыть">✕</button>
+      </div>
+
+      <!-- Dual Balance Chips Row (Stitch collegiate style) -->
+      <div class="shop-balance-chips-row">
+        <!-- Chip 1: Credits -->
+        <div class="shop-chip shop-chip-credits" id="shopChipCredits" role="button" tabindex="0" title="Нажмите для покупки зачётов">
+          <div class="shop-chip-label">
+            <span class="shop-chip-icon">🎓</span>
+            <span class="shop-chip-name">Зачёты</span>
+          </div>
+          <div class="shop-chip-right">
+            <span class="shop-chip-value" id="shopBalanceDisplay">0 🎓</span>
+            <span class="shop-chip-refill-badge">+</span>
+          </div>
+        </div>
+        <!-- Chip 2: Streak -->
+        <div class="shop-chip shop-chip-streak">
+          <div class="shop-chip-label">
+            <span class="shop-chip-icon">🔥</span>
+            <span class="shop-chip-name">Серия</span>
+          </div>
+          <span class="shop-chip-value" id="shopStreakDisplay">0 дн. 🔥</span>
+        </div>
+      </div>
+
+      <!-- Segmented Navigation Tabs (tactile iOS pill dock) -->
+      <div class="shop-nav-tabs">
+        <button type="button" class="shop-tab-btn active" id="tabShopCatalog" data-target="catalog">🛍 Витрина</button>
+        <button type="button" class="shop-tab-btn" id="tabShopPacks" data-target="packs">💳 Зачёты</button>
+        <button type="button" class="shop-tab-btn" id="tabShopGifts" data-target="gifts">🎁 Подарки</button>
+        <button type="button" class="shop-tab-btn" id="tabShopQuests" data-target="quests">📋 Задания</button>
+        <button type="button" class="shop-tab-btn" id="tabShopInventory" data-target="inventory">🎒 Инвентарь</button>
+      </div>
+
+      <!-- Tab Content Area -->
+      <div class="shop-modal-body custom-scrollbar">
+        <!-- 1. Catalog View -->
+        <div id="shopViewCatalog" class="shop-view-section">
+          <!-- Fortune Wheel Hero Banner («Счастливый билет» 🎲) -->
+          <div class="shop-fortune-banner" id="shopFortuneBanner">
+            <div class="fortune-banner-glow"></div>
+            <div class="fortune-banner-left">
+              <div class="fortune-banner-badge" id="fortuneBannerBadge">
+                <span class="fortune-badge-pulse"></span>
+                <span id="fortuneBadgeText">БЕСПЛАТНЫЙ СПИН ГОТОВ!</span>
+              </div>
+              <h3 class="fortune-banner-title">Счастливый билет 🎲</h3>
+              <p class="fortune-banner-desc">Крути Колесо Фортуны раз в день: зачёты, шпоры, суперлайки и подарки!</p>
+            </div>
+            <div class="fortune-banner-right">
+              <button type="button" class="fortune-banner-spin-btn" id="btnOpenFortuneWheel">
+                <span class="fortune-spin-icon">🎡</span>
+                <span id="fortuneBtnLabel">Крутить</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Featured Deal Banner (Спецпредложение) -->
+          <div class="shop-special-offer" id="shopSpecialOffer">
+            <div class="shop-special-offer-glow"></div>
+            <div class="shop-special-top">
+              <div class="shop-badge-hot">
+                <span class="shop-badge-hot-icon">⚡</span>
+                <span>Спецпредложение дня</span>
+              </div>
+              <div class="shop-badge-timer" id="shopSpecialTimer">
+                <span>⏱</span>
+                <span id="shopSpecialCountdown">--:--:--</span>
+              </div>
+            </div>
+            <div class="shop-special-info">
+              <h3 class="shop-special-title">Шпора: Буст в ленте х3</h3>
+              <p class="shop-special-desc">Твой профиль увидят в 3 раза больше студентов кампуса в прайм-тайм!</p>
+            </div>
+            <div class="shop-special-bottom">
+              <div class="shop-special-price-wrap">
+                <span class="shop-special-credits">80 🎓</span>
+                <span class="shop-special-rub">или 99 ₽</span>
+              </div>
+              <button type="button" class="shop-special-buy-btn" id="btnBuySpecialOffer">
+                <span>⚡</span>
+                <span>Забрать</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Category Filter Pills -->
+          <div class="shop-filter-pills" id="shopCatalogFilters">
+            <button type="button" class="shop-filter-pill active" data-filter="all">Все</button>
+            <button type="button" class="shop-filter-pill" data-filter="boost">Бусты ленты</button>
+            <button type="button" class="shop-filter-pill" data-filter="frames">Рамки и кастом</button>
+            <button type="button" class="shop-filter-pill" data-filter="merch">Премиум & Мерч</button>
+          </div>
+
+          <!-- Catalog Items Grid/List -->
+          <div id="shopCatalogGrid" class="shop-catalog-list">
+            <div style="text-align:center; padding:28px 16px; color:var(--text-muted, #8E92A4); font-size:13.5px;">Загрузка каталога...</div>
+          </div>
+
+          <!-- Bottom Refill Prompt Banner -->
+          <div class="shop-refill-banner">
+            <p class="shop-refill-text">Пополни баланс пакетами от 99 ₽ или выполняй задания!</p>
+            <div class="shop-refill-actions">
+              <button type="button" class="shop-refill-btn highlight" id="btnGoToPacksFromShop">💳 Пополнить</button>
+              <button type="button" class="shop-refill-btn secondary" id="btnGoToQuestsFromShop">К заданиям</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Credit Packs View (Зачёты за рубли) -->
+        <div id="shopViewPacks" class="shop-view-section" style="display:none;">
+          <!-- Starter Pack Hero Banner (Limited 1 per account) -->
+          <div class="starter-pack-card" id="shopStarterPackCard">
+            <div class="starter-pack-glow"></div>
+            <div class="starter-pack-top">
+              <div class="starter-badge-discount">🔥 ВЫГОДА 500%</div>
+              <div class="starter-badge-limit" id="starterPackLimitBadge">ТОЛЬКО 1 РАЗ НА АККАУНТ</div>
+            </div>
+
+            <div class="starter-pack-content">
+              <div class="starter-pack-icon-title">
+                <span class="starter-pack-icon">🚀</span>
+                <div>
+                  <h3 class="starter-pack-title">Стартовый набор первокурсника</h3>
+                  <p class="starter-pack-subtitle">Всё для максимального старта в кампусе по супер-цене</p>
+                </div>
+              </div>
+
+              <!-- Perks Grid / Chips -->
+              <div class="starter-perks-grid">
+                <div class="starter-perk-item">
+                  <span class="starter-perk-icon">🎓</span>
+                  <div class="starter-perk-text">
+                    <span class="starter-perk-val">+300 Зачётов</span>
+                    <span class="starter-perk-sub">в 3 раза больше стандарта</span>
+                  </div>
+                </div>
+                <div class="starter-perk-item">
+                  <span class="starter-perk-icon">⚡️</span>
+                  <div class="starter-perk-text">
+                    <span class="starter-perk-val">Буст в топ 24ч</span>
+                    <span class="starter-perk-sub">первое место в лентах</span>
+                  </div>
+                </div>
+                <div class="starter-perk-item">
+                  <span class="starter-perk-icon">🔄</span>
+                  <div class="starter-perk-text">
+                    <span class="starter-perk-val">3 «Шпоры»</span>
+                    <span class="starter-perk-sub">откат случайных свайпов</span>
+                  </div>
+                </div>
+                <div class="starter-perk-item">
+                  <span class="starter-perk-icon">🩺</span>
+                  <div class="starter-perk-text">
+                    <span class="starter-perk-val">1 «Справка»</span>
+                    <span class="starter-perk-sub">страховка и защита стрика</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Price & Action Row -->
+              <div class="starter-pack-action-row">
+                <div class="starter-price-box">
+                  <span class="starter-old-price">549 ₽</span>
+                  <span class="starter-new-price">99 ₽</span>
+                </div>
+                <button type="button" class="btn-buy-starter-pack" id="btnBuyStarterPack" data-code="starter_pack_99">
+                  <span>🚀 Забрать за 99 ₽</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Regular Credit Packs Section -->
+          <div class="shop-section-heading">
+            <span class="shop-section-title">Пакеты пополнения</span>
+            <span class="shop-section-sub">Мгновенное зачисление зачётов</span>
+          </div>
+
+          <!-- Credit Packs Grid -->
+          <div class="credit-packs-grid" id="shopCreditPacksGrid">
+            <div style="text-align:center; padding:24px 16px; color:var(--text-muted); font-size:13px;">Загрузка пакетов...</div>
+          </div>
+
+          <!-- Trust & Security Box -->
+          <div class="payment-trust-box">
+            <div class="payment-trust-header">
+              <span class="payment-trust-shield">🛡️</span>
+              <span class="payment-trust-text">Безопасная оплата через ЮКассу</span>
+            </div>
+            <div class="payment-trust-methods">
+              <span class="pay-method-badge">СБП</span>
+              <span class="pay-method-badge">Мир</span>
+              <span class="pay-method-badge">Банковские карты</span>
+              <span class="pay-method-badge">T-Pay / SberPay</span>
+            </div>
+            <p class="payment-trust-note">Зачёты и бонусы поступают на баланс автоматически сразу после проведения транзакции.</p>
+          </div>
+        </div>
+
+        <!-- 3. Gifts View (Подарки Telegram) -->
+        <div id="shopViewGifts" class="shop-view-section" style="display:none;">
+          <div class="shop-gifts-hero telegram-gifts-hero">
+            <div class="gifts-hero-badge">🎁 TELEGRAM ПОДАРКИ</div>
+            <h3 class="gifts-hero-title">Коллекционные подарки Telegram</h3>
+            <p class="gifts-hero-desc">Дари мишек, букеты, ракеты и короны друзьям и симпатиям. Подарки закрепляются в профиле и видны в чате!</p>
+          </div>
+          <div class="shop-gifts-grid" id="shopGiftsCatalogGrid">
+            <div style="text-align:center; padding:28px 16px; color:var(--text-muted, #8E92A4); font-size:13.5px;">Загрузка подарков Telegram...</div>
+          </div>
+        </div>
+
+        <!-- 4. Quests View -->
+        <div id="shopViewQuests" class="shop-view-section" style="display:none;">
+          <!-- Quests Subtabs: Ежедневные vs Постоянные -->
+          <div class="quests-subtabs">
+            <button type="button" class="quests-subtab-btn active" id="btnSubtabDailyQuests" data-target="daily">
+              ⚡️ Ежедневные
+            </button>
+            <button type="button" class="quests-subtab-btn" id="btnSubtabPermanentQuests" data-target="permanent">
+              🏆 Постоянные
+            </button>
+          </div>
+
+          <!-- 2A. Subview Daily Quests -->
+          <div id="questsSubviewDaily" class="quests-subview">
+            <!-- 7-day Streak Stipend Card -->
+            <div class="streak-card">
+              <div class="streak-card-glow"></div>
+              <div class="streak-card-header">
+                <div style="flex:1;">
+                  <div class="streak-card-title-row">
+                    <h3 class="streak-card-title">Ежедневная стипендия</h3>
+                    <span class="streak-flame-badge" id="streakFlameBadge">🔥 7 дней подряд</span>
+                  </div>
+                  <div class="streak-card-subtitle" id="streakCardSubtitle">Заходи каждый день, чтобы забирать зачёты и серии</div>
+                </div>
+              </div>
+              
+              <!-- 7 Days Grid -->
+              <div id="streakDaysRow" class="streak-days-grid"></div>
+
+              <!-- Big tactile claim button -->
+              <button type="button" id="btnClaimDailyStreak" class="btn-claim-streak">
+                <span>🎁</span>
+                <span id="btnClaimStreakText">Забрать стипендию</span>
+              </button>
+            </div>
+
+            <!-- Daily Quests Section Header with Live Countdown -->
+            <div class="quests-section-header">
+              <div class="shop-section-heading">⚡️ Ежедневные задания</div>
+              <div class="quests-countdown-badge" title="Время до сброса заданий">
+                <span class="quests-clock-icon">⏳</span>
+                <span>До сброса:</span>
+                <b id="questsResetCountdown">--:--:--</b>
+              </div>
+            </div>
+
+            <!-- Daily Quests List -->
+            <div id="shopQuestsList" class="shop-quests-list"></div>
+          </div>
+
+          <!-- 2B. Subview Permanent Quests -->
+          <div id="questsSubviewPermanent" class="quests-subview" style="display:none;">
+            <!-- Header Banner for Permanent Quests / Achievements -->
+            <div class="perm-quests-banner">
+              <div class="perm-quests-banner-glow"></div>
+              <div class="perm-quests-banner-icon">🏆</div>
+              <div>
+                <h3 class="perm-quests-banner-title">Задания кампуса и Достижения</h3>
+                <p class="perm-quests-banner-sub">Постоянные вехи за развитие профиля, серии и друзей. Награды: зачёты 🎓 и эксклюзивные титулы в профиль!</p>
+              </div>
+            </div>
+
+            <!-- Permanent Quests List -->
+            <div id="shopPermanentQuestsList" class="shop-quests-list" style="margin-top:10px;"></div>
+          </div>
+        </div>
+
+        <!-- 3. Inventory View -->
+        <div id="shopViewInventory" class="shop-view-section" style="display:none;">
+          <!-- Category Filter Pills -->
+          <div class="shop-filter-pills" id="shopInventoryFilters">
+            <button type="button" class="shop-filter-pill active" data-filter="all">Все</button>
+            <button type="button" class="shop-filter-pill" data-filter="gifts">Подарки 🎁</button>
+            <button type="button" class="shop-filter-pill" data-filter="active">Активные</button>
+            <button type="button" class="shop-filter-pill" data-filter="frames">Рамки профиля</button>
+            <button type="button" class="shop-filter-pill" data-filter="boosts">Расходные бусты</button>
+          </div>
+
+          <!-- Equipped on Profile Section -->
+          <div class="shop-equipped-section" id="shopEquippedSection">
+            <div class="shop-equipped-header">
+              <div class="shop-equipped-title-wrap">
+                <h3 class="shop-equipped-title">Экипировано в профиле</h3>
+                <span class="shop-active-indicator-dot"></span>
+              </div>
+              <span class="shop-equipped-slot-count" id="shopEquippedStatusText">1 слот активен</span>
+            </div>
+            <div class="shop-equipped-card" id="shopEquippedCard">
+              <!-- Dynamically rendered -->
+            </div>
+          </div>
+
+          <!-- Inventory Items List -->
+          <div class="shop-section-heading">🎒 Ваши предметы и бусты</div>
+          <div id="shopInventoryList" class="shop-inventory-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 🎲 Fortune Wheel Modal («Счастливый билет») -->
+  <div class="bottom-sheet-overlay fortune-wheel-overlay" id="fortuneWheelModal" style="display:none;">
+    <div class="bottom-sheet-content fortune-wheel-content">
+      <div class="sheet-drag-handle-wrap">
+        <div class="sheet-drag-handle"></div>
+      </div>
+      <div class="fortune-wheel-header">
+        <div class="fortune-header-title-wrap">
+          <span class="fortune-badge">🎲 СЧАСТЛИВЫЙ БИЛЕТ</span>
+          <h2 class="fortune-modal-title">Колесо Фортуны</h2>
+        </div>
+        <button type="button" class="fortune-close-btn" id="closeFortuneWheelBtn" aria-label="Закрыть">✕</button>
+      </div>
+
+      <div class="fortune-wheel-body custom-scrollbar">
+        <!-- Wheel Visual Stage -->
+        <div class="wheel-stage-wrapper">
+          <div class="wheel-pointer-marker">
+            <div class="wheel-pointer-triangle"></div>
+          </div>
+          <div class="wheel-outer-ring">
+            <canvas id="fortuneWheelCanvas" width="320" height="320" class="fortune-canvas"></canvas>
+            <div class="wheel-center-cap" id="wheelCenterCapBtn" role="button" tabindex="0">
+              <span class="wheel-cap-icon">🎓</span>
+              <span class="wheel-cap-label">SPIN</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status & Cooldown Notice -->
+        <div class="fortune-status-box" id="fortuneStatusBox">
+          <div class="fortune-status-indicator ready" id="fortuneStatusIndicator"></div>
+          <div class="fortune-status-text" id="fortuneStatusText">Бесплатное вращение доступно!</div>
+        </div>
+
+        <!-- Spin Action Buttons -->
+        <div class="fortune-controls-row">
+          <button type="button" class="fortune-spin-action-btn free-spin-btn" id="btnSpinWheelFree">
+            <span class="spin-btn-icon">🎁</span>
+            <div class="spin-btn-col">
+              <span class="spin-btn-main" id="spinFreeBtnText">Крутить бесплатно</span>
+              <span class="spin-btn-sub" id="spinFreeCooldownSub">1 раз в 24 часа</span>
+            </div>
+          </button>
+          <button type="button" class="fortune-spin-action-btn paid-spin-btn" id="btnSpinWheelPaid">
+            <span class="spin-btn-icon">🎲</span>
+            <div class="spin-btn-col">
+              <span class="spin-btn-main" id="spinPaidBtnText">Ещё спин: 15 🎓</span>
+              <span class="spin-btn-sub" id="spinPaidSubText">Баланс: 0 🎓</span>
+            </div>
+          </button>
+        </div>
+
+        <!-- Sectors Legend (8 Prizes) -->
+        <div class="fortune-legend-heading">🎁 Призы в Колесе Фортуны:</div>
+        <div class="fortune-sectors-legend" id="fortuneSectorsLegend">
+          <!-- Dynamically filled or static items -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 🏆 Fortune Win Celebration Modal -->
+  <div class="modal-overlay fortune-win-overlay" id="fortuneWinModal" style="display:none;">
+    <div class="modal-card fortune-win-card">
+      <div class="fortune-win-confetti-bg"></div>
+      <div class="fortune-win-icon-wrapper">
+        <span class="fortune-win-emoji" id="fortuneWinEmoji">🎉</span>
+      </div>
+      <h3 class="fortune-win-title" id="fortuneWinTitle">Поздравляем!</h3>
+      <p class="fortune-win-desc" id="fortuneWinDesc">Вы выиграли награду в Колесе Фортуны.</p>
+      <div class="fortune-win-reward-pill" id="fortuneWinRewardPill">+35 🎓 Зачётов</div>
+      <button type="button" class="btn-primary fortune-win-claim-btn" id="closeFortuneWinBtn">
+        Забрать награду 🚀
+      </button>
+    </div>
+  </div>
+
+
+  <!-- 🎁 Send Campus Gift Modal -->
+  <div class="bottom-sheet-overlay send-gift-overlay" id="sendGiftModal" style="display:none;">
+    <div class="bottom-sheet-content send-gift-content">
+      <div class="sheet-drag-handle-wrap">
+        <div class="sheet-drag-handle"></div>
+      </div>
+      <div class="send-gift-header">
+        <div class="gift-header-title-wrap">
+          <span class="gift-badge">🎁 ПОДАРОК TELEGRAM</span>
+          <h2 class="gift-modal-title">Отправить подарок</h2>
+        </div>
+        <button type="button" class="gift-close-btn" id="closeSendGiftBtn" aria-label="Закрыть">✕</button>
+      </div>
+
+      <div class="send-gift-body custom-scrollbar">
+        <!-- Recipient Card -->
+        <div class="gift-recipient-row" id="giftRecipientRow">
+          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80" class="gift-recipient-avatar" id="giftRecipientAvatar" alt="" />
+          <div class="gift-recipient-info">
+            <span class="gift-to-label">Кому:</span>
+            <h4 class="gift-recipient-name" id="giftRecipientName">Студент</h4>
+          </div>
+        </div>
+
+        <!-- Recipient Select Dropdown if opened from shop -->
+        <div class="gift-select-recipient-box" id="giftSelectRecipientBox" style="display:none;">
+          <label class="gift-label" for="giftRecipientSelect">Кому отправить подарок:</label>
+          <select id="giftRecipientSelect" class="gift-select-input">
+            <option value="">Выберите студента из мэтчей...</option>
+          </select>
+        </div>
+
+        <!-- Gifts Picker Grid -->
+        <label class="gift-label">Выберите подарок Telegram:</label>
+        <div class="gift-picker-grid" id="giftPickerGrid">
+          <!-- Populated from catalog -->
+        </div>
+
+        <!-- Optional Message Input -->
+        <div class="gift-message-box">
+          <label class="gift-label" for="giftMessageInput">Пожелание или записка (необязательно):</label>
+          <textarea id="giftMessageInput" class="gift-textarea" maxlength="200" placeholder="Напиши что-нибудь тёплое или приятное..."></textarea>
+          <div class="gift-char-counter"><span id="giftCharCount">0</span>/200</div>
+        </div>
+
+        <!-- Anonymous Toggle (Telegram Style) -->
+        <label class="gift-anon-toggle">
+          <input type="checkbox" id="giftAnonymousToggle" />
+          <span class="gift-anon-checkmark"></span>
+          <div class="gift-anon-text">
+            <span class="gift-anon-title">🤫 Скрыть моё имя (Анонимно)</span>
+            <span class="gift-anon-desc">Получатель увидит подарок от «Скрытого отправителя»</span>
+          </div>
+        </label>
+
+        <!-- Send Submit Button -->
+        <button type="button" class="btn-primary gift-send-btn" id="btnSubmitSendGift">
+          <span id="btnSubmitGiftIcon">🎁</span>
+          <span id="btnSubmitGiftText">Подарить за 15 🎓</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- Rating Info Modal (Как поднять рейтинг) -->
   <div class="modal-overlay" id="ratingInfoModal" style="display: none;">

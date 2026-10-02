@@ -34,6 +34,24 @@ class AuthMiddleware(BaseMiddleware):
                 user_id=tg_user.id,
                 tg_username=tg_user.username,
             )
+
+            # Проверка административной блокировки (бана)
+            if not user.is_active:
+                if isinstance(event, Message):
+                    try:
+                        await event.answer(
+                            "⛔️ <b>Ваш аккаунт заблокирован администрацией платформы за нарушение правил сервиса.</b>",
+                            parse_mode="HTML",
+                        )
+                    except Exception:
+                        pass
+                elif isinstance(event, CallbackQuery):
+                    try:
+                        await event.answer("⛔️ Ваш аккаунт заблокирован администрацией.", show_alert=True)
+                    except Exception:
+                        pass
+                return
+
             await update_user_last_active(db, user.id)
             data["db"] = db
             data["user"] = user

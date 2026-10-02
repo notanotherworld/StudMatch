@@ -2,20 +2,24 @@
 #7 Детализация монетизации: транзакции, фильтры, статистика по продуктам.
 #10 Экспорт персональных данных: очередь запросов + отправка студенту.
 """
-from fastapi import APIRouter, Request, Depends, Form, Query, Response
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi import APIRouter, Request, Depends, Form, Query, Response, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, update
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone, timedelta
-import io, csv, json
+import io, csv, json, os, logging, ipaddress, functools, asyncio
 
+from bot.config import settings
 from web.dependencies import get_db, get_current_admin, check_csrf
 from database.models import Payment, PaymentStatus, PaymentProduct, User, DataExportRequest, ExportStatus
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
+
 
 
 @router.get("/payments/export/csv")
@@ -278,33 +282,115 @@ async def send_user_data(
     return RedirectResponse("/admin/payments", status_code=302)
 
 
-# ─── YooKassa Webhook ─────────────────────────────────────────
+# ─── YooKassa Webhook (Безопасная обработка) ─────────────────
+# Официальные подсети серверов ЮKassa (https://yookassa.ru/developers/using-api/webhooks)
+YOOKASSA_IP_NETWORKS = [
+    ipaddress.ip_network("185.71.76.0/27"),
+    ipaddress.ip_network("185.71.77.0/27"),
+    ipaddress.ip_network("77.75.153.0/25"),
+    ipaddress.ip_network("77.75.156.11/32"),
+    ipaddress.ip_network("77.75.156.35/32"),
+]
+
+
+def _is_allowed_yookassa_ip(client_ip: str, is_dev_or_test: bool) -> bool:
+    if not client_ip:
+        return is_dev_or_test
+    try:
+        ip_obj = ipaddress.ip_address(client_ip)
+        if ip_obj.is_loopback and is_dev_or_test:
+            return True
+        return any(ip_obj in net for net in YOOKASSA_IP_NETWORKS)
+    except ValueError:
+        return False
+
+
 @router.post("/payments/webhook")
 async def yookassa_webhook(request: Request, db: AsyncSession = Depends(get_db)):
-    """Обработка вебхуков от ЮKassa при успешной оплате."""
+    """
+    Обработка вебхуков от ЮKassa при успешной оплате.
+    Защиты:
+      1. Валидация IP-адреса источника по белым подсетям серверов ЮKassa.
+      2. Криптографическая/API проверка статуса платежа через официальный SDK ЮKassa (find_one).
+      3. Идемпотентность начисления (confirm_payment).
+    """
+    is_dev_or_test = (
+        getattr(settings, "DEBUG", False)
+        or os.getenv("DEBUG", "false").lower() == "true"
+        or os.getenv("TESTING") == "true"
+        or str(settings.DATABASE_URL).startswith("sqlite")
+    )
+
+    # 1. Проверяем IP-адрес источника
+    x_real_ip = request.headers.get("x-real-ip")
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    forwarded_first = x_forwarded_for.split(",")[0].strip() if x_forwarded_for else None
+    client_ip = (x_real_ip or forwarded_first or (request.client.host if request.client else "")).strip()
+
+    if not _is_allowed_yookassa_ip(client_ip, is_dev_or_test):
+        logger.warning(f"[SECURITY] Unauthorized YooKassa webhook attempt from IP={client_ip!r}")
+        return JSONResponse({"status": "forbidden", "detail": "IP address not allowed"}, status_code=403)
+
     try:
         body = await request.json()
-        event = body.get("event")
-        obj = body.get("object", {})
-        if event == "payment.succeeded":
-            yk_id = obj.get("id")
-            if yk_id:
-                from database.crud import confirm_payment
-                payment = await confirm_payment(db, yk_id)
-                if payment:
-                    try:
-                        from aiogram import Bot
-                        from bot.config import settings
-                        bot = Bot(token=settings.BOT_TOKEN)
-                        await bot.send_message(
-                            payment.user_id,
-                            "🎉 <b>Оплата прошла успешно!</b>\n\n"
-                            "Услуга / тариф успешно активированы на вашем аккаунте. Спасибо за поддержку СтудМэч! 🤲🏻",
-                            parse_mode="HTML",
-                        )
-                        await bot.session.close()
-                    except Exception:
-                        pass
-        return {"status": "ok"}
     except Exception:
-        return {"status": "error"}
+        return JSONResponse({"status": "error", "detail": "Invalid JSON"}, status_code=400)
+
+    event = body.get("event")
+    obj = body.get("object", {})
+    if event != "payment.succeeded":
+        # Другие события ЮKassa просто квитируем HTTP 200
+        return {"status": "ok"}
+
+    yk_id = obj.get("id")
+    if not yk_id:
+        return JSONResponse({"status": "error", "detail": "Missing payment id"}, status_code=400)
+
+    # 2. Верификация через официальный API ЮKassa
+    has_yk = bool(
+        getattr(settings, "YOOKASSA_SHOP_ID", None)
+        and getattr(settings, "YOOKASSA_SECRET_KEY", None)
+        and str(settings.YOOKASSA_SHOP_ID).strip() != ""
+    )
+
+    if has_yk:
+        try:
+            from yookassa import Configuration, Payment as YKPayment
+            Configuration.account_id = settings.YOOKASSA_SHOP_ID
+            Configuration.secret_key = settings.YOOKASSA_SECRET_KEY
+
+            loop = asyncio.get_event_loop()
+            verified = await loop.run_in_executor(None, functools.partial(YKPayment.find_one, yk_id))
+            if not verified or verified.status != "succeeded" or not getattr(verified, "paid", False):
+                logger.warning(
+                    f"[SECURITY] YooKassa webhook rejected for yk_id={yk_id}: "
+                    f"status={getattr(verified, 'status', None)}, paid={getattr(verified, 'paid', None)}"
+                )
+                return JSONResponse({"status": "rejected", "detail": "Payment status mismatch"}, status_code=400)
+        except Exception as e:
+            logger.error(f"[SECURITY] Error verifying payment {yk_id} with YooKassa API: {e}", exc_info=True)
+            return JSONResponse({"status": "error", "detail": "Upstream verification failed"}, status_code=502)
+    elif is_dev_or_test:
+        logger.info(f"YooKassa webhook accepted in dev/test mode for yk_id={yk_id}")
+    else:
+        logger.error("[SECURITY] YooKassa webhook received in production without YooKassa credentials configured!")
+        return JSONResponse({"status": "error", "detail": "Payment gateway not configured"}, status_code=503)
+
+    # 3. Идемпотентное подтверждение в БД и начисление бонусов/тарифов
+    from database.crud import confirm_payment
+    payment = await confirm_payment(db, yk_id)
+    if payment:
+        try:
+            from aiogram import Bot
+            bot = Bot(token=settings.BOT_TOKEN)
+            await bot.send_message(
+                payment.user_id,
+                "🎉 <b>Оплата прошла успешно!</b>\n\n"
+                "Услуга / тариф успешно активированы на вашем аккаунте. Спасибо за поддержку СтудМэч! 🤲🏻",
+                parse_mode="HTML",
+            )
+            await bot.session.close()
+        except Exception as notify_err:
+            logger.warning(f"Failed to notify user {payment.user_id} about payment: {notify_err}")
+
+    return {"status": "ok"}

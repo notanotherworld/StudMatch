@@ -121,8 +121,9 @@ def swipe_card_keyboard(profile_user_id: int, superlikes_count: int = 0) -> Inli
     sl_label = f"⭐ Суперлайк ({superlikes_count})" if superlikes_count > 0 else "⭐ Суперлайк"
     builder.button(text=sl_label, callback_data=f"swipe:superlike:{profile_user_id}")
     builder.button(text="💌 Письмо", callback_data=f"swipe:message:{profile_user_id}")
+    builder.button(text="🔄 Шпора", callback_data="swipe:rewind")
     builder.button(text="🚨 Пожаловаться", callback_data=f"report:{profile_user_id}")
-    builder.adjust(2, 2, 1)
+    builder.adjust(2, 2, 2)
     return builder.as_markup()
 
 
@@ -299,12 +300,13 @@ def career_swipe_card_keyboard(
     sl_label = f"⭐ Суперлайк ({superlikes_count})" if superlikes_count > 0 else "⭐ Суперлайк"
     builder.button(text=sl_label, callback_data=f"swipe:superlike:{profile_user_id}")
     builder.button(text="💌 Письмо", callback_data=f"swipe:message:{profile_user_id}")
+    builder.button(text="🔄 Шпора", callback_data="swipe:rewind")
     builder.button(text="🚨 Пожаловаться", callback_data=f"report:{profile_user_id}")
 
     if portfolio_url and portfolio_url.startswith("http"):
-        builder.adjust(1, 2, 2, 1)
+        builder.adjust(1, 2, 2, 2)
     else:
-        builder.adjust(2, 2, 1)
+        builder.adjust(2, 2, 2)
     return builder.as_markup()
 
 
@@ -611,12 +613,13 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     from aiogram.types import WebAppInfo
     builder.button(text="🚀 Открыть StudMatch App", web_app=WebAppInfo(url=settings.webapp_url))
     builder.button(text="🔍 Смотреть анкеты")
+    builder.button(text="🏪 Магазин и Зачётка")
     builder.button(text="🏅 Зал славы")
     builder.button(text="🫂 Мои мэтчи")
     builder.button(text="🐾 Мой профиль")
     builder.button(text="⚙️ Настройки")
-    builder.button(text="🪢 Пригласить друга (+3 ⭐️)")
-    builder.adjust(1, 2, 2, 2)
+    builder.button(text="🪢 Пригласить друга (+50 🎓)")
+    builder.adjust(1, 2, 2, 2, 1)
     return builder.as_markup(resize_keyboard=True, input_field_placeholder="Выбери раздел...")
 
 

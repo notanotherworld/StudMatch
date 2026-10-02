@@ -17,6 +17,9 @@ from database.models import Admin
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
 
+import logging
+logger = logging.getLogger(__name__)
+
 # ─── Redis для rate limiting ──────────────────────────────────
 _redis: aioredis.Redis | None = None
 
@@ -32,26 +35,37 @@ LOCKOUT_SECONDS = 900  # 15 минут
 
 async def _check_brute_force(login: str) -> None:
     """Поднимает HTTP 429 если превышен лимит попыток (#3)."""
-    r = _get_redis()
-    key = f"login_fail:admin:{login}"
-    attempts = int(await r.get(key) or 0)
-    if attempts >= MAX_ATTEMPTS:
-        ttl = await r.ttl(key)
-        raise HTTPException(
-            status_code=429,
-            detail=f"Слишком много попыток. Повторите через {ttl // 60} мин.",
-        )
+    try:
+        r = _get_redis()
+        key = f"login_fail:admin:{login}"
+        attempts = int(await r.get(key) or 0)
+        if attempts >= MAX_ATTEMPTS:
+            ttl = await r.ttl(key)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Слишком много попыток. Повторите через {ttl // 60} мин.",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.debug(f"Redis unavailable for brute force check: {e}")
 
 
 async def _record_failure(login: str) -> None:
-    r = _get_redis()
-    key = f"login_fail:admin:{login}"
-    await r.incr(key)
-    await r.expire(key, LOCKOUT_SECONDS)
+    try:
+        r = _get_redis()
+        key = f"login_fail:admin:{login}"
+        await r.incr(key)
+        await r.expire(key, LOCKOUT_SECONDS)
+    except Exception as e:
+        logger.debug(f"Redis unavailable for recording login failure: {e}")
 
 
 async def _clear_failures(login: str) -> None:
-    await _get_redis().delete(f"login_fail:admin:{login}")
+    try:
+        await _get_redis().delete(f"login_fail:admin:{login}")
+    except Exception as e:
+        logger.debug(f"Redis unavailable for clearing login failures: {e}")
 
 
 # ─── Страница логина ──────────────────────────────────────────

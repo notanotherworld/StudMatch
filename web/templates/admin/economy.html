@@ -1,0 +1,494 @@
+{% extends "admin/base.html" %}
+{% block title %}Экономика и Магазин — СтудМэч Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1>🏪 Внутренняя экономика и Магазин («Зачёты» 🎓)</h1>
+      <p>Управление каталогом товаров, ценами в валюте, балансами студентов и мониторинг транзакций</p>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <button type="button" class="btn btn-primary" onclick="openAddModal()">
+        ➕ Добавить товар в магазин
+      </button>
+      <button type="button" class="btn btn-ghost" onclick="openAdjustModal()">
+        ⚖️ Корректировка баланса
+      </button>
+    </div>
+  </div>
+</div>
+
+{% if success %}
+<div class="card" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:var(--success);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+  <span style="font-size:20px;">✅</span>
+  <div><strong>Успешно:</strong> {{ success }}</div>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="card" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:var(--danger);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+  <span style="font-size:20px;">❌</span>
+  <div><strong>Внимание:</strong> {{ error }}</div>
+</div>
+{% endif %}
+
+<!-- KPI плашки экономики -->
+<div class="grid grid-4" style="margin-bottom:24px;">
+  <div class="card">
+    <div class="card-title">🎓 Зачётов в обороте</div>
+    <div class="card-value mono" style="font-size:24px;color:var(--accent2);">
+      {{ "{:,}".format(total_credits).replace(",", " ") }} 🎓
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px;">На балансах всех студентов</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔥 Активных серий (стриков)</div>
+    <div class="card-value mono" style="font-size:24px;color:var(--warning);">
+      {{ active_streaks }}
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px;">Студентов с серией входа > 0 дн.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📥 Всего эмитировано (награды)</div>
+    <div class="card-value mono" style="font-size:24px;color:var(--success);">
+      +{{ "{:,}".format(total_earned).replace(",", " ") }} 🎓
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px;">Стрики, квесты, онбординг, донат</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📤 Всего потрачено в магазине</div>
+    <div class="card-value mono" style="font-size:24px;color:var(--danger);">
+      -{{ "{:,}".format(total_spent).replace(",", " ") }} 🎓
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px;">Списано за товары и услуги</div>
+  </div>
+</div>
+
+<!-- Каталог товаров магазина -->
+<div class="card" style="margin-bottom:24px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <h2 style="font-size:18px;">🛍 Каталог товаров магазина</h2>
+    <span style="font-size:13px;color:var(--muted);">Всего товаров: {{ items|length }}</span>
+  </div>
+
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th>Код</th>
+          <th>Товар</th>
+          <th>Категория</th>
+          <th>Цена 🎓</th>
+          <th>Цена ₽</th>
+          <th>Тип бонуса</th>
+          <th>Срок (дн.)</th>
+          <th>Порядок</th>
+          <th>Статус</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td class="mono" style="font-size:12px;color:var(--muted);">{{ it.code }}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:18px;">{{ it.icon }}</span>
+              <div>
+                <strong>{{ it.title }}</strong>
+                {% if it.description %}
+                <div style="font-size:11px;color:var(--muted);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  {{ it.description }}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td>
+            {% if it.category == 'consumable' %}
+            <span class="badge badge-purple">Расходник</span>
+            {% elif it.category == 'subscription' %}
+            <span class="badge badge-success">Премиум</span>
+            {% elif it.category == 'cosmetic' %}
+            <span class="badge badge-warning">Рамка</span>
+            {% elif it.category == 'insurance' %}
+            <span class="badge badge-danger">Защита</span>
+            {% else %}
+            <span class="badge">{{ it.category }}</span>
+            {% endif %}
+          </td>
+          <td class="mono font-bold" style="color:var(--accent2);">{{ it.price_credits }} 🎓</td>
+          <td class="mono">{% if it.price_rub %}{{ it.price_rub }} ₽{% else %}—{% endif %}</td>
+          <td style="font-size:12px;">{{ it.bonus_type or '—' }} ({{ it.bonus_value }})</td>
+          <td class="mono">{% if it.duration_days %}{{ it.duration_days }}{% else %}—{% endif %}</td>
+          <td class="mono">{{ it.sort_order }}</td>
+          <td>
+            {% if it.is_active %}
+            <span class="badge badge-success">Активен</span>
+            {% else %}
+            <span class="badge badge-danger">Отключён</span>
+            {% endif %}
+          </td>
+          <td>
+              <button type="button" class="btn btn-sm btn-ghost" 
+                      data-id="{{ it.id }}" 
+                      data-title="{{ it.title }}" 
+                      data-icon="{{ it.icon or '🛍' }}" 
+                      data-desc="{{ it.description or '' }}" 
+                      data-cat="{{ it.category }}" 
+                      data-bonus="{{ it.bonus_type or 'superlike' }}" 
+                      data-credits="{{ it.price_credits }}" 
+                      data-rub="{{ it.price_rub or '' }}" 
+                      data-val="{{ it.bonus_value }}" 
+                      data-days="{{ it.duration_days or '' }}" 
+                      data-sort="{{ it.sort_order }}" 
+                      data-active="{{ '1' if it.is_active else '0' }}" 
+                      onclick="openEditModalFromBtn(this)" 
+                      title="Редактировать">
+                ✏️
+              </button>
+              <form method="POST" action="/admin/economy/items/toggle" style="display:inline;">
+                <input type="hidden" name="item_id" value="{{ it.id }}">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                <button type="submit" class="btn btn-sm btn-ghost" title="Вкл / Выкл">
+                  {% if it.is_active %}⏸{% else %}▶️{% endif %}
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Журнал транзакций -->
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+    <h2 style="font-size:18px;">📜 История транзакций («Зачёты» 🎓)</h2>
+    
+    <!-- Фильтры -->
+    <form method="GET" action="/admin/economy" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <input type="number" name="user_search" placeholder="ID студента" value="{{ user_search or '' }}" style="width:140px;padding:6px 10px;font-size:13px;">
+      <select name="tx_type_filter" style="width:160px;padding:6px 10px;font-size:13px;">
+        <option value="">Все типы транзакций</option>
+        <option value="streak" {% if tx_type_filter == 'streak' %}selected{% endif %}>🔥 Стрик (Стипендия)</option>
+        <option value="quest" {% if tx_type_filter == 'quest' %}selected{% endif %}>📋 Дейлик (Задание)</option>
+        <option value="onboarding" {% if tx_type_filter == 'onboarding' %}selected{% endif %}>🎒 Онбординг</option>
+        <option value="referral" {% if tx_type_filter == 'referral' %}selected{% endif %}>👥 Реферал</option>
+        <option value="purchase" {% if tx_type_filter == 'purchase' %}selected{% endif %}>🛍 Покупка</option>
+        <option value="donate" {% if tx_type_filter == 'donate' %}selected{% endif %}>💳 Донат (ЮКасса)</option>
+        <option value="admin" {% if tx_type_filter == 'admin' %}selected{% endif %}>⚙️ Корректировка админа</option>
+      </select>
+      <button type="submit" class="btn btn-sm btn-primary">Найти</button>
+      {% if user_search or tx_type_filter %}
+      <a href="/admin/economy" class="btn btn-sm btn-ghost">Сброс</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th>Время (UTC)</th>
+          <th>Студент ID</th>
+          <th>Изменение</th>
+          <th>Баланс после</th>
+          <th>Тип</th>
+          <th>Описание</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tx in transactions %}
+        <tr>
+          <td class="mono" style="font-size:12px;color:var(--muted);">{{ tx.created_at.strftime("%d.%m.%Y %H:%M:%S") }}</td>
+          <td class="mono">
+            <a href="/admin/users/{{ tx.user_id }}" style="color:var(--accent2);text-decoration:none;">{{ tx.user_id }}</a>
+          </td>
+          <td class="mono font-bold" style="{% if tx.amount > 0 %}color:var(--success);{% else %}color:var(--danger);{% endif %}">
+            {% if tx.amount > 0 %}+{{ tx.amount }}{% else %}{{ tx.amount }}{% endif %} 🎓
+          </td>
+          <td class="mono">{{ tx.balance_after }} 🎓</td>
+          <td>
+            <span class="badge {% if tx.amount > 0 %}badge-success{% else %}badge-purple{% endif %}">
+              {{ tx.tx_type }}
+            </span>
+          </td>
+          <td style="font-size:13px;">{{ tx.description }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">Транзакций не найдено</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Создать товар -->
+<div id="addModal" class="cmd-palette-backdrop" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:999;align-items:center;justify-content:center;">
+  <div class="card" style="width:500px;max-width:92vw;max-height:90vh;overflow-y:auto;background:var(--surface);">
+    <h3 style="margin-bottom:16px;">➕ Добавить товар в магазин</h3>
+    <form method="POST" action="/admin/economy/items/add">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+      
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Уникальный код (лат.):</label>
+        <input type="text" name="code" placeholder="superlike_10" required>
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Название товара:</label>
+        <input type="text" name="title" placeholder="⭐️ 10 Суперлайков" required>
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Иконка / Emoji:</label>
+        <input type="text" name="icon" value="🛍" required>
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Описание:</label>
+        <textarea name="description" rows="2" placeholder="Краткое описание товара"></textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div class="form-group">
+          <label>Категория:</label>
+          <select name="category">
+            <option value="consumable">⚡️ Расходник</option>
+            <option value="subscription">💎 Подписка</option>
+            <option value="cosmetic">🎨 Косметика / Рамка</option>
+            <option value="insurance">🩺 Страховка / Справка</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Тип бонуса:</label>
+          <select name="bonus_type">
+            <option value="superlike">Суперлайк</option>
+            <option value="rewind">Откат свайпа (Шпора)</option>
+            <option value="boost">Буст ленты</option>
+            <option value="freeze">Заморозка стрика</option>
+            <option value="premium">Премиум-статус</option>
+            <option value="frame">Рамка профиля</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div class="form-group">
+          <label>Цена в 🎓 (Зачёты):</label>
+          <input type="number" name="price_credits" value="50" required>
+        </div>
+
+        <div class="form-group">
+          <label>Цена в ₽ (необяз.):</label>
+          <input type="number" name="price_rub" placeholder="99">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="form-group">
+          <label>Значение бонуса (кол-во/часы):</label>
+          <input type="number" name="bonus_value" value="1">
+        </div>
+
+        <div class="form-group">
+          <label>Срок действия (дней):</label>
+          <input type="number" name="duration_days" placeholder="30">
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" class="btn btn-ghost" onclick="closeAddModal()">Отмена</button>
+        <button type="submit" class="btn btn-primary">Создать товар</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Редактировать товар -->
+<div id="editModal" class="cmd-palette-backdrop" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:999;align-items:center;justify-content:center;">
+  <div class="card" style="width:500px;max-width:92vw;max-height:90vh;overflow-y:auto;background:var(--surface);">
+    <h3 style="margin-bottom:16px;">✏️ Редактировать товар</h3>
+    <form method="POST" action="/admin/economy/items/edit">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+      <input type="hidden" id="edit_item_id" name="item_id">
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Название товара:</label>
+        <input type="text" id="edit_title" name="title" required>
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Иконка / Emoji:</label>
+        <input type="text" id="edit_icon" name="icon" required>
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Описание:</label>
+        <textarea id="edit_description" name="description" rows="2"></textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div class="form-group">
+          <label>Категория:</label>
+          <select id="edit_category" name="category">
+            <option value="consumable">⚡️ Расходник</option>
+            <option value="subscription">💎 Подписка</option>
+            <option value="cosmetic">🎨 Косметика / Рамка</option>
+            <option value="insurance">🩺 Страховка / Справка</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Тип бонуса:</label>
+          <select id="edit_bonus_type" name="bonus_type">
+            <option value="superlike">Суперлайк</option>
+            <option value="rewind">Откат свайпа (Шпора)</option>
+            <option value="boost">Буст ленты</option>
+            <option value="freeze">Заморозка стрика</option>
+            <option value="premium">Премиум-статус</option>
+            <option value="frame">Рамка профиля</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div class="form-group">
+          <label>Цена в 🎓 (Зачёты):</label>
+          <input type="number" id="edit_price_credits" name="price_credits" required>
+        </div>
+
+        <div class="form-group">
+          <label>Цена в ₽ (необяз.):</label>
+          <input type="number" id="edit_price_rub" name="price_rub">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="form-group">
+          <label>Значение бонуса:</label>
+          <input type="number" id="edit_bonus_value" name="bonus_value">
+        </div>
+
+        <div class="form-group">
+          <label>Срок действия (дней):</label>
+          <input type="number" id="edit_duration_days" name="duration_days">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="form-group">
+          <label>Порядок сортировки:</label>
+          <input type="number" id="edit_sort_order" name="sort_order">
+        </div>
+
+        <div class="form-group" style="display:flex;align-items:center;margin-top:24px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="edit_is_active" name="is_active" value="true" style="width:auto;">
+            <span>Активен для покупки</span>
+          </label>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" class="btn btn-ghost" onclick="closeEditModal()">Отмена</button>
+        <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Корректировка баланса -->
+<div id="adjustModal" class="cmd-palette-backdrop" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:999;align-items:center;justify-content:center;">
+  <div class="card" style="width:450px;max-width:92vw;background:var(--surface);">
+    <h3 style="margin-bottom:16px;">⚖️ Корректировка баланса «Зачётов»</h3>
+    <form method="POST" action="/admin/economy/users/adjust">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Telegram User ID:</label>
+        <input type="number" name="user_id" placeholder="123456789" required>
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Сумма начисления / списания (🎓):</label>
+        <input type="number" name="amount" placeholder="+50 или -20" required>
+        <small style="color:var(--muted);font-size:11px;">Положительное число — начислить, отрицательное — списать.</small>
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px;">
+        <label>Причина / Комментарий:</label>
+        <input type="text" name="reason" placeholder="Победа в спецконкурсе / ручная правка" required>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" class="btn btn-ghost" onclick="closeAdjustModal()">Отмена</button>
+        <button type="submit" class="btn btn-primary">Применить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openAddModal() {
+  document.getElementById('addModal').style.display = 'flex';
+}
+function closeAddModal() {
+  document.getElementById('addModal').style.display = 'none';
+}
+
+function openAdjustModal() {
+  document.getElementById('adjustModal').style.display = 'flex';
+}
+function closeAdjustModal() {
+  document.getElementById('adjustModal').style.display = 'none';
+}
+
+function openEditModalFromBtn(btn) {
+  document.getElementById('edit_item_id').value = btn.dataset.id;
+  document.getElementById('edit_title').value = btn.dataset.title || '';
+  document.getElementById('edit_icon').value = btn.dataset.icon || '🛍';
+  document.getElementById('edit_description').value = btn.dataset.desc || '';
+  document.getElementById('edit_category').value = btn.dataset.cat || 'consumable';
+  document.getElementById('edit_bonus_type').value = btn.dataset.bonus || 'superlike';
+  document.getElementById('edit_price_credits').value = btn.dataset.credits || 0;
+  document.getElementById('edit_price_rub').value = btn.dataset.rub || '';
+  document.getElementById('edit_bonus_value').value = btn.dataset.val || 1;
+  document.getElementById('edit_duration_days').value = btn.dataset.days || '';
+  document.getElementById('edit_sort_order').value = btn.dataset.sort || 0;
+  document.getElementById('edit_is_active').checked = btn.dataset.active === '1';
+
+  document.getElementById('editModal').style.display = 'flex';
+}
+
+function openEditModal(item) {
+  document.getElementById('edit_item_id').value = item.id;
+  document.getElementById('edit_title').value = item.title;
+  document.getElementById('edit_icon').value = item.icon || '🛍';
+  document.getElementById('edit_description').value = item.description || '';
+  document.getElementById('edit_category').value = item.category || 'consumable';
+  document.getElementById('edit_bonus_type').value = item.bonus_type || 'superlike';
+  document.getElementById('edit_price_credits').value = item.price_credits;
+  document.getElementById('edit_price_rub').value = item.price_rub || '';
+  document.getElementById('edit_bonus_value').value = item.bonus_value || 1;
+  document.getElementById('edit_duration_days').value = item.duration_days || '';
+  document.getElementById('edit_sort_order').value = item.sort_order || 0;
+  document.getElementById('edit_is_active').checked = item.is_active;
+
+  document.getElementById('editModal').style.display = 'flex';
+}
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none';
+}
+</script>
+{% endblock %}

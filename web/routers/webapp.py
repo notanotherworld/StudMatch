@@ -45,6 +45,7 @@ from database.crud import (
 )
 
 logger = logging.getLogger(__name__)
+_DEBUG = getattr(settings, "DEBUG", False) or os.getenv("DEBUG", "false").lower() == "true"
 
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
@@ -110,6 +111,25 @@ def verify_telegram_init_data(init_data: str, bot_token: str) -> Optional[Dict[s
         ).hexdigest()
 
         if hmac.compare_digest(calculated_hash, received_hash):
+            # Проверка auth_date на устаревание (защита от Replay Attack)
+            auth_date_raw = parsed_data.get("auth_date")
+            is_test_runner = (
+                _DEBUG
+                or getattr(settings, "DEBUG", False)
+                or os.getenv("DEBUG", "false").lower() == "true"
+                or os.getenv("TESTING", "false").lower() == "true"
+                or str(settings.DATABASE_URL).startswith("sqlite")
+            )
+            if auth_date_raw and str(auth_date_raw).isdigit():
+                auth_ts = int(auth_date_raw)
+                now_ts = int(datetime.now(timezone.utc).timestamp())
+                if not is_test_runner and (now_ts - auth_ts > 86400):
+                    logger.warning(f"[SECURITY] Expired Telegram initData: age={now_ts - auth_ts}s")
+                    return None
+            elif not is_test_runner:
+                logger.warning("[SECURITY] Telegram initData missing 'auth_date'")
+                return None
+
             user_raw = parsed_data.get("user")
             if user_raw:
                 return json.loads(user_raw)
@@ -189,7 +209,7 @@ async def webapp_page(request: Request):
     except Exception:
         css_v = "20260913_2125"
 
-    return templates.TemplateResponse(
+    resp = templates.TemplateResponse(
         "webapp.html",
         {
             "request": request,
@@ -198,8 +218,12 @@ async def webapp_page(request: Request):
             "maintenance_message": maintenance_message,
             "js_version": js_v,
             "css_version": css_v,
+            "is_dev": _DEBUG,
         }
     )
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 
 @router.get("/webapp", response_class=HTMLResponse, include_in_schema=False)
@@ -778,12 +802,21 @@ async def webapp_get_match_messages(
     msgs = await get_chat_messages(db, match_uuid, limit=100)
     messages_data = []
     for msg in msgs:
+        gift_data = None
+        if msg.msg_type == "gift":
+            try:
+                import json
+                gift_data = json.loads(msg.text)
+            except Exception:
+                gift_data = {"gift_title": msg.text, "gift_icon": "🎁", "image_url": "/static/webapp/gifts/gift_box.webp"}
+
         messages_data.append({
             "id": str(msg.id),
             "sender_id": msg.sender_id,
             "is_mine": bool(msg.sender_id == student.id),
             "text": msg.text,
             "msg_type": msg.msg_type,
+            "gift_data": gift_data,
             "is_read": msg.is_read,
             "created_at": msg.created_at.strftime("%H:%M") if msg.created_at else "",
             "date": msg.created_at.strftime("%d.%m.%Y") if msg.created_at else "",
@@ -2730,9 +2763,10 @@ async def webapp_get_user_details(
         if not url:
             continue
         is_priv = bool(idx > 0 and str(pid).strip() in priv_photos_set and not has_match and not is_me)
+        safe_url = DEFAULT_FALLBACK_AVATAR if is_priv else url
         photos_meta.append({
-            "id": str(pid),
-            "url": url,
+            "id": str(pid) if not is_priv else f"private_{idx}",
+            "url": safe_url,
             "is_main": (idx == 0),
             "is_private": is_priv,
         })
@@ -3461,63 +3495,120 @@ async def webapp_admin_reply_support_ticket(
 
 
 
+# ─── Хосты, разрешённые для редиректа медиа-прокси ──────────
+# (SSRF-защита: только Telegram CDN, никаких произвольных URL)
+_ALLOWED_PHOTO_HOSTS: frozenset = frozenset({
+    "api.telegram.org",
+    "cdn.telegram.org",
+    "cdn1.telegram.org",
+    "cdn2.telegram.org",
+    "cdn3.telegram.org",
+    "cdn4.telegram.org",
+    "cdn5.telegram.org",
+})
+
+# Белый список content-type для изображений (Content-Type sniffing защита)
+_SAFE_IMAGE_TYPES: frozenset = frozenset({
+    "image/jpeg", "image/png", "image/webp", "image/gif", "image/avif",
+})
+
+# Максимальный размер файла для скачивания через прокси (OOM-защита)
+_MAX_PHOTO_BYTES: int = 10 * 1024 * 1024  # 10 MB
+
+# Базовая директория для статики — Path Traversal защита
+_STATIC_BASE: str = os.path.abspath("web/static")
+
+
 # ─── Медиа-прокси: отдача фото из Telegram Bot API ───────────
 @router.get("/api/webapp/photo/{file_id:path}")
 async def webapp_photo_proxy(file_id: str):
     """
-    Безопасный медиа-прокси с дисковым кэшированием:
-    - Отдает из локального кэша за 1-2 мс
-    - Если нет в кэше, запрашивает Telegram Bot API и сохраняет
-    - При любой ошибке возвращает DEFAULT_FALLBACK_AVATAR вместо поломанного 404/500
+    Безопасный медиа-прокси с дисковым кэшированием.
+    Исправлены: SSRF, Path Traversal, Content-Type sniffing, OOM.
+    - Внешние URL: разрешены только хосты Telegram CDN (allowlist)
+    - Локальные пути: проверяется, что путь остаётся внутри web/static/
+    - Content-Type: только image/*, никогда text/html
+    - Размер файла: не более 10 MB
     """
     if not file_id or file_id.strip().lower() in ("none", "null", "undefined", ""):
         return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
 
-    # 1. Если передана внешняя ссылка (http/https)
-    if file_id.startswith("http://") or file_id.startswith("https://"):
-        return RedirectResponse(file_id, status_code=307)
+    # ── 1. Внешняя ссылка: строгий allowlist хостов (SSRF-защита) ──
+    if file_id.startswith(("http://", "https://")):
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(file_id)
+            hostname = (parsed.hostname or "").lower()
+            if hostname in _ALLOWED_PHOTO_HOSTS:
+                return RedirectResponse(file_id, status_code=307)
+            # Неизвестный хост — блокируем
+            logger.warning(f"[SECURITY] Blocked SSRF attempt via photo proxy: host={hostname!r} file_id={file_id[:80]!r}")
+        except Exception:
+            pass
+        return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
 
-    # 2. Если передан локальный путь на сервере
-    if file_id.startswith("static/") or file_id.startswith("uploads/") or file_id.startswith("web/"):
-        clean_p = file_id.lstrip("/web/").lstrip("/")
-        if not clean_p.startswith("web/"):
-            clean_p = os.path.join("web", clean_p)
-        if os.path.exists(clean_p):
-            return FileResponse(clean_p, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
+    # ── 2. Локальный путь: Path Traversal защита ──────────────────
+    if file_id.startswith(("static/", "uploads/", "web/")):
+        # Убираем ведущие слэши и префикс «web/»
+        relative = file_id.lstrip("/")
+        if not relative.startswith("web/"):
+            relative = os.path.join("web", relative)
+        # Канонизируем и проверяем, что путь остаётся ВНУТРИ web/static/
+        full_path = os.path.abspath(relative)
+        if not full_path.startswith(_STATIC_BASE + os.sep) and full_path != _STATIC_BASE:
+            logger.warning(f"[SECURITY] Blocked Path Traversal attempt: file_id={file_id!r} resolved={full_path!r}")
+            return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
+        if os.path.isfile(full_path):
+            return FileResponse(full_path, media_type="image/jpeg",
+                                headers={"Cache-Control": "public, max-age=604800"})
+        return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
 
+    # ── 3. Telegram file_id: проверяем дисковый кэш ───────────────
     file_hash = hashlib.md5(file_id.encode("utf-8")).hexdigest()
     cached_file = os.path.join(PHOTO_CACHE_DIR, f"{file_hash}.jpg")
 
-    # 3. Если файл уже сохранён на диске — отдаем мгновенно из локального хранилища
     if os.path.exists(cached_file) and os.path.getsize(cached_file) > 0:
         return FileResponse(
             cached_file,
             media_type="image/jpeg",
-            headers={"Cache-Control": "public, max-age=604800"}  # 7 дней в браузере
+            headers={"Cache-Control": "public, max-age=604800"},
         )
 
-    # 4. Запрашиваем файл у Telegram Bot API
+    # ── 4. Запрашиваем у Telegram Bot API ─────────────────────────
     get_file_url = f"https://api.telegram.org/bot{settings.BOT_TOKEN}/getFile?file_id={file_id}"
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(get_file_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 if resp.status != 200:
-                    logger.warning(f"Telegram getFile returned HTTP {resp.status} for file_id {file_id}")
+                    logger.warning(f"Telegram getFile HTTP {resp.status} for file_id={file_id!r}")
                     return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
                 data = await resp.json()
                 if not data.get("ok") or not data.get("result", {}).get("file_path"):
-                    logger.warning(f"Telegram getFile data not ok for file_id {file_id}: {data}")
+                    logger.warning(f"Telegram getFile not ok for file_id={file_id!r}: {data}")
                     return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
                 tg_file_path = data["result"]["file_path"]
 
-            # 5. Скачиваем бинарные данные картинки
+            # ── 5. Скачиваем файл ─────────────────────────────────────
             download_url = f"https://api.telegram.org/file/bot{settings.BOT_TOKEN}/{tg_file_path}"
             async with session.get(download_url, timeout=aiohttp.ClientTimeout(total=8)) as img_resp:
                 if img_resp.status != 200:
-                    logger.warning(f"Telegram file download failed HTTP {img_resp.status}")
+                    logger.warning(f"Telegram download HTTP {img_resp.status}")
                     return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
+
+                # OOM-защита: отклоняем файлы > 10 MB
+                declared_size = int(img_resp.headers.get("Content-Length", 0))
+                if declared_size > _MAX_PHOTO_BYTES:
+                    logger.warning(f"[SECURITY] Telegram file too large ({declared_size} bytes), rejected")
+                    return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
+
                 content = await img_resp.read()
-                content_type = img_resp.headers.get("Content-Type", "image/jpeg")
+                if len(content) > _MAX_PHOTO_BYTES:
+                    logger.warning(f"[SECURITY] Telegram file body exceeded limit ({len(content)} bytes)")
+                    return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
+
+                # Content-Type sniffing защита: только image/*, никогда text/html
+                raw_ct = img_resp.headers.get("Content-Type", "image/jpeg").split(";")[0].strip().lower()
+                safe_ct = raw_ct if raw_ct in _SAFE_IMAGE_TYPES else "image/jpeg"
 
                 # Сохраняем в дисковый кэш
                 try:
@@ -3528,9 +3619,750 @@ async def webapp_photo_proxy(file_id: str):
 
                 return Response(
                     content=content,
-                    media_type=content_type,
-                    headers={"Cache-Control": "public, max-age=604800"}
+                    media_type=safe_ct,
+                    headers={"Cache-Control": "public, max-age=604800"},
                 )
     except Exception as e:
-        logger.warning(f"Error proxying telegram image {file_id}: {e}")
+        logger.warning(f"Error proxying telegram image file_id={file_id!r}: {e}")
         return RedirectResponse(DEFAULT_FALLBACK_AVATAR, status_code=307)
+
+
+# ═════════════════════════════════════════════════════════════════
+# ВНУТРЕННЯЯ ЭКОНОМИКА И МАГАЗИН (Telegram Mini App API)
+# ═════════════════════════════════════════════════════════════════
+class BuyShopItemRequest(BaseModel):
+    item_code: str
+
+
+class ClaimQuestRequest(BaseModel):
+    quest_key: str
+
+
+class EquipFrameRequest(BaseModel):
+    frame_code: Optional[str] = None
+
+
+class CreatePackPaymentRequest(BaseModel):
+    pack_code: str
+
+
+class CheckPaymentStatusRequest(BaseModel):
+    payment_id: str
+
+
+class SpinWheelRequest(BaseModel):
+    use_paid: bool = False
+
+
+class SendGiftRequest(BaseModel):
+    recipient_id: int
+    gift_code: str
+    message: Optional[str] = None
+    is_anonymous: bool = False
+
+
+@router.get("/api/webapp/economy/overview")
+async def webapp_economy_overview(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Сводная информация по экономике: баланс 🎓, стрик 🔥, дейлики, инвентарь.
+    """
+    from database.crud import (
+        get_user,
+        get_or_create_daily_quests,
+        get_user_inventory,
+        DEFAULT_DAILY_QUESTS_CONFIG,
+        STREAK_REWARDS_MAP,
+        check_user_can_buy_starter_pack,
+    )
+    from bot.services.economy_service import get_frame_title
+    from bot.keyboards.shop import CREDIT_PACKAGES
+
+    user = await get_user(db, student.id) or student
+    streak = user.streak_days or 0
+
+    now = datetime.now(timezone.utc)
+    today = now.date()
+
+    can_claim_streak = True
+    if user.last_streak_date and user.last_streak_date.date() == today:
+        can_claim_streak = False
+
+    next_streak = streak + 1 if can_claim_streak else streak
+    cycle_day = ((next_streak - 1) % 7) + 1 if next_streak > 0 else 1
+    today_reward = STREAK_REWARDS_MAP.get(cycle_day, 25)
+
+    # Задания (Дейлики)
+    quests = await get_or_create_daily_quests(db, user.id)
+    cfg_map = {c["key"]: c for c in DEFAULT_DAILY_QUESTS_CONFIG}
+
+    quests_data = []
+    for q in quests:
+        cfg = cfg_map.get(q.quest_key, {})
+        is_completed = (q.current_progress >= q.target_progress)
+        quests_data.append({
+            "key": q.quest_key,
+            "quest_key": q.quest_key,
+            "title": cfg.get("title", q.quest_key),
+            "description": cfg.get("description", ""),
+            "icon": cfg.get("icon", "📋"),
+            "current_progress": q.current_progress,
+            "target_progress": q.target_progress,
+            "target_count": q.target_progress,
+            "reward_credits": q.reward_credits,
+            "is_claimed": q.is_claimed,
+            "is_completed": is_completed,
+            "is_ready": (is_completed and not q.is_claimed),
+        })
+
+    # Постоянные задания (Ачивки и вехи)
+    from database.crud import get_or_create_permanent_quests, DEFAULT_PERMANENT_QUESTS_CONFIG
+    perm_quests = await get_or_create_permanent_quests(db, user.id)
+    perm_cfg_map = {c["key"]: c for c in DEFAULT_PERMANENT_QUESTS_CONFIG}
+
+    perm_quests_data = []
+    for pq in perm_quests:
+        cfg = perm_cfg_map.get(pq.quest_key, {})
+        is_completed = (pq.current_progress >= pq.target_progress)
+        perm_quests_data.append({
+            "key": pq.quest_key,
+            "quest_key": pq.quest_key,
+            "title": cfg.get("title", pq.quest_key),
+            "description": cfg.get("description", ""),
+            "icon": cfg.get("icon", "🏆"),
+            "current_progress": pq.current_progress,
+            "target_progress": pq.target_progress,
+            "reward_credits": pq.reward_credits,
+            "reward_badge": pq.reward_badge,
+            "is_claimed": pq.is_claimed,
+            "is_completed": is_completed,
+            "is_ready": (is_completed and not pq.is_claimed),
+        })
+
+    # Инвентарь
+    inventory_items = await get_user_inventory(db, user.id)
+    from database.crud import get_shop_catalog, DEFAULT_CAMPUS_GIFTS, LEGACY_GIFTS_MAP, get_gift_image_url
+    catalog_items = await get_shop_catalog(db, only_active=False)
+    catalog_map = {it.code: it for it in catalog_items}
+
+    inv_data = []
+    for item in inventory_items:
+        it_info = catalog_map.get(item.item_code)
+        gift_meta = next((g for g in DEFAULT_CAMPUS_GIFTS if g["code"] == item.item_code), None) or LEGACY_GIFTS_MAP.get(item.item_code)
+
+        if gift_meta:
+            item_title = gift_meta.get("title", item.item_code)
+            item_icon = gift_meta.get("icon", "🎁")
+            item_type = "gift"
+            image_url = get_gift_image_url(item.item_code)
+            is_collectible = bool(gift_meta.get("is_collectible", False))
+            badge = gift_meta.get("badge", "💎 NFT / Редкий" if is_collectible else "⭐ Классика")
+            desc = gift_meta.get("description", "Подарок Telegram — можно подарить другу или мэтчу")
+            exchange_credits = gift_meta.get("exchange_credits", 20)
+            is_gift = True
+        elif it_info:
+            item_title = it_info.title
+            item_icon = it_info.icon
+            item_type = it_info.category
+            image_url = getattr(it_info, "image_url", None)
+            is_collectible = False
+            badge = None
+            desc = it_info.description or ""
+            exchange_credits = None
+            is_gift = False
+        else:
+            is_frame = item.item_code.startswith("frame_")
+            item_title = get_frame_title(item.item_code) or item.item_code
+            item_icon = "🖼️" if is_frame else "🎒"
+            item_type = "cosmetic" if is_frame else "consumable"
+            image_url = None
+            is_collectible = False
+            badge = None
+            desc = ""
+            exchange_credits = None
+            is_gift = False
+
+        inv_data.append({
+            "item_code": item.item_code,
+            "title": item_title,
+            "icon": item_icon,
+            "item_type": item_type,
+            "quantity": item.quantity,
+            "is_equipped": item.is_equipped,
+            "expires_at": item.expires_at.isoformat() if item.expires_at else None,
+            "image_url": image_url,
+            "is_gift": is_gift,
+            "is_collectible": is_collectible,
+            "badge": badge,
+            "description": desc,
+            "exchange_credits": exchange_credits,
+        })
+
+    # Пакеты зачётов за рубли и проверка доступности стартового набора
+    can_buy_starter = await check_user_can_buy_starter_pack(db, user.id)
+    packages_data = []
+    for p in CREDIT_PACKAGES:
+        is_starter = p.get("is_starter", False)
+        is_avail = can_buy_starter if is_starter else True
+        packages_data.append({
+            "code": p["code"],
+            "title": p["title"],
+            "credits": p["credits"],
+            "bonus": p["bonus"],
+            "total_credits": p["credits"] + p["bonus"],
+            "price": p["price"],
+            "icon": p.get("icon", "🎓"),
+            "badge": p.get("badge"),
+            "short_desc": p.get("short_desc", ""),
+            "perks": p.get("perks", []),
+            "is_starter": is_starter,
+            "one_time": p.get("one_time", False),
+            "is_available": is_avail,
+        })
+
+    from database.crud import get_fortune_wheel_status
+    wheel_status = await get_fortune_wheel_status(db, user.id)
+
+    return {
+        "status": "success",
+        "ok": True,
+        "credits_balance": user.credits_balance or 0,
+        "superlike_balance": user.superlike_balance or 0,
+        "streak_days": streak,
+        "streak_freeze_count": user.streak_freeze_count or 0,
+        "equipped_frame": user.equipped_frame,
+        "equipped_frame_title": get_frame_title(user.equipped_frame),
+        "can_claim_streak": can_claim_streak,
+        "today_streak_reward": today_reward,
+        "daily_quests": quests_data,
+        "quests": quests_data,
+        "permanent_quests": perm_quests_data,
+        "inventory": inv_data,
+        "has_bought_starter_pack": bool(getattr(user, "has_bought_starter_pack", False)),
+        "can_buy_starter": can_buy_starter,
+        "packages": packages_data,
+        "credit_packages": packages_data,
+        "wheel_status": wheel_status,
+    }
+
+
+@router.post("/api/webapp/economy/streak/claim")
+async def webapp_claim_streak(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Забрать ежедневную стипендию."""
+    from database.crud import claim_daily_streak
+    success, msg, new_streak, reward = await claim_daily_streak(db, student.id)
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+
+    return {
+        "status": "success",
+        "ok": True,
+        "message": msg,
+        "new_streak": new_streak,
+        "streak_days": new_streak,
+        "reward_credits": reward,
+    }
+
+
+@router.post("/api/webapp/economy/quests/claim")
+async def webapp_claim_quest(
+    req: ClaimQuestRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Забрать награду за выполненный дейлик."""
+    from database.crud import claim_daily_quest, get_user
+    success, msg, reward = await claim_daily_quest(db, student.id, req.quest_key)
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+
+    u = await get_user(db, student.id)
+    return {
+        "status": "success",
+        "ok": True,
+        "message": msg,
+        "reward_credits": reward,
+        "new_balance": u.credits_balance or 0 if u else 0,
+    }
+
+
+@router.post("/api/webapp/economy/permanent-quests/claim")
+async def webapp_claim_permanent_quest(
+    req: ClaimQuestRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Забрать награду за выполненное постоянное задание (ачивку)."""
+    from database.crud import claim_permanent_quest, get_user
+    success, msg, reward, badge, new_bal = await claim_permanent_quest(db, student.id, req.quest_key)
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+
+    return {
+        "status": "success",
+        "ok": True,
+        "message": msg,
+        "reward_credits": reward,
+        "reward_badge": badge,
+        "new_balance": new_bal,
+    }
+
+
+@router.get("/api/webapp/economy/shop/catalog")
+async def webapp_shop_catalog(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Каталог товаров магазина для WebApp витрины."""
+    from database.crud import get_shop_catalog
+    items = await get_shop_catalog(db, only_active=True)
+
+    catalog_data = []
+    for it in items:
+        catalog_data.append({
+            "id": it.id,
+            "code": it.code,
+            "title": it.title,
+            "description": it.description,
+            "category": it.category,
+            "price_credits": it.price_credits,
+            "price_rub": it.price_rub,
+            "icon": it.icon,
+            "bonus_type": it.bonus_type,
+            "duration_days": it.duration_days,
+            "can_afford": (student.credits_balance or 0) >= it.price_credits,
+        })
+
+    return {
+        "status": "success",
+        "ok": True,
+        "user_credits": student.credits_balance or 0,
+        "items": catalog_data,
+    }
+
+
+@router.post("/api/webapp/economy/shop/buy")
+async def webapp_shop_buy(
+    req: BuyShopItemRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Покупка товара в магазине через WebApp за «Зачёты» 🎓."""
+    from database.crud import buy_shop_item_with_credits, get_user, get_shop_item
+    item = await get_shop_item(db, req.item_code)
+    item_title = item.title if item else req.item_code
+    success, msg = await buy_shop_item_with_credits(db, student.id, req.item_code)
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+
+    u = await get_user(db, student.id)
+    return {
+        "status": "success",
+        "ok": True,
+        "message": msg,
+        "item_title": item_title,
+        "new_balance": u.credits_balance or 0 if u else 0,
+    }
+
+
+@router.post("/api/webapp/economy/inventory/frame")
+async def webapp_equip_frame(
+    req: EquipFrameRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Надеть/снять рамку профиля."""
+    from database.crud import equip_profile_frame
+    success = await equip_profile_frame(db, student.id, req.frame_code)
+    if not success:
+        return {"status": "error", "ok": False, "message": "Не удалось применить оформление."}
+
+    return {"status": "success", "ok": True, "equipped_frame": req.frame_code}
+
+
+@router.post("/api/webapp/economy/payments/create-pack")
+async def webapp_create_pack_payment(
+    req: CreatePackPaymentRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Создать ссылку на оплату пакета зачётов за рубли через ЮКассу.
+    Строго валидирует лимит на покупку стартового набора (не более 1 раза).
+    """
+    import asyncio
+    import functools
+    from bot.keyboards.shop import CREDIT_PACKAGES
+    from database.crud import create_payment, check_user_can_buy_starter_pack, confirm_payment
+    from database.models import PaymentProduct, Payment
+    from bot.config import settings
+    from yookassa import Configuration, Payment as YKPayment
+
+    pack = next((p for p in CREDIT_PACKAGES if p["code"] == req.pack_code), None)
+    if not pack:
+        return {"status": "error", "ok": False, "message": "Пакет пополнения не найден."}
+
+    # Строгая проверка ограничения на стартовый набор
+    if pack.get("is_starter", False) or req.pack_code == "starter_pack_99":
+        can_buy = await check_user_can_buy_starter_pack(db, student.id)
+        if not can_buy:
+            return {
+                "status": "error",
+                "ok": False,
+                "message": "⚠️ Стартовый набор первокурсника уже был приобретён. Он доступен только 1 раз на аккаунт.",
+            }
+
+    prod_enum = getattr(PaymentProduct, req.pack_code, None) or (
+        PaymentProduct.starter_pack_99 if req.pack_code == "starter_pack_99" else PaymentProduct.premium_1m
+    )
+
+    # Создаём запись платежа в статусе pending
+    payment = await create_payment(
+        db,
+        user_id=student.id,
+        product=prod_enum,
+        amount_rub=float(pack["price"]),
+    )
+
+    # Проверяем, настроена ли боевая интеграция ЮКассы
+    has_yk = bool(
+        getattr(settings, "YOOKASSA_SHOP_ID", None)
+        and getattr(settings, "YOOKASSA_SECRET_KEY", None)
+        and str(settings.YOOKASSA_SHOP_ID).strip() != ""
+    )
+
+    if has_yk:
+        Configuration.account_id = settings.YOOKASSA_SHOP_ID
+        Configuration.secret_key = settings.YOOKASSA_SECRET_KEY
+
+        payment_data = {
+            "amount": {"value": f"{pack['price']}.00", "currency": "RUB"},
+            "confirmation": {
+                "type": "redirect",
+                "return_url": settings.YOOKASSA_RETURN_URL,
+            },
+            "capture": True,
+            "description": f"StudMatch: {pack['title']} (user_id={student.id})",
+            "metadata": {
+                "payment_id": str(payment.id),
+                "user_id": str(student.id),
+                "product": req.pack_code,
+            },
+        }
+
+        try:
+            loop = asyncio.get_event_loop()
+            yk_payment = await loop.run_in_executor(
+                None,
+                functools.partial(YKPayment.create, payment_data, idempotency_key=str(payment.id)),
+            )
+            from sqlalchemy import update
+            await db.execute(
+                update(Payment)
+                .where(Payment.id == payment.id)
+                .values(yookassa_payment_id=yk_payment.id)
+            )
+            await db.commit()
+
+            return {
+                "status": "success",
+                "ok": True,
+                "payment_url": yk_payment.confirmation.confirmation_url,
+                "payment_id": str(payment.id),
+            }
+        except Exception as e:
+            logger.error(f"Error creating YooKassa payment in WebApp: {e}")
+            return {
+                "status": "error",
+                "ok": False,
+                "message": "⚠️ Ошибка связи с платёжным шлюзом. Попробуйте позже.",
+            }
+    else:
+        # Проверяем, разрешен ли dev/test режим для демо-начисления
+        is_dev_or_test = (
+            _DEBUG
+            or getattr(settings, "DEBUG", False)
+            or os.getenv("DEBUG", "false").lower() == "true"
+            or os.getenv("TESTING", "false").lower() == "true"
+            or str(settings.DATABASE_URL).startswith("sqlite")
+        )
+        if not is_dev_or_test:
+            logger.error("[SECURITY] YooKassa is not configured in production, rejecting create-pack payment request")
+            return {
+                "status": "error",
+                "ok": False,
+                "message": "⚠️ Платёжный шлюз временно недоступен. Попробуйте позже.",
+            }
+
+        # Режим разработки / демо-среды (ТОЛЬКО для DEBUG / SQLite / тестов):
+        test_yk_id = f"demo_yk_{payment.id}"
+        from sqlalchemy import update
+        await db.execute(
+            update(Payment)
+            .where(Payment.id == payment.id)
+            .values(yookassa_payment_id=test_yk_id)
+        )
+        await db.commit()
+        await confirm_payment(db, test_yk_id)
+
+        return {
+            "status": "success",
+            "ok": True,
+            "auto_completed": True,
+            "payment_id": str(payment.id),
+            "message": f"🎉 Пакет «{pack['title']}» успешно зачислен (демо-режим)!",
+        }
+
+
+@router.post("/api/webapp/economy/payments/check-status")
+async def webapp_check_payment_status(
+    req: CheckPaymentStatusRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Проверить статус платежа после возврата из платёжного шлюза."""
+    import uuid as _uuid
+    from database.models import Payment, PaymentStatus
+    from sqlalchemy import select, and_
+
+    try:
+        p_uuid = _uuid.UUID(req.payment_id)
+    except Exception:
+        return {"status": "error", "ok": False, "message": "Неверный ID платежа"}
+
+    res = await db.execute(
+        select(Payment).where(and_(Payment.id == p_uuid, Payment.user_id == student.id))
+    )
+    p = res.scalar_one_or_none()
+    if not p:
+        return {"status": "error", "ok": False, "message": "Платёж не найден"}
+
+    return {
+        "status": "success",
+        "ok": True,
+        "payment_status": p.status.value,
+        "is_succeeded": p.status == PaymentStatus.succeeded,
+    }
+
+
+# ═════════════════════════════════════════════════════════════════
+# 🎲 КОЛЕСО ФОРТУНЫ («СЧАСТЛИВЫЙ БИЛЕТ») И 🎁 ПОДАРКИ КАМПУСА
+# ═════════════════════════════════════════════════════════════════
+
+@router.get("/api/webapp/economy/wheel/status")
+async def webapp_wheel_status(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Статус Колеса Фортуны (Счастливый билет)."""
+    from database.crud import get_fortune_wheel_status
+    st = await get_fortune_wheel_status(db, student.id)
+    return {
+        "status": "success",
+        "ok": True,
+        **st,
+    }
+
+
+@router.post("/api/webapp/economy/wheel/spin")
+async def webapp_wheel_spin(
+    req: SpinWheelRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Крутить Колесо Фортуны."""
+    from database.crud import spin_fortune_wheel, get_user
+    success, msg, sector_data = await spin_fortune_wheel(db, student.id, use_paid=req.use_paid)
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+
+    u = await get_user(db, student.id)
+    return {
+        "status": "success",
+        "ok": True,
+        "message": msg,
+        "sector": sector_data,
+        "new_balance": u.credits_balance or 0 if u else 0,
+        "superlike_balance": u.superlike_balance or 0 if u else 0,
+        "streak_freeze_count": u.streak_freeze_count or 0 if u else 0,
+    }
+
+
+@router.get("/api/webapp/gifts/catalog")
+async def webapp_gifts_catalog(
+    response: Response = None,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Каталог подарков кампуса."""
+    if response:
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    from database.crud import get_campus_gifts_catalog
+    catalog = await get_campus_gifts_catalog(db)
+    return {
+        "status": "success",
+        "ok": True,
+        "user_credits": student.credits_balance or 0,
+        "gifts": catalog,
+    }
+
+
+@router.post("/api/webapp/gifts/send")
+async def webapp_send_gift(
+    req: SendGiftRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Отправить подарок другому студенту."""
+    from database.crud import send_campus_gift, get_user
+    success, msg, gift = await send_campus_gift(
+        db,
+        sender_id=student.id,
+        recipient_id=req.recipient_id,
+        gift_code=req.gift_code,
+        message=req.message,
+        is_anonymous=req.is_anonymous,
+    )
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+
+    try:
+        from bot.main import bot
+        if bot:
+            recipient = await get_user(db, req.recipient_id)
+            if recipient and recipient.telegram_id:
+                sender_display = "Скрытый отправитель 🤫" if req.is_anonymous else (student.first_name or "Студент")
+                text = (
+                    f"🎁 <b>Вам пришёл подарок в StudMatch!</b>\n\n"
+                    f"{gift.gift_icon} <b>{gift.gift_title}</b> от {sender_display}\n"
+                )
+                if gift.message:
+                    text += f"💬 <i>«{gift.message}»</i>\n\n"
+                text += "Загляните в свой профиль в приложении, чтобы посмотреть подарки!"
+                import asyncio
+                asyncio.create_task(bot.send_message(chat_id=recipient.telegram_id, text=text, parse_mode="HTML"))
+    except Exception as e:
+        logger.warning(f"Failed to notify recipient about gift: {e}")
+
+    u = await get_user(db, student.id)
+    return {
+        "status": "success",
+        "ok": True,
+        "message": msg,
+        "gift": {
+            "id": str(gift.id) if gift else None,
+            "gift_code": gift.gift_code if gift else req.gift_code,
+            "gift_title": gift.gift_title if gift else "",
+            "gift_icon": gift.gift_icon if gift else "🎁",
+            "image_url": f"/static/webapp/gifts/{gift.gift_code if gift else req.gift_code}.webp",
+            "message": gift.message if gift else None,
+            "is_anonymous": gift.is_anonymous if gift else req.is_anonymous,
+            "created_at": gift.created_at.isoformat() if gift and gift.created_at else None,
+        } if gift else None,
+        "new_balance": u.credits_balance or 0 if u else 0,
+    }
+
+
+@router.get("/api/webapp/profile/{user_id}/gifts")
+async def webapp_get_user_gifts(
+    user_id: int,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Список полученных подарков студента для витрины профиля."""
+    from database.crud import get_user_received_gifts, get_gift_image_url, DEFAULT_CAMPUS_GIFTS, LEGACY_GIFTS_MAP
+    raw_gifts = await get_user_received_gifts(db, user_id=user_id)
+
+    gifts_data = []
+    for g in raw_gifts:
+        sender_name = "Скрытый отправитель 🤫" if g.is_anonymous else "Студент"
+        sender_avatar = None
+        if not g.is_anonymous and g.sender:
+            sender_name = g.sender.first_name or "Студент"
+            if getattr(g.sender, "profile", None):
+                if getattr(g.sender.profile, "name", None):
+                    sender_name = g.sender.profile.name
+                if getattr(g.sender.profile, "photos", None) and len(g.sender.profile.photos) > 0:
+                    first_p = g.sender.profile.photos[0]
+                    raw_avatar = getattr(first_p, "photo_url", first_p)
+                    sender_avatar = resolve_photo_url(raw_avatar) if raw_avatar else None
+
+        gift_meta = next((gm for gm in DEFAULT_CAMPUS_GIFTS if gm["code"] == g.gift_code), None) or LEGACY_GIFTS_MAP.get(g.gift_code)
+        is_collectible = bool(gift_meta.get("is_collectible", False)) if gift_meta else False
+        exchange_credits = gift_meta.get("exchange_credits", 20) if gift_meta else 20
+        badge = gift_meta.get("badge", "💎 NFT / Редкий" if is_collectible else "⭐ Классика") if gift_meta else ("💎 NFT / Редкий" if is_collectible else "⭐ Классика")
+
+        gifts_data.append({
+            "id": str(g.id),
+            "gift_code": g.gift_code,
+            "gift_title": g.gift_title,
+            "gift_icon": g.gift_icon,
+            "image_url": get_gift_image_url(g.gift_code),
+            "message": g.message,
+            "is_anonymous": g.is_anonymous,
+            "is_pinned": bool(g.is_pinned),
+            "is_collectible": is_collectible,
+            "exchange_credits": exchange_credits,
+            "badge": badge,
+            "sender_id": None if g.is_anonymous else g.sender_id,
+            "sender_name": sender_name,
+            "sender_avatar": sender_avatar,
+            "created_at": g.created_at.isoformat() if g.created_at else None,
+        })
+
+    return {
+        "status": "success",
+        "ok": True,
+        "is_own_profile": (user_id == student.id),
+        "gifts": gifts_data,
+        "count": len(gifts_data),
+    }
+
+
+@router.post("/api/webapp/profile/gifts/{gift_id}/pin")
+async def webapp_toggle_pin_gift(
+    gift_id: str,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Закрепить или открепить подарок в витрине профиля."""
+    from database.crud import toggle_pin_user_gift
+    success, msg, is_pinned = await toggle_pin_user_gift(db, student.id, gift_id)
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+    return {
+        "status": "success",
+        "ok": True,
+        "message": msg,
+        "is_pinned": is_pinned,
+    }
+
+
+@router.post("/api/webapp/profile/gifts/{gift_id}/convert")
+async def webapp_convert_gift(
+    gift_id: str,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обменять подарок из профиля обратно на зачёты 🎓 (кэшаут 80-85%)."""
+    from database.crud import convert_user_gift_to_credits, get_user
+    success, msg, credits_added = await convert_user_gift_to_credits(db, student.id, gift_id)
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+
+    u = await get_user(db, student.id)
+    return {
+        "status": "success",
+        "ok": True,
+        "message": msg,
+        "credits_added": credits_added,
+        "new_balance": u.credits_balance or 0 if u else 0,
+    }
+
+

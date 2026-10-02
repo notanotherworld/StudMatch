@@ -47,6 +47,12 @@
     selectedCandidateForReport: null,
   };
 
+  const GIFTS_ASSET_VERSION = "20261001_v4";
+  function getGiftImgUrl(code, customUrl) {
+    let base = customUrl || (code ? `/static/webapp/gifts/${code}.webp` : "/static/webapp/gifts/gift_box.webp");
+    return base.includes("?") ? `${base}&v=${GIFTS_ASSET_VERSION}` : `${base}?v=${GIFTS_ASSET_VERSION}`;
+  }
+
   // DOM Elements
   const deckContainer = document.getElementById("cardDeck");
   const deckEmpty = document.getElementById("deckEmpty");
@@ -225,6 +231,12 @@
           const params = new URLSearchParams(hash);
           initData = params.get("tgWebAppData") || "";
         } catch (e) {}
+      }
+
+      // Dev-mode fallback для локального запуска в обычном браузере
+      if (!initData && (window.IS_DEV || window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost" || window.location.search.includes("dev=1"))) {
+        initData = "dev_mock";
+        console.log("[StudMatch] Local dev mode active: using dev_mock initData");
       }
 
       if (!initData) {
@@ -2138,10 +2150,14 @@
       `;
     }
 
-    // Additional actions: Rating transfer, Admin toolbar, Report
+    // Additional actions: Rating transfer, Campus Gift, Admin toolbar, Report
     let additionalActionsHtml = "";
     if (!isMe) {
       additionalActionsHtml += `
+        <button type="button" class="btn-send-gift" id="sheetSendGiftBtn" data-recipient-id="${targetUserId}">
+          <span class="btn-gift-icon">🎁</span>
+          <span>Отправить подарок</span>
+        </button>
         <button type="button" class="btn-send-rating" id="sheetSendRatingBtn" data-alias-btn="matchSendRatingBtn">
           <span class="btn-rating-icon">⭐</span>
           <span class="btn-rating-text">Отправить рейтинг (+1 б.)</span>
@@ -2265,6 +2281,19 @@
               ${galleryGridHtml}
             </div>
           ` : ""}
+
+          <!-- Section: Campus Gifts Showcase -->
+          <div class="profile-card-section profile-gifts-section" id="sheetProfileGiftsSection">
+            <div class="profile-gifts-header">
+              <div class="profile-gifts-title">
+                <span>🎁</span> Витрина подарков
+              </div>
+              <span class="profile-gifts-count" id="sheetGiftsCount">0</span>
+            </div>
+            <div class="profile-gifts-scroll" id="sheetGiftsScroll">
+              <div style="font-size:12px;color:var(--text-muted);padding:6px 0;">Загрузка подарков...</div>
+            </div>
+          </div>
 
           <!-- Bottom Actions (Adaptive + Rating + Admin + Report) -->
           <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 12px;">
@@ -2436,6 +2465,12 @@
         await loadStories();
       });
     }
+
+    // Campus Gift Button & Profile Gifts
+    document.getElementById("sheetSendGiftBtn")?.addEventListener("click", () => {
+      openSendGiftModal(profile);
+    });
+    loadAndRenderProfileGifts(targetUserId, isMe);
   }
 
   function closeDetailsSheet() {
@@ -3708,6 +3743,53 @@
       `;
     }
 
+    if (msg.msg_type === "gift") {
+      let g = msg.gift_data;
+      if (!g && msg.text) {
+        try {
+          g = JSON.parse(msg.text);
+        } catch (e) {
+          g = null;
+        }
+      }
+      const title = g?.gift_title || "Подарок Telegram";
+      const icon = g?.gift_icon || "🎁";
+      const imgUrl = getGiftImgUrl(g?.gift_code, g?.image_url);
+      const note = g?.message || "";
+      const isAnon = Boolean(g?.is_anonymous);
+      const senderText = isMine
+        ? "Вы подарили"
+        : (isAnon ? "Скрытый отправитель 🤫" : `${escapeHtml(g?.sender_name || "Собеседник")} дарит вам`);
+
+      const checkmarks = isMine ? (msg.is_read ? "✓✓" : "✓") : "";
+
+      return `
+        <div class="chat-msg-row ${isMine ? 'outgoing' : 'incoming'} chat-msg-gift" data-msg-id="${msg.id}">
+          <div class="chat-gift-bubble">
+            <div class="chat-gift-glow"></div>
+            <div class="chat-gift-header">
+              <span class="chat-gift-sparkle">✨</span>
+              <span class="chat-gift-badge-label">Подарок в чате</span>
+            </div>
+            <div class="chat-gift-body">
+              <div class="chat-gift-img-wrap">
+                <img src="${imgUrl}" class="chat-gift-img" alt="${escapeHtml(title)}" onerror="this.onerror=null;this.parentElement.textContent='${icon}';" />
+              </div>
+              <div class="chat-gift-info">
+                <div class="chat-gift-name">${escapeHtml(title)}</div>
+                <div class="chat-gift-sender">${senderText}</div>
+              </div>
+            </div>
+            ${note ? `<div class="chat-gift-note">💬 «${escapeHtml(note)}»</div>` : ""}
+            <div class="chat-bubble-footer" style="margin-top:6px;">
+              <span class="chat-bubble-time">${timeStr}</span>
+              ${isMine ? `<span class="chat-read-status">${checkmarks}</span>` : ""}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     const checkmarks = isMine ? (msg.is_read ? "✓✓" : "✓") : "";
 
     return `
@@ -3981,6 +4063,15 @@
     chatBackBtn.addEventListener("click", closeChat);
   }
 
+  const chatSendGiftBtn = document.getElementById("chatSendGiftBtn");
+  if (chatSendGiftBtn) {
+    chatSendGiftBtn.addEventListener("click", () => {
+      if (currentChatPartner) {
+        openSendGiftModal(currentChatPartner);
+      }
+    });
+  }
+
   if (chatPartnerHeaderProfile) {
     chatPartnerHeaderProfile.addEventListener("click", () => {
       if (currentChatPartner?.id) {
@@ -4161,11 +4252,17 @@
 
     if (!startParam) return;
 
-    // Поддерживаем форматы: "chat_UUID", "chat_USERID", "user_USERID", "UUID", "USERID"
+    // Поддерживаем форматы: "shop", "quests", "chat_UUID", "chat_USERID", "user_USERID", "UUID", "USERID"
     let targetChatId = "";
     if (typeof startParam === "string") {
       startParam = startParam.trim();
-      if (startParam.startsWith("chat_")) {
+      if (startParam === "shop" || startParam === "store") {
+        setTimeout(() => openShopModal("catalog"), 150);
+        return;
+      } else if (startParam === "quests" || startParam === "streak") {
+        setTimeout(() => openShopModal("quests"), 150);
+        return;
+      } else if (startParam.startsWith("chat_")) {
         targetChatId = startParam.replace("chat_", "").trim();
       } else if (startParam.startsWith("user_")) {
         targetChatId = startParam.replace("user_", "").trim();
@@ -4402,7 +4499,7 @@
             </div>
 
             <!-- Stats Bar -->
-            <div class="profile-stats-row" style="margin-bottom: 22px; padding: 12px 8px; background: #F9FAFB; border-radius: 16px; border: 1px solid #F3F4F6;">
+            <div class="profile-stats-row" style="margin-bottom: 14px; padding: 12px 8px; background: #F9FAFB; border-radius: 16px; border: 1px solid #F3F4F6;">
               <div class="profile-stat">
                 <span class="stat-value">⭐ ${u.rating_score || 0}</span>
                 <span class="stat-label">Рейтинг</span>
@@ -4415,6 +4512,18 @@
                 <span class="stat-value" id="profileModeStat">${u.mode === "career" ? "💼" : "💘"}</span>
                 <span class="stat-label">Режим</span>
               </div>
+            </div>
+
+            <!-- Economy Widget (Shop & Credits) -->
+            <div class="profile-economy-banner" id="profileEconomyBanner">
+              <div class="profile-economy-left">
+                <span class="profile-economy-icon">🎓</span>
+                <div>
+                  <div class="profile-economy-title">Зачётка и Магазин</div>
+                  <div class="profile-economy-sub">Баланс: <b id="profileCreditsBadge">${u.credits_balance || 0} 🎓</b> • Серия: <b>${u.streak_days || 0} дн. 🔥</b></div>
+                </div>
+              </div>
+              <button type="button" class="profile-economy-btn" id="btnProfileOpenShop">В магазин 🏪</button>
             </div>
 
             <!-- Section: Location -->
@@ -4562,6 +4671,10 @@
         openFullscreenGallery(userPhotos, 0, true, () => {
           loadProfile();
         });
+      });
+
+      document.getElementById("btnProfileOpenShop")?.addEventListener("click", () => {
+        openShopModal("catalog");
       });
 
       // Delete buttons on individual gallery cells
@@ -6928,6 +7041,1850 @@
     }
   }
 
+  // ─── Economy, Shop & Quests Modal (Stitch Design Implementation) ─
+  let shopState = {
+    overview: null,
+    catalog: [],
+    activeTab: "catalog",
+    catalogFilter: "all",
+    inventoryFilter: "all",
+    questsSubTab: "daily",
+    loading: false,
+    countdownInterval: null,
+  };
+
+  async function loadShopData() {
+    if (!state.token) return;
+    try {
+      const [overviewRes, catalogRes] = await Promise.all([
+        apiFetch("/api/webapp/economy/overview"),
+        apiFetch("/api/webapp/economy/shop/catalog"),
+      ]);
+
+      const isOverviewOk = overviewRes && (overviewRes.status === "ok" || overviewRes.status === "success" || overviewRes.ok);
+      if (isOverviewOk) {
+        shopState.overview = overviewRes;
+        updateEconomyHeaderBadges(overviewRes.credits_balance, overviewRes.streak_days);
+        if (overviewRes.wheel_status) {
+          updateFortuneWheelUI(overviewRes.wheel_status);
+        }
+      }
+      const isCatalogOk = catalogRes && (catalogRes.status === "ok" || catalogRes.status === "success" || catalogRes.ok);
+      if (isCatalogOk) {
+        shopState.catalog = catalogRes.items || [];
+      }
+      fetchGiftsCatalog();
+      renderShopTabContent();
+    } catch (err) {
+      console.warn("[Shop] Error loading shop data:", err);
+    }
+  }
+
+  function updateEconomyHeaderBadges(credits, streak) {
+    const credVal = credits || 0;
+    const strkVal = streak || 0;
+
+    const badge = document.getElementById("headerCreditsBadge");
+    if (badge) {
+      badge.textContent = `${credVal}`;
+    }
+    const profBadge = document.getElementById("profileCreditsBadge");
+    if (profBadge) {
+      profBadge.textContent = `${credVal} 🎓`;
+    }
+    const shopBal = document.getElementById("shopBalanceDisplay");
+    if (shopBal) {
+      shopBal.textContent = `${credVal} 🎓`;
+    }
+    const shopStrk = document.getElementById("shopStreakDisplay");
+    if (shopStrk) {
+      shopStrk.textContent = `${strkVal} дн. 🔥`;
+    }
+  }
+
+  function startQuestsCountdown() {
+    if (shopState.countdownInterval) {
+      clearInterval(shopState.countdownInterval);
+    }
+    updateQuestsCountdown();
+    shopState.countdownInterval = setInterval(updateQuestsCountdown, 1000);
+  }
+
+  function stopQuestsCountdown() {
+    if (shopState.countdownInterval) {
+      clearInterval(shopState.countdownInterval);
+      shopState.countdownInterval = null;
+    }
+  }
+
+  function updateQuestsCountdown() {
+    const now = new Date();
+    // Midnight tonight (local time)
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+    const diffMs = Math.max(0, midnight.getTime() - now.getTime());
+
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const secs = Math.floor((diffMs % (1000 * 60)) / 1000);
+    const timeFormatted = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+
+    const resetEl = document.getElementById("questsResetCountdown");
+    if (resetEl) resetEl.textContent = timeFormatted;
+
+    const specialEl = document.getElementById("shopSpecialCountdown");
+    if (specialEl) specialEl.textContent = timeFormatted;
+
+    // Auto-reload data when crossing midnight
+    if (diffMs <= 1000 && !shopState.loading) {
+      loadShopData();
+    }
+  }
+
+  function switchShopTab(tabName) {
+    shopState.activeTab = tabName;
+    const tabs = ["Catalog", "Packs", "Gifts", "Quests", "Inventory"];
+    tabs.forEach((t) => {
+      const btn = document.getElementById(`tabShop${t}`);
+      const view = document.getElementById(`shopView${t}`);
+      const isActive = t.toLowerCase() === tabName.toLowerCase();
+      if (btn) {
+        btn.classList.toggle("active", isActive);
+      }
+      if (view) {
+        view.style.display = isActive ? "block" : "none";
+      }
+    });
+    renderShopTabContent();
+  }
+
+  function switchQuestsSubTab(subTabName) {
+    shopState.questsSubTab = subTabName;
+    const isDaily = subTabName === "daily";
+    document.getElementById("btnSubtabDailyQuests")?.classList.toggle("active", isDaily);
+    document.getElementById("btnSubtabPermanentQuests")?.classList.toggle("active", !isDaily);
+
+    const dailyView = document.getElementById("questsSubviewDaily");
+    const permView = document.getElementById("questsSubviewPermanent");
+    if (dailyView) dailyView.style.display = isDaily ? "block" : "none";
+    if (permView) permView.style.display = !isDaily ? "block" : "none";
+
+    if (!isDaily) {
+      renderShopPermanentQuests();
+    }
+  }
+
+  function renderShopTabContent() {
+    if (shopState.activeTab === "catalog") {
+      renderShopCatalog();
+    } else if (shopState.activeTab === "packs") {
+      renderShopPacks();
+    } else if (shopState.activeTab === "gifts") {
+      renderShopGiftsCatalog();
+      fetchGiftsCatalog();
+    } else if (shopState.activeTab === "quests") {
+      renderShopQuests();
+    } else if (shopState.activeTab === "inventory") {
+      renderShopInventory();
+    }
+  }
+
+  function renderShopCatalog() {
+    const container = document.getElementById("shopCatalogGrid");
+    if (!container) return;
+    if (!shopState.catalog || shopState.catalog.length === 0) {
+      container.innerHTML = `<div style="text-align:center; padding:32px 16px; color:var(--text-muted); font-size:13.5px;">В магазине пока нет доступных товаров.</div>`;
+      return;
+    }
+
+    const currentBalance = shopState.overview?.credits_balance || 0;
+
+    // Filter catalog items according to active filter
+    const filter = shopState.catalogFilter || "all";
+    const filteredItems = shopState.catalog.filter((it) => {
+      if (filter === "all") return true;
+      const cat = (it.category || "").toLowerCase();
+      const code = (it.code || "").toLowerCase();
+      if (filter === "boost") {
+        return cat === "consumable" || cat === "insurance" || code.includes("boost") || code.includes("superlike") || code.includes("rewind") || code.includes("freeze");
+      }
+      if (filter === "frames") {
+        return cat === "cosmetic" || code.startsWith("frame_");
+      }
+      if (filter === "merch") {
+        return cat === "subscription" || cat === "merch" || code.startsWith("premium");
+      }
+      return true;
+    });
+
+    if (filteredItems.length === 0) {
+      container.innerHTML = `<div style="text-align:center; padding:28px 16px; color:var(--text-muted); font-size:13px;">В этой категории товаров пока нет.</div>`;
+      return;
+    }
+
+    container.innerHTML = filteredItems.map((it) => {
+      const rubPrice = it.price_rub ? `<span class="shop-rub-price">• ${it.price_rub} ₽</span>` : "";
+      const canAfford = currentBalance >= it.price_credits;
+      const btnClass = canAfford ? "btn-buy-shop-item" : "btn-buy-shop-item disabled";
+      const isFeatured = it.code === "frame_gold" || it.code === "boost_24h";
+
+      let tagBadge = "";
+      if (it.code === "frame_gold") {
+        tagBadge = `<span class="shop-item-tag">VIP</span>`;
+      } else if (it.code === "frame_headman") {
+        tagBadge = `<span class="shop-item-tag">Бейдж</span>`;
+      } else if (it.category === "subscription" || it.code.startsWith("premium")) {
+        tagBadge = `<span class="shop-item-tag">Премиум</span>`;
+      } else if (it.category === "consumable" && it.code.includes("boost")) {
+        tagBadge = `<span class="shop-item-tag">Буст</span>`;
+      }
+
+      return `
+        <div class="shop-card-item ${isFeatured ? 'featured-card' : ''}">
+          <div class="shop-item-left">
+            <div class="shop-item-icon-box">${it.icon || "🛍"}</div>
+            <div class="shop-item-info">
+              <div class="shop-item-title-row">
+                <div class="shop-item-title">${escapeHtml(it.title || it.code)}</div>
+                ${tagBadge}
+              </div>
+              <div class="shop-item-desc">${escapeHtml(it.description || "")}</div>
+            </div>
+          </div>
+          <div class="shop-item-right">
+            <button type="button" class="${btnClass}" data-code="${escapeHtml(it.code)}" data-title="${escapeHtml(it.title || it.code)}" data-credits="${it.price_credits}">
+              <span>${it.price_credits} 🎓</span>
+            </button>
+            ${rubPrice}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    container.querySelectorAll(".btn-buy-shop-item").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const itemCode = btn.dataset.code;
+        const itemTitle = btn.dataset.title;
+        const price = parseInt(btn.dataset.credits, 10);
+        await buyShopItem(itemCode, itemTitle, price);
+      });
+    });
+  }
+
+  function renderShopPacks() {
+    const ov = shopState.overview;
+    const starterCard = document.getElementById("shopStarterPackCard");
+    const limitBadge = document.getElementById("starterPackLimitBadge");
+    const btnStarter = document.getElementById("btnBuyStarterPack");
+    const grid = document.getElementById("shopCreditPacksGrid");
+
+    const canBuyStarter = ov ? (ov.can_buy_starter && !ov.has_bought_starter_pack) : true;
+
+    // 1. Render Starter Pack card state
+    if (starterCard && limitBadge && btnStarter) {
+      if (!canBuyStarter) {
+        starterCard.classList.add("claimed");
+        limitBadge.textContent = "✅ ПРИОБРЕТЕНО (1/1)";
+        btnStarter.classList.add("claimed");
+        btnStarter.disabled = true;
+        btnStarter.innerHTML = `<span>✅ Уже приобретён</span>`;
+      } else {
+        starterCard.classList.remove("claimed");
+        limitBadge.textContent = "ТОЛЬКО 1 РАЗ НА АККАУНТ";
+        btnStarter.classList.remove("claimed");
+        btnStarter.disabled = false;
+        btnStarter.innerHTML = `<span>🚀 Забрать за 99 ₽</span>`;
+      }
+    }
+
+    // 2. Render Regular Credit Packs
+    if (!grid) return;
+    const packs = (ov && (ov.packages || ov.credit_packages)) ? (ov.packages || ov.credit_packages) : [
+      { code: "credits_100", title: "«Шпаргалка»", credits: 100, bonus: 0, price: 99, icon: "🎒" },
+      { code: "credits_300", title: "«Студенческий»", credits: 300, bonus: 30, price: 249, icon: "📚", badge: "+10% Бонус" },
+      { code: "credits_700", title: "«Сессия закрыта»", credits: 700, bonus: 100, price: 499, icon: "⚡️", badge: "🔥 ХИТ" },
+      { code: "credits_1500", title: "«Красный диплом»", credits: 1500, bonus: 300, price: 899, icon: "👑", badge: "Выгода 20%" },
+      { code: "credits_3000", title: "«Грант ректора»", credits: 3000, bonus: 800, price: 1499, icon: "🏛", badge: "Выгода 25%" },
+    ];
+
+    const regularPacks = packs.filter(p => !p.is_starter && p.code !== "starter_pack_99");
+
+    grid.innerHTML = regularPacks.map(p => {
+      const totalCreds = (p.credits || 0) + (p.bonus || 0);
+      const bonusHtml = p.bonus ? `<span class="credit-pack-bonus">+${p.bonus} 🎓 бонус</span>` : "";
+      const badgeHtml = p.badge ? `<div class="credit-pack-badge">${escapeHtml(p.badge)}</div>` : "";
+
+      return `
+        <div class="credit-pack-card" data-code="${escapeHtml(p.code)}">
+          ${badgeHtml}
+          <div class="credit-pack-header">
+            <span class="credit-pack-icon">${p.icon || "🎓"}</span>
+            <span class="credit-pack-title">${escapeHtml(p.title)}</span>
+          </div>
+          <div class="credit-pack-amount-box">
+            <div class="credit-pack-amount">${totalCreds} 🎓</div>
+            ${bonusHtml}
+          </div>
+          <button type="button" class="btn-buy-credit-pack" data-code="${escapeHtml(p.code)}">
+            💳 ${p.price} ₽
+          </button>
+        </div>
+      `;
+    }).join("");
+
+    grid.querySelectorAll(".btn-buy-credit-pack").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const code = btn.dataset.code;
+        if (code) buyCreditPack(code);
+      });
+    });
+  }
+
+  async function buyCreditPack(packCode) {
+    if (packCode === "starter_pack_99" && shopState.overview && (!shopState.overview.can_buy_starter || shopState.overview.has_bought_starter_pack)) {
+      triggerHaptic("warning");
+      showAppToast("⚠️ Стартовый набор первокурсника уже был приобретён. Он доступен только 1 раз!");
+      return;
+    }
+
+    triggerHaptic("medium");
+    try {
+      showAppToast("Создаём счёт на оплату... 💳");
+      const resp = await apiFetch("/api/webapp/economy/payments/create-pack", {
+        method: "POST",
+        body: JSON.stringify({ pack_code: packCode }),
+      });
+
+      if (!resp || resp.status === "error") {
+        triggerHaptic("error");
+        showAppToast(resp?.message || "Ошибка создания платежа");
+        return;
+      }
+
+      if (resp.auto_completed) {
+        triggerHaptic("success");
+        showAppToast(resp.message || "🎉 Пакет зачётов успешно начислен!");
+        await loadShopData();
+        return;
+      }
+
+      if (resp.payment_url) {
+        showAppToast("Переходим к оплате... 💳");
+        if (window.Telegram?.WebApp?.openLink) {
+          window.Telegram.WebApp.openLink(resp.payment_url);
+        } else {
+          window.open(resp.payment_url, "_blank");
+        }
+      }
+    } catch (e) {
+      console.warn("Buy credit pack error:", e);
+      showAppToast(e.message || "Ошибка соединения с платёжной системой");
+    }
+  }
+
+  async function buyShopItem(itemCode, itemTitle, price) {
+    const currentBalance = shopState.overview?.credits_balance || 0;
+    if (currentBalance < price) {
+      triggerHaptic("warning");
+      showAppToast(`Недостаточно зачётов (нужно ${price} 🎓, у вас ${currentBalance} 🎓)`);
+      return;
+    }
+
+    const confirmMsg = `Купить «${itemTitle || itemCode}» за ${price} 🎓?`;
+    let confirmed = false;
+    if (window.Telegram?.WebApp?.showConfirm) {
+      confirmed = await new Promise((resolve) => {
+        window.Telegram.WebApp.showConfirm(confirmMsg, (ok) => resolve(!!ok));
+      });
+    } else {
+      confirmed = window.confirm(confirmMsg);
+    }
+
+    if (!confirmed) return;
+
+    triggerHaptic("medium");
+    try {
+      const resp = await apiFetch("/api/webapp/economy/shop/buy", {
+        method: "POST",
+        body: JSON.stringify({ item_code: itemCode }),
+      });
+
+      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+      if (isOk) {
+        triggerHaptic("success");
+        showAppToast(`🎉 Успешно куплено: ${resp.item_title || itemTitle}!`);
+        await loadShopData();
+      } else {
+        const err = resp?.detail || resp?.message || "Недостаточно зачётов или товар недоступен";
+        triggerHaptic("warning");
+        showAppToast(err);
+      }
+    } catch (e) {
+      triggerHaptic("error");
+      showAppToast(e.message || "Ошибка при покупке");
+    }
+  }
+
+  function renderShopQuests() {
+    const ov = shopState.overview;
+    if (!ov) return;
+
+    // Streak Row
+    const daysRow = document.getElementById("streakDaysRow");
+    if (daysRow) {
+      const streak = ov.streak_days || 0;
+      const canClaim = !!ov.can_claim_streak;
+      const streakMap = [20, 25, 30, 40, 50, 75, 150];
+      const cycleDay = streak > 0 ? ((streak - 1) % 7) + 1 : 0;
+
+      // Update flame badge text
+      const flameBadge = document.getElementById("streakFlameBadge");
+      if (flameBadge) {
+        flameBadge.textContent = `🔥 ${streak} дн. подряд!`;
+      }
+
+      daysRow.innerHTML = [1, 2, 3, 4, 5, 6, 7].map((d) => {
+        const isDone = d <= cycleDay;
+        const isCurrent = canClaim && (d === cycleDay + 1 || (cycleDay === 7 && d === 1) || (cycleDay === 0 && d === 1));
+        let cellClass = "streak-day-cell future";
+        let iconHtml = `<span class="streak-day-status-icon">•</span>`;
+
+        if (isDone) {
+          cellClass = "streak-day-cell done";
+          iconHtml = `<span class="streak-day-status-icon">✓</span>`;
+        } else if (isCurrent) {
+          cellClass = "streak-day-cell current";
+          iconHtml = `<span class="streak-day-status-icon">★</span>`;
+        }
+
+        return `
+          <div class="${cellClass}">
+            <div class="streak-day-name">Д${d}</div>
+            ${iconHtml}
+            <div class="streak-day-reward">+${streakMap[d-1]}</div>
+          </div>
+        `;
+      }).join("");
+
+      const claimBtn = document.getElementById("btnClaimDailyStreak");
+      const claimText = document.getElementById("btnClaimStreakText");
+      if (claimBtn) {
+        claimBtn.disabled = !canClaim;
+        const btnLabel = canClaim ? `Забрать стипендию (+${ov.today_streak_reward || 25} 🎓)` : "Получено сегодня ✅";
+        if (claimText) {
+          claimText.textContent = btnLabel;
+        } else {
+          claimBtn.textContent = btnLabel;
+        }
+      }
+    }
+
+    // Quests List
+    const questsList = document.getElementById("shopQuestsList");
+    const rawQuests = ov.quests || ov.daily_quests || [];
+    if (questsList) {
+      if (rawQuests.length === 0) {
+        questsList.innerHTML = `<div style="text-align:center; padding:24px 16px; color:var(--text-muted); font-size:13px;">Все задания на сегодня обновлены.</div>`;
+        return;
+      }
+
+      questsList.innerHTML = rawQuests.map((q) => {
+        const key = q.quest_key || q.key;
+        const target = q.target_count || q.target_progress || 1;
+        const current = q.current_progress || 0;
+        const isCompleted = q.is_completed || (current >= target);
+        const isClaimed = !!q.is_claimed;
+        const pct = Math.min(100, Math.round((current / target) * 100));
+
+        let actionHtml = "";
+        if (isClaimed) {
+          actionHtml = `<span class="shop-quest-claimed">Получено ✅</span>`;
+        } else if (isCompleted) {
+          actionHtml = `<button type="button" class="btn-claim-quest" data-key="${escapeHtml(key)}">Забрать +${q.reward_credits} 🎓</button>`;
+        } else {
+          actionHtml = `<span class="shop-quest-progress-val">${current} / ${target}</span>`;
+        }
+
+        return `
+          <div class="shop-quest-item ${isCompleted && !isClaimed ? 'completed' : ''}">
+            <div class="shop-quest-top">
+              <div class="shop-quest-info">
+                <span class="shop-quest-icon">${q.icon || "📋"}</span>
+                <div>
+                  <div class="shop-quest-title-wrap">
+                    <span class="shop-quest-title">${escapeHtml(q.title || key)}</span>
+                    <span class="shop-quest-reward-pill">+${q.reward_credits} 🎓</span>
+                  </div>
+                  <div class="shop-quest-desc">${escapeHtml(q.description || "")}</div>
+                </div>
+              </div>
+              <div>${actionHtml}</div>
+            </div>
+            <div class="shop-quest-track">
+              <div class="shop-quest-fill" style="width:${pct}%;"></div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      questsList.querySelectorAll(".btn-claim-quest").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const key = btn.dataset.key;
+          await claimQuestReward(key);
+        });
+      });
+    }
+
+    // Also render permanent quests
+    renderShopPermanentQuests();
+  }
+
+  async function claimQuestReward(questKey) {
+    triggerHaptic("medium");
+    try {
+      const resp = await apiFetch("/api/webapp/economy/quests/claim", {
+        method: "POST",
+        body: JSON.stringify({ quest_key: questKey }),
+      });
+      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+      if (isOk) {
+        triggerHaptic("success");
+        showAppToast(`🎉 Награда получена: +${resp.reward_credits} 🎓!`);
+        await loadShopData();
+      } else {
+        const err = resp?.detail || resp?.message || "Задание еще не выполнено";
+        triggerHaptic("warning");
+        showAppToast(err);
+      }
+    } catch (e) {
+      triggerHaptic("error");
+      showAppToast(e.message || "Ошибка при получении награды");
+    }
+  }
+
+  function renderShopPermanentQuests() {
+    const list = document.getElementById("shopPermanentQuestsList");
+    if (!list) return;
+    const ov = shopState.overview;
+    const permQuests = ov?.permanent_quests || [];
+
+    if (permQuests.length === 0) {
+      list.innerHTML = `<div style="text-align:center; padding:24px 16px; color:var(--text-muted); font-size:13px;">Постоянные задания загружаются...</div>`;
+      return;
+    }
+
+    list.innerHTML = permQuests.map((q) => {
+      const key = q.quest_key || q.key;
+      const target = q.target_progress || 1;
+      const current = q.current_progress || 0;
+      const isCompleted = q.is_completed || (current >= target);
+      const isClaimed = !!q.is_claimed;
+      const pct = Math.min(100, Math.round((current / target) * 100));
+
+      let actionHtml = "";
+      if (isClaimed) {
+        actionHtml = `<span class="shop-quest-claimed">Получено ✅</span>`;
+      } else if (isCompleted) {
+        actionHtml = `<button type="button" class="btn-claim-quest btn-claim-perm-quest" data-key="${escapeHtml(key)}">Забрать +${q.reward_credits} 🎓</button>`;
+      } else {
+        actionHtml = `<span class="shop-quest-progress-val">${current} / ${target}</span>`;
+      }
+
+      const badgeHtml = q.reward_badge ? `<span class="shop-quest-badge-tag">${escapeHtml(q.reward_badge)}</span>` : "";
+
+      return `
+        <div class="shop-quest-item permanent-quest ${isCompleted && !isClaimed ? 'completed' : ''}">
+          <div class="shop-quest-top">
+            <div class="shop-quest-info">
+              <span class="shop-quest-icon">${q.icon || "🏆"}</span>
+              <div style="flex:1; min-width:0;">
+                <div class="shop-quest-title-wrap" style="flex-wrap:wrap; gap:4px;">
+                  <span class="shop-quest-title">${escapeHtml(q.title || key)}</span>
+                  <span class="shop-quest-reward-pill">+${q.reward_credits} 🎓</span>
+                  ${badgeHtml}
+                </div>
+                <div class="shop-quest-desc">${escapeHtml(q.description || "")}</div>
+              </div>
+            </div>
+            <div>${actionHtml}</div>
+          </div>
+          <div class="shop-quest-track">
+            <div class="shop-quest-fill" style="width:${pct}%;"></div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    list.querySelectorAll(".btn-claim-perm-quest").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const key = btn.dataset.key;
+        await claimPermanentQuestReward(key);
+      });
+    });
+  }
+
+  async function claimPermanentQuestReward(questKey) {
+    triggerHaptic("medium");
+    try {
+      const resp = await apiFetch("/api/webapp/economy/permanent-quests/claim", {
+        method: "POST",
+        body: JSON.stringify({ quest_key: questKey }),
+      });
+      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+      if (isOk) {
+        triggerHaptic("success");
+        const extraBadgeMsg = resp.reward_badge ? `\n🏆 Титул разблокирован: ${resp.reward_badge}` : "";
+        showAppToast(`🎉 Награда получена: +${resp.reward_credits} 🎓!${extraBadgeMsg}`);
+        await loadShopData();
+      } else {
+        const err = resp?.detail || resp?.message || "Задание еще не выполнено";
+        triggerHaptic("warning");
+        showAppToast(err);
+      }
+    } catch (e) {
+      triggerHaptic("error");
+      showAppToast(e.message || "Ошибка при получении награды");
+    }
+  }
+
+  function renderShopInventory() {
+    const list = document.getElementById("shopInventoryList");
+    if (!list) return;
+    const ov = shopState.overview;
+    const inv = ov?.inventory || [];
+
+    // Render Equipped Frame Slot in Showcase Card
+    const equippedCard = document.getElementById("shopEquippedCard");
+    const equippedStatusText = document.getElementById("shopEquippedStatusText");
+    if (equippedCard) {
+      if (ov?.equipped_frame) {
+        const frameTitle = ov.equipped_frame_title || "Рамка профиля";
+        if (equippedStatusText) equippedStatusText.textContent = "1 слот активен";
+        equippedCard.innerHTML = `
+          <div class="shop-equipped-item">
+            <div class="shop-equipped-left">
+              <div class="shop-equipped-icon">🥇</div>
+              <div>
+                <div class="shop-equipped-name">${escapeHtml(frameTitle)}</div>
+                <div class="shop-equipped-desc">Золотая рамка активна в ленте и профиле</div>
+              </div>
+            </div>
+            <button type="button" class="btn-unequip-frame" id="btnShopUnequipFrame">Снять</button>
+          </div>
+        `;
+        document.getElementById("btnShopUnequipFrame")?.addEventListener("click", async () => {
+          await equipFrame(null);
+        });
+      } else {
+        if (equippedStatusText) equippedStatusText.textContent = "0 слотов активно";
+        equippedCard.innerHTML = `
+          <div class="shop-equipped-empty">
+            <span style="font-size:20px;">🖼️</span>
+            <span>Рамка не выбрана. Выберите рамку ниже, чтобы надеть её в профиль.</span>
+          </div>
+        `;
+      }
+    }
+
+    if (inv.length === 0) {
+      list.innerHTML = `<div style="text-align:center; padding:32px 16px; color:var(--text-muted); font-size:13.5px;">Инвентарь пуст. Приобретите предметы или рамки на витрине!</div>`;
+      return;
+    }
+
+    // Filter inventory items
+    const filter = shopState.inventoryFilter || "all";
+    const filteredInv = inv.filter((it) => {
+      const isFrame = it.item_type === "cosmetic" || it.item_code.startsWith("frame_");
+      const isGift = Boolean(it.is_gift || it.item_type === "gift" || it.item_code.startsWith("gift_"));
+      if (filter === "all") return true;
+      if (filter === "active") return !!it.is_equipped || (it.quantity && it.quantity > 0);
+      if (filter === "frames") return isFrame;
+      if (filter === "gifts") return isGift;
+      if (filter === "boosts") return !isFrame && !isGift;
+      return true;
+    });
+
+    if (filteredInv.length === 0) {
+      list.innerHTML = `<div style="text-align:center; padding:24px 16px; color:var(--text-muted); font-size:13px;">В этой категории предметов нет.</div>`;
+      return;
+    }
+
+    list.innerHTML = filteredInv.map((it) => {
+      const isFrame = it.item_type === "cosmetic" || it.item_code.startsWith("frame_");
+      const isGift = Boolean(it.is_gift || it.item_type === "gift" || it.item_code.startsWith("gift_"));
+      const isCollectible = Boolean(it.is_collectible || (it.badge && it.badge.includes("NFT")));
+
+      let actionBtn = "";
+      if (isFrame) {
+        const isEquipped = !!it.is_equipped;
+        actionBtn = `
+          <button type="button" class="btn-toggle-frame ${isEquipped ? 'equipped' : 'unequipped'}" data-code="${escapeHtml(it.item_code)}" data-equipped="${isEquipped ? '1' : '0'}">
+            ${isEquipped ? "Надето ✓" : "Надеть"}
+          </button>
+        `;
+      } else if (isGift) {
+        actionBtn = `
+          <div class="shop-inv-gift-actions">
+            <span class="shop-inv-qty">${it.quantity || 1} шт.</span>
+            <button type="button" class="btn-send-inv-gift ${isCollectible ? 'collectible-btn' : ''}" data-gift-code="${escapeHtml(it.item_code)}">
+              Подарить 🎁
+            </button>
+          </div>
+        `;
+      } else {
+        actionBtn = `<span class="shop-inv-qty">${it.quantity || 1} шт.</span>`;
+      }
+
+      let iconHtml = "";
+      if (isGift) {
+        const imgUrl = getGiftImgUrl(it.item_code, it.image_url);
+        iconHtml = `<img src="${imgUrl}" class="tg-gift-inv-img" alt="${escapeHtml(it.title || '')}" onerror="this.onerror=null;this.parentElement.textContent='${it.icon || "🎁"}';" />`;
+      } else {
+        iconHtml = it.icon || (isFrame ? "🖼️" : "⚡");
+      }
+
+      let subHtml = "";
+      if (isGift) {
+        const badgeBadge = it.badge || (isCollectible ? "💎 NFT / Редкий" : "⭐ Классика");
+        const badgeClass = isCollectible ? "collectible" : "classic";
+        const exchangePart = it.exchange_credits ? ` • Обмен: <b>${it.exchange_credits} 🎓</b>` : "";
+        subHtml = `<span class="tg-gift-inv-badge ${badgeClass}">${escapeHtml(badgeBadge)}</span> <span class="shop-inv-gift-desc">${escapeHtml(it.description || "Подарок Telegram")}</span>${exchangePart}`;
+      } else {
+        subHtml = it.expires_at ? `Действует до ${it.expires_at.slice(0, 10)}` : "Постоянный / расходный бонус";
+      }
+
+      return `
+        <div class="shop-inventory-item ${isGift ? 'is-gift-inv-item' : ''} ${isCollectible ? 'is-collectible-inv-item' : ''}">
+          <div class="shop-inv-left">
+            <div class="shop-inv-icon ${isGift ? 'tg-gift-inv-icon-wrap' : ''} ${isCollectible ? 'is-collectible-inv' : ''}">${iconHtml}</div>
+            <div class="shop-inv-info">
+              <div class="shop-inv-title">${escapeHtml(it.title || it.item_code)}</div>
+              <div class="shop-inv-sub">${subHtml}</div>
+            </div>
+          </div>
+          <div>${actionBtn}</div>
+        </div>
+      `;
+    }).join("");
+
+    list.querySelectorAll(".btn-toggle-frame").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const code = btn.dataset.code;
+        const isEquipped = btn.dataset.equipped === "1";
+        await equipFrame(isEquipped ? null : code);
+      });
+    });
+
+    list.querySelectorAll(".btn-send-inv-gift").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const code = btn.dataset.giftCode;
+        openSendGiftModal(null, code);
+      });
+    });
+  }
+
+  async function equipFrame(frameCode) {
+    triggerHaptic("light");
+    try {
+      const resp = await apiFetch("/api/webapp/economy/inventory/frame", {
+        method: "POST",
+        body: JSON.stringify({ frame_code: frameCode }),
+      });
+      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+      if (isOk) {
+        triggerHaptic("success");
+        showAppToast(frameCode ? "Рамка надета ✨" : "Рамка снята");
+        await loadShopData();
+      } else {
+        showAppToast(resp?.message || "Не удалось применить рамку");
+      }
+    } catch (e) {
+      console.warn("Equip frame error:", e);
+      showAppToast(e.message || "Ошибка применения рамки");
+    }
+  }
+
+  function openShopModal(tab = "catalog") {
+    const modal = document.getElementById("shopModal");
+    if (!modal) return;
+    triggerHaptic("light");
+    modal.style.display = "flex";
+    modal.classList.add("active");
+    startQuestsCountdown();
+    switchShopTab(tab);
+    loadShopData();
+  }
+
+  function closeShopModal() {
+    const modal = document.getElementById("shopModal");
+    if (!modal) return;
+    triggerHaptic("light");
+    stopQuestsCountdown();
+    modal.classList.remove("active");
+    modal.style.display = "none";
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // 🎲 КОЛЕСО ФОРТУНЫ («СЧАСТЛИВЫЙ БИЛЕТ»)
+  // ══════════════════════════════════════════════════════════════════
+  const wheelState = {
+    sectors: [
+      { id: 0, code: "credits_15", icon: "🎓", title: "+15 Зачётов", color: "#3B82F6" },
+      { id: 1, code: "credits_35", icon: "🎓", title: "+35 Зачётов", color: "#F59E0B" },
+      { id: 2, code: "rewind", icon: "🔄", title: "1 Шпора", color: "#8B5CF6" },
+      { id: 3, code: "credits_75", icon: "💰", title: "+75 Зачётов", color: "#EF4444" },
+      { id: 4, code: "superlike", icon: "⭐️", title: "1 Суперлайк", color: "#EC4899" },
+      { id: 5, code: "boost_6h", icon: "⚡️", title: "Буст 6ч", color: "#F97316" },
+      { id: 6, code: "freeze", icon: "🩺", title: "1 Справка", color: "#10B981" },
+      { id: 7, code: "gift_bear", icon: "🧸", title: "Мишка Telegram", color: "#6366F1" },
+    ],
+    canSpinFree: false,
+    secondsLeft: 0,
+    paidPrice: 15,
+    isSpinning: false,
+    currentRotation: 0,
+    countdownInterval: null,
+  };
+
+  async function fetchFortuneWheelStatus() {
+    try {
+      const resp = await apiFetch("/api/webapp/economy/wheel/status");
+      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+      if (isOk) {
+        updateFortuneWheelUI(resp);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch wheel status:", e);
+    }
+  }
+
+  function updateFortuneWheelUI(statusData) {
+    if (!statusData) return;
+    wheelState.canSpinFree = Boolean(statusData.can_spin_free);
+    wheelState.secondsLeft = statusData.seconds_left || 0;
+    wheelState.paidPrice = statusData.paid_price || 15;
+    if (statusData.sectors && statusData.sectors.length > 0) {
+      wheelState.sectors = statusData.sectors;
+    }
+
+    // Update banner in shop
+    const bannerBadge = document.getElementById("fortuneBadgeText");
+    const bannerBtnLabel = document.getElementById("fortuneBtnLabel");
+    if (bannerBadge) {
+      bannerBadge.textContent = wheelState.canSpinFree ? "БЕСПЛАТНЫЙ СПИН ГОТОВ!" : `СПИН ЧЕРЕЗ ${formatTimeRemaining(wheelState.secondsLeft)}`;
+    }
+    if (bannerBtnLabel) {
+      bannerBtnLabel.textContent = wheelState.canSpinFree ? "Крутить (Бесплатно)" : `Крутить (${wheelState.paidPrice} 🎓)`;
+    }
+
+    // Update modal controls
+    const indicator = document.getElementById("fortuneStatusIndicator");
+    const statusText = document.getElementById("fortuneStatusText");
+    const btnFree = document.getElementById("btnSpinWheelFree");
+    const freeSub = document.getElementById("spinFreeCooldownSub");
+    const btnPaid = document.getElementById("btnSpinWheelPaid");
+    const paidSub = document.getElementById("spinPaidSubText");
+
+    const userCredits = shopState.overview?.credits_balance || 0;
+
+    if (indicator) {
+      indicator.className = `fortune-status-indicator ${wheelState.canSpinFree ? "ready" : "waiting"}`;
+    }
+    if (statusText) {
+      statusText.textContent = wheelState.canSpinFree
+        ? "Бесплатное вращение доступно!"
+        : `Следующий бесплатный спин через ${formatTimeRemaining(wheelState.secondsLeft)}`;
+    }
+    if (btnFree) {
+      btnFree.disabled = !wheelState.canSpinFree || wheelState.isSpinning;
+    }
+    if (freeSub) {
+      freeSub.textContent = wheelState.canSpinFree ? "Доступно сейчас!" : formatTimeRemaining(wheelState.secondsLeft);
+    }
+    if (btnPaid) {
+      btnPaid.disabled = (userCredits < wheelState.paidPrice) || wheelState.isSpinning;
+    }
+    if (paidSub) {
+      paidSub.textContent = `Баланс: ${userCredits} 🎓`;
+    }
+
+    renderFortuneSectorsLegend();
+  }
+
+  function formatTimeRemaining(totalSec) {
+    if (totalSec <= 0) return "00:00:00";
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  function renderFortuneSectorsLegend() {
+    const container = document.getElementById("fortuneSectorsLegend");
+    if (!container) return;
+    container.innerHTML = wheelState.sectors.map((s) => `
+      <div class="fortune-legend-chip">
+        <span class="fortune-legend-chip-icon">
+          ${s.code === "gift_bear" ? `<img src="${getGiftImgUrl('gift_bear')}" class="tg-gift-legend-img" alt="" onerror="this.onerror=null;this.parentElement.textContent='🧸';" />` : (s.icon || "🎁")}
+        </span>
+        <span class="fortune-legend-chip-title">${escapeHtml(s.title)}</span>
+      </div>
+    `).join("");
+  }
+
+  function openFortuneWheelModal() {
+    triggerHaptic("medium");
+    const modal = document.getElementById("fortuneWheelModal");
+    if (!modal) return;
+    modal.style.display = "flex";
+    modal.classList.add("active");
+
+    fetchFortuneWheelStatus();
+    drawFortuneWheel(wheelState.currentRotation);
+
+    if (wheelState.countdownInterval) clearInterval(wheelState.countdownInterval);
+    wheelState.countdownInterval = setInterval(() => {
+      if (wheelState.secondsLeft > 0) {
+        wheelState.secondsLeft--;
+        updateFortuneWheelUI({
+          can_spin_free: wheelState.secondsLeft <= 0,
+          seconds_left: wheelState.secondsLeft,
+          paid_price: wheelState.paidPrice,
+          sectors: wheelState.sectors,
+        });
+      }
+    }, 1000);
+  }
+
+  function closeFortuneWheelModal() {
+    if (wheelState.isSpinning) return;
+    triggerHaptic("light");
+    const modal = document.getElementById("fortuneWheelModal");
+    if (modal) {
+      modal.classList.remove("active");
+      modal.style.display = "none";
+    }
+    if (wheelState.countdownInterval) {
+      clearInterval(wheelState.countdownInterval);
+      wheelState.countdownInterval = null;
+    }
+  }
+
+  function drawFortuneWheel(rotationAngle = 0) {
+    const canvas = document.getElementById("fortuneWheelCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const size = 320;
+
+    if (canvas.width !== size * dpr) {
+      canvas.width = size * dpr;
+      canvas.height = size * dpr;
+    }
+    ctx.resetTransform();
+    ctx.scale(dpr, dpr);
+
+    const cx = size / 2;
+    const cy = size / 2;
+    const radius = 152;
+    const sectors = wheelState.sectors;
+    const numSectors = sectors.length || 8;
+    const arc = (2 * Math.PI) / numSectors;
+
+    ctx.clearRect(0, 0, size, size);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotationAngle);
+
+    // Outer circle
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+    ctx.fillStyle = "#1E1B4B";
+    ctx.fill();
+
+    // Draw individual sectors
+    for (let i = 0; i < numSectors; i++) {
+      const angle = i * arc;
+      const sec = sectors[i];
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, radius - 4, angle, angle + arc);
+      ctx.closePath();
+
+      ctx.fillStyle = sec.color || (i % 2 === 0 ? "#4338CA" : "#312E81");
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Sector Content (Icon + Title)
+      ctx.save();
+      ctx.rotate(angle + arc / 2);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#FFFFFF";
+
+      ctx.font = "24px system-ui, sans-serif";
+      ctx.fillText(sec.icon || "🎁", radius - 18, 8);
+
+      ctx.font = "bold 11px system-ui, sans-serif";
+      ctx.fillText(sec.title || "", radius - 48, 4);
+
+      ctx.restore();
+    }
+
+    // Outer ring rivets / dots
+    const numRivets = 24;
+    for (let j = 0; j < numRivets; j++) {
+      const rivetAngle = (j * 2 * Math.PI) / numRivets;
+      const rx = (radius - 8) * Math.cos(rivetAngle);
+      const ry = (radius - 8) * Math.sin(rivetAngle);
+      ctx.beginPath();
+      ctx.arc(rx, ry, 2.5, 0, 2 * Math.PI);
+      ctx.fillStyle = j % 2 === 0 ? "#FDE047" : "#FFFFFF";
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  async function spinFortuneWheel(usePaid = false) {
+    if (wheelState.isSpinning) return;
+    wheelState.isSpinning = true;
+    triggerHaptic("medium");
+
+    const btnFree = document.getElementById("btnSpinWheelFree");
+    const btnPaid = document.getElementById("btnSpinWheelPaid");
+    if (btnFree) btnFree.disabled = true;
+    if (btnPaid) btnPaid.disabled = true;
+
+    try {
+      const resp = await apiFetch("/api/webapp/economy/wheel/spin", {
+        method: "POST",
+        body: JSON.stringify({ use_paid: usePaid }),
+      });
+
+      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+      if (!isOk) {
+        wheelState.isSpinning = false;
+        triggerHaptic("error");
+        showAppToast(resp?.detail || resp?.message || "Ошибка вращения колеса");
+        updateFortuneWheelUI({
+          can_spin_free: wheelState.canSpinFree,
+          seconds_left: wheelState.secondsLeft,
+          paid_price: wheelState.paidPrice,
+          sectors: wheelState.sectors,
+        });
+        return;
+      }
+
+      const sectorData = resp.sector;
+      const targetSectorId = sectorData?.sector_id || 0;
+      const numSectors = wheelState.sectors.length || 8;
+      const arc = (2 * Math.PI) / numSectors;
+
+      const extraRevolutions = 6;
+      const currentNorm = wheelState.currentRotation % (2 * Math.PI);
+      const desiredAngle = -(Math.PI / 2) - (targetSectorId + 0.5) * arc;
+      const targetRotation = wheelState.currentRotation + (2 * Math.PI * extraRevolutions) + (desiredAngle - currentNorm);
+
+      const duration = 4600;
+      const startTime = performance.now();
+      const startAngle = wheelState.currentRotation;
+      const totalDelta = targetRotation - startAngle;
+
+      let lastSectorTick = -1;
+
+      function animateSpin(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 4);
+        const currentAngle = startAngle + totalDelta * ease;
+
+        drawFortuneWheel(currentAngle);
+
+        const pointerNorm = ((-(Math.PI / 2) - currentAngle) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+        const currentSectorIndex = Math.floor(pointerNorm / arc);
+        if (currentSectorIndex !== lastSectorTick) {
+          lastSectorTick = currentSectorIndex;
+          triggerHaptic("selection");
+        }
+
+        if (progress < 1) {
+          requestAnimationFrame(animateSpin);
+        } else {
+          wheelState.currentRotation = targetRotation;
+          wheelState.isSpinning = false;
+          triggerHaptic("success");
+
+          if (resp.new_balance !== undefined) {
+            if (shopState.overview) shopState.overview.credits_balance = resp.new_balance;
+            updateEconomyHeaderBadges(resp.new_balance, shopState.overview?.streak_days);
+          }
+          if (resp.superlike_balance !== undefined && state.currentUser) {
+            state.currentUser.superlike_balance = resp.superlike_balance;
+          }
+
+          showFortuneWinPopup(sectorData);
+          fetchFortuneWheelStatus();
+          loadShopData();
+        }
+      }
+
+      requestAnimationFrame(animateSpin);
+    } catch (e) {
+      wheelState.isSpinning = false;
+      triggerHaptic("error");
+      showAppToast(e.message || "Ошибка вращения колеса");
+      updateFortuneWheelUI({
+        can_spin_free: wheelState.canSpinFree,
+        seconds_left: wheelState.secondsLeft,
+        paid_price: wheelState.paidPrice,
+        sectors: wheelState.sectors,
+      });
+    }
+  }
+
+  function showFortuneWinPopup(sector) {
+    const modal = document.getElementById("fortuneWinModal");
+    if (!modal) return;
+    const emojiEl = document.getElementById("fortuneWinEmoji");
+    const descEl = document.getElementById("fortuneWinDesc");
+    const pillEl = document.getElementById("fortuneWinRewardPill");
+    if (emojiEl) {
+      if (sector?.sector_type === "gift") {
+        const giftCode = sector?.bonus_code || "gift_bear";
+        emojiEl.innerHTML = `<img src="${getGiftImgUrl(giftCode)}" class="tg-gift-win-img" alt="" onerror="this.onerror=null;this.parentElement.textContent='${sector?.sector_icon || "🧸"}';" />`;
+      } else {
+        emojiEl.textContent = sector?.sector_icon || "🎉";
+      }
+    }
+    if (descEl) descEl.textContent = sector?.sector_title ? `Приз добавлен: ${sector.sector_title}` : "Награда успешно зачислена в профиль!";
+    if (pillEl) pillEl.textContent = `${sector?.sector_icon || "🎁"} ${sector?.sector_title || "Приз"}`;
+    modal.style.display = "flex";
+  }
+
+  function closeFortuneWinPopup() {
+    triggerHaptic("light");
+    const modal = document.getElementById("fortuneWinModal");
+    if (modal) modal.style.display = "none";
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // 🎁 ПОДАРКИ TELEGRAM В ПРОФИЛЬ И ЧАТ
+  // ══════════════════════════════════════════════════════════════════
+  // 🎁 ПОДАРКИ TELEGRAM В ПРОФИЛЬ И ЧАТ
+  // ══════════════════════════════════════════════════════════════════
+  const DEFAULT_WEBAPP_GIFTS = [
+    {
+      code: "gift_heart",
+      title: "Сердце (Heart)",
+      icon: "💝",
+      image_url: "/static/webapp/gifts/gift_heart.webp",
+      price_credits: 15,
+      exchange_credits: 12,
+      description: "Классическое розовое сияющее сердце Telegram — тёплый знак внимания.",
+      category: "telegram_classic",
+      badge: "⭐ Классика",
+      is_collectible: false,
+    },
+    {
+      code: "gift_bear",
+      title: "Плюшевый мишка (Toy Bear)",
+      icon: "🧸",
+      image_url: "/static/webapp/gifts/gift_bear.webp",
+      price_credits: 15,
+      exchange_credits: 12,
+      description: "Официальный плюшевый мишка Telegram — тепло, забота и уют.",
+      category: "telegram_classic",
+      badge: "⭐ Классика",
+      is_collectible: false,
+    },
+    {
+      code: "gift_box",
+      title: "Коробка подарка (Gift Box)",
+      icon: "🎁",
+      image_url: "/static/webapp/gifts/gift_box.webp",
+      price_credits: 25,
+      exchange_credits: 20,
+      description: "Праздничная коробка с лентой — универсальный сюрприз для любого повода.",
+      category: "telegram_classic",
+      badge: "⭐ Классика",
+      is_collectible: false,
+    },
+    {
+      code: "gift_rose",
+      title: "Красная роза (Red Rose)",
+      icon: "🌹",
+      image_url: "/static/webapp/gifts/gift_rose.webp",
+      price_credits: 25,
+      exchange_credits: 20,
+      description: "Элегантная красная роза — символ романтической симпатии.",
+      category: "telegram_classic",
+      badge: "⭐ Классика",
+      is_collectible: false,
+    },
+    {
+      code: "gift_cake",
+      title: "Праздничный торт (Cake)",
+      icon: "🎂",
+      image_url: "/static/webapp/gifts/gift_cake.webp",
+      price_credits: 50,
+      exchange_credits: 40,
+      description: "Праздничный торт с клубникой и тремя свечами из Telegram.",
+      category: "telegram_classic",
+      badge: "⭐ Классика",
+      is_collectible: false,
+    },
+    {
+      code: "gift_bouquet",
+      title: "Букет тюльпанов (Bouquet)",
+      icon: "💐",
+      image_url: "/static/webapp/gifts/gift_bouquet.webp",
+      price_credits: 50,
+      exchange_credits: 40,
+      description: "Нежный букет весенних тюльпанов из Telegram.",
+      category: "telegram_classic",
+      badge: "⭐ Классика",
+      is_collectible: false,
+    },
+    {
+      code: "gift_rocket",
+      title: "Космическая ракета (Rocket)",
+      icon: "🚀",
+      image_url: "/static/webapp/gifts/gift_rocket.webp",
+      price_credits: 50,
+      exchange_credits: 40,
+      description: "Стремительная ракета в полёте с огненным соплом из Telegram.",
+      category: "telegram_classic",
+      badge: "⭐ Классика",
+      is_collectible: false,
+    },
+    {
+      code: "gift_trophy",
+      title: "Золотой кубок (Golden Trophy)",
+      icon: "🏆",
+      image_url: "/static/webapp/gifts/gift_trophy.webp",
+      price_credits: 100,
+      exchange_credits: 80,
+      description: "Золотой кубок победителя из Telegram.",
+      category: "telegram_classic",
+      badge: "⭐ Классика",
+      is_collectible: false,
+    },
+    {
+      code: "gift_ring",
+      title: "Кольцо с бриллиантом (Diamond Ring)",
+      icon: "💍",
+      image_url: "/static/webapp/gifts/gift_ring.webp",
+      price_credits: 100,
+      exchange_credits: 80,
+      description: "Драгоценное кольцо с бриллиантом чистейшей огранки из Telegram.",
+      category: "telegram_classic",
+      badge: "⭐ Классика",
+      is_collectible: false,
+    },
+    {
+      code: "gift_champagne",
+      title: "Шампанское (Holiday Drink)",
+      icon: "🍾",
+      image_url: "/static/webapp/gifts/gift_champagne.webp",
+      price_credits: 50,
+      exchange_credits: 40,
+      description: "Игристый праздничный напиток в честь долгожданного знакомства.",
+      category: "telegram_classic",
+      badge: "⭐ Классика",
+      is_collectible: false,
+    },
+    {
+      code: "gift_gem",
+      title: "Кристалл (Ion Gem)",
+      icon: "💎",
+      image_url: "/static/webapp/gifts/gift_gem.webp",
+      price_credits: 100,
+      exchange_credits: 80,
+      description: "Сияющий драгоценный сапфир из коллекции редких Telegram-самоцветов.",
+      category: "telegram_classic",
+      badge: "⭐ Классика",
+      is_collectible: false,
+    },
+    {
+      code: "gift_stellar_rocket",
+      title: "Звёздная ракета (Stellar Rocket)",
+      icon: "🚀",
+      image_url: "/static/webapp/gifts/gift_stellar_rocket.webp",
+      price_credits: 150,
+      exchange_credits: 125,
+      description: "Редкий коллекционный раритет Telegram. Космический статус для лучших.",
+      category: "telegram_collectible",
+      badge: "💎 NFT / Редкий",
+      is_collectible: true,
+    },
+    {
+      code: "gift_lollipop",
+      title: "Леденец Lol Pop",
+      icon: "🍭",
+      image_url: "/static/webapp/gifts/gift_lollipop.webp",
+      price_credits: 120,
+      exchange_credits: 100,
+      description: "Коллекционный артефакт Lol Pop — эксклюзивная сладость.",
+      category: "telegram_collectible",
+      badge: "💎 NFT / Редкий",
+      is_collectible: true,
+    },
+    {
+      code: "gift_lush_bouquet",
+      title: "Lush Bouquet",
+      icon: "💐",
+      image_url: "/static/webapp/gifts/gift_lush_bouquet.webp",
+      price_credits: 180,
+      exchange_credits: 150,
+      description: "Премиальный коллекционный букет из ограниченного тиража Telegram.",
+      category: "telegram_collectible",
+      badge: "💎 NFT / Редкий",
+      is_collectible: true,
+    },
+    {
+      code: "gift_valentine_box",
+      title: "Valentine Box",
+      icon: "💝",
+      image_url: "/static/webapp/gifts/gift_valentine_box.webp",
+      price_credits: 200,
+      exchange_credits: 170,
+      description: "Редкая коллекционная шкатулка чувств — высший знак признания.",
+      category: "telegram_collectible",
+      badge: "💎 NFT / Редкий",
+      is_collectible: true,
+    },
+  ];
+
+  const giftsState = {
+    catalog: [...DEFAULT_WEBAPP_GIFTS],
+    selectedGiftCode: "gift_bear",
+    targetRecipient: null,
+  };
+
+  async function fetchGiftsCatalog() {
+    try {
+      const resp = await apiFetch("/api/webapp/gifts/catalog");
+      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+      if (isOk && resp.gifts && resp.gifts.length > 0) {
+        giftsState.catalog = resp.gifts;
+        renderShopGiftsCatalog();
+      }
+    } catch (e) {
+      console.warn("Failed to load gifts catalog:", e);
+    }
+  }
+
+  function renderShopGiftsCatalog() {
+    const container = document.getElementById("shopGiftsCatalogGrid");
+    if (!container) return;
+    const items = (giftsState.catalog && giftsState.catalog.length > 0) ? giftsState.catalog : DEFAULT_WEBAPP_GIFTS;
+
+    container.innerHTML = items.map((g) => {
+      const imgUrl = getGiftImgUrl(g.code, g.image_url);
+      const isCollectible = Boolean(g.is_collectible);
+      const badgeClass = isCollectible ? "collectible" : "classic";
+      const exchangeCredits = g.exchange_credits || Math.floor(g.price_credits * 0.8);
+
+      return `
+        <div class="campus-gift-card telegram-gift-card ${isCollectible ? 'is-collectible-card' : ''}">
+          ${g.badge ? `<div class="tg-gift-badge ${badgeClass}">${escapeHtml(g.badge)}</div>` : ''}
+          <div class="gift-card-icon-wrap">
+            <img src="${imgUrl}" class="tg-gift-real-img" alt="${escapeHtml(g.title)}" onerror="this.onerror=null;this.parentElement.textContent='${g.icon || "🎁"}';" />
+          </div>
+          <h4 class="gift-card-title">${escapeHtml(g.title)}</h4>
+          <p class="gift-card-desc">${escapeHtml(g.description || "")}</p>
+          <div class="gift-card-exchange-hint">Обмен при получении: <b>${exchangeCredits} 🎓</b></div>
+          <div class="gift-card-price-row">
+            <span class="gift-card-price">${g.price_credits} 🎓</span>
+            <button type="button" class="gift-card-send-btn ${isCollectible ? 'collectible-btn' : ''}" data-gift-code="${g.code}">
+              Подарить 🎁
+            </button>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    container.querySelectorAll(".gift-card-send-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const code = btn.dataset.giftCode;
+        openSendGiftModal(null, code);
+      });
+    });
+  }
+
+  function openSendGiftModal(recipient = null, preselectedCode = null) {
+    triggerHaptic("light");
+    const modal = document.getElementById("sendGiftModal");
+    if (!modal) return;
+
+    giftsState.targetRecipient = recipient;
+    if (preselectedCode) {
+      giftsState.selectedGiftCode = preselectedCode;
+    } else if (!giftsState.selectedGiftCode && giftsState.catalog.length > 0) {
+      giftsState.selectedGiftCode = giftsState.catalog[0].code;
+    }
+
+    const recRow = document.getElementById("giftRecipientRow");
+    const recSelectBox = document.getElementById("giftSelectRecipientBox");
+    const recAvatar = document.getElementById("giftRecipientAvatar");
+    const recName = document.getElementById("giftRecipientName");
+    const recSelect = document.getElementById("giftRecipientSelect");
+
+    if (recipient) {
+      if (recRow) recRow.style.display = "flex";
+      if (recSelectBox) recSelectBox.style.display = "none";
+      const photo = (recipient.photos && recipient.photos[0]) || recipient.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80";
+      if (recAvatar) recAvatar.src = photo;
+      if (recName) recName.textContent = recipient.name || recipient.first_name || "Студент";
+    } else {
+      if (recRow) recRow.style.display = "none";
+      if (recSelectBox) recSelectBox.style.display = "block";
+      if (recSelect) {
+        const matches = state.matches || [];
+        recSelect.innerHTML = `<option value="">Выберите студента из ваших мэтчей...</option>` +
+          matches.map(m => {
+            const pId = m.partner?.id || m.user_id;
+            const pName = m.partner?.name || m.name || "Студент";
+            return `<option value="${pId}">${escapeHtml(pName)}</option>`;
+          }).join("");
+      }
+    }
+
+    renderGiftPickerGrid();
+
+    const msgInput = document.getElementById("giftMessageInput");
+    if (msgInput) msgInput.value = "";
+    const charCount = document.getElementById("giftCharCount");
+    if (charCount) charCount.textContent = "0";
+    const anonToggle = document.getElementById("giftAnonymousToggle");
+    if (anonToggle) anonToggle.checked = false;
+
+    updateGiftSubmitButton();
+
+    modal.style.display = "flex";
+    modal.classList.add("active");
+  }
+
+  function closeSendGiftModal() {
+    triggerHaptic("light");
+    const modal = document.getElementById("sendGiftModal");
+    if (modal) {
+      modal.classList.remove("active");
+      modal.style.display = "none";
+    }
+  }
+
+  function renderGiftPickerGrid() {
+    const container = document.getElementById("giftPickerGrid");
+    if (!container) return;
+    const gifts = (giftsState.catalog && giftsState.catalog.length > 0) ? giftsState.catalog : DEFAULT_WEBAPP_GIFTS;
+    if (!gifts || gifts.length === 0) return;
+
+    container.innerHTML = gifts.map((g) => {
+      const isSelected = g.code === giftsState.selectedGiftCode;
+      const isCollectible = Boolean(g.is_collectible);
+      const imgUrl = getGiftImgUrl(g.code, g.image_url);
+      return `
+        <div class="gift-picker-item ${isSelected ? 'selected' : ''} ${isCollectible ? 'is-collectible-picker' : ''}" data-gift-code="${g.code}" role="button" tabindex="0">
+          ${isCollectible ? '<span class="picker-collectible-star">💎</span>' : ''}
+          <div class="gift-picker-icon">
+            <img src="${imgUrl}" class="tg-gift-picker-img" alt="${escapeHtml(g.title)}" onerror="this.onerror=null;this.parentElement.textContent='${g.icon || "🎁"}';" />
+          </div>
+          <div class="gift-picker-name">${escapeHtml(g.title)}</div>
+          <div class="gift-picker-price">${g.price_credits} 🎓</div>
+        </div>
+      `;
+    }).join("");
+
+    container.querySelectorAll(".gift-picker-item").forEach((item) => {
+      item.addEventListener("click", () => {
+        triggerHaptic("selection");
+        giftsState.selectedGiftCode = item.dataset.giftCode;
+        container.querySelectorAll(".gift-picker-item").forEach(i => i.classList.remove("selected"));
+        item.classList.add("selected");
+        updateGiftSubmitButton();
+      });
+    });
+  }
+
+  function updateGiftSubmitButton() {
+    const gift = (giftsState.catalog || []).find(g => g.code === giftsState.selectedGiftCode)
+      || DEFAULT_WEBAPP_GIFTS.find(g => g.code === giftsState.selectedGiftCode);
+    const price = gift ? gift.price_credits : 15;
+    const icon = gift ? gift.icon : "🎁";
+    const title = gift ? gift.title : "Подарок";
+    const imgUrl = gift ? getGiftImgUrl(gift.code, gift.image_url) : "";
+
+    const invItem = (shopState.overview?.inventory || []).find(
+      it => it.item_code === giftsState.selectedGiftCode && (it.quantity || 0) > 0
+    );
+
+    const btnIcon = document.getElementById("btnSubmitGiftIcon");
+    const btnText = document.getElementById("btnSubmitGiftText");
+    if (btnIcon) {
+      if (imgUrl) {
+        btnIcon.innerHTML = `<img src="${imgUrl}" class="tg-gift-btn-img" alt="" onerror="this.onerror=null;this.parentElement.textContent='${icon}';" />`;
+      } else {
+        btnIcon.textContent = icon;
+      }
+    }
+    if (btnText) {
+      if (invItem) {
+        btnText.textContent = `Подарить «${title}» из инвентаря (${invItem.quantity} шт.)`;
+      } else {
+        btnText.textContent = `Подарить «${title}» за ${price} 🎓`;
+      }
+    }
+  }
+
+  async function submitSendGift() {
+    triggerHaptic("medium");
+    let recipientId = giftsState.targetRecipient?.id || giftsState.targetRecipient?.user_id;
+    if (!recipientId) {
+      const select = document.getElementById("giftRecipientSelect");
+      recipientId = select?.value;
+    }
+
+    if (!recipientId) {
+      triggerHaptic("warning");
+      showAppToast("Выберите получателя подарка");
+      return;
+    }
+
+    const gift = giftsState.catalog.find(g => g.code === giftsState.selectedGiftCode)
+      || DEFAULT_WEBAPP_GIFTS.find(g => g.code === giftsState.selectedGiftCode);
+    if (!gift) {
+      triggerHaptic("warning");
+      showAppToast("Выберите подарок");
+      return;
+    }
+
+    const hasInInventory = (shopState.overview?.inventory || []).some(
+      it => it.item_code === giftsState.selectedGiftCode && (it.quantity || 0) > 0
+    );
+    const currentBal = shopState.overview?.credits_balance || 0;
+    if (!hasInInventory && currentBal < gift.price_credits) {
+      triggerHaptic("warning");
+      showAppToast(`Недостаточно зачётов (${currentBal} / ${gift.price_credits} 🎓). Пополните баланс!`);
+      return;
+    }
+
+    const message = (document.getElementById("giftMessageInput")?.value || "").trim();
+    const isAnonymous = Boolean(document.getElementById("giftAnonymousToggle")?.checked);
+
+    const btn = document.getElementById("btnSubmitSendGift");
+    if (btn) btn.disabled = true;
+
+    try {
+      const resp = await apiFetch("/api/webapp/gifts/send", {
+        method: "POST",
+        body: JSON.stringify({
+          recipient_id: parseInt(recipientId, 10),
+          gift_code: gift.code,
+          message: message || null,
+          is_anonymous: isAnonymous,
+        }),
+      });
+
+      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+      if (isOk) {
+        triggerHaptic("success");
+        showAppToast(resp.message || `🎁 Подарок «${gift.title}» успешно отправлен!`);
+        closeSendGiftModal();
+        if (resp.new_balance !== undefined) {
+          if (shopState.overview) shopState.overview.credits_balance = resp.new_balance;
+          updateEconomyHeaderBadges(resp.new_balance, shopState.overview?.streak_days);
+        }
+        await loadShopData();
+        loadAndRenderProfileGifts(recipientId, false);
+      } else {
+        triggerHaptic("error");
+        showAppToast(resp?.detail || resp?.message || "Не удалось отправить подарок");
+      }
+    } catch (e) {
+      triggerHaptic("error");
+      showAppToast(e.message || "Ошибка отправки подарка");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function loadAndRenderProfileGifts(userId, isOwnProfile = false) {
+    const scrollContainer = document.getElementById("sheetGiftsScroll");
+    const countBadge = document.getElementById("sheetGiftsCount");
+    if (!scrollContainer) return;
+
+    try {
+      const resp = await apiFetch(`/api/webapp/profile/${userId}/gifts`);
+      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+      if (!isOk || !resp.gifts || resp.gifts.length === 0) {
+        if (countBadge) countBadge.textContent = "0";
+        scrollContainer.innerHTML = `
+          <div style="font-size:12px;color:var(--text-muted);padding:8px 0;">
+            ${isOwnProfile ? "У вас пока нет подарков. Друзья и мэтчи могут дарить подарки!" : "У студента пока нет подарков. Будьте первым, кто сделает сюрприз!"}
+          </div>
+        `;
+        return;
+      }
+
+      if (countBadge) countBadge.textContent = String(resp.gifts.length);
+
+      scrollContainer.innerHTML = resp.gifts.map((g) => {
+        const isCollectible = Boolean(g.is_collectible);
+        const exchangeVal = g.exchange_credits || 20;
+
+        const pinBtnHtml = isOwnProfile ? `
+          <button type="button" class="profile-gift-pin-toggle-btn ${g.is_pinned ? 'pinned' : ''}" data-gift-id="${g.id}">
+            ${g.is_pinned ? '📌 Закреплён' : 'Закрепить'}
+          </button>
+          <button type="button" class="profile-gift-exchange-btn" data-gift-id="${g.id}" data-gift-title="${escapeHtml(g.gift_title)}" data-credits="${exchangeVal}" ${g.is_pinned ? 'disabled title="Сначала открепите подарок"' : ''}>
+            🔄 Обменять (+${exchangeVal} 🎓)
+          </button>
+        ` : "";
+
+        const imgUrl = getGiftImgUrl(g.gift_code, g.image_url);
+
+        return `
+          <div class="profile-gift-card ${g.is_pinned ? 'is-pinned' : ''} ${isCollectible ? 'is-collectible-card' : ''}" title="${escapeHtml(g.message || '')}">
+            ${g.is_pinned ? '<span class="profile-gift-pin-badge">📌</span>' : ''}
+            ${isCollectible ? '<span class="profile-gift-badge-nft">💎 NFT</span>' : ''}
+            <div class="profile-gift-card-icon">
+              <img src="${imgUrl}" class="tg-gift-shelf-img" alt="${escapeHtml(g.gift_title)}" onerror="this.onerror=null;this.parentElement.textContent='${g.gift_icon || "🎁"}';" />
+            </div>
+            <div class="profile-gift-card-title">${escapeHtml(g.gift_title)}</div>
+            <div class="profile-gift-card-sender">${escapeHtml(g.sender_name || "От друга")}</div>
+            ${pinBtnHtml}
+          </div>
+        `;
+      }).join("");
+
+      if (isOwnProfile) {
+        scrollContainer.querySelectorAll(".profile-gift-pin-toggle-btn").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const giftId = btn.dataset.giftId;
+            await toggleGiftPin(giftId, userId);
+          });
+        });
+
+        scrollContainer.querySelectorAll(".profile-gift-exchange-btn").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (btn.disabled) {
+              triggerHaptic("warning");
+              showAppToast("Сначала открепите подарок из витрины!");
+              return;
+            }
+            const giftId = btn.dataset.giftId;
+            const giftTitle = btn.dataset.giftTitle;
+            const credits = parseInt(btn.dataset.credits, 10);
+            await convertUserGift(giftId, giftTitle, credits, userId);
+          });
+        });
+      }
+    } catch (e) {
+      console.warn("Error loading profile gifts:", e);
+      scrollContainer.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:8px 0;">Не удалось загрузить подарки</div>`;
+    }
+  }
+
+  async function toggleGiftPin(giftId, userId) {
+    triggerHaptic("medium");
+    try {
+      const resp = await apiFetch(`/api/webapp/profile/gifts/${giftId}/pin`, { method: "POST" });
+      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+      if (isOk) {
+        triggerHaptic("success");
+        showAppToast(resp.message || "Статус закрепления обновлён");
+        loadAndRenderProfileGifts(userId, true);
+      } else {
+        triggerHaptic("warning");
+        showAppToast(resp?.detail || resp?.message || "Не удалось закрепить подарок");
+      }
+    } catch (e) {
+      triggerHaptic("error");
+      showAppToast(e.message || "Ошибка");
+    }
+  }
+
+  async function convertUserGift(giftId, giftTitle, credits, userId) {
+    triggerHaptic("medium");
+    const ok = window.confirm(`Обменять подарок «${giftTitle}» на +${credits} 🎓?\n\nПодарок будет удалён с витрины, а зачёты моментально поступят на ваш баланс.`);
+    if (!ok) return;
+
+    try {
+      const resp = await apiFetch(`/api/webapp/profile/gifts/${giftId}/convert`, { method: "POST" });
+      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+      if (isOk) {
+        triggerHaptic("success");
+        showAppToast(resp.message || `Подарок «${giftTitle}» успешно обменян на +${credits} 🎓!`);
+        if (resp.new_balance !== undefined) {
+          if (shopState.overview) shopState.overview.credits_balance = resp.new_balance;
+          updateEconomyHeaderBadges(resp.new_balance, shopState.overview?.streak_days);
+        }
+        loadAndRenderProfileGifts(userId, true);
+      } else {
+        triggerHaptic("warning");
+        showAppToast(resp?.detail || resp?.message || "Не удалось обменять подарок");
+      }
+    } catch (e) {
+      triggerHaptic("error");
+      showAppToast(e.message || "Ошибка при обмене подарка");
+    }
+  }
+
+  function setupShopListeners() {
+    document.getElementById("openShopBtn")?.addEventListener("click", () => openShopModal("catalog"));
+    document.getElementById("closeShopModalBtn")?.addEventListener("click", () => closeShopModal());
+    document.getElementById("tabShopCatalog")?.addEventListener("click", () => switchShopTab("catalog"));
+    document.getElementById("tabShopPacks")?.addEventListener("click", () => switchShopTab("packs"));
+    document.getElementById("tabShopGifts")?.addEventListener("click", () => switchShopTab("gifts"));
+    document.getElementById("tabShopQuests")?.addEventListener("click", () => switchShopTab("quests"));
+    document.getElementById("tabShopInventory")?.addEventListener("click", () => switchShopTab("inventory"));
+
+    // Quick deposit clicks
+    document.getElementById("shopChipCredits")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      switchShopTab("packs");
+    });
+    document.getElementById("btnGoToPacksFromShop")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      switchShopTab("packs");
+    });
+
+    // Starter pack purchase button
+    document.getElementById("btnBuyStarterPack")?.addEventListener("click", () => {
+      buyCreditPack("starter_pack_99");
+    });
+
+    // Quests Subtabs (Daily vs Permanent)
+    document.getElementById("btnSubtabDailyQuests")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      switchQuestsSubTab("daily");
+    });
+    document.getElementById("btnSubtabPermanentQuests")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      switchQuestsSubTab("permanent");
+    });
+
+    // Refill banner prompt button: switches to Quests tab
+    document.getElementById("btnGoToQuestsFromShop")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      switchShopTab("quests");
+    });
+
+    // Special Offer Buy Button (Шпора: Буст в ленте х3)
+    document.getElementById("btnBuySpecialOffer")?.addEventListener("click", async () => {
+      const boostItem = shopState.catalog.find(it => it.code === "boost_24h" || it.code.includes("boost")) || {
+        code: "boost_24h",
+        title: "Шпора: Буст в ленте х3",
+        price_credits: 80
+      };
+      await buyShopItem(boostItem.code, boostItem.title, boostItem.price_credits);
+    });
+
+    // Fortune Wheel Triggers
+    document.getElementById("btnOpenFortuneWheel")?.addEventListener("click", () => openFortuneWheelModal());
+    document.getElementById("closeFortuneWheelBtn")?.addEventListener("click", () => closeFortuneWheelModal());
+    document.getElementById("wheelCenterCapBtn")?.addEventListener("click", () => spinFortuneWheel(!wheelState.canSpinFree));
+    document.getElementById("btnSpinWheelFree")?.addEventListener("click", () => spinFortuneWheel(false));
+    document.getElementById("btnSpinWheelPaid")?.addEventListener("click", () => spinFortuneWheel(true));
+    document.getElementById("closeFortuneWinBtn")?.addEventListener("click", () => closeFortuneWinPopup());
+
+    // Send Gift Triggers
+    document.getElementById("closeSendGiftBtn")?.addEventListener("click", () => closeSendGiftModal());
+    document.getElementById("btnSubmitSendGift")?.addEventListener("click", () => submitSendGift());
+    document.getElementById("giftMessageInput")?.addEventListener("input", (e) => {
+      const val = e.target.value || "";
+      const counter = document.getElementById("giftCharCount");
+      if (counter) counter.textContent = String(val.length);
+    });
+
+    const fortuneWheelModal = document.getElementById("fortuneWheelModal");
+    if (fortuneWheelModal) {
+      fortuneWheelModal.addEventListener("click", (e) => {
+        if (e.target === fortuneWheelModal) closeFortuneWheelModal();
+      });
+    }
+
+    const fortuneWinModal = document.getElementById("fortuneWinModal");
+    if (fortuneWinModal) {
+      fortuneWinModal.addEventListener("click", (e) => {
+        if (e.target === fortuneWinModal) closeFortuneWinPopup();
+      });
+    }
+
+    const sendGiftModal = document.getElementById("sendGiftModal");
+    if (sendGiftModal) {
+      sendGiftModal.addEventListener("click", (e) => {
+        if (e.target === sendGiftModal) closeSendGiftModal();
+      });
+    }
+
+    // Catalog Filter Pills
+    const catalogFilterContainer = document.getElementById("shopCatalogFilters");
+    if (catalogFilterContainer) {
+      catalogFilterContainer.querySelectorAll(".shop-filter-pill").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          triggerHaptic("light");
+          catalogFilterContainer.querySelectorAll(".shop-filter-pill").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          shopState.catalogFilter = btn.dataset.filter || "all";
+          renderShopCatalog();
+        });
+      });
+    }
+
+    // Inventory Filter Pills
+    const inventoryFilterContainer = document.getElementById("shopInventoryFilters");
+    if (inventoryFilterContainer) {
+      inventoryFilterContainer.querySelectorAll(".shop-filter-pill").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          triggerHaptic("light");
+          inventoryFilterContainer.querySelectorAll(".shop-filter-pill").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          shopState.inventoryFilter = btn.dataset.filter || "all";
+          renderShopInventory();
+        });
+      });
+    }
+
+    // Streak Stipend Claim Button
+    document.getElementById("btnClaimDailyStreak")?.addEventListener("click", async () => {
+      triggerHaptic("medium");
+      try {
+        const resp = await apiFetch("/api/webapp/economy/streak/claim", { method: "POST" });
+        const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+        if (isOk) {
+          triggerHaptic("success");
+          showAppToast(`🔥 Стипендия получена: +${resp.reward_credits} 🎓! Серия: ${resp.new_streak || resp.streak_days} дн.`);
+          await loadShopData();
+        } else {
+          const err = resp?.detail || resp?.message || "Стипендия уже собрана сегодня";
+          triggerHaptic("warning");
+          showAppToast(err);
+        }
+      } catch (e) {
+        triggerHaptic("error");
+        showAppToast(e.message || "Ошибка");
+      }
+    });
+
+    const shopModal = document.getElementById("shopModal");
+    if (shopModal) {
+      shopModal.addEventListener("click", (e) => {
+        if (e.target === shopModal) closeShopModal();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && shopModal.style.display !== "none") {
+          closeShopModal();
+        }
+      });
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     try {
       const savedMode = localStorage.getItem("studmatch_mode");
@@ -6952,9 +8909,12 @@
     setupProjectsListeners();
     setupMaintenanceListeners();
     setupHallOfFameListeners();
+    setupShopListeners();
     if (window.MAINTENANCE_DATA) {
       updateMaintenanceUI(window.MAINTENANCE_DATA);
     }
-    authenticateUser();
+    authenticateUser().then(() => {
+      loadShopData();
+    });
   });
 })();

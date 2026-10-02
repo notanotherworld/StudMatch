@@ -811,8 +811,8 @@
 <script>
   let currentScorecard = {
     hr_rating: {{ access.hr_rating or 0 }},
-    hr_recommendation: '{{ access.hr_recommendation or "neutral" }}',
-    hr_tags: '{{ access.hr_tags or "" }}',
+    hr_recommendation: {{ (access.hr_recommendation or "neutral") | tojson }},
+    hr_tags: {{ (access.hr_tags or "") | tojson }},
   };
 
   function switchDossierTab(tab) {

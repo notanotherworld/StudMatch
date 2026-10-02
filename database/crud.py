@@ -2,7 +2,7 @@
 CRUD-операции для основных сущностей.
 """
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List, Tuple, Collection, Set
+from typing import Optional, List, Tuple, Collection, Set, Any, Union
 import uuid
 import random
 import string
@@ -20,7 +20,8 @@ from database.models import (
     User, Profile, University, EmailToken, Achievement,
     Swipe, Match, ChatMessage, Admin, Employer, EmployerProfileAccess, Payment, Report,
     VerifiedStatus, SwipeAction, ModeEnum, PaymentStatus, PaymentProduct, UserPrivacy,
-    Project,
+    Project, ShopItem, EconomyTransaction, UserDailyQuest, UserPermanentQuest, UserInventoryItem,
+    UserReceivedGift,
 )
 
 
@@ -1323,9 +1324,55 @@ async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optiona
                 await db.execute(update(User).where(User.id == payment.user_id).values(boost_until=boost_until))
             elif btype == "premium":
                 await set_user_premium(db, payment.user_id, days=bval)
-                await add_superlikes(db, payment.user_id, max(10, bval // 3))
+            elif btype == "credits":
+                await add_user_credits(db, payment.user_id, bval, tx_type="donate", description=f"Покупка зачётов ({payment.amount_rub} ₽)", reference_id=prod_val)
         else:
-            if payment.product == PaymentProduct.superlike_1:
+            if prod_val == "starter_pack_99" or payment.product == PaymentProduct.starter_pack_99:
+                # Стартовый набор первокурсника (99 ₽):
+                # 1. 300 Зачётов на баланс
+                await add_user_credits(
+                    db,
+                    payment.user_id,
+                    300,
+                    tx_type="donate",
+                    description="Стартовый набор первокурсника (99 ₽)",
+                    reference_id="starter_pack_99",
+                )
+                user = await get_user(db, payment.user_id)
+                if user:
+                    # 2. Отмечаем флаг покупки (ограничен 1 на аккаунт)
+                    user.has_bought_starter_pack = True
+                    # 3. Буст анкеты 24ч
+                    now = datetime.now(timezone.utc)
+                    base_boost = user.boost_until if user.boost_until and user.boost_until > now else now
+                    user.boost_until = base_boost + timedelta(hours=24)
+                    # 4. 1 «Справка от врача» (защита стрика)
+                    user.streak_freeze_count = (user.streak_freeze_count or 0) + 1
+                    # 5. 3 «Шпоры» (откат свайпа) в инвентарь
+                    inv_res = await db.execute(
+                        select(UserInventoryItem).where(
+                            and_(
+                                UserInventoryItem.user_id == user.id,
+                                UserInventoryItem.item_code == "rewind",
+                            )
+                        )
+                    )
+                    rewind_item = inv_res.scalar_one_or_none()
+                    if rewind_item:
+                        rewind_item.quantity += 3
+                    else:
+                        db.add(UserInventoryItem(user_id=user.id, item_code="rewind", quantity=3))
+            elif prod_val == "credits_100":
+                await add_user_credits(db, payment.user_id, 100, tx_type="donate", description="Пакет «Шпаргалка» (100 🎓)", reference_id=prod_val)
+            elif prod_val == "credits_300":
+                await add_user_credits(db, payment.user_id, 330, tx_type="donate", description="Пакет «Студенческий» (330 🎓)", reference_id=prod_val)
+            elif prod_val == "credits_700":
+                await add_user_credits(db, payment.user_id, 800, tx_type="donate", description="Пакет «Сессия закрыта» (800 🎓)", reference_id=prod_val)
+            elif prod_val == "credits_1500":
+                await add_user_credits(db, payment.user_id, 1800, tx_type="donate", description="Пакет «Красный диплом» (1800 🎓)", reference_id=prod_val)
+            elif prod_val == "credits_3000":
+                await add_user_credits(db, payment.user_id, 3800, tx_type="donate", description="Пакет «Грант ректора» (3800 🎓)", reference_id=prod_val)
+            elif payment.product == PaymentProduct.superlike_1:
                 await add_superlikes(db, payment.user_id, 1)
             elif payment.product == PaymentProduct.superlike_3:
                 await add_superlikes(db, payment.user_id, 3)
@@ -1344,6 +1391,31 @@ async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optiona
 
     await db.commit()
     return payment
+
+
+async def check_user_can_buy_starter_pack(db: AsyncSession, user_id: int) -> bool:
+    """Проверяет, может ли пользователь купить стартовый набор (не более 1 раза на аккаунт)."""
+    user = await get_user(db, user_id)
+    if not user:
+        return False
+    if getattr(user, "has_bought_starter_pack", False):
+        return False
+
+    res = await db.execute(
+        select(func.count(Payment.id)).where(
+            and_(
+                Payment.user_id == user_id,
+                Payment.product == PaymentProduct.starter_pack_99,
+                Payment.status == PaymentStatus.succeeded,
+            )
+        )
+    )
+    count = res.scalar() or 0
+    if count > 0:
+        user.has_bought_starter_pack = True
+        await db.commit()
+        return False
+    return True
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1809,3 +1881,1516 @@ async def founder_swipe_candidate(
 
     await db.commit()
     return is_match
+
+
+# ─────────────────────────────────────────────────────────────
+# Внутренняя экономика: Баланс «Зачётов» 🎓 и Транзакции
+# ─────────────────────────────────────────────────────────────
+async def add_user_credits(
+    db: AsyncSession,
+    user_id: int,
+    amount: int,
+    tx_type: str,
+    description: str,
+    reference_id: Optional[str] = None,
+) -> int:
+    """
+    Начисление «Зачётов» с записью в аудит-лог транзакций.
+    Возвращает актуальный баланс пользователя.
+    """
+    if amount <= 0:
+        res = await db.execute(select(User.credits_balance).where(User.id == user_id))
+        return res.scalar_one_or_none() or 0
+
+    # Атомарный инкремент
+    result = await db.execute(
+        update(User)
+        .where(User.id == user_id)
+        .values(credits_balance=User.credits_balance + amount)
+        .returning(User.credits_balance)
+    )
+    new_balance = result.scalar_one_or_none()
+    if new_balance is None:
+        return 0
+
+    tx = EconomyTransaction(
+        user_id=user_id,
+        amount=amount,
+        balance_after=new_balance,
+        tx_type=tx_type,
+        reference_id=reference_id,
+        description=description,
+    )
+    db.add(tx)
+    await db.commit()
+    return new_balance
+
+
+async def spend_user_credits(
+    db: AsyncSession,
+    user_id: int,
+    amount: int,
+    tx_type: str,
+    description: str,
+    reference_id: Optional[str] = None,
+) -> Tuple[bool, int]:
+    """
+    Атомарное списание «Зачётов».
+    Возвращает (успех: bool, новый_баланс: int).
+    Если средств недостаточно — списание не происходит, возвращается текущий баланс.
+    """
+    if amount <= 0:
+        res = await db.execute(select(User.credits_balance).where(User.id == user_id))
+        return True, res.scalar_one_or_none() or 0
+
+    result = await db.execute(
+        update(User)
+        .where(and_(User.id == user_id, User.credits_balance >= amount))
+        .values(credits_balance=User.credits_balance - amount)
+        .returning(User.credits_balance)
+    )
+    new_balance = result.scalar_one_or_none()
+    if new_balance is None:
+        # Узнаем текущий баланс для информативного ответа
+        res = await db.execute(select(User.credits_balance).where(User.id == user_id))
+        current = res.scalar_one_or_none() or 0
+        return False, current
+
+    tx = EconomyTransaction(
+        user_id=user_id,
+        amount=-amount,
+        balance_after=new_balance,
+        tx_type=tx_type,
+        reference_id=reference_id,
+        description=description,
+    )
+    db.add(tx)
+    await db.commit()
+    return True, new_balance
+
+
+async def get_user_credits_balance(db: AsyncSession, user_id: int) -> int:
+    """Получить текущий баланс зачётов пользователя."""
+    res = await db.execute(select(User.credits_balance).where(User.id == user_id))
+    val = res.scalar_one_or_none()
+    return val if val is not None else 0
+
+
+async def get_user_transactions(
+    db: AsyncSession,
+    user_id: int,
+    limit: int = 20,
+    offset: int = 0,
+) -> List[EconomyTransaction]:
+    """Получить историю транзакций пользователя."""
+    res = await db.execute(
+        select(EconomyTransaction)
+        .where(EconomyTransaction.user_id == user_id)
+        .order_by(EconomyTransaction.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(res.scalars().all())
+
+
+# ─────────────────────────────────────────────────────────────
+# Ежедневные стрики посещаемости («Стипендия»)
+# ─────────────────────────────────────────────────────────────
+STREAK_REWARDS_MAP = {
+    1: 10,
+    2: 15,
+    3: 20,
+    4: 25,
+    5: 30,
+    6: 40,
+    7: 60,
+}
+
+
+async def claim_daily_streak(db: AsyncSession, user_id: int) -> Tuple[bool, str, int, int]:
+    """
+    Забрать ежедневную «Стипендию» (стрик входа).
+    Возвращает (success: bool, status_message: str, current_streak: int, reward_credits: int).
+    """
+    user = await get_user(db, user_id)
+    if not user:
+        return False, "Пользователь не найден", 0, 0
+
+    now = datetime.now(timezone.utc)
+    today = now.date()
+
+    used_freeze = False
+    new_streak = 1
+
+    if user.last_streak_date:
+        last_date = user.last_streak_date.date()
+        diff = (today - last_date).days
+
+        if diff == 0:
+            return False, "Ты уже забрал(а) стипендию за сегодня! Приходи завтра ⏳", user.streak_days, 0
+        elif diff == 1:
+            new_streak = (user.streak_days or 0) + 1
+        elif diff == 2:
+            # Пропущен 1 день — проверяем наличие заморозки стрика
+            if (user.streak_freeze_count or 0) > 0:
+                user.streak_freeze_count -= 1
+                used_freeze = True
+                new_streak = (user.streak_days or 0) + 1
+            else:
+                new_streak = 1
+        else:
+            # Пропущено 2+ дня — сброс серии
+            new_streak = 1
+    else:
+        new_streak = 1
+
+    # Расчет награды
+    cycle_day = ((new_streak - 1) % 7) + 1
+    reward = STREAK_REWARDS_MAP.get(cycle_day, 25)
+    bonus_superlike = False
+
+    if cycle_day == 7:
+        user.superlike_balance = (user.superlike_balance or 0) + 1
+        bonus_superlike = True
+
+    user.streak_days = new_streak
+    user.last_streak_date = now
+    user.credits_balance = (user.credits_balance or 0) + reward
+
+    desc = f"Стипендия за день {new_streak} стрика"
+    if used_freeze:
+        desc += " (спасён справкой от врача)"
+    if bonus_superlike:
+        desc += " + 1 Суперлайк за неделю!"
+
+    tx = EconomyTransaction(
+        user_id=user_id,
+        amount=reward,
+        balance_after=user.credits_balance,
+        tx_type="streak",
+        reference_id=f"streak_{new_streak}",
+        description=desc,
+    )
+    db.add(tx)
+    await db.commit()
+
+    msg = f"🎓 <b>+{reward} Зачётов!</b>\n🔥 Серия входа: <b>{new_streak} дн.</b>"
+    if used_freeze:
+        msg = f"🩺 <i>«Справка от врача» спасла твою серию!</i>\n" + msg
+    if bonus_superlike:
+        msg += "\n🎉 <b>Неделя закрыта! Начислен +1 ⭐️ Суперлайк в подарок!</b>"
+
+    return True, msg, new_streak, reward
+
+
+# ─────────────────────────────────────────────────────────────
+# Ежедневные задания (Дейлики)
+# ─────────────────────────────────────────────────────────────
+DEFAULT_DAILY_QUESTS_CONFIG = [
+    {
+        "key": "swipes_15",
+        "title": "👀 Разведка в ленте",
+        "description": "Просмотреть 15 анкет студентов",
+        "target": 15,
+        "reward": 15,
+    },
+    {
+        "key": "likes_5",
+        "title": "❤️ Первый шаг",
+        "description": "Поставить 5 лайков или 1 суперлайк",
+        "target": 5,
+        "reward": 15,
+    },
+    {
+        "key": "chat_1",
+        "title": "💬 Студенческий контакт",
+        "description": "Отправить сообщение взаимному мэтчу",
+        "target": 1,
+        "reward": 20,
+    },
+]
+
+
+async def get_or_create_daily_quests(db: AsyncSession, user_id: int) -> List[UserDailyQuest]:
+    """
+    Возвращает актуальный список дейликов пользователя на сегодня (создаёт при отсутствии).
+    """
+    now = datetime.now(timezone.utc)
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+
+    # Ищем существующие квесты на сегодня
+    res = await db.execute(
+        select(UserDailyQuest).where(
+            and_(
+                UserDailyQuest.user_id == user_id,
+                UserDailyQuest.quest_date == today_start,
+            )
+        )
+    )
+    existing_quests = {q.quest_key: q for q in res.scalars().all()}
+
+    quests_list = []
+    created_any = False
+    for cfg in DEFAULT_DAILY_QUESTS_CONFIG:
+        q_key = cfg["key"]
+        if q_key in existing_quests:
+            quests_list.append(existing_quests[q_key])
+        else:
+            new_q = UserDailyQuest(
+                user_id=user_id,
+                quest_date=today_start,
+                quest_key=q_key,
+                current_progress=0,
+                target_progress=cfg["target"],
+                reward_credits=cfg["reward"],
+                is_claimed=False,
+            )
+            db.add(new_q)
+            quests_list.append(new_q)
+            created_any = True
+
+    if created_any:
+        await db.commit()
+
+    return quests_list
+
+
+async def track_daily_quest_event(
+    db: AsyncSession,
+    user_id: int,
+    quest_key: str,
+    increment: int = 1,
+) -> Optional[UserDailyQuest]:
+    """
+    Инкрементирует прогресс конкретного дейлика пользователя на текущий день.
+    """
+    now = datetime.now(timezone.utc)
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+
+    res = await db.execute(
+        select(UserDailyQuest).where(
+            and_(
+                UserDailyQuest.user_id == user_id,
+                UserDailyQuest.quest_date == today_start,
+                UserDailyQuest.quest_key == quest_key,
+            )
+        )
+    )
+    quest = res.scalar_one_or_none()
+    if not quest:
+        # Создаем если ещё нет
+        cfg = next((c for c in DEFAULT_DAILY_QUESTS_CONFIG if c["key"] == quest_key), None)
+        if not cfg:
+            return None
+        quest = UserDailyQuest(
+            user_id=user_id,
+            quest_date=today_start,
+            quest_key=quest_key,
+            current_progress=0,
+            target_progress=cfg["target"],
+            reward_credits=cfg["reward"],
+            is_claimed=False,
+        )
+        db.add(quest)
+
+    if quest.current_progress < quest.target_progress:
+        quest.current_progress = min(quest.target_progress, quest.current_progress + increment)
+        await db.commit()
+
+    return quest
+
+
+async def claim_daily_quest(
+    db: AsyncSession,
+    user_id: int,
+    quest_key: str,
+) -> Tuple[bool, str, int]:
+    """
+    Забрать награду за выполненный дейлик.
+    Возвращает (success: bool, message: str, reward_credits: int).
+    """
+    now = datetime.now(timezone.utc)
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+
+    res = await db.execute(
+        select(UserDailyQuest).where(
+            and_(
+                UserDailyQuest.user_id == user_id,
+                UserDailyQuest.quest_date == today_start,
+                UserDailyQuest.quest_key == quest_key,
+            )
+        )
+    )
+    quest = res.scalar_one_or_none()
+    if not quest:
+        return False, "Задание не найдено", 0
+
+    if quest.is_claimed:
+        return False, "Награда за это задание уже получена сегодня ✅", 0
+
+    if quest.current_progress < quest.target_progress:
+        return False, f"Задание ещё не выполнено ({quest.current_progress}/{quest.target_progress})", 0
+
+    quest.is_claimed = True
+    quest.claimed_at = now
+
+    reward = quest.reward_credits
+    await add_user_credits(
+        db,
+        user_id=user_id,
+        amount=reward,
+        tx_type="quest",
+        description=f"Награда за дейлик: {quest_key}",
+        reference_id=quest_key,
+    )
+    return True, f"🎉 <b>+{reward} Зачётов начислено!</b>", reward
+
+
+# ─────────────────────────────────────────────────────────────
+# Постоянные задания и Достижения кампуса (Permanent Quests)
+# ─────────────────────────────────────────────────────────────
+DEFAULT_PERMANENT_QUESTS_CONFIG = [
+    {
+        "key": "onboarding_profile",
+        "title": "🎓 Академический профиль",
+        "description": "Заполнить все ключевые разделы анкеты",
+        "icon": "🎓",
+        "target": 1,
+        "reward_credits": 50,
+        "reward_badge": None,
+        "ref_check": ["onboarding_profile_complete"],
+    },
+    {
+        "key": "onboarding_email",
+        "title": "🏛 Студенческий статус",
+        "description": "Подтвердить университетскую корпоративную почту",
+        "icon": "🏛",
+        "target": 1,
+        "reward_credits": 100,
+        "reward_badge": "Верифицирован 🎓",
+        "ref_check": ["onboarding_email_verified"],
+    },
+    {
+        "key": "onboarding_gallery",
+        "title": "📸 Портфолио в сборе",
+        "description": "Загрузить 3 или более фото в анкету",
+        "icon": "📸",
+        "target": 3,
+        "reward_credits": 30,
+        "reward_badge": None,
+        "ref_check": ["onboarding_gallery_3_photos"],
+    },
+    {
+        "key": "invite_friend_1",
+        "title": "🤝 Кампусный нетворк",
+        "description": "Пригласить 1 друга по реферальной ссылке",
+        "icon": "🤝",
+        "target": 1,
+        "reward_credits": 50,
+        "reward_badge": None,
+        "ref_check": [],
+    },
+    {
+        "key": "invite_friend_3",
+        "title": "👥 Душа компании",
+        "description": "Пригласить 3 друзей в StudMatch",
+        "icon": "👥",
+        "target": 3,
+        "reward_credits": 150,
+        "reward_badge": "Амбассадор 🌟",
+        "ref_check": [],
+    },
+    {
+        "key": "matches_5",
+        "title": "💬 Первый коннект",
+        "description": "Найти 5 взаимных симпатий в ленте знакомств",
+        "icon": "❤️",
+        "target": 5,
+        "reward_credits": 40,
+        "reward_badge": None,
+        "ref_check": [],
+    },
+    {
+        "key": "streak_7",
+        "title": "🔥 Железная дисциплина",
+        "description": "Собрать серию посещений 7 дней подряд",
+        "icon": "🔥",
+        "target": 7,
+        "reward_credits": 100,
+        "reward_badge": "Активист ⚡️",
+        "ref_check": [],
+    },
+    {
+        "key": "academic_diploma",
+        "title": "📜 Отличник учёбы",
+        "description": "Подтвердить академический диплом или олимпиаду",
+        "icon": "📜",
+        "target": 1,
+        "reward_credits": 75,
+        "reward_badge": "Отличник 🥇",
+        "ref_check": [],
+    },
+    {
+        "key": "gift_sent_1",
+        "title": "🎁 Щедрая душа",
+        "description": "Подарить 1 подарок другому студенту",
+        "icon": "🎁",
+        "target": 1,
+        "reward_credits": 50,
+        "reward_badge": "Меценат 🎁",
+        "ref_check": [],
+    },
+    {
+        "key": "gifts_received_3",
+        "title": "👑 Любимчик кампуса",
+        "description": "Получить 3 любых подарка в профиль",
+        "icon": "👑",
+        "target": 3,
+        "reward_credits": 100,
+        "reward_badge": "Звезда ⭐️",
+        "ref_check": [],
+    },
+]
+
+
+async def get_or_create_permanent_quests(db: AsyncSession, user_id: int) -> List[UserPermanentQuest]:
+    """
+    Возвращает актуальный список постоянных заданий студента с ретроспективным расчетом прогресса.
+    """
+    user = await get_user(db, user_id)
+    if not user:
+        return []
+
+    # 1. Считаем фактический прогресс пользователя по базе
+    p = user.profile
+    profile_complete = 1 if (p and (p.is_complete or (p.goal and len(p.goal.strip()) > 3) or (p.name and len(p.name.strip()) > 1))) else 0
+    email_verified = 1 if user.email_verified else 0
+
+    photos_count = 0
+    if p and p.photos:
+        photos_count = len(p.photos)
+    elif p and p.avatar_file_id:
+        photos_count = 1
+
+    ref_count = (await db.execute(select(func.count(User.id)).where(User.referrer_id == user_id))).scalar() or 0
+    match_count = (await db.execute(select(func.count(Match.id)).where(or_(Match.user1_id == user_id, Match.user2_id == user_id)))).scalar() or 0
+    streak_count = user.streak_days or 0
+    ach_count = (await db.execute(select(func.count(Achievement.id)).where(and_(Achievement.user_id == user_id, Achievement.verified == VerifiedStatus.approved)))).scalar() or 0
+    sent_gifts_count = (await db.execute(select(func.count(EconomyTransaction.id)).where(and_(EconomyTransaction.user_id == user_id, EconomyTransaction.tx_type == "gift")))).scalar() or 0
+    received_gifts_count = (await db.execute(select(func.count(UserReceivedGift.id)).where(UserReceivedGift.recipient_id == user_id))).scalar() or 0
+
+    # 2. Получаем историю транзакций, чтобы знать, какие награды уже выплачивались ранее
+    tx_res = await db.execute(
+        select(EconomyTransaction.reference_id).where(EconomyTransaction.user_id == user_id)
+    )
+    existing_tx_refs = {r for r in tx_res.scalars().all() if r}
+
+    # 3. Получаем сохранённые записи UserPermanentQuest
+    pq_res = await db.execute(
+        select(UserPermanentQuest).where(UserPermanentQuest.user_id == user_id)
+    )
+    existing_quests = {q.quest_key: q for q in pq_res.scalars().all()}
+
+    progress_map = {
+        "onboarding_profile": min(1, profile_complete),
+        "onboarding_email": min(1, email_verified),
+        "onboarding_gallery": min(3, photos_count),
+        "invite_friend_1": min(1, ref_count),
+        "invite_friend_3": min(3, ref_count),
+        "matches_5": min(5, match_count),
+        "streak_7": min(7, streak_count),
+        "academic_diploma": min(1, ach_count),
+        "gift_sent_1": min(1, sent_gifts_count),
+        "gifts_received_3": min(3, received_gifts_count),
+    }
+
+    result_list = []
+    has_changes = False
+
+    for cfg in DEFAULT_PERMANENT_QUESTS_CONFIG:
+        q_key = cfg["key"]
+        calc_progress = progress_map.get(q_key, 0)
+        target = cfg["target"]
+        reward = cfg["reward_credits"]
+        badge = cfg.get("reward_badge")
+
+        was_previously_rewarded = (
+            f"perm_quest_{q_key}" in existing_tx_refs
+            or any(ref in existing_tx_refs for ref in cfg.get("ref_check", []))
+        )
+
+        if q_key in existing_quests:
+            quest = existing_quests[q_key]
+            if calc_progress > quest.current_progress:
+                quest.current_progress = calc_progress
+                has_changes = True
+            if not quest.is_claimed and was_previously_rewarded:
+                quest.is_claimed = True
+                has_changes = True
+            result_list.append(quest)
+        else:
+            new_quest = UserPermanentQuest(
+                user_id=user_id,
+                quest_key=q_key,
+                current_progress=calc_progress,
+                target_progress=target,
+                reward_credits=reward,
+                reward_badge=badge,
+                is_claimed=was_previously_rewarded,
+                claimed_at=datetime.now(timezone.utc) if was_previously_rewarded else None,
+            )
+            db.add(new_quest)
+            result_list.append(new_quest)
+            has_changes = True
+
+    if has_changes:
+        try:
+            await db.commit()
+        except Exception as e:
+            logger.warning("Error saving permanent quests: %s", e)
+            await db.rollback()
+
+    return result_list
+
+
+async def claim_permanent_quest(
+    db: AsyncSession,
+    user_id: int,
+    quest_key: str,
+) -> Tuple[bool, str, int, Optional[str], int]:
+    """
+    Забрать награду за выполненное постоянное задание.
+    Возвращает (success: bool, message: str, reward_credits: int, reward_badge: Optional[str], new_balance: int).
+    """
+    res = await db.execute(
+        select(UserPermanentQuest).where(
+            and_(
+                UserPermanentQuest.user_id == user_id,
+                UserPermanentQuest.quest_key == quest_key,
+            )
+        )
+    )
+    quest = res.scalar_one_or_none()
+    if not quest:
+        return False, "Задание не найдено", 0, None, 0
+
+    if quest.is_claimed:
+        return False, "Награда за это задание уже получена ✅", 0, None, 0
+
+    if quest.current_progress < quest.target_progress:
+        return False, f"Задание ещё не выполнено ({quest.current_progress}/{quest.target_progress})", 0, None, 0
+
+    quest.is_claimed = True
+    quest.claimed_at = datetime.now(timezone.utc)
+
+    reward = quest.reward_credits
+    badge = quest.reward_badge
+    ref_id = f"perm_quest_{quest_key}"
+
+    new_bal = await add_user_credits(
+        db,
+        user_id=user_id,
+        amount=reward,
+        tx_type="quest",
+        description=f"Награда за достижение: {quest_key}",
+        reference_id=ref_id,
+    )
+
+    msg = f"🎉 <b>+{reward} Зачётов начислено!</b>"
+    if badge:
+        msg += f"\n🏆 <i>Разблокирован титул: {badge}</i>"
+
+    return True, msg, reward, badge, new_bal
+
+
+async def track_permanent_quest_event(
+    db: AsyncSession,
+    user_id: int,
+    quest_key: str,
+    increment: int = 1,
+) -> Optional[UserPermanentQuest]:
+    """
+    Инкрементирует прогресс постоянного задания пользователя.
+    """
+    res = await db.execute(
+        select(UserPermanentQuest).where(
+            and_(
+                UserPermanentQuest.user_id == user_id,
+                UserPermanentQuest.quest_key == quest_key,
+            )
+        )
+    )
+    quest = res.scalar_one_or_none()
+    if not quest:
+        cfg = next((c for c in DEFAULT_PERMANENT_QUESTS_CONFIG if c["key"] == quest_key), None)
+        if not cfg:
+            return None
+        quest = UserPermanentQuest(
+            user_id=user_id,
+            quest_key=quest_key,
+            current_progress=min(cfg["target"], increment),
+            target_progress=cfg["target"],
+            reward_credits=cfg["reward_credits"],
+            reward_badge=cfg.get("reward_badge"),
+        )
+        db.add(quest)
+        await db.commit()
+        return quest
+
+    if quest.current_progress < quest.target_progress:
+        quest.current_progress = min(quest.target_progress, quest.current_progress + increment)
+        await db.commit()
+
+    return quest
+
+
+# ─────────────────────────────────────────────────────────────
+# Каталог магазина и покупки
+# ─────────────────────────────────────────────────────────────
+async def get_shop_catalog(
+    db: AsyncSession,
+    category: Optional[str] = None,
+    only_active: bool = True,
+) -> List[ShopItem]:
+    """Получить список товаров магазина, отсортированных по sort_order."""
+    stmt = select(ShopItem)
+    if only_active:
+        stmt = stmt.where(ShopItem.is_active == True)
+    if category:
+        stmt = stmt.where(ShopItem.category == category)
+    stmt = stmt.order_by(ShopItem.sort_order.asc(), ShopItem.id.asc())
+
+    res = await db.execute(stmt)
+    return list(res.scalars().all())
+
+
+async def get_shop_item(db: AsyncSession, item_code: str) -> Optional[ShopItem]:
+    """Получить товар магазина по уникальному коду."""
+    res = await db.execute(select(ShopItem).where(ShopItem.code == item_code))
+    return res.scalar_one_or_none()
+
+
+async def buy_shop_item_with_credits(
+    db: AsyncSession,
+    user_id: int,
+    item_code: str,
+) -> Tuple[bool, str]:
+    """
+    Покупка товара магазина за «Зачёты» 🎓.
+    Атомарно списывает валюту и начисляет купленный бонус/предмет.
+    """
+    item = await get_shop_item(db, item_code)
+    if not item or not item.is_active:
+        return False, "❌ Товар не найден или временно недоступен."
+
+    user = await get_user(db, user_id)
+    if not user:
+        return False, "Пользователь не найден."
+
+    if (user.credits_balance or 0) < item.price_credits:
+        diff = item.price_credits - (user.credits_balance or 0)
+        return False, f"⚠️ Недостаточно зачётов. Не хватает: <b>{diff} 🎓</b>."
+
+    # Списываем зачёты
+    success, new_bal = await spend_user_credits(
+        db,
+        user_id=user_id,
+        amount=item.price_credits,
+        tx_type="purchase",
+        description=f"Покупка товара: {item.title}",
+        reference_id=item.code,
+    )
+    if not success:
+        return False, "⚠️ Не удалось списать зачёты. Попробуй позже."
+
+    # Начисляем купленный товар
+    now = datetime.now(timezone.utc)
+    b_type = item.bonus_type
+    b_val = item.bonus_value or 1
+
+    reward_text = item.title
+
+    if b_type == "superlike":
+        user.superlike_balance = (user.superlike_balance or 0) + b_val
+
+    elif b_type == "rewind":
+        # Добавляем в инвентарь количество шпор/откатов
+        inv_res = await db.execute(
+            select(UserInventoryItem).where(
+                and_(UserInventoryItem.user_id == user_id, UserInventoryItem.item_code == "rewind")
+            )
+        )
+        inv_item = inv_res.scalar_one_or_none()
+        if inv_item:
+            inv_item.quantity += b_val
+        else:
+            db.add(UserInventoryItem(user_id=user_id, item_code="rewind", quantity=b_val))
+
+    elif b_type == "freeze":
+        user.streak_freeze_count = (user.streak_freeze_count or 0) + b_val
+
+    elif b_type == "boost":
+        hours = b_val
+        base_time = user.boost_until if user.boost_until and user.boost_until > now else now
+        if base_time.tzinfo is None:
+            base_time = base_time.replace(tzinfo=timezone.utc)
+        user.boost_until = base_time + timedelta(hours=hours)
+
+    elif b_type == "premium":
+        days = b_val
+        base_time = user.premium_until if user.premium_until and user.premium_until > now else now
+        if base_time.tzinfo is None:
+            base_time = base_time.replace(tzinfo=timezone.utc)
+        user.premium_until = base_time + timedelta(days=days)
+
+    elif b_type == "frame":
+        duration = item.duration_days or 30
+        exp_at = now + timedelta(days=duration)
+        # Добавляем или продлеваем рамку в инвентаре
+        inv_res = await db.execute(
+            select(UserInventoryItem).where(
+                and_(UserInventoryItem.user_id == user_id, UserInventoryItem.item_code == item.code)
+            )
+        )
+        inv_item = inv_res.scalar_one_or_none()
+        if inv_item:
+            base_exp = inv_item.expires_at if inv_item.expires_at and inv_item.expires_at > now else now
+            inv_item.expires_at = base_exp + timedelta(days=duration)
+            inv_item.is_equipped = True
+        else:
+            db.add(
+                UserInventoryItem(
+                    user_id=user_id,
+                    item_code=item.code,
+                    quantity=1,
+                    expires_at=exp_at,
+                    is_equipped=True,
+                )
+            )
+        # Автоматически надеваем рамку
+        user.equipped_frame = item.code
+
+    await db.commit()
+    return True, f"🎉 <b>Успешно куплено: {reward_text}!</b>\nОстаток на балансе: <b>{new_bal} 🎓</b>"
+
+
+# ─────────────────────────────────────────────────────────────
+# Инвентарь и Откат свайпа («Шпора»)
+# ─────────────────────────────────────────────────────────────
+async def get_user_inventory(db: AsyncSession, user_id: int) -> List[UserInventoryItem]:
+    """Получить предметы из инвентаря пользователя."""
+    res = await db.execute(
+        select(UserInventoryItem).where(UserInventoryItem.user_id == user_id)
+    )
+    return list(res.scalars().all())
+
+
+async def equip_profile_frame(db: AsyncSession, user_id: int, frame_code: Optional[str]) -> bool:
+    """Надеть или снять рамку профиля."""
+    user = await get_user(db, user_id)
+    if not user:
+        return False
+
+    if frame_code is None or frame_code == "none":
+        user.equipped_frame = None
+        await db.commit()
+        return True
+
+    # Проверяем наличие активной рамки в инвентаре
+    now = datetime.now(timezone.utc)
+    res = await db.execute(
+        select(UserInventoryItem).where(
+            and_(
+                UserInventoryItem.user_id == user_id,
+                UserInventoryItem.item_code == frame_code,
+            )
+        )
+    )
+    inv_item = res.scalar_one_or_none()
+    if not inv_item:
+        return False
+
+    if inv_item.expires_at:
+        exp = inv_item.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < now:
+            return False
+
+    user.equipped_frame = frame_code
+    await db.commit()
+    return True
+
+
+async def rewind_last_swipe(db: AsyncSession, user_id: int) -> Tuple[bool, str, Optional[int]]:
+    """
+    Откат последнего свайпа («Шпора» 🔄).
+    Списывает 1 предмет 'rewind' из инвентаря и удаляет последний свайп (skip/like).
+    Возвращает (success: bool, message: str, reverted_user_id: Optional[int]).
+    """
+    # 1. Проверяем наличие 'rewind' в инвентаре
+    res = await db.execute(
+        select(UserInventoryItem).where(
+            and_(
+                UserInventoryItem.user_id == user_id,
+                UserInventoryItem.item_code == "rewind",
+                UserInventoryItem.quantity > 0,
+            )
+        )
+    )
+    inv_item = res.scalar_one_or_none()
+    if not inv_item:
+        return False, "❌ У тебя нет «Шпоры» (отката свайпа). Приобрети её в Магазине за 10 🎓!", None
+
+    # 2. Ищем последний свайп
+    swipe_res = await db.execute(
+        select(Swipe)
+        .where(Swipe.from_user_id == user_id)
+        .order_by(Swipe.created_at.desc())
+        .limit(1)
+    )
+    last_swipe = swipe_res.scalar_one_or_none()
+    if not last_swipe:
+        return False, "ℹ️ Нет предыдущих свайпов для отмены.", None
+
+    reverted_target_id = last_swipe.to_user_id
+
+    # 3. Списываем 1 штуку
+    inv_item.quantity -= 1
+    if inv_item.quantity <= 0:
+        await db.delete(inv_item)
+
+    # 4. Удаляем последний свайп
+    await db.delete(last_swipe)
+    await db.commit()
+
+    return True, "🔄 <b>Свайп успешно отменён!</b> Анкета возвращена в просмотр.", reverted_target_id
+
+
+def get_gift_image_url(gift_code: str) -> str:
+    """Возвращает URL реального веб-изображения подарка Telegram."""
+    aliases = {
+        "gift_coffee": "gift_bear",
+        "gift_pizza": "gift_cake",
+        "gift_flowers": "gift_bouquet",
+        "gift_avtozachet": "gift_trophy",
+        "gift_diamond": "gift_gem",
+        "gift_heart_box": "gift_valentine_box",
+    }
+    code = aliases.get(gift_code, gift_code)
+    return f"/static/webapp/gifts/{code}.webp"
+
+
+# ─────────────────────────────────────────────────────────────
+# Подарки Telegram (Telegram Classic & Collectible Gifts)
+# ─────────────────────────────────────────────────────────────
+DEFAULT_CAMPUS_GIFTS = [
+    # ── 11 Классических неколлекционных подарков Telegram ──
+    {
+        "code": "gift_heart",
+        "title": "Сердце (Heart)",
+        "icon": "💝",
+        "image_url": "/static/webapp/gifts/gift_heart.webp",
+        "price_credits": 15,
+        "exchange_credits": 12,
+        "description": "Классическое розовое сияющее сердце Telegram — тёплый знак внимания.",
+        "category": "telegram_classic",
+        "badge": "⭐ Классика",
+        "is_collectible": False,
+    },
+    {
+        "code": "gift_bear",
+        "title": "Плюшевый мишка (Toy Bear)",
+        "icon": "🧸",
+        "image_url": "/static/webapp/gifts/gift_bear.webp",
+        "price_credits": 15,
+        "exchange_credits": 12,
+        "description": "Официальный плюшевый мишка Telegram — тепло, забота и уют.",
+        "category": "telegram_classic",
+        "badge": "⭐ Классика",
+        "is_collectible": False,
+    },
+    {
+        "code": "gift_box",
+        "title": "Коробка подарка (Gift Box)",
+        "icon": "🎁",
+        "image_url": "/static/webapp/gifts/gift_box.webp",
+        "price_credits": 25,
+        "exchange_credits": 20,
+        "description": "Праздничная коробка с лентой — универсальный сюрприз для любого повода.",
+        "category": "telegram_classic",
+        "badge": "⭐ Классика",
+        "is_collectible": False,
+    },
+    {
+        "code": "gift_rose",
+        "title": "Красная роза (Red Rose)",
+        "icon": "🌹",
+        "image_url": "/static/webapp/gifts/gift_rose.webp",
+        "price_credits": 25,
+        "exchange_credits": 20,
+        "description": "Элегантная красная роза — символ романтической симпатии.",
+        "category": "telegram_classic",
+        "badge": "⭐ Классика",
+        "is_collectible": False,
+    },
+    {
+        "code": "gift_cake",
+        "title": "Праздничный торт (Cake)",
+        "icon": "🎂",
+        "image_url": "/static/webapp/gifts/gift_cake.webp",
+        "price_credits": 50,
+        "exchange_credits": 40,
+        "description": "Праздничный торт с клубникой и тремя свечами из Telegram.",
+        "category": "telegram_classic",
+        "badge": "⭐ Классика",
+        "is_collectible": False,
+    },
+    {
+        "code": "gift_bouquet",
+        "title": "Букет тюльпанов (Bouquet)",
+        "icon": "💐",
+        "image_url": "/static/webapp/gifts/gift_bouquet.webp",
+        "price_credits": 50,
+        "exchange_credits": 40,
+        "description": "Нежный букет весенних тюльпанов из Telegram.",
+        "category": "telegram_classic",
+        "badge": "⭐ Классика",
+        "is_collectible": False,
+    },
+    {
+        "code": "gift_rocket",
+        "title": "Космическая ракета (Rocket)",
+        "icon": "🚀",
+        "image_url": "/static/webapp/gifts/gift_rocket.webp",
+        "price_credits": 50,
+        "exchange_credits": 40,
+        "description": "Стремительная ракета в полёте с огненным соплом из Telegram.",
+        "category": "telegram_classic",
+        "badge": "⭐ Классика",
+        "is_collectible": False,
+    },
+    {
+        "code": "gift_trophy",
+        "title": "Золотой кубок (Golden Trophy)",
+        "icon": "🏆",
+        "image_url": "/static/webapp/gifts/gift_trophy.webp",
+        "price_credits": 100,
+        "exchange_credits": 80,
+        "description": "Золотой кубок победителя из Telegram.",
+        "category": "telegram_classic",
+        "badge": "⭐ Классика",
+        "is_collectible": False,
+    },
+    {
+        "code": "gift_ring",
+        "title": "Кольцо с бриллиантом (Diamond Ring)",
+        "icon": "💍",
+        "image_url": "/static/webapp/gifts/gift_ring.webp",
+        "price_credits": 100,
+        "exchange_credits": 80,
+        "description": "Драгоценное кольцо с бриллиантом чистейшей огранки из Telegram.",
+        "category": "telegram_classic",
+        "badge": "⭐ Классика",
+        "is_collectible": False,
+    },
+    {
+        "code": "gift_champagne",
+        "title": "Шампанское (Holiday Drink)",
+        "icon": "🍾",
+        "image_url": "/static/webapp/gifts/gift_champagne.webp",
+        "price_credits": 50,
+        "exchange_credits": 40,
+        "description": "Игристый праздничный напиток в честь долгожданного знакомства.",
+        "category": "telegram_classic",
+        "badge": "⭐ Классика",
+        "is_collectible": False,
+    },
+    {
+        "code": "gift_gem",
+        "title": "Кристалл (Ion Gem)",
+        "icon": "💎",
+        "image_url": "/static/webapp/gifts/gift_gem.webp",
+        "price_credits": 100,
+        "exchange_credits": 80,
+        "description": "Сияющий драгоценный сапфир из коллекции редких Telegram-самоцветов.",
+        "category": "telegram_classic",
+        "badge": "⭐ Классика",
+        "is_collectible": False,
+    },
+
+    # ── 4 Коллекционных редких подарка Telegram (NFT) ──
+    {
+        "code": "gift_stellar_rocket",
+        "title": "Звёздная ракета (Stellar Rocket)",
+        "icon": "🚀",
+        "image_url": "/static/webapp/gifts/gift_stellar_rocket.webp",
+        "price_credits": 150,
+        "exchange_credits": 125,
+        "description": "Редкий коллекционный раритет Telegram. Космический статус для лучших.",
+        "category": "telegram_collectible",
+        "badge": "💎 NFT / Редкий",
+        "is_collectible": True,
+    },
+    {
+        "code": "gift_lollipop",
+        "title": "Леденец Lol Pop",
+        "icon": "🍭",
+        "image_url": "/static/webapp/gifts/gift_lollipop.webp",
+        "price_credits": 120,
+        "exchange_credits": 100,
+        "description": "Коллекционный артефакт Lol Pop — эксклюзивная сладость.",
+        "category": "telegram_collectible",
+        "badge": "💎 NFT / Редкий",
+        "is_collectible": True,
+    },
+    {
+        "code": "gift_lush_bouquet",
+        "title": "Lush Bouquet",
+        "icon": "💐",
+        "image_url": "/static/webapp/gifts/gift_lush_bouquet.webp",
+        "price_credits": 180,
+        "exchange_credits": 150,
+        "description": "Премиальный коллекционный букет из ограниченного тиража Telegram.",
+        "category": "telegram_collectible",
+        "badge": "💎 NFT / Редкий",
+        "is_collectible": True,
+    },
+    {
+        "code": "gift_valentine_box",
+        "title": "Valentine Box",
+        "icon": "💝",
+        "image_url": "/static/webapp/gifts/gift_valentine_box.webp",
+        "price_credits": 200,
+        "exchange_credits": 170,
+        "description": "Редкая коллекционная шкатулка чувств — высший знак признания.",
+        "category": "telegram_collectible",
+        "badge": "💎 NFT / Редкий",
+        "is_collectible": True,
+    },
+]
+
+LEGACY_GIFTS_MAP = {
+    "gift_heart_box": {"code": "gift_heart_box", "title": "Валентинка (Valentine Box)", "icon": "💝", "price_credits": 25, "exchange_credits": 20, "category": "telegram_classic", "is_collectible": False},
+    "gift_coffee": {"code": "gift_coffee", "title": "«Кофе на перерыве»", "icon": "☕️", "price_credits": 15, "exchange_credits": 12, "category": "drink", "is_collectible": False},
+    "gift_pizza": {"code": "gift_pizza", "title": "«Кусочек пиццы»", "icon": "🍕", "price_credits": 25, "exchange_credits": 20, "category": "food", "is_collectible": False},
+    "gift_flowers": {"code": "gift_flowers", "title": "Букет роз", "icon": "💐", "price_credits": 25, "exchange_credits": 20, "category": "telegram_classic", "is_collectible": False},
+    "gift_avtozachet": {"code": "gift_avtozachet", "title": "Золотой кубок", "icon": "🏆", "price_credits": 100, "exchange_credits": 85, "category": "telegram_classic", "is_collectible": False},
+    "gift_diamond": {"code": "gift_diamond", "title": "Ионный кристалл", "icon": "💎", "price_credits": 100, "exchange_credits": 85, "category": "telegram_classic", "is_collectible": False},
+    "gift_crown": {"code": "gift_crown", "title": "Цилиндр аристократа", "icon": "🎩", "price_credits": 250, "exchange_credits": 210, "category": "telegram_collectible", "is_collectible": True},
+    "gift_duck": {"code": "gift_duck", "title": "Плюшевый Пепе", "icon": "🐸", "price_credits": 500, "exchange_credits": 425, "category": "telegram_collectible", "is_collectible": True},
+}
+
+
+async def get_campus_gifts_catalog(db: Optional[AsyncSession] = None) -> List[dict]:
+    """Возвращает каталог подарков Telegram."""
+    return DEFAULT_CAMPUS_GIFTS
+
+
+async def send_campus_gift(
+    db: AsyncSession,
+    sender_id: int,
+    recipient_id: int,
+    gift_code: str,
+    message: Optional[str] = None,
+    is_anonymous: bool = False,
+) -> Tuple[bool, str, Optional[UserReceivedGift]]:
+    """
+    Отправить подарок другому студенту за «Зачёты» 🎓.
+    Списывает валюту с отправителя и сохраняет подарок получателю.
+    """
+    if sender_id == recipient_id:
+        return False, "Нельзя отправлять подарки самому себе.", None
+
+    gift_meta = next((g for g in DEFAULT_CAMPUS_GIFTS if g["code"] == gift_code), None) or LEGACY_GIFTS_MAP.get(gift_code)
+    if not gift_meta:
+        return False, "Подарок не найден в каталоге.", None
+
+    sender = await get_user(db, sender_id)
+    if not sender:
+        return False, "Отправитель не найден.", None
+
+    recipient = await get_user(db, recipient_id)
+    if not recipient:
+        return False, "Получатель подарка не найден.", None
+
+    # 1. Проверяем, есть ли подарок в личном инвентаре пользователя
+    inv_res = await db.execute(
+        select(UserInventoryItem).where(
+            and_(
+                UserInventoryItem.user_id == sender_id,
+                UserInventoryItem.item_code == gift_code,
+                UserInventoryItem.quantity > 0,
+            )
+        )
+    )
+    inv_item = inv_res.scalars().first()
+
+    used_inventory = False
+    if inv_item:
+        inv_item.quantity -= 1
+        if inv_item.quantity <= 0:
+            await db.delete(inv_item)
+        used_inventory = True
+    else:
+        price = gift_meta["price_credits"]
+        if (sender.credits_balance or 0) < price:
+            diff = price - (sender.credits_balance or 0)
+            return False, f"Недостаточно зачётов. Не хватает: {diff} 🎓.", None
+
+        # Списываем зачёты с отправителя
+        success, _ = await spend_user_credits(
+            db,
+            user_id=sender_id,
+            amount=price,
+            tx_type="gift",
+            description=f"Отправка подарка: {gift_meta['title']}",
+            reference_id=gift_code,
+        )
+        if not success:
+            return False, "Не удалось списать зачёты. Попробуйте позже.", None
+
+    # Создаём запись полученного подарка
+    gift_record = UserReceivedGift(
+        sender_id=None if is_anonymous else sender_id,
+        recipient_id=recipient_id,
+        gift_code=gift_code,
+        gift_title=gift_meta["title"],
+        gift_icon=gift_meta["icon"],
+        message=(message or "").strip()[:200] if message else None,
+        is_anonymous=is_anonymous,
+        is_pinned=False,
+    )
+    db.add(gift_record)
+    await db.commit()
+    await db.refresh(gift_record)
+
+    # Прогресс постоянных заданий
+    try:
+        await track_permanent_quest_event(db, sender_id, "gift_sent_1", 1)
+        await track_permanent_quest_event(db, recipient_id, "gifts_received_3", 1)
+    except Exception as e:
+        logger.warning(f"Failed to track gift quests: {e}")
+
+    # Создаём карточку подарка во внутреннем чате, если мэтч уже существует
+    try:
+        import json
+        match_res = await db.execute(
+            select(Match).where(
+                or_(
+                    and_(Match.user1_id == sender_id, Match.user2_id == recipient_id),
+                    and_(Match.user1_id == recipient_id, Match.user2_id == sender_id),
+                )
+            )
+        )
+        match = match_res.scalar_one_or_none()
+        if match:
+            sender_name = "Скрытый отправитель 🤫" if is_anonymous else (
+                sender.profile.name if (sender.profile and sender.profile.name) else (sender.first_name or "Студент")
+            )
+            chat_payload = {
+                "gift_code": gift_code,
+                "gift_title": gift_meta["title"],
+                "gift_icon": gift_meta["icon"],
+                "image_url": get_gift_image_url(gift_code),
+                "message": (message or "").strip()[:200] if message else None,
+                "is_anonymous": is_anonymous,
+                "sender_name": sender_name,
+            }
+            await create_chat_message(
+                db,
+                match_id=match.id,
+                sender_id=sender_id,
+                text=json.dumps(chat_payload, ensure_ascii=False),
+                msg_type="gift",
+            )
+    except Exception as e:
+        logger.warning(f"Failed to post gift card in match chat: {e}")
+
+    return True, f"🎁 Подарок «{gift_meta['title']}» успешно отправлен!", gift_record
+
+
+async def get_user_received_gifts(db: AsyncSession, user_id: int) -> List[UserReceivedGift]:
+    """Получить список полученных подарков пользователя."""
+    res = await db.execute(
+        select(UserReceivedGift)
+        .options(selectinload(UserReceivedGift.sender).selectinload(User.profile))
+        .where(UserReceivedGift.recipient_id == user_id)
+        .order_by(UserReceivedGift.is_pinned.desc(), UserReceivedGift.created_at.desc())
+    )
+    return list(res.scalars().all())
+
+
+async def toggle_pin_user_gift(db: AsyncSession, user_id: int, gift_id: Any) -> Tuple[bool, str, bool]:
+    """Закрепить или открепить подарок в профиле (макс. 3 закрепленных)."""
+    if isinstance(gift_id, str):
+        try:
+            gift_id = uuid.UUID(gift_id)
+        except Exception:
+            return False, "Неверный идентификатор подарка.", False
+
+    res = await db.execute(
+        select(UserReceivedGift).where(
+            and_(UserReceivedGift.id == gift_id, UserReceivedGift.recipient_id == user_id)
+        )
+    )
+    gift = res.scalar_one_or_none()
+    if not gift:
+        return False, "Подарок не найден.", False
+
+    if not gift.is_pinned:
+        count_res = await db.execute(
+            select(func.count(UserReceivedGift.id)).where(
+                and_(UserReceivedGift.recipient_id == user_id, UserReceivedGift.is_pinned == True)
+            )
+        )
+        pinned_count = count_res.scalar() or 0
+        if pinned_count >= 3:
+            return False, "Можно закрепить не более 3 подарков в профиле.", False
+        gift.is_pinned = True
+        msg = "Подарок закреплён в витрине профиля! ✨"
+    else:
+        gift.is_pinned = False
+        msg = "Подарок откреплён."
+
+    await db.commit()
+    return True, msg, gift.is_pinned
+
+
+async def convert_user_gift_to_credits(
+    db: AsyncSession,
+    user_id: int,
+    gift_id: Any,
+) -> Tuple[bool, str, int]:
+    """
+    Обменять полученный подарок на зачёты 🎓 (кэшаут 80-85%).
+    Закреплённые подарки конвертировать нельзя (их сначала нужно открепить).
+    """
+    if isinstance(gift_id, str):
+        try:
+            gift_id = uuid.UUID(gift_id)
+        except Exception:
+            return False, "Неверный идентификатор подарка.", 0
+
+    res = await db.execute(
+        select(UserReceivedGift).where(
+            and_(UserReceivedGift.id == gift_id, UserReceivedGift.recipient_id == user_id)
+        )
+    )
+    gift = res.scalar_one_or_none()
+    if not gift:
+        return False, "Подарок не найден в вашем профиле.", 0
+
+    if gift.is_pinned:
+        return False, "Нельзя обменять закреплённый подарок. Сначала открепите его из витрины.", 0
+
+    gift_meta = next((g for g in DEFAULT_CAMPUS_GIFTS if g["code"] == gift.gift_code), None) or LEGACY_GIFTS_MAP.get(gift.gift_code)
+    if gift_meta and "exchange_credits" in gift_meta:
+        exchange_amount = gift_meta["exchange_credits"]
+    elif gift_meta and "price_credits" in gift_meta:
+        exchange_amount = max(10, int(gift_meta["price_credits"] * 0.8))
+    else:
+        exchange_amount = 20
+
+    # Начисляем зачёты за конвертацию
+    await add_user_credits(
+        db,
+        user_id=user_id,
+        amount=exchange_amount,
+        tx_type="gift_convert",
+        description=f"Обмен подарка: {gift.gift_title}",
+        reference_id=str(gift.id),
+    )
+
+    # Удаляем подарок из профиля
+    await db.delete(gift)
+    await db.commit()
+
+    return True, f"Подарок «{gift.gift_title}» успешно обменян на +{exchange_amount} 🎓!", exchange_amount
+
+
+# ─────────────────────────────────────────────────────────────
+# Колесо Фортуны («Счастливый билет» 🎲)
+# ─────────────────────────────────────────────────────────────
+FORTUNE_WHEEL_SECTORS = [
+    {"id": 0, "code": "credits_15", "icon": "🎓", "title": "+15 Зачётов", "type": "credits", "value": 15, "weight": 28, "color": "#3B82F6"},
+    {"id": 1, "code": "credits_35", "icon": "🎓", "title": "+35 Зачётов", "type": "credits", "value": 35, "weight": 22, "color": "#F59E0B"},
+    {"id": 2, "code": "rewind", "icon": "🔄", "title": "1 «Шпора»", "type": "item", "item_code": "rewind", "weight": 16, "color": "#8B5CF6"},
+    {"id": 3, "code": "credits_75", "icon": "💰", "title": "+75 Зачётов", "type": "credits", "value": 75, "weight": 8, "color": "#EF4444"},
+    {"id": 4, "code": "superlike", "icon": "⭐️", "title": "1 Суперлайк", "type": "superlike", "value": 1, "weight": 10, "color": "#EC4899"},
+    {"id": 5, "code": "boost_6h", "icon": "⚡️", "title": "Буст 6 часов", "type": "boost", "value": 6, "weight": 6, "color": "#F97316"},
+    {"id": 6, "code": "freeze", "icon": "🩺", "title": "1 «Справка»", "type": "freeze", "value": 1, "weight": 6, "color": "#10B981"},
+    {"id": 7, "code": "gift_stellar_rocket", "icon": "🚀", "title": "Звёздная ракета", "type": "gift_item", "gift_code": "gift_stellar_rocket", "weight": 4, "color": "#6366F1"},
+]
+
+FORTUNE_PAID_SPIN_PRICE = 15  # Зачётов за платное вращение
+
+
+async def get_fortune_wheel_status(db: AsyncSession, user_id: int) -> dict:
+    """Проверяет доступность вращения Колеса Фортуны для студента."""
+    user = await get_user(db, user_id)
+    if not user:
+        return {
+            "can_spin_free": False,
+            "seconds_left": 86400,
+            "paid_price": FORTUNE_PAID_SPIN_PRICE,
+            "sectors": FORTUNE_WHEEL_SECTORS,
+        }
+
+    now = datetime.now(timezone.utc)
+    last_spin = user.last_fortune_spin_at
+    if last_spin and last_spin.tzinfo is None:
+        last_spin = last_spin.replace(tzinfo=timezone.utc)
+
+    can_spin_free = False
+    seconds_left = 0
+
+    if not last_spin:
+        can_spin_free = True
+    else:
+        diff_sec = (now - last_spin).total_seconds()
+        if diff_sec >= 86400:
+            can_spin_free = True
+        else:
+            seconds_left = int(86400 - diff_sec)
+
+    return {
+        "can_spin_free": can_spin_free,
+        "seconds_left": max(0, seconds_left),
+        "paid_price": FORTUNE_PAID_SPIN_PRICE,
+        "credits_balance": user.credits_balance or 0,
+        "can_spin_paid": (user.credits_balance or 0) >= FORTUNE_PAID_SPIN_PRICE,
+        "spins_count": user.fortune_spins_count or 0,
+        "sectors": [
+            {
+                "id": s["id"],
+                "code": s["code"],
+                "icon": s["icon"],
+                "title": s["title"],
+                "color": s["color"],
+            }
+            for s in FORTUNE_WHEEL_SECTORS
+        ],
+    }
+
+
+async def spin_fortune_wheel(
+    db: AsyncSession,
+    user_id: int,
+    use_paid: bool = False,
+) -> Tuple[bool, str, Optional[dict]]:
+    """
+    Вращение Колеса Фортуны.
+    Списывает валюту (если платно) или фиксирует дату (если бесплатно).
+    Выдаёт выигранный приз и возвращает данные сектора.
+    """
+    user = await get_user(db, user_id)
+    if not user:
+        return False, "Пользователь не найден.", None
+
+    now = datetime.now(timezone.utc)
+    last_spin = user.last_fortune_spin_at
+    if last_spin and last_spin.tzinfo is None:
+        last_spin = last_spin.replace(tzinfo=timezone.utc)
+
+    is_free = False
+    if not use_paid:
+        if not last_spin or (now - last_spin).total_seconds() >= 86400:
+            is_free = True
+        else:
+            return False, "Бесплатное вращение ещё не доступно. Попробуйте платное вращение за 15 🎓!", None
+    else:
+        if (user.credits_balance or 0) < FORTUNE_PAID_SPIN_PRICE:
+            return False, f"Недостаточно зачётов для вращения (требуется {FORTUNE_PAID_SPIN_PRICE} 🎓).", None
+        ok_spend, _ = await spend_user_credits(
+            db,
+            user_id=user_id,
+            amount=FORTUNE_PAID_SPIN_PRICE,
+            tx_type="wheel_spin",
+            description="Вращение Колеса Фортуны 🎲",
+        )
+        if not ok_spend:
+            return False, "Не удалось списать зачёты за вращение.", None
+
+    if is_free:
+        user.last_fortune_spin_at = now
+
+    user.fortune_spins_count = (user.fortune_spins_count or 0) + 1
+
+    # Случайный сектор с учётом весов
+    weights = [s["weight"] for s in FORTUNE_WHEEL_SECTORS]
+    chosen_sector = random.choices(FORTUNE_WHEEL_SECTORS, weights=weights, k=1)[0]
+
+    # Начисляем награду
+    r_type = chosen_sector["type"]
+
+    if r_type == "credits":
+        await add_user_credits(
+            db,
+            user_id=user_id,
+            amount=chosen_sector["value"],
+            tx_type="wheel_win",
+            description=f"Приз в Колесе Фортуны: {chosen_sector['title']}",
+        )
+    elif r_type == "item":
+        item_code = chosen_sector["item_code"]
+        res = await db.execute(
+            select(UserInventoryItem).where(
+                and_(UserInventoryItem.user_id == user_id, UserInventoryItem.item_code == item_code)
+            )
+        )
+        inv_item = res.scalar_one_or_none()
+        if inv_item:
+            inv_item.quantity += 1
+        else:
+            db.add(UserInventoryItem(user_id=user_id, item_code=item_code, quantity=1))
+    elif r_type == "superlike":
+        user.superlike_balance = (user.superlike_balance or 0) + chosen_sector["value"]
+    elif r_type == "boost":
+        base_boost = user.boost_until if user.boost_until and user.boost_until > now else now
+        user.boost_until = base_boost + timedelta(hours=chosen_sector["value"])
+    elif r_type == "freeze":
+        user.streak_freeze_count = (user.streak_freeze_count or 0) + chosen_sector["value"]
+    elif r_type == "gift_item":
+        gift_code = chosen_sector["gift_code"]
+        res = await db.execute(
+            select(UserInventoryItem).where(
+                and_(UserInventoryItem.user_id == user_id, UserInventoryItem.item_code == gift_code)
+            )
+        )
+        inv_item = res.scalar_one_or_none()
+        if inv_item:
+            inv_item.quantity += 1
+        else:
+            db.add(UserInventoryItem(user_id=user_id, item_code=gift_code, quantity=1))
+
+        # Также добавляем в коллекцию полученных подарков на витрину профиля
+        db.add(
+            UserReceivedGift(
+                sender_id=None,
+                recipient_id=user_id,
+                gift_code=gift_code,
+                gift_title=chosen_sector["title"],
+                gift_icon=chosen_sector["icon"],
+                message="Выиграно в Колесе Фортуны! 🎰✨",
+                is_anonymous=False,
+                is_pinned=False,
+            )
+        )
+
+    await db.commit()
+    await db.refresh(user)
+
+    result_data = {
+        "sector_id": chosen_sector["id"],
+        "sector_code": chosen_sector["code"],
+        "sector_title": chosen_sector["title"],
+        "sector_icon": chosen_sector["icon"],
+        "reward_type": r_type,
+        "new_balance": user.credits_balance or 0,
+        "is_free": is_free,
+    }
+
+    return True, f"🎉 Вы выиграли: {chosen_sector['title']}!", result_data
+
+

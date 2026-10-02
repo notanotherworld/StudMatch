@@ -232,16 +232,141 @@ MIGRATION_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_swipes_to_project_id ON swipes (to_project_id);",
     "ALTER TABLE matches ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE SET NULL;",
     "CREATE INDEX IF NOT EXISTS idx_matches_project_id ON matches (project_id);",
+    # 027_internal_economy_and_shop
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_balance INT DEFAULT 0;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_days INT DEFAULT 0;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_streak_date TIMESTAMP WITH TIME ZONE;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_freeze_count INT DEFAULT 0;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS equipped_frame VARCHAR(50);",
+    """
+    CREATE TABLE IF NOT EXISTS shop_items (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        title VARCHAR(100) NOT NULL,
+        description TEXT,
+        category VARCHAR(30) NOT NULL DEFAULT 'consumable',
+        price_credits INT NOT NULL DEFAULT 0,
+        price_rub INT,
+        icon VARCHAR(20) DEFAULT '🛍',
+        bonus_type VARCHAR(50),
+        bonus_value INT DEFAULT 1,
+        duration_days INT,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_shop_items_category ON shop_items (category);",
+    """
+    CREATE TABLE IF NOT EXISTS economy_transactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        amount INT NOT NULL,
+        balance_after INT NOT NULL,
+        tx_type VARCHAR(30) NOT NULL,
+        reference_id VARCHAR(100),
+        description VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_econ_tx_user_created ON economy_transactions (user_id, created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_econ_tx_type ON economy_transactions (tx_type);",
+    """
+    CREATE TABLE IF NOT EXISTS user_daily_quests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        quest_date TIMESTAMP WITH TIME ZONE NOT NULL,
+        quest_key VARCHAR(50) NOT NULL,
+        current_progress INT DEFAULT 0,
+        target_progress INT NOT NULL DEFAULT 1,
+        reward_credits INT NOT NULL DEFAULT 10,
+        is_claimed BOOLEAN NOT NULL DEFAULT FALSE,
+        claimed_at TIMESTAMP WITH TIME ZONE,
+        CONSTRAINT uq_user_daily_quest UNIQUE (user_id, quest_date, quest_key)
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_daily_quests_user_date ON user_daily_quests (user_id, quest_date);",
+    """
+    CREATE TABLE IF NOT EXISTS user_permanent_quests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        quest_key VARCHAR(50) NOT NULL,
+        current_progress INT DEFAULT 0,
+        target_progress INT NOT NULL DEFAULT 1,
+        reward_credits INT NOT NULL DEFAULT 50,
+        reward_badge VARCHAR(100),
+        is_claimed BOOLEAN NOT NULL DEFAULT FALSE,
+        claimed_at TIMESTAMP WITH TIME ZONE,
+        CONSTRAINT uq_user_permanent_quest UNIQUE (user_id, quest_key)
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_perm_quests_user ON user_permanent_quests (user_id);",
+    """
+    CREATE TABLE IF NOT EXISTS user_inventory (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        item_code VARCHAR(50) NOT NULL,
+        quantity INT NOT NULL DEFAULT 1,
+        expires_at TIMESTAMP WITH TIME ZONE,
+        is_equipped BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_inventory_user_code ON user_inventory (user_id, item_code);",
+    # Начальный посев товаров в магазин
+    """
+    INSERT INTO shop_items (code, title, description, category, price_credits, price_rub, icon, bonus_type, bonus_value, duration_days, sort_order)
+    VALUES
+        ('superlike_1', '⭐️ Суперлайк', 'Мгновенное уведомление с вашим сообщением прямо на экран', 'consumable', 15, NULL, '⭐️', 'superlike', 1, NULL, 10),
+        ('superlike_5', '⭐️ Пакет 5 суперлайков', 'Выгодный пакет из 5 суперлайков', 'consumable', 65, NULL, '⭐️', 'superlike', 5, NULL, 20),
+        ('rewind', '🔄 «Шпора» (Откат свайпа)', 'Возможность отменить последний случайный дизлайк или пропуск', 'consumable', 10, NULL, '🔄', 'rewind', 1, NULL, 30),
+        ('boost_24h', '⚡️ Буст анкеты 24ч', 'Показ анкеты первым в ленте на 24 часа', 'consumable', 80, 99, '⚡️', 'boost', 24, NULL, 40),
+        ('freeze_streak', '🩺 «Справка от врача»', 'Защита серии посещений: спасает стрик при пропуске одного дня', 'insurance', 25, NULL, '🩺', 'freeze', 1, NULL, 50),
+        ('premium_1d', '💎 Премиум 1 день', 'Суточный тест-драйв всех премиум возможностей', 'subscription', 30, NULL, '💎', 'premium', 1, 1, 60),
+        ('premium_7d', '💎 Премиум 7 дней', 'Неделя безлимитных лайков, фильтров и режима инкогнито', 'subscription', 120, NULL, '💎', 'premium', 7, 7, 70),
+        ('premium_30d', '💎 Премиум 30 дней', 'Месяц максимального комфорта и привилегий', 'subscription', 400, 199, '💎', 'premium', 30, 30, 80),
+        ('frame_gold', '🥇 Рамка «Отличник»', 'Золотая статусная рамка профиля на 30 дней', 'cosmetic', 150, NULL, '🥇', 'frame', 1, 30, 90),
+        ('frame_headman', '👔 Рамка «Староста»', 'Официальный бейдж лидера на 30 дней', 'cosmetic', 150, NULL, '👔', 'frame', 1, 30, 100),
+        ('frame_neon', '🌌 Неоновый стиль', 'Яркий киберпанк градиент карточки на 30 дней', 'cosmetic', 200, NULL, '🌌', 'frame', 1, 30, 110)
+    ON CONFLICT (code) DO NOTHING;
+    """,
+    # 028_credit_packs_and_starter_pack
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS has_bought_starter_pack BOOLEAN DEFAULT FALSE;",
+    "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'starter_pack_99';",
+    "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'credits_100';",
+    "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'credits_300';",
+    "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'credits_700';",
+    "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'credits_1500';",
+    "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'credits_3000';",
+    # 029_fortune_wheel_and_gifts
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_fortune_spin_at TIMESTAMP WITH TIME ZONE;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS fortune_spins_count INT DEFAULT 0;",
+    """
+    CREATE TABLE IF NOT EXISTS user_received_gifts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        sender_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+        recipient_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        gift_code VARCHAR(50) NOT NULL,
+        gift_title VARCHAR(100) NOT NULL,
+        gift_icon VARCHAR(20) NOT NULL,
+        message VARCHAR(200),
+        is_anonymous BOOLEAN DEFAULT FALSE,
+        is_pinned BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_gifts_recipient_created ON user_received_gifts (recipient_id, created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_gifts_sender_created ON user_received_gifts (sender_id, created_at);",
     # Установка версии alembic
     """
     DO $$
     BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version') THEN
             ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64);
-            UPDATE alembic_version SET version_num = '026_projects_mode_and_tables';
+            UPDATE alembic_version SET version_num = '029_fortune_wheel_and_gifts';
         ELSE
             CREATE TABLE alembic_version (version_num VARCHAR(64) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));
-            INSERT INTO alembic_version (version_num) VALUES ('026_projects_mode_and_tables');
+            INSERT INTO alembic_version (version_num) VALUES ('029_fortune_wheel_and_gifts');
         END IF;
     END $$;
     """
@@ -251,6 +376,76 @@ MIGRATION_STATEMENTS = [
 async def ensure_database_schema(engine: AsyncEngine) -> None:
     """Выполняет DDL-скрипты добавления новых колонок при старте без остановки приложения."""
     if engine.dialect.name == "sqlite":
+        from database.models import Base, ShopItem, Admin, AdminRole
+        from database.session import AsyncSessionLocal
+        from sqlalchemy import select
+        import bcrypt
+
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+            def sync_sqlite_columns(sync_conn):
+                for table_name, table in Base.metadata.tables.items():
+                    res = sync_conn.exec_driver_sql(f"PRAGMA table_info('{table_name}')").fetchall()
+                    if not res:
+                        continue
+                    existing_cols = {row[1] for row in res}
+                    for col in table.columns:
+                        if col.name not in existing_cols:
+                            col_type = col.type.compile(engine.dialect)
+                            default_clause = ""
+                            if col.server_default is not None and hasattr(col.server_default, "arg"):
+                                default_clause = f" DEFAULT {col.server_default.arg}"
+                            elif col.default is not None and hasattr(col.default, "arg") and not callable(col.default.arg):
+                                val = col.default.arg
+                                if isinstance(val, bool):
+                                    default_clause = f" DEFAULT {'1' if val else '0'}"
+                                elif isinstance(val, (int, float)):
+                                    default_clause = f" DEFAULT {val}"
+                                elif isinstance(val, str):
+                                    default_clause = f" DEFAULT '{val}'"
+                            sql = f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}{default_clause}"
+                            try:
+                                sync_conn.exec_driver_sql(sql)
+                                logger.info(f"Добавлена колонка {table_name}.{col.name} ({col_type})")
+                            except Exception as e:
+                                logger.warning(f"Не удалось добавить колонку {table_name}.{col.name}: {e}")
+
+            await conn.run_sync(sync_sqlite_columns)
+
+        async with AsyncSessionLocal() as session:
+            # Посев каталога товаров
+            items_count = (await session.execute(select(ShopItem))).scalars().first()
+            if not items_count:
+                default_items = [
+                    ShopItem(code="superlike_1", title="⭐️ Суперлайк", description="Мгновенное уведомление с вашим сообщением прямо на экран", category="consumable", price_credits=15, icon="⭐️", bonus_type="superlike", bonus_value=1, sort_order=10),
+                    ShopItem(code="superlike_5", title="⭐️ Пакет 5 суперлайков", description="Выгодный пакет из 5 суперлайков", category="consumable", price_credits=65, icon="⭐️", bonus_type="superlike", bonus_value=5, sort_order=20),
+                    ShopItem(code="rewind", title="🔄 «Шпора» (Откат свайпа)", description="Возможность отменить последний случайный дизлайк или пропуск", category="consumable", price_credits=10, icon="🔄", bonus_type="rewind", bonus_value=1, sort_order=30),
+                    ShopItem(code="boost_24h", title="⚡️ Буст анкеты 24ч", description="Показ анкеты первым в ленте на 24 часа", category="consumable", price_credits=80, price_rub=99, icon="⚡️", bonus_type="boost", bonus_value=24, sort_order=40),
+                    ShopItem(code="freeze_streak", title="🩺 «Справка от врача»", description="Защита серии посещений: спасает стрик при пропуске одного дня", category="insurance", price_credits=25, icon="🩺", bonus_type="freeze", bonus_value=1, sort_order=50),
+                    ShopItem(code="premium_1d", title="💎 Премиум 1 день", description="Суточный тест-драйв всех премиум возможностей", category="subscription", price_credits=30, icon="💎", bonus_type="premium", bonus_value=1, duration_days=1, sort_order=60),
+                    ShopItem(code="premium_7d", title="💎 Премиум 7 дней", description="Неделя безлимитных лайков, фильтров и режима инкогнито", category="subscription", price_credits=120, icon="💎", bonus_type="premium", bonus_value=7, duration_days=7, sort_order=70),
+                    ShopItem(code="premium_30d", title="💎 Премиум 30 дней", description="Месяц максимального комфорта и привилегий", category="subscription", price_credits=400, price_rub=199, icon="💎", bonus_type="premium", bonus_value=30, duration_days=30, sort_order=80),
+                    ShopItem(code="frame_gold", title="🥇 Рамка «Отличник»", description="Золотая статусная рамка профиля на 30 дней", category="cosmetic", price_credits=150, icon="🥇", bonus_type="frame", bonus_value=1, duration_days=30, sort_order=90),
+                    ShopItem(code="frame_headman", title="👔 Рамка «Староста»", description="Официальный бейдж лидера на 30 дней", category="cosmetic", price_credits=150, icon="👔", bonus_type="frame", bonus_value=1, duration_days=30, sort_order=100),
+                    ShopItem(code="frame_neon", title="🌌 Неоновый стиль", description="Яркий киберпанк градиент карточки на 30 дней", category="cosmetic", price_credits=200, icon="🌌", bonus_type="frame", bonus_value=1, duration_days=30, sort_order=110),
+                ]
+                session.add_all(default_items)
+
+            # Посев администратора по умолчанию (admin / admin123)
+            admin_check = (await session.execute(select(Admin).limit(1))).scalars().first()
+            if not admin_check:
+                pw_hash = bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode()
+                dev_admin = Admin(
+                    login="admin",
+                    password_hash=pw_hash,
+                    role=AdminRole.superadmin,
+                    is_active=True,
+                )
+                session.add(dev_admin)
+
+            await session.commit()
+        logger.info("✅ SQLite база данных и начальные данные успешно инициализированы!")
         return
 
     for stmt in MIGRATION_STATEMENTS:

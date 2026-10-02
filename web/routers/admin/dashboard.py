@@ -73,8 +73,18 @@ async def dashboard(
         .where(User.created_at >= month_ago)
         .group_by("day").order_by("day")
     )
+    def _fmt_day(val):
+        if val is None:
+            return ""
+        if isinstance(val, datetime):
+            return val.strftime("%d.%m")
+        try:
+            return datetime.fromisoformat(str(val)).strftime("%d.%m")
+        except Exception:
+            return str(val)[:5]
+
     reg_chart = [
-        {"day": r[0].strftime("%d.%m"), "count": r[1]}
+        {"day": _fmt_day(r[0]), "count": r[1]}
         for r in reg_result.all()
     ]
 
@@ -87,7 +97,7 @@ async def dashboard(
         .group_by("day").order_by("day")
     )
     matches_chart = [
-        {"day": r[0].strftime("%d.%m"), "count": r[1]}
+        {"day": _fmt_day(r[0]), "count": r[1]}
         for r in matches_chart_result.all()
     ]
 
