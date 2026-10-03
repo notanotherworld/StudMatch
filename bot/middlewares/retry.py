@@ -59,14 +59,24 @@ class RetryRequestMiddleware(BaseRequestMiddleware):
             except TelegramNetworkError as e:
                 if attempt < self.max_retries:
                     sleep_time = self.delay * (1.5 ** attempt)
-                    logger.warning(
-                        "Telegram network glitch (%s) on %s. Retrying in %.1fs (attempt %d/%d)...",
-                        e.message or e,
-                        method_name,
-                        sleep_time,
-                        attempt + 1,
-                        self.max_retries,
-                    )
+                    # Для GetUpdates кратковременные разрывы (Errno 104, таймаут ожидания)
+                    # на первой попытке являются штатной частью long-polling цикла в Telegram.
+                    if method_name == "GetUpdates" and attempt == 0:
+                        logger.debug(
+                            "Telegram long-polling cycle reconnect on %s (%s). Reconnecting in %.1fs...",
+                            method_name,
+                            e.message or e,
+                            sleep_time,
+                        )
+                    else:
+                        logger.warning(
+                            "Telegram network glitch (%s) on %s. Retrying in %.1fs (attempt %d/%d)...",
+                            e.message or e,
+                            method_name,
+                            sleep_time,
+                            attempt + 1,
+                            self.max_retries,
+                        )
                     await asyncio.sleep(sleep_time)
                 else:
                     logger.error(
@@ -78,16 +88,20 @@ class RetryRequestMiddleware(BaseRequestMiddleware):
                     raise
 
 
-def create_resilient_bot_session(timeout: float = 30.0, max_retries: int = 3) -> AiohttpSession:
+def create_resilient_bot_session(timeout: float = 60.0, max_retries: int = 3) -> AiohttpSession:
     """
     Создает устойчивую сессию aiohttp для aiogram:
-    1. Устанавливает явный таймаут запроса (30 секунд).
+    1. Устанавливает явный таймаут запроса (по умолчанию 60 секунд).
     2. Принудительно задает семейство адресов IPv4 (AF_INET), устраняя задержки и зависания
        aiohappyeyeballs при отсутствии IPv6-маршрутизации в Docker/VPS.
-    3. Подключает RetryRequestMiddleware с экспоненциальной задержкой.
+    3. Задает keepalive_timeout=30.0 и enable_cleanup_closed=True в TCPConnector для
+       предотвращения зависаний и сброса TCP соединений (Errno 104: Connection reset by peer).
+    4. Подключает RetryRequestMiddleware с экспоненциальной задержкой.
     """
     session = AiohttpSession(timeout=timeout)
     # Принудительно используем IPv4 для надежного резолва и коннекта к api.telegram.org в Docker
     session._connector_init["family"] = socket.AF_INET
+    session._connector_init["keepalive_timeout"] = 30.0
+    session._connector_init["enable_cleanup_closed"] = True
     session.middleware(RetryRequestMiddleware(max_retries=max_retries, delay=1.0))
     return session
