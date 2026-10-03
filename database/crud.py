@@ -2003,13 +2003,13 @@ async def get_user_transactions(
 # Ежедневные стрики посещаемости («Стипендия»)
 # ─────────────────────────────────────────────────────────────
 STREAK_REWARDS_MAP = {
-    1: 10,
-    2: 15,
-    3: 20,
-    4: 25,
-    5: 30,
-    6: 40,
-    7: 60,
+    1: 4,
+    2: 6,
+    3: 8,
+    4: 10,
+    5: 12,
+    6: 16,
+    7: 24,
 }
 
 
@@ -2055,7 +2055,7 @@ async def claim_daily_streak(db: AsyncSession, user_id: int) -> Tuple[bool, str,
 
     # Расчет награды
     cycle_day = ((new_streak - 1) % 7) + 1
-    reward = STREAK_REWARDS_MAP.get(cycle_day, 25)
+    reward = STREAK_REWARDS_MAP.get(cycle_day, 10)
     bonus_superlike = False
 
     if cycle_day == 7:
@@ -2101,21 +2101,21 @@ DEFAULT_DAILY_QUESTS_CONFIG = [
         "title": "👀 Разведка в ленте",
         "description": "Просмотреть 15 анкет студентов",
         "target": 15,
-        "reward": 15,
+        "reward": 6,
     },
     {
         "key": "likes_5",
         "title": "❤️ Первый шаг",
         "description": "Поставить 5 лайков или 1 суперлайк",
         "target": 5,
-        "reward": 15,
+        "reward": 6,
     },
     {
         "key": "chat_1",
         "title": "💬 Студенческий контакт",
         "description": "Отправить сообщение взаимному мэтчу",
         "target": 1,
-        "reward": 20,
+        "reward": 8,
     },
 ]
 
@@ -2143,7 +2143,11 @@ async def get_or_create_daily_quests(db: AsyncSession, user_id: int) -> List[Use
     for cfg in DEFAULT_DAILY_QUESTS_CONFIG:
         q_key = cfg["key"]
         if q_key in existing_quests:
-            quests_list.append(existing_quests[q_key])
+            eq = existing_quests[q_key]
+            if not eq.is_claimed and eq.reward_credits != cfg["reward"]:
+                eq.reward_credits = cfg["reward"]
+                created_any = True
+            quests_list.append(eq)
         else:
             new_q = UserDailyQuest(
                 user_id=user_id,
@@ -2243,7 +2247,9 @@ async def claim_daily_quest(
     quest.is_claimed = True
     quest.claimed_at = now
 
-    reward = quest.reward_credits
+    cfg = next((c for c in DEFAULT_DAILY_QUESTS_CONFIG if c["key"] == quest_key), None)
+    reward = cfg["reward"] if cfg else quest.reward_credits
+    quest.reward_credits = reward
     await add_user_credits(
         db,
         user_id=user_id,
@@ -2265,7 +2271,7 @@ DEFAULT_PERMANENT_QUESTS_CONFIG = [
         "description": "Заполнить все ключевые разделы анкеты",
         "icon": "🎓",
         "target": 1,
-        "reward_credits": 50,
+        "reward_credits": 20,
         "reward_badge": None,
         "ref_check": ["onboarding_profile_complete"],
     },
@@ -2275,7 +2281,7 @@ DEFAULT_PERMANENT_QUESTS_CONFIG = [
         "description": "Подтвердить университетскую корпоративную почту",
         "icon": "🏛",
         "target": 1,
-        "reward_credits": 100,
+        "reward_credits": 40,
         "reward_badge": "Верифицирован 🎓",
         "ref_check": ["onboarding_email_verified"],
     },
@@ -2285,7 +2291,7 @@ DEFAULT_PERMANENT_QUESTS_CONFIG = [
         "description": "Загрузить 3 или более фото в анкету",
         "icon": "📸",
         "target": 3,
-        "reward_credits": 30,
+        "reward_credits": 12,
         "reward_badge": None,
         "ref_check": ["onboarding_gallery_3_photos"],
     },
@@ -2295,7 +2301,7 @@ DEFAULT_PERMANENT_QUESTS_CONFIG = [
         "description": "Пригласить 1 друга по реферальной ссылке",
         "icon": "🤝",
         "target": 1,
-        "reward_credits": 50,
+        "reward_credits": 20,
         "reward_badge": None,
         "ref_check": [],
     },
@@ -2305,7 +2311,7 @@ DEFAULT_PERMANENT_QUESTS_CONFIG = [
         "description": "Пригласить 3 друзей в StudMatch",
         "icon": "👥",
         "target": 3,
-        "reward_credits": 150,
+        "reward_credits": 60,
         "reward_badge": "Амбассадор 🌟",
         "ref_check": [],
     },
@@ -2315,7 +2321,7 @@ DEFAULT_PERMANENT_QUESTS_CONFIG = [
         "description": "Найти 5 взаимных симпатий в ленте знакомств",
         "icon": "❤️",
         "target": 5,
-        "reward_credits": 40,
+        "reward_credits": 16,
         "reward_badge": None,
         "ref_check": [],
     },
@@ -2325,7 +2331,7 @@ DEFAULT_PERMANENT_QUESTS_CONFIG = [
         "description": "Собрать серию посещений 7 дней подряд",
         "icon": "🔥",
         "target": 7,
-        "reward_credits": 100,
+        "reward_credits": 40,
         "reward_badge": "Активист ⚡️",
         "ref_check": [],
     },
@@ -2335,7 +2341,7 @@ DEFAULT_PERMANENT_QUESTS_CONFIG = [
         "description": "Подтвердить академический диплом или олимпиаду",
         "icon": "📜",
         "target": 1,
-        "reward_credits": 75,
+        "reward_credits": 30,
         "reward_badge": "Отличник 🥇",
         "ref_check": [],
     },
@@ -2345,7 +2351,7 @@ DEFAULT_PERMANENT_QUESTS_CONFIG = [
         "description": "Подарить 1 подарок другому студенту",
         "icon": "🎁",
         "target": 1,
-        "reward_credits": 50,
+        "reward_credits": 20,
         "reward_badge": "Меценат 🎁",
         "ref_check": [],
     },
@@ -2355,7 +2361,7 @@ DEFAULT_PERMANENT_QUESTS_CONFIG = [
         "description": "Получить 3 любых подарка в профиль",
         "icon": "👑",
         "target": 3,
-        "reward_credits": 100,
+        "reward_credits": 40,
         "reward_badge": "Звезда ⭐️",
         "ref_check": [],
     },
@@ -2433,6 +2439,9 @@ async def get_or_create_permanent_quests(db: AsyncSession, user_id: int) -> List
             if calc_progress > quest.current_progress:
                 quest.current_progress = calc_progress
                 has_changes = True
+            if not quest.is_claimed and quest.reward_credits != reward:
+                quest.reward_credits = reward
+                has_changes = True
             if not quest.is_claimed and was_previously_rewarded:
                 quest.is_claimed = True
                 has_changes = True
@@ -2492,7 +2501,9 @@ async def claim_permanent_quest(
     quest.is_claimed = True
     quest.claimed_at = datetime.now(timezone.utc)
 
-    reward = quest.reward_credits
+    cfg = next((c for c in DEFAULT_PERMANENT_QUESTS_CONFIG if c["key"] == quest_key), None)
+    reward = cfg["reward_credits"] if cfg else (quest.reward_credits or 0)
+    quest.reward_credits = reward
     badge = quest.reward_badge
     ref_id = f"perm_quest_{quest_key}"
 

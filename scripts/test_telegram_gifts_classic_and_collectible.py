@@ -163,10 +163,10 @@ async def test_telegram_classic_and_collectible_gifts():
         assert gift_sent_q.current_progress >= 1
         assert gift_sent_q.target_progress == 1
 
-        # Клеймим награду за отправку подарка (+50 🎓)
+        # Клеймим награду за отправку подарка (+20 🎓)
         claim_ok, claim_msg, rew, badge, _ = await claim_permanent_quest(db, u_sender.id, "gift_sent_1")
         assert claim_ok is True, f"Claim failed: {claim_msg}"
-        assert rew == 50
+        assert rew == 20
         assert badge == "Меценат 🎁"
 
         # 6. Отправляем коллекционный подарок NFT: «Звёздная ракета» (1500 🎓) анонимно
@@ -213,10 +213,10 @@ async def test_telegram_classic_and_collectible_gifts():
         gift_rec_q = next(q for q in quests_rec if q.quest_key == "gifts_received_3")
         assert gift_rec_q.current_progress >= 3
 
-        # Клеймим награду (+100 🎓)
+        # Клеймим награду (+40 🎓)
         claim_rec_ok, _, rew_rec, badge_rec, _ = await claim_permanent_quest(db, u_rec.id, "gifts_received_3")
         assert claim_rec_ok is True
-        assert rew_rec == 100
+        assert rew_rec == 40
         assert badge_rec == "Звезда ⭐️"
 
         # 10. Проверяем механику конвертации подарка

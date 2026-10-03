@@ -138,7 +138,7 @@ async def test_03_daily_streak_and_freeze():
         ok, msg, streak, reward = await claim_daily_streak(db, user.id)
         assert ok is True
         assert streak == 1
-        assert reward == 10
+        assert reward == 4
 
         # Повторный клейм в тот же день -> блокировка
         ok2, msg2, streak2, reward2 = await claim_daily_streak(db, user.id)
@@ -153,7 +153,7 @@ async def test_03_daily_streak_and_freeze():
         ok3, msg3, streak3, reward3 = await claim_daily_streak(db, user.id)
         assert ok3 is True
         assert streak3 == 2
-        assert reward3 == 15
+        assert reward3 == 6
 
         # Имитируем пропуск 1 дня с наличием справки от врача (freeze_count = 1)
         two_days_ago = datetime.now(timezone.utc) - timedelta(days=2)
@@ -191,10 +191,10 @@ async def test_04_daily_quests_lifecycle():
         # Забираем награду
         ok, msg, reward = await claim_daily_quest(db, user.id, "swipes_15")
         assert ok is True
-        assert reward == 15
+        assert reward == 6
 
         bal = await get_user_credits_balance(db, user.id)
-        assert bal == 15
+        assert bal == 6
 
         # Повторный клейм невозможен
         ok_again, _, _ = await claim_daily_quest(db, user.id, "swipes_15")
@@ -377,7 +377,7 @@ async def test_09_permanent_quests():
 
         gift_rec_q = next(q for q in perm_quests if q.quest_key == "gifts_received_3")
         assert gift_rec_q.target_progress == 3
-        assert gift_rec_q.reward_credits == 100
+        assert gift_rec_q.reward_credits == 40
 
         profile_q = next(q for q in perm_quests if q.quest_key == "onboarding_profile")
         assert profile_q.current_progress == 1
@@ -385,7 +385,7 @@ async def test_09_permanent_quests():
 
         email_q = next(q for q in perm_quests if q.quest_key == "onboarding_email")
         assert email_q.current_progress == 1
-        assert email_q.reward_credits == 100
+        assert email_q.reward_credits == 40
         assert email_q.reward_badge == "Верифицирован 🎓"
 
         streak_q = next(q for q in perm_quests if q.quest_key == "streak_7")
@@ -398,9 +398,9 @@ async def test_09_permanent_quests():
             db=db,
         )
         assert claim_res["status"] == "success"
-        assert claim_res["reward_credits"] == 100
+        assert claim_res["reward_credits"] == 40
         assert claim_res["reward_badge"] == "Верифицирован 🎓"
-        assert claim_res["new_balance"] >= 100
+        assert claim_res["new_balance"] >= 40
 
         # Повторный сбор должен выдать ошибку
         claim_repeat = await webapp_claim_permanent_quest(

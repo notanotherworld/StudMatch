@@ -7433,7 +7433,7 @@
     if (daysRow) {
       const streak = ov.streak_days || 0;
       const canClaim = !!ov.can_claim_streak;
-      const streakMap = [20, 25, 30, 40, 50, 75, 150];
+      const streakMap = [4, 6, 8, 10, 12, 16, 24];
       const cycleDay = streak > 0 ? ((streak - 1) % 7) + 1 : 0;
 
       // Update flame badge text
@@ -7469,7 +7469,7 @@
       const claimText = document.getElementById("btnClaimStreakText");
       if (claimBtn) {
         claimBtn.disabled = !canClaim;
-        const btnLabel = canClaim ? `Забрать стипендию (+${ov.today_streak_reward || 25} 🎓)` : "Получено сегодня ✅";
+        const btnLabel = canClaim ? `Забрать стипендию (+${ov.today_streak_reward || 10} 🎓)` : "Получено сегодня ✅";
         if (claimText) {
           claimText.textContent = btnLabel;
         } else {

@@ -3717,7 +3717,7 @@ async def webapp_economy_overview(
 
     next_streak = streak + 1 if can_claim_streak else streak
     cycle_day = ((next_streak - 1) % 7) + 1 if next_streak > 0 else 1
-    today_reward = STREAK_REWARDS_MAP.get(cycle_day, 25)
+    today_reward = STREAK_REWARDS_MAP.get(cycle_day, 10)
 
     # Задания (Дейлики)
     quests = await get_or_create_daily_quests(db, user.id)

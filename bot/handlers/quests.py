@@ -38,7 +38,7 @@ def _render_streak_bar(streak_days: int) -> str:
     cycle_day = ((streak_days - 1) % 7) + 1 if streak_days > 0 else 0
     icons = []
     for day in range(1, 8):
-        reward = STREAK_REWARDS_MAP.get(day, 25)
+        reward = STREAK_REWARDS_MAP.get(day, 10)
         if day < cycle_day:
             icons.append(f"<b>[✅ Д{day}: +{reward}]</b>")
         elif day == cycle_day:
@@ -91,7 +91,7 @@ async def _render_quests_main(user: User, db: AsyncSession):
     # Расчет награды за сегодня
     next_streak = streak + 1 if can_claim_streak else streak
     cycle_day = ((next_streak - 1) % 7) + 1 if next_streak > 0 else 1
-    today_reward = STREAK_REWARDS_MAP.get(cycle_day, 25)
+    today_reward = STREAK_REWARDS_MAP.get(cycle_day, 10)
 
     # Получаем дейлики
     quests = await get_or_create_daily_quests(db, u.id)
