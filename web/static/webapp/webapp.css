@@ -7465,6 +7465,8 @@ img, video, canvas {
   border-radius: 28px 28px 0 0;
   box-shadow: 0 -12px 40px rgba(24, 24, 27, 0.16);
   border-top: 1px solid rgba(226, 232, 240, 0.8);
+  container-type: inline-size;
+  container-name: shopModal;
 }
 
 .shop-drag-handle-wrap {
@@ -7494,6 +7496,8 @@ img, video, canvas {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
+  flex: 1;
 }
 
 .shop-title-badge {
@@ -7521,7 +7525,7 @@ img, video, canvas {
 }
 
 .shop-modal-title {
-  font-size: 21px;
+  font-size: clamp(18px, 4.8vw, 21px);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: #18181B;
@@ -7530,8 +7534,10 @@ img, video, canvas {
 }
 
 .shop-close-btn {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   background: #F1F5F9;
   border: 1px solid rgba(226, 232, 240, 0.9);
@@ -7539,11 +7545,13 @@ img, video, canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   cursor: pointer;
   transition: transform 0.12s ease, background 0.15s ease;
   flex-shrink: 0;
+  touch-action: manipulation;
+  margin-left: 8px;
 }
 
 .shop-close-btn:active {
@@ -7639,23 +7647,33 @@ img, video, canvas {
   color: #EA580C;
 }
 
-/* Segmented Navigation Tabs (tactile iOS pill dock) */
+/* Segmented Navigation Tabs (tactile iOS pill dock with fluid scroll on small screens) */
 .shop-nav-tabs {
   display: flex;
-  gap: 3px;
+  gap: 4px;
   background: #F1F5F9;
-  padding: 3px;
+  padding: 4px;
   border-radius: 9999px;
   border: 1px solid rgba(226, 232, 240, 0.9);
   margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+}
+
+.shop-nav-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .shop-tab-btn {
-  flex: 1;
-  padding: 7px 2px;
+  flex: 1 0 auto;
+  min-width: max-content;
+  scroll-snap-align: center;
+  padding: 7px 11px;
   border: none;
   border-radius: 9999px;
-  font-size: 12px;
+  font-size: clamp(11.5px, 2.7vw, 12.5px);
   font-weight: 600;
   color: #64748B;
   background: transparent;
@@ -7664,8 +7682,10 @@ img, video, canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 4px;
   white-space: nowrap;
+  min-height: 38px;
+  touch-action: manipulation;
 }
 
 .shop-tab-btn:active {
@@ -7967,14 +7987,17 @@ img, video, canvas {
   color: #FFFFFF;
   font-weight: 700;
   font-size: 12px;
-  padding: 7px 13px;
+  padding: 8px 14px;
+  min-height: 38px;
   border-radius: 11px;
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   box-shadow: 0 3px 8px rgba(108, 92, 231, 0.25);
   transition: transform 0.12s ease, opacity 0.15s ease, background 0.15s ease;
+  touch-action: manipulation;
 }
 
 .btn-buy-shop-item:active {
@@ -8200,7 +8223,7 @@ img, video, canvas {
 .streak-days-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: clamp(2px, 1vw, 5px);
   margin: 10px 0 12px;
 }
 
@@ -8209,13 +8232,14 @@ img, video, canvas {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 7px 2px;
+  padding: clamp(4px, 1.2vw, 7px) 1px;
   border-radius: 12px;
-  font-size: 11px;
+  font-size: clamp(9.5px, 2.5vw, 11px);
   transition: all 0.2s ease;
   background: #FFFFFF;
   border: 1px solid rgba(226, 232, 240, 0.9);
   text-align: center;
+  min-width: 0;
 }
 
 .streak-day-cell.done {
@@ -8250,11 +8274,12 @@ img, video, canvas {
 
 .streak-day-name {
   font-weight: 700;
-  font-size: 10.5px;
+  font-size: clamp(9px, 2.4vw, 10.5px);
+  line-height: 1.1;
 }
 
 .streak-day-status-icon {
-  font-size: 14px;
+  font-size: clamp(12px, 3vw, 14px);
   line-height: 1;
   margin: 2px 0 1px;
 }
@@ -8268,9 +8293,10 @@ img, video, canvas {
 }
 
 .streak-day-reward {
-  font-size: 9.5px;
+  font-size: clamp(8px, 2.2vw, 9.5px);
   font-weight: 700;
   font-family: "JetBrains Mono", monospace;
+  white-space: nowrap;
 }
 
 .btn-claim-streak {
@@ -8280,7 +8306,8 @@ img, video, canvas {
   color: #FFFFFF;
   font-weight: 700;
   font-size: 13.5px;
-  padding: 10px 16px;
+  padding: 11px 16px;
+  min-height: 44px;
   border-radius: 13px;
   cursor: pointer;
   display: flex;
@@ -8289,6 +8316,7 @@ img, video, canvas {
   gap: 6px;
   box-shadow: 0 3px 12px rgba(108, 92, 231, 0.3);
   transition: transform 0.12s ease, opacity 0.15s ease, background 0.15s ease;
+  touch-action: manipulation;
 }
 
 .btn-claim-streak:active {
@@ -8800,25 +8828,81 @@ img, video, canvas {
   .shop-chip-value {
     font-size: 12px;
   }
-  .streak-days-grid {
-    gap: 3px;
-  }
-  .streak-day-cell {
-    padding: 6px 1px;
-    font-size: 10px;
-    min-width: 0;
-  }
-  .streak-day-name {
-    font-size: 9px;
-  }
-  .streak-day-reward {
-    font-size: 8.5px;
-  }
   .shop-special-offer {
     padding: 12px;
   }
   .shop-card-item {
     padding: 10px 12px;
+  }
+}
+
+/* Ultra-compact Mobile Screens (≤ 360px, e.g. iPhone SE / small Androids) */
+@media (max-width: 360px) {
+  .shop-modal-content {
+    padding: 8px 10px calc(18px + max(var(--safe-bottom, 0px), 10px));
+  }
+  .shop-modal-title {
+    font-size: 17.5px;
+  }
+  .shop-title-badge {
+    font-size: 9.5px;
+    padding: 1px 6px;
+  }
+  .shop-special-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .shop-special-buy-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .starter-pack-action-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .btn-buy-starter-pack {
+    width: 100%;
+    justify-content: center;
+  }
+  .starter-perks-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .credit-packs-grid {
+    grid-template-columns: 1fr;
+  }
+  .shop-gifts-grid {
+    grid-template-columns: 1fr;
+  }
+  .fortune-controls-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .gift-picker-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .fortune-sectors-legend {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Responsive Container Queries (Telegram Desktop / Tablet Viewports) */
+@container shopModal (min-width: 520px) {
+  .shop-catalog-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .credit-packs-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .shop-gifts-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .starter-perks-grid {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -9450,6 +9534,8 @@ img, video, canvas {
   width: 100%;
   max-width: 480px;
   max-height: 92vh;
+  max-height: 90dvh;
+  padding-bottom: calc(16px + max(var(--safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 8px));
   background: #0F172A;
   color: #F8FAFC;
   border-top-left-radius: 28px;
@@ -9497,8 +9583,10 @@ img, video, canvas {
 }
 
 .fortune-close-btn {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.1);
   border: none;
@@ -9509,6 +9597,7 @@ img, video, canvas {
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
 }
 
 .fortune-wheel-body {
@@ -9519,11 +9608,13 @@ img, video, canvas {
   align-items: center;
 }
 
-/* Wheel Canvas & Needle Stage */
+/* Wheel Canvas & Needle Stage (Fluid scaling on small screens) */
 .wheel-stage-wrapper {
   position: relative;
-  width: 290px;
-  height: 290px;
+  width: min(280px, calc(100vw - 44px));
+  height: min(280px, calc(100vw - 44px));
+  max-width: 100%;
+  aspect-ratio: 1;
   margin: 6px auto 14px;
   display: flex;
   align-items: center;
@@ -9549,8 +9640,10 @@ img, video, canvas {
 
 .wheel-outer-ring {
   position: relative;
-  width: 280px;
-  height: 280px;
+  width: 100%;
+  height: 100%;
+  max-width: 280px;
+  max-height: 280px;
   border-radius: 50%;
   padding: 6px;
   background: radial-gradient(circle, #312E81 0%, #1E1B4B 100%);
@@ -9562,8 +9655,10 @@ img, video, canvas {
 }
 
 .fortune-canvas {
-  width: 268px;
-  height: 268px;
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  max-width: 268px;
+  max-height: 268px;
   border-radius: 50%;
   display: block;
 }
@@ -10102,6 +10197,8 @@ img, video, canvas {
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
+  max-height: 90dvh;
+  padding-bottom: calc(16px + max(var(--safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 8px));
   background: #FFFFFF;
   border-top-left-radius: 28px;
   border-top-right-radius: 28px;
@@ -10141,8 +10238,10 @@ img, video, canvas {
 }
 
 .gift-close-btn {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   background: #F1F5F9;
   border: none;
@@ -10153,6 +10252,7 @@ img, video, canvas {
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
 }
 
 .send-gift-body {
