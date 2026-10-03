@@ -9541,8 +9541,9 @@ img, video, canvas {
   align-items: center;
   gap: 5px;
   box-shadow: 0 3px 10px rgba(217, 119, 6, 0.35);
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   touch-action: manipulation;
+}
+
 .fortune-banner-spin-btn:active {
   transform: scale(0.94);
 }
@@ -9985,9 +9986,60 @@ img, video, canvas {
    🎁 ВИТРИНА ПОДАРКОВ КАМПУСА (В МАГАЗИНЕ)
    ══════════════════════════════════════════════════════════════════ */
 .shop-gifts-hero.telegram-gifts-hero {
-  background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 55%, #38BDF8 100%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 55%, #4F46E5 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 18px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
   box-shadow: 0 8px 24px -6px rgba(37, 99, 235, 0.35);
+  color: #FFFFFF;
+  overflow: hidden;
+}
+
+.shop-gifts-hero.telegram-gifts-hero::after {
+  content: "";
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.gifts-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.gifts-hero-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin: 0 0 4px 0;
+  line-height: 1.25;
+}
+
+.gifts-hero-desc {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  line-height: 1.35;
 }
 
 .shop-gifts-grid {
