@@ -344,7 +344,7 @@ async def test_09_webapp_economy_api():
         # 4. Shop Buy
         buy_res = await webapp_shop_buy(req=BuyShopItemRequest(item_code="superlike_1"), student=student, db=db)
         assert buy_res["status"] == "success"
-        assert buy_res["new_balance"] == 195  # 200 + 10 (streak) - 15 (superlike) = 195
+        assert buy_res["new_balance"] == 189  # 200 + 4 (streak day 1) - 15 (superlike) = 189
 
         # 5. Equip Frame
         frame_res = await webapp_equip_frame(req=EquipFrameRequest(frame_code="none"), student=student, db=db)
@@ -373,7 +373,7 @@ async def test_09_permanent_quests():
 
         gift_sent_q = next(q for q in perm_quests if q.quest_key == "gift_sent_1")
         assert gift_sent_q.target_progress == 1
-        assert gift_sent_q.reward_credits == 50
+        assert gift_sent_q.reward_credits == 20
 
         gift_rec_q = next(q for q in perm_quests if q.quest_key == "gifts_received_3")
         assert gift_rec_q.target_progress == 3
@@ -495,6 +495,24 @@ async def test_11_credit_packs_and_starter_pack():
 
         # 6. Проверка функции-валидатора
         assert await check_user_can_buy_starter_pack(db, user.id) is False
+
+        # 7. Проверка VIP-пакета «Кампусный инвестор» (2799 ₽ -> 8000 🎓)
+        pack_6000 = next(p for p in ov_after["credit_packages"] if p["code"] == "credits_6000")
+        assert pack_6000["price"] == 2799
+        assert pack_6000["credits"] == 6000
+        assert pack_6000["bonus"] == 2000
+        assert pack_6000["badge"] == "VIP ВЫГОДА 35%"
+        assert pack_6000["is_starter"] is False
+
+        bal_before = user.credits_balance
+        buy_6000 = await webapp_create_pack_payment(
+            req=CreatePackPaymentRequest(pack_code="credits_6000"),
+            student=user,
+            db=db,
+        )
+        assert buy_6000["status"] == "success"
+        await db.refresh(user)
+        assert user.credits_balance == bal_before + 8000
 
 
 @pytest.mark.asyncio

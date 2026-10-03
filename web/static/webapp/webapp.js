@@ -7304,6 +7304,7 @@
       { code: "credits_700", title: "«Сессия закрыта»", credits: 700, bonus: 100, price: 499, icon: "⚡️", badge: "🔥 ХИТ" },
       { code: "credits_1500", title: "«Красный диплом»", credits: 1500, bonus: 300, price: 899, icon: "👑", badge: "Выгода 20%" },
       { code: "credits_3000", title: "«Грант ректора»", credits: 3000, bonus: 800, price: 1499, icon: "🏛", badge: "Выгода 25%" },
+      { code: "credits_6000", title: "«Кампусный инвестор»", credits: 6000, bonus: 2000, price: 2799, icon: "💎", badge: "VIP ВЫГОДА 35%" },
     ];
 
     const regularPacks = packs.filter(p => !p.is_starter && p.code !== "starter_pack_99");

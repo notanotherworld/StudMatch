@@ -89,6 +89,7 @@ class PaymentProduct(str, enum.Enum):
     credits_700 = "credits_700"
     credits_1500 = "credits_1500"
     credits_3000 = "credits_3000"
+    credits_6000 = "credits_6000"
 
 
 class PaymentStatus(str, enum.Enum):

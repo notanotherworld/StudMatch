@@ -242,11 +242,11 @@ async def test_telegram_classic_and_collectible_gifts():
         assert conv_ok["credits_added"] == 20
         assert conv_ok["new_balance"] == bal_before_conv + 20
 
-        # Также конвертируем редкий коллекционный подарок (Звёздная ракета) -> +125 🎓
+        # Также конвертируем редкий коллекционный подарок (Звёздная ракета) -> +1600 🎓 (80% от 2000 🎓)
         nft_id = nft_gift["id"]
         conv_nft = await webapp_convert_gift(gift_id=nft_id, student=u_rec, db=db)
         assert conv_nft["status"] == "success"
-        assert conv_nft["credits_added"] == 125
+        assert conv_nft["credits_added"] == 1600
 
         # Проверяем, что конвертированные подарки удалены из профиля
         final_gifts = await webapp_get_user_gifts(user_id=u_rec.id, student=u_rec, db=db)

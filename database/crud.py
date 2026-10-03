@@ -1373,6 +1373,8 @@ async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optiona
                 await add_user_credits(db, payment.user_id, 1800, tx_type="donate", description="Пакет «Красный диплом» (1800 🎓)", reference_id=prod_val)
             elif prod_val == "credits_3000":
                 await add_user_credits(db, payment.user_id, 3800, tx_type="donate", description="Пакет «Грант ректора» (3800 🎓)", reference_id=prod_val)
+            elif prod_val == "credits_6000":
+                await add_user_credits(db, payment.user_id, 8000, tx_type="donate", description="Пакет «Кампусный инвестор» (8000 🎓)", reference_id=prod_val)
             elif payment.product == PaymentProduct.superlike_1:
                 await add_superlikes(db, payment.user_id, 1)
             elif payment.product == PaymentProduct.superlike_3:

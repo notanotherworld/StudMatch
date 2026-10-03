@@ -335,6 +335,7 @@ MIGRATION_STATEMENTS = [
     "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'credits_700';",
     "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'credits_1500';",
     "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'credits_3000';",
+    "ALTER TYPE paymentproduct ADD VALUE IF NOT EXISTS 'credits_6000';",
     # 029_fortune_wheel_and_gifts
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_fortune_spin_at TIMESTAMP WITH TIME ZONE;",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS fortune_spins_count INT DEFAULT 0;",

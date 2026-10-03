@@ -198,6 +198,19 @@ CREDIT_PACKAGES = [
         "short_desc": "3800 🎓 (3000 + 800 бонус)",
         "perks": ["3000 Зачётов 🎓", "Бонус +800 🎓"],
     },
+    {
+        "code": "credits_6000",
+        "credits": 6000,
+        "bonus": 2000,
+        "price": 2799,
+        "title": "💎 «Кампусный инвестор» (8000 🎓)",
+        "icon": "💎",
+        "is_starter": False,
+        "one_time": False,
+        "badge": "VIP ВЫГОДА 35%",
+        "short_desc": "8000 🎓 (6000 + 2000 бонус)",
+        "perks": ["6000 Зачётов 🎓", "Бонус +2000 🎓"],
+    },
 ]
 
 
