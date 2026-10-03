@@ -127,10 +127,7 @@ MIGRATION_STATEMENTS = [
         UPDATE swipes SET mode = 'dating' WHERE mode IS NULL;
         
         ALTER TABLE swipes DROP CONSTRAINT IF EXISTS uq_swipe_pair;
-
-        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_swipe_pair_mode') THEN 
-            ALTER TABLE swipes ADD CONSTRAINT uq_swipe_pair_mode UNIQUE (from_user_id, to_user_id, mode); 
-        END IF; 
+        ALTER TABLE swipes DROP CONSTRAINT IF EXISTS uq_swipe_pair_mode;
     END $$;
     """,
     "CREATE INDEX IF NOT EXISTS idx_swipes_viewer_mode_action_created ON swipes (from_user_id, mode, action, created_at);",
@@ -357,6 +354,35 @@ MIGRATION_STATEMENTS = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_gifts_recipient_created ON user_received_gifts (recipient_id, created_at);",
     "CREATE INDEX IF NOT EXISTS idx_gifts_sender_created ON user_received_gifts (sender_id, created_at);",
+    # 028_fix_projects_swipes_unique_constraint (Раздельные уникальные индексы для анкет и проектов)
+    "ALTER TABLE swipes DROP CONSTRAINT IF EXISTS uq_swipe_pair_mode;",
+    """
+    DELETE FROM swipes a USING swipes b
+    WHERE a.ctid < b.ctid
+      AND a.to_project_id IS NULL
+      AND b.to_project_id IS NULL
+      AND a.from_user_id = b.from_user_id
+      AND a.to_user_id = b.to_user_id
+      AND a.mode = b.mode;
+    """,
+    """
+    DELETE FROM swipes a USING swipes b
+    WHERE a.ctid < b.ctid
+      AND a.to_project_id IS NOT NULL
+      AND b.to_project_id IS NOT NULL
+      AND a.from_user_id = b.from_user_id
+      AND a.to_project_id = b.to_project_id;
+    """,
+    """
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_swipe_pair_mode_user 
+    ON swipes (from_user_id, to_user_id, mode) 
+    WHERE to_project_id IS NULL;
+    """,
+    """
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_swipe_pair_project 
+    ON swipes (from_user_id, to_project_id) 
+    WHERE to_project_id IS NOT NULL;
+    """,
     # Установка версии alembic
     """
     DO $$

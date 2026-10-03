@@ -779,6 +779,7 @@ async def create_swipe(
             match_cond = and_(
                 Swipe.from_user_id == from_id,
                 Swipe.to_user_id == to_id,
+                Swipe.to_project_id.is_(None),
                 or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
             )
 
@@ -1830,30 +1831,35 @@ async def founder_swipe_candidate(
     Фаундер свайпает кандидата. Если action in (like, superlike), создается мэтч по проекту!
     """
     now = datetime.now(timezone.utc)
-    existing_swipe = await db.scalar(
-        select(Swipe).where(
-            and_(
-                Swipe.from_user_id == founder_id,
-                Swipe.to_user_id == candidate_id,
-                Swipe.mode == ModeEnum.projects,
-            )
-        )
+    match_cond = and_(
+        Swipe.from_user_id == founder_id,
+        Swipe.to_user_id == candidate_id,
+        Swipe.to_project_id == project_id,
+        Swipe.mode == ModeEnum.projects,
     )
+    existing_swipe = await db.scalar(select(Swipe).where(match_cond))
     if existing_swipe:
-        existing_swipe.to_project_id = project_id
         existing_swipe.action = action
         existing_swipe.created_at = now
     else:
-        db.add(
-            Swipe(
-                from_user_id=founder_id,
-                to_user_id=candidate_id,
-                to_project_id=project_id,
-                mode=ModeEnum.projects,
-                action=action,
-                created_at=now,
-            )
-        )
+        try:
+            async with db.begin_nested():
+                db.add(
+                    Swipe(
+                        from_user_id=founder_id,
+                        to_user_id=candidate_id,
+                        to_project_id=project_id,
+                        mode=ModeEnum.projects,
+                        action=action,
+                        created_at=now,
+                    )
+                )
+                await db.flush()
+        except IntegrityError:
+            existing_swipe = await db.scalar(select(Swipe).where(match_cond))
+            if existing_swipe:
+                existing_swipe.action = action
+                existing_swipe.created_at = now
 
     is_match = False
     if action in (SwipeAction.like, SwipeAction.superlike):
