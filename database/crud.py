@@ -490,9 +490,9 @@ async def get_next_profile(
     gender_filters = []
     if current_mode == ModeEnum.dating and viewer_profile:
         if viewer_profile.target_gender == "female":
-            gender_filters.append(or_(Profile.gender == "female", Profile.gender.is_(None)))
+            gender_filters.append(or_(Profile.gender == "female", Profile.gender.is_(None), Profile.gender == ""))
         elif viewer_profile.target_gender == "male":
-            gender_filters.append(or_(Profile.gender == "male", Profile.gender.is_(None)))
+            gender_filters.append(or_(Profile.gender == "male", Profile.gender.is_(None), Profile.gender == ""))
 
         if viewer_profile.gender == "male":
             gender_filters.append(
@@ -500,6 +500,7 @@ async def get_next_profile(
                     Profile.target_gender == "male",
                     Profile.target_gender == "all",
                     Profile.target_gender.is_(None),
+                    Profile.target_gender == "",
                 )
             )
         elif viewer_profile.gender == "female":
@@ -508,6 +509,7 @@ async def get_next_profile(
                     Profile.target_gender == "female",
                     Profile.target_gender == "all",
                     Profile.target_gender.is_(None),
+                    Profile.target_gender == "",
                 )
             )
 

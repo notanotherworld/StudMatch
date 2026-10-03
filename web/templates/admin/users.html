@@ -17,10 +17,16 @@
         🧹 Очистить все тестовые анкеты
       </button>
     </form>
-    <form method="POST" action="/admin/users/restore-all-visibility" onsubmit="return confirm('Восстановить видимость (is_visible=True) для ВСЕХ активных (незаблокированных) пользователей? Это вернёт их анкеты в поисковую ленту.')" style="margin:0;">
+    <form method="POST" action="/admin/users/restore-all-visibility" onsubmit="return confirm('Восстановить видимость (is_visible=True) и статус заполненности (is_complete=True) для ВСЕХ активных пользователей? Это гарантирует присутствие всех анкет в лентах свайпов.')" style="margin:0;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="btn btn-ghost" style="font-size:13px;padding:8px 14px;border:1px solid var(--border);" title="Вернуть в поиск анкеты, потерявшие видимость">
-        👁 Восстановить видимость
+      <button type="submit" class="btn btn-ghost" style="font-size:13px;padding:8px 14px;border:1px solid var(--border);" title="Установить видимость и заполненность для всех анкет активных пользователей">
+        ⚡️ Восстановить видимость
+      </button>
+    </form>
+    <form method="POST" action="/admin/users/reset-all-swipes" onsubmit="return confirm('Сбросить историю ВСЕХ свайпов и взаимных мэтчей в базе данных? Это позволит всем пользователям снова видеть все анкеты в лентах.')" style="margin:0;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-ghost" style="font-size:13px;padding:8px 14px;border:1px solid var(--border);color:var(--warning);" title="Сбросить историю всех свайпов и мэтчей">
+        🔄 Сбросить свайпы всех
       </button>
     </form>
     <a href="/admin/users/export/csv" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;font-size:14px;"
@@ -35,6 +41,15 @@
   <span style="font-size:18px;">✅</span>
   <div>
     Успешно восстановлена видимость в поиске для <b>{{ request.query_params.get('restored_count') }}</b> анкет активных пользователей!
+  </div>
+</div>
+{% endif %}
+
+{% if request.query_params.get('all_swipes_reset') %}
+<div class="card" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#4ade80;padding:12px 18px;margin-bottom:20px;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:500;">
+  <span style="font-size:18px;">✅</span>
+  <div>
+    История всех свайпов и взаимных мэтчей успешно очищена! Все анкеты снова доступны для свайпов у всех пользователей.
   </div>
 </div>
 {% endif %}

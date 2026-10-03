@@ -8,12 +8,12 @@ from fastapi import APIRouter, Request, Depends, Form, Query, Response, HTTPExce
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, or_
+from sqlalchemy import select, update, delete, or_, func
 from sqlalchemy.orm import selectinload
 
 from web.dependencies import get_db, get_current_admin, check_csrf
 from web.utils.audit import log_admin_action
-from database.models import User, Profile, Swipe
+from database.models import User, Profile, Swipe, Match, SwipeAction, ModeEnum
 
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
@@ -252,6 +252,55 @@ async def user_detail(
         "ban_level": ban_level,
     }
 
+    # ─── Диагностика выдачи в ленте свайпов ───
+    feed_diagnostic = {}
+    try:
+        from database.crud import get_next_profile
+        user_mode = getattr(user, "mode", ModeEnum.dating) or ModeEnum.dating
+        next_cand = await get_next_profile(db, viewer_id=user_id, mode=user_mode)
+
+        total_active_others = (await db.scalar(
+            select(func.count(User.id)).where(User.id != user_id, User.is_active == True)
+        )) or 0
+
+        hidden_profiles_count = (await db.scalar(
+            select(func.count(Profile.id)).join(User, Profile.user_id == User.id)
+            .where(User.id != user_id, User.is_active == True, Profile.is_visible == False)
+        )) or 0
+
+        incomplete_profiles_count = (await db.scalar(
+            select(func.count(Profile.id)).join(User, Profile.user_id == User.id)
+            .where(User.id != user_id, User.is_active == True, Profile.is_complete == False)
+        )) or 0
+
+        liked_by_user_count = (await db.scalar(
+            select(func.count(Swipe.id))
+            .where(Swipe.from_user_id == user_id, Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]))
+        )) or 0
+
+        matches_count = (await db.scalar(
+            select(func.count(Match.id))
+            .where(or_(Match.user1_id == user_id, Match.user2_id == user_id))
+        )) or 0
+
+        liked_this_user_count = (await db.scalar(
+            select(func.count(Swipe.id))
+            .where(Swipe.to_user_id == user_id, Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]))
+        )) or 0
+
+        feed_diagnostic = {
+            "user_mode": str(user_mode.value if hasattr(user_mode, "value") else user_mode),
+            "next_candidate": next_cand,
+            "total_active_others": total_active_others,
+            "hidden_profiles_count": hidden_profiles_count,
+            "incomplete_profiles_count": incomplete_profiles_count,
+            "liked_by_user_count": liked_by_user_count,
+            "matches_count": matches_count,
+            "liked_this_user_count": liked_this_user_count,
+        }
+    except Exception as diag_err:
+        feed_diagnostic = {"error": str(diag_err)}
+
     from web.dependencies import generate_csrf_token
     token_str = generate_csrf_token(request.cookies.get("admin_token", ""))
 
@@ -262,6 +311,7 @@ async def user_detail(
             "admin": admin,
             "user": user,
             "temp_ban_info": temp_ban_info,
+            "feed_diagnostic": feed_diagnostic,
             "csrf_token": token_str,
         },
     )
@@ -444,11 +494,12 @@ async def restore_all_visibility(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Массовое восстановление видимости (is_visible=True) для всех активных (незаблокированных) пользователей.
-    Исправляет последствия старого бага разбана и гарантирует присутствие всех активных анкет в поиске.
+    Массовое восстановление видимости (is_visible=True) и заполненности (is_complete=True)
+    для всех активных (незаблокированных) пользователей.
+    Гарантирует присутствие всех активных анкет в поиске и устраняет пустые ленты свайпов.
     """
     subq = select(User.id).where(User.is_active == True)
-    update_res = await db.execute(
+    vis_res = await db.execute(
         update(Profile)
         .where(
             Profile.user_id.in_(subq),
@@ -456,7 +507,17 @@ async def restore_all_visibility(
         )
         .values(is_visible=True)
     )
-    restored_count = update_res.rowcount
+    restored_vis = vis_res.rowcount
+
+    comp_res = await db.execute(
+        update(Profile)
+        .where(
+            Profile.user_id.in_(subq),
+            Profile.is_complete == False,
+        )
+        .values(is_complete=True)
+    )
+    restored_comp = comp_res.rowcount
     await db.commit()
 
     client_ip = request.client.host if request.client else None
@@ -466,14 +527,39 @@ async def restore_all_visibility(
         action="bulk_restore_visibility",
         target_type="system",
         target_id="profiles",
-        details=f"Массовое восстановление видимости анкет: восстановлено {restored_count} анкет",
+        details=f"Массовое восстановление анкет: видимость={restored_vis}, заполненность={restored_comp}",
         ip_address=client_ip,
     )
 
     return RedirectResponse(
-        f"/admin/users?restored_count={restored_count}",
+        f"/admin/users?restored_count={restored_vis}&restored_comp={restored_comp}",
         status_code=302,
     )
+
+
+@router.post("/users/reset-all-swipes", dependencies=[Depends(check_csrf)])
+async def reset_all_swipes_admin(
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Сбросить историю свайпов и взаимных мэтчей для ВСЕХ пользователей (для тестирования)."""
+    await db.execute(delete(Swipe))
+    await db.execute(delete(Match))
+    await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db,
+        admin,
+        action="bulk_reset_swipes",
+        target_type="system",
+        target_id="swipes_and_matches",
+        details="Полный сброс истории всех свайпов и мэтчей администратором",
+        ip_address=client_ip,
+    )
+
+    return RedirectResponse("/admin/users?all_swipes_reset=1", status_code=302)
 
 
 @router.post("/users/{user_id}/verify-manual", dependencies=[Depends(check_csrf)])  # CSRF (#2)
@@ -653,18 +739,97 @@ async def reset_user_swipes_admin(
     admin=Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Сбросить исходящую историю свайпов пользователя."""
+    """Сбросить исходящую историю свайпов и мэтчей пользователя."""
     await db.execute(delete(Swipe).where(Swipe.from_user_id == user_id))
+    await db.execute(delete(Match).where(or_(Match.user1_id == user_id, Match.user2_id == user_id)))
     await db.commit()
 
     client_ip = request.client.host if request.client else None
     await log_admin_action(
         db, admin, action="reset_swipes", target_type="user", target_id=str(user_id),
-        details="История исходящих свайпов сброшена администратором",
+        details="Исходящие свайпы и мэтчи пользователя сброшены администратором",
         ip_address=client_ip,
     )
 
-    return RedirectResponse(f"/admin/users/{user_id}", status_code=302)
+    return RedirectResponse(f"/admin/users/{user_id}?swipes_reset=1", status_code=302)
+
+
+@router.post("/users/{user_id}/reset-all-interactions", dependencies=[Depends(check_csrf)])
+async def reset_user_all_interactions_admin(
+    user_id: int,
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Сбросить ВСЕ свайпы (и исходящие, и входящие) и взаимные мэтчи пользователя."""
+    await db.execute(delete(Swipe).where(or_(Swipe.from_user_id == user_id, Swipe.to_user_id == user_id)))
+    await db.execute(delete(Match).where(or_(Match.user1_id == user_id, Match.user2_id == user_id)))
+    await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db, admin, action="reset_all_interactions", target_type="user", target_id=str(user_id),
+        details="Полный сброс всех связей (входящие/исходящие свайпы и мэтчи) пользователя",
+        ip_address=client_ip,
+    )
+
+    return RedirectResponse(f"/admin/users/{user_id}?all_interactions_reset=1", status_code=302)
+
+
+@router.post("/users/{user_id}/activate-profile", dependencies=[Depends(check_csrf)])
+async def activate_profile_admin(
+    user_id: int,
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Сделать анкету активной, видимой и заполненной (1 клик)."""
+    result = await db.execute(select(Profile).where(Profile.user_id == user_id))
+    profile = result.scalar_one_or_none()
+    if profile:
+        profile.is_visible = True
+        profile.is_complete = True
+        if profile.career_goal or profile.career_skills:
+            profile.career_is_complete = True
+        await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db, admin, action="activate_profile", target_type="user", target_id=str(user_id),
+        details="Анкета активирована (is_visible=True, is_complete=True) администратором",
+        ip_address=client_ip,
+    )
+
+    return RedirectResponse(f"/admin/users/{user_id}?activated=1", status_code=302)
+
+
+@router.post("/users/{user_id}/reset-filters", dependencies=[Depends(check_csrf)])
+async def reset_user_filters_admin(
+    user_id: int,
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Сбросить поисковые фильтры пользователя до стандартных значений."""
+    result = await db.execute(select(Profile).where(Profile.user_id == user_id))
+    profile = result.scalar_one_or_none()
+    if profile:
+        profile.filter_min_age = 16
+        profile.filter_max_age = 35
+        profile.filter_min_year = 1
+        profile.filter_max_year = 6
+        profile.filter_major = None
+        profile.target_gender = "all"
+        await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db, admin, action="reset_filters", target_type="user", target_id=str(user_id),
+        details="Поисковые фильтры пользователя сброшены до стандартных",
+        ip_address=client_ip,
+    )
+
+    return RedirectResponse(f"/admin/users/{user_id}?filters_reset=1", status_code=302)
 
 
 @router.post("/users/{user_id}/message", dependencies=[Depends(check_csrf)])  # CSRF (#2)

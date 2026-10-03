@@ -138,4 +138,101 @@ def test_users_html_restore_all_button_and_banner():
     assert "/admin/users/restore-all-visibility" in rendered
     assert "Восстановить видимость" in rendered
     assert "Успешно восстановлена видимость в поиске для <b>15</b> анкет" in rendered
+    assert "/admin/users/reset-all-swipes" in rendered
+
+
+def test_user_detail_feed_diagnostics_active_candidate():
+    env = Environment(loader=FileSystemLoader("web/templates"))
+    template = env.get_template("admin/user_detail.html")
+
+    user = DummyUser()
+    cand = DummyProfile()
+    cand.user_id = 999111
+    cand.name = "Алёна"
+    cand.year = 2
+    cand.major = "Экономика"
+    cand.rating_score = 45.0
+
+    diag = {
+        "user_mode": "dating",
+        "next_candidate": cand,
+        "total_active_others": 50,
+        "hidden_profiles_count": 2,
+        "incomplete_profiles_count": 3,
+        "liked_by_user_count": 10,
+        "matches_count": 2,
+        "liked_this_user_count": 5,
+    }
+
+    rendered = template.render(
+        user=user,
+        csrf_token="csrf_123",
+        temp_ban_info={"is_banned": False, "ttl": 0, "ban_level": 1},
+        feed_diagnostic=diag,
+        request=DummyRequest(),
+        admin=type("Admin", (), {"id": 1, "username": "admin"})(),
+    )
+
+    assert "Тест выдачи ленты для этого аккаунта" in rendered
+    assert "Лента работает! Следующая анкета в выдаче:" in rendered
+    assert "Алёна (#999111)" in rendered
+    assert "/admin/users/1071923009/activate-profile" in rendered
+    assert "/admin/users/1071923009/reset-swipes" in rendered
+    assert "/admin/users/1071923009/reset-all-interactions" in rendered
+    assert "/admin/users/1071923009/reset-filters" in rendered
+
+
+def test_user_detail_feed_diagnostics_empty_feed_breakdown():
+    env = Environment(loader=FileSystemLoader("web/templates"))
+    template = env.get_template("admin/user_detail.html")
+
+    user = DummyUser()
+    diag = {
+        "user_mode": "dating",
+        "next_candidate": None,
+        "total_active_others": 20,
+        "hidden_profiles_count": 5,
+        "incomplete_profiles_count": 8,
+        "liked_by_user_count": 20,
+        "matches_count": 3,
+        "liked_this_user_count": 4,
+    }
+
+    rendered = template.render(
+        user=user,
+        csrf_token="csrf_123",
+        temp_ban_info={"is_banned": False, "ttl": 0, "ban_level": 1},
+        feed_diagnostic=diag,
+        request=DummyRequest(),
+        admin=type("Admin", (), {"id": 1, "username": "admin"})(),
+    )
+
+    assert "В ленте свайпов этого пользователя сейчас 0 анкет (лента пуста)!" in rendered
+    assert "Всего других активных пользователей: <b>20</b>" in rendered
+    assert "is_visible=False" in rendered
+    assert "is_complete=False" in rendered
+    assert "liked_by_user_count" not in rendered  # rendered nicely
+    assert "Уже лайкнуто этим пользователем: <b>20</b>" in rendered
+
+
+def test_user_detail_action_banners():
+    env = Environment(loader=FileSystemLoader("web/templates"))
+    template = env.get_template("admin/user_detail.html")
+
+    user = DummyUser()
+    for qparam, expected_text in [
+        ({"activated": "1"}, "Анкета успешно активирована!"),
+        ({"swipes_reset": "1"}, "Исходящие свайпы и мэтчи успешно сброшены!"),
+        ({"all_interactions_reset": "1"}, "Все связи (входящие, исходящие свайпы и мэтчи) полностью очищены!"),
+        ({"filters_reset": "1"}, "Поисковые фильтры успешно сброшены к стандартным значениям!"),
+    ]:
+        rendered = template.render(
+            user=user,
+            csrf_token="csrf_123",
+            temp_ban_info={"is_banned": False, "ttl": 0, "ban_level": 1},
+            request=DummyRequest(query_params=qparam),
+            admin=type("Admin", (), {"id": 1, "username": "admin"})(),
+        )
+        assert expected_text in rendered
+
 

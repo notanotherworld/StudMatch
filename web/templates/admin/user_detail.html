@@ -317,6 +317,26 @@
       ✅ Статус заполненности анкеты успешно изменён!
     </div>
     {% endif %}
+    {% if request.query_params.get('activated') %}
+    <div style="background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;padding:12px 16px;border-radius:8px;font-size:14px;font-weight:500;">
+      ⚡️ Анкета успешно активирована! Видимость и статус заполненности включены.
+    </div>
+    {% endif %}
+    {% if request.query_params.get('swipes_reset') %}
+    <div style="background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;padding:12px 16px;border-radius:8px;font-size:14px;font-weight:500;">
+      🔄 Исходящие свайпы и мэтчи успешно сброшены! Пользователь снова увидит все доступные анкеты.
+    </div>
+    {% endif %}
+    {% if request.query_params.get('all_interactions_reset') %}
+    <div style="background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;padding:12px 16px;border-radius:8px;font-size:14px;font-weight:500;">
+      💥 Все связи (входящие, исходящие свайпы и мэтчи) полностью очищены!
+    </div>
+    {% endif %}
+    {% if request.query_params.get('filters_reset') %}
+    <div style="background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;padding:12px 16px;border-radius:8px;font-size:14px;font-weight:500;">
+      ⚙️ Поисковые фильтры успешно сброшены к стандартным значениям!
+    </div>
+    {% endif %}
 
     <!-- 🔍 Статус в ленте свайпов & Диагностика -->
     {% if user.profile %}
@@ -328,9 +348,9 @@
         {% if not user.is_active %}
           <span class="badge badge-danger">🚫 Пользователь заблокирован</span>
         {% elif not user.profile.is_visible %}
-          <span class="badge badge-danger">🔒 Скрыта из поиска</span>
+          <span class="badge badge-danger">🔒 Скрыта из поиска (is_visible=False)</span>
         {% elif not user.profile.is_complete and not user.profile.career_is_complete %}
-          <span class="badge badge-warning">⏳ Анкета не заполнена</span>
+          <span class="badge badge-warning">⏳ Анкета не заполнена (is_complete=False)</span>
         {% else %}
           <span class="badge badge-success">🟢 Активна в поиске</span>
         {% endif %}
@@ -354,7 +374,7 @@
             <span>Видимость в поиске: <b style="color:#22c55e;">Включена</b></span>
           {% else %}
             <span style="color:#ef4444;font-weight:bold;">✖</span>
-            <span style="color:#ef4444;">Видимость в поиске: <b>Скрыта (is_visible=False)</b></span>
+            <span style="color:#ef4444;">Видимость: <b>Скрыта (is_visible=False)</b></span>
           {% endif %}
         </div>
 
@@ -364,7 +384,7 @@
             <span>Знакомства: <b style="color:#22c55e;">Заполнена</b></span>
           {% else %}
             <span style="color:#f59e0b;font-weight:bold;">✖</span>
-            <span style="color:#f59e0b;">Знакомства: <b>Не заполнена</b></span>
+            <span style="color:#f59e0b;">Знакомства: <b>Не заполнена (is_complete=False)</b></span>
           {% endif %}
         </div>
 
@@ -377,42 +397,117 @@
             <span style="color:var(--muted);">Карьера: Не заполнена</span>
           {% endif %}
         </div>
+
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span>👤 Пол: <b>{{ 'Парень' if user.profile.gender == 'male' else ('Девушка' if user.profile.gender == 'female' else 'Не указан') }}</b></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span>🎯 Ищет: <b>{{ 'Девушек' if user.profile.target_gender == 'female' else ('Парней' if user.profile.target_gender == 'male' else 'Всех') }}</b></span>
+        </div>
       </div>
+
+      <!-- Живой тест ленты свайпов -->
+      {% if feed_diagnostic and not feed_diagnostic.error %}
+      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+          <span>📡 Тест выдачи ленты для этого аккаунта:</span>
+        </div>
+        {% if feed_diagnostic.next_candidate %}
+          <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#4ade80;padding:10px 14px;border-radius:6px;font-size:13px;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:20px;">✅</span>
+            <div>
+              Лента работает! Следующая анкета в выдаче: 
+              <b><a href="/admin/users/{{ feed_diagnostic.next_candidate.user_id }}" style="color:#4ade80;text-decoration:underline;">{{ feed_diagnostic.next_candidate.name or 'Без имени' }} (#{{ feed_diagnostic.next_candidate.user_id }})</a></b>
+              <span style="color:var(--muted);font-size:12px;"> — {{ feed_diagnostic.next_candidate.year or '?' }} курс, {{ feed_diagnostic.next_candidate.major or 'факультет не указан' }} (рейтинг: {{ feed_diagnostic.next_candidate.rating_score|int }})</span>
+            </div>
+          </div>
+        {% else %}
+          <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:12px 14px;border-radius:6px;font-size:13px;">
+            <div style="font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+              <span>⚠️ В ленте свайпов этого пользователя сейчас 0 анкет (лента пуста)!</span>
+            </div>
+            <div style="color:var(--text);font-size:12px;line-height:1.5;">
+              <b>Анализ базы относительно этого пользователя:</b>
+              <ul style="margin:4px 0 6px 18px;padding:0;">
+                <li>Всего других активных пользователей: <b>{{ feed_diagnostic.total_active_others }}</b></li>
+                <li>Из них скрыты (<code>is_visible=False</code>): <b>{{ feed_diagnostic.hidden_profiles_count }}</b></li>
+                <li>Из них не заполнили анкету (<code>is_complete=False</code>): <b>{{ feed_diagnostic.incomplete_profiles_count }}</b></li>
+                <li>Уже лайкнуто этим пользователем: <b>{{ feed_diagnostic.liked_by_user_count }}</b> <i style="color:var(--muted);">(лайкнутые анкеты скрываются навсегда, пока не сбросить свайпы)</i></li>
+                <li>Взаимных мэтчей: <b>{{ feed_diagnostic.matches_count }}</b> <i style="color:var(--muted);">(мэтчи также исключаются из ленты)</i></li>
+              </ul>
+              {% if feed_diagnostic.liked_by_user_count > 0 or feed_diagnostic.matches_count > 0 %}
+                <div style="margin-top:6px;color:#fbbf24;">
+                  💡 <b>Причина:</b> Этот аккаунт уже отправил лайки или имеет мэтчи со всеми доступными анкетами. Нажмите <b>«🔄 Сбросить свайпы и мэтчи»</b> ниже, чтобы карточки снова вернулись в ленту!
+                </div>
+              {% elif feed_diagnostic.hidden_profiles_count > 0 or feed_diagnostic.incomplete_profiles_count > 0 %}
+                <div style="margin-top:6px;color:#fbbf24;">
+                  💡 <b>Причина:</b> В базе есть анкеты, у которых выключена видимость или не проставлен флаг заполненности (<code>is_complete=False</code>). Нажмите <b>«⚡️ Сделать активной в поиске»</b> или восстановите все анкеты в общем списке.
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+      {% endif %}
 
       <!-- Примечания алгоритма -->
       <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;background:rgba(255,255,255,0.02);padding:10px 12px;border-radius:6px;border:1px dashed var(--border);">
-        💡 <b>Почему анкета может не попадаться другому пользователю?</b>
+        💡 <b>Почему эту анкету могут не видеть другие пользователи?</b>
         <ul style="margin:6px 0 0 16px;padding:0;">
-          <li><b>Взаимный пол:</b> пол кандидата ({{ '👨 Парень' if user.profile.gender == 'male' else ('👩 Девушка' if user.profile.gender == 'female' else 'не указан') }}) должен совпадать с тем, кого ищет смотрящий, и наоборот.</li>
+          <li><b>Взаимный пол:</b> пол кандидата ({{ '👨 Парень' if user.profile.gender == 'male' else ('👩 Девушка' if user.profile.gender == 'female' else 'не указан') }}) должен совпадать с тем, кого ищет смотрящий, и наоборот (ищет: {{ 'Девушек' if user.profile.target_gender == 'female' else ('Парней' if user.profile.target_gender == 'male' else 'Всех') }}).</li>
+          <li><b>Уже просмотрена смотрящим:</b> если другой пользователь уже отправлял лайк/суперлайк этой анкете (получено лайков: <b>{{ feed_diagnostic.liked_this_user_count if feed_diagnostic else 0 }}</b>), она для него больше не появится.</li>
           <li><b>Фильтры смотрящего:</b> если у другого пользователя стоят фильтры по возрасту/курсу, не совпадающие с этой анкетой.</li>
-          <li><b>Уже просмотрена:</b> если другой пользователь уже отправлял лайк/суперлайк/скип этой анкете, повторно она не выдаётся (нужен сброс свайпов).</li>
           <li><b>Жалобы:</b> наличие взаимных жалоб блокирует показ анкеты.</li>
         </ul>
       </div>
 
       <!-- Кнопки управления -->
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <form method="POST" action="/admin/users/{{ user.id }}/toggle-visibility" style="flex:1;min-width:180px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <form method="POST" action="/admin/users/{{ user.id }}/activate-profile">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="btn {% if user.profile.is_visible %}btn-ghost{% else %}btn-primary{% endif %}" style="width:100%;justify-content:center;font-size:13px;{% if user.profile.is_visible %}color:var(--warning);{% endif %}"
-                  onclick="return confirm('{% if user.profile.is_visible %}Скрыть анкету из выдачи свайпов (is_visible=False)?{% else %}Включить показ анкеты в выдаче свайпов (is_visible=True)?{% endif %}')">
-            {% if user.profile.is_visible %}
-              🔒 Скрыть из поиска
-            {% else %}
-              👁 Включить видимость в поиске
-            {% endif %}
+          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;"
+                  title="Установить is_visible=True и is_complete=True">
+            ⚡️ Сделать активной в поиске (1 клик)
           </button>
         </form>
 
-        <form method="POST" action="/admin/users/{{ user.id }}/toggle-complete" style="flex:1;min-width:180px;">
+        <form method="POST" action="/admin/users/{{ user.id }}/reset-swipes"
+              onsubmit="return confirm('Сбросить исходящие свайпы и мэтчи пользователя? Он сможет снова видеть все анкеты.')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn btn-ghost" style="width:100%;justify-content:center;color:var(--warning);font-size:13px;">
+            🔄 Сбросить свайпы и мэтчи
+          </button>
+        </form>
+
+        <form method="POST" action="/admin/users/{{ user.id }}/toggle-visibility">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="btn btn-ghost" style="width:100%;justify-content:center;font-size:13px;"
-                  onclick="return confirm('{% if user.profile.is_complete %}Снять флаг заполненности анкеты знакомств (is_complete=False)?{% else %}Принудительно пометить анкету знакомств заполненной (is_complete=True)?{% endif %}')">
-            {% if user.profile.is_complete %}
-              ⏳ Снять заполненность
-            {% else %}
-              ✅ Пометить заполненной
-            {% endif %}
+                  onclick="return confirm('{% if user.profile.is_visible %}Скрыть анкету из выдачи свайпов (is_visible=False)?{% else %}Включить показ анкеты в выдаче свайпов (is_visible=True)?{% endif %}')">
+            {% if user.profile.is_visible %}🔒 Скрыть из поиска{% else %}👁 Включить видимость в поиске{% endif %}
+          </button>
+        </form>
+
+        <form method="POST" action="/admin/users/{{ user.id }}/toggle-complete">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn btn-ghost" style="width:100%;justify-content:center;font-size:13px;"
+                  onclick="return confirm('{% if user.profile.is_complete %}Снять флаг заполненности (is_complete=False)?{% else %}Пометить заполненной (is_complete=True)?{% endif %}')">
+            {% if user.profile.is_complete %}⏳ Снять заполненность{% else %}✅ Пометить заполненной{% endif %}
+          </button>
+        </form>
+
+        <form method="POST" action="/admin/users/{{ user.id }}/reset-filters"
+              onsubmit="return confirm('Сбросить поисковые фильтры (возраст 16-35, курс 1-6, поиск Всех)?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn btn-ghost" style="width:100%;justify-content:center;font-size:12px;">
+            ⚙️ Сбросить фильтры поиска
+          </button>
+        </form>
+
+        <form method="POST" action="/admin/users/{{ user.id }}/reset-all-interactions"
+              onsubmit="return confirm('Полностью очистить ВСЕ связи этого пользователя (входящие и исходящие свайпы + взаимные мэтчи)? Это позволит и ему, и всем остальным видеть друг друга заново.')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn btn-ghost" style="width:100%;justify-content:center;color:#ef4444;font-size:12px;" title="Очистить и входящие, и исходящие свайпы">
+            💥 Полная очистка связей
           </button>
         </form>
       </div>
