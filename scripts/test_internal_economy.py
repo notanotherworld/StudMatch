@@ -601,7 +601,7 @@ async def test_12_fortune_wheel_and_campus_gifts():
         # Проверяем метку коллекционности
         stellar_meta = next(g for g in gifts_cat if g["code"] == "gift_stellar_rocket")
         assert stellar_meta["is_collectible"] is True
-        assert stellar_meta["exchange_credits"] == 1250
+        assert stellar_meta["exchange_credits"] == 1600
 
         api_cat = await webapp_gifts_catalog(student=user1, db=db)
         assert api_cat["status"] == "success"

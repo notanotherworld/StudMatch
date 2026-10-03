@@ -169,7 +169,7 @@ async def test_telegram_classic_and_collectible_gifts():
         assert rew == 20
         assert badge == "Меценат 🎁"
 
-        # 6. Отправляем коллекционный подарок NFT: «Звёздная ракета» (1500 🎓) анонимно
+        # 6. Отправляем коллекционный подарок NFT: «Звёздная ракета» (2000 🎓) анонимно
         send_nft_res = await webapp_send_gift(
             req=SendGiftRequest(
                 recipient_id=u_rec.id,
@@ -206,7 +206,7 @@ async def test_telegram_classic_and_collectible_gifts():
         assert nft_gift["is_anonymous"] is True
         assert nft_gift["sender_id"] is None
         assert nft_gift["sender_name"] == "Скрытый отправитель 🤫"
-        assert nft_gift["exchange_credits"] == 1250
+        assert nft_gift["exchange_credits"] == 1600
 
         # 9. Проверяем квест «👑 Любимчик кампуса» (3 подарка)
         quests_rec = await get_or_create_permanent_quests(db, u_rec.id)
