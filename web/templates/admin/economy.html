@@ -2,6 +2,20 @@
 {% block title %}Экономика и Магазин — СтудМэч Admin{% endblock %}
 
 {% block content %}
+<style>
+  @media (max-width: 640px) {
+    .economy-filter-form {
+      width: 100%;
+    }
+    .economy-filter-form input,
+    .economy-filter-form select,
+    .economy-filter-form button,
+    .economy-filter-form a {
+      flex: 1 1 100% !important;
+      width: 100% !important;
+    }
+  }
+</style>
 <div class="page-header">
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
@@ -33,8 +47,8 @@
 </div>
 {% endif %}
 
-<!-- KPI плашки экономики -->
-<div class="grid grid-4" style="margin-bottom:24px;">
+<!-- KPI плашки экономики (адаптивная авто-сетка) -->
+<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 16px; margin-bottom:24px;">
   <div class="card">
     <div class="card-title">🎓 Зачётов в обороте</div>
     <div class="card-value mono" style="font-size:24px;color:var(--accent2);">
@@ -70,31 +84,31 @@
 
 <!-- Каталог товаров магазина -->
 <div class="card" style="margin-bottom:24px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
     <h2 style="font-size:18px;">🛍 Каталог товаров магазина</h2>
     <span style="font-size:13px;color:var(--muted);">Всего товаров: {{ items|length }}</span>
   </div>
 
-  <div style="overflow-x:auto;">
-    <table style="width:100%;border-collapse:collapse;">
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table style="width:100%;min-width:760px;border-collapse:collapse;">
       <thead>
         <tr>
-          <th>Код</th>
-          <th>Товар</th>
-          <th>Категория</th>
-          <th>Цена 🎓</th>
-          <th>Цена ₽</th>
-          <th>Тип бонуса</th>
-          <th>Срок (дн.)</th>
-          <th>Порядок</th>
-          <th>Статус</th>
-          <th>Действия</th>
+          <th style="min-width:110px;">Код</th>
+          <th style="min-width:200px;">Товар</th>
+          <th style="min-width:100px;">Категория</th>
+          <th style="min-width:90px;">Цена 🎓</th>
+          <th style="min-width:80px;">Цена ₽</th>
+          <th style="min-width:130px;">Тип бонуса</th>
+          <th style="min-width:80px;">Срок (дн.)</th>
+          <th style="min-width:70px;">Порядок</th>
+          <th style="min-width:90px;">Статус</th>
+          <th style="min-width:90px;">Действия</th>
         </tr>
       </thead>
       <tbody>
         {% for it in items %}
         <tr>
-          <td class="mono" style="font-size:12px;color:var(--muted);">{{ it.code }}</td>
+          <td class="mono" style="font-size:12px;color:var(--muted);white-space:nowrap;">{{ it.code }}</td>
           <td>
             <div style="display:flex;align-items:center;gap:8px;">
               <span style="font-size:18px;">{{ it.icon }}</span>
@@ -121,9 +135,9 @@
             <span class="badge">{{ it.category }}</span>
             {% endif %}
           </td>
-          <td class="mono font-bold" style="color:var(--accent2);">{{ it.price_credits }} 🎓</td>
-          <td class="mono">{% if it.price_rub %}{{ it.price_rub }} ₽{% else %}—{% endif %}</td>
-          <td style="font-size:12px;">{{ it.bonus_type or '—' }} ({{ it.bonus_value }})</td>
+          <td class="mono font-bold" style="color:var(--accent2);white-space:nowrap;">{{ it.price_credits }} 🎓</td>
+          <td class="mono" style="white-space:nowrap;">{% if it.price_rub %}{{ it.price_rub }} ₽{% else %}—{% endif %}</td>
+          <td style="font-size:12px;white-space:nowrap;">{{ it.bonus_type or '—' }} ({{ it.bonus_value }})</td>
           <td class="mono">{% if it.duration_days %}{{ it.duration_days }}{% else %}—{% endif %}</td>
           <td class="mono">{{ it.sort_order }}</td>
           <td>
@@ -133,7 +147,7 @@
             <span class="badge badge-danger">Отключён</span>
             {% endif %}
           </td>
-          <td>
+          <td style="white-space:nowrap;">
               <button type="button" class="btn btn-sm btn-ghost" 
                       data-id="{{ it.id }}" 
                       data-title="{{ it.title }}" 
@@ -173,7 +187,7 @@
     <h2 style="font-size:18px;">📜 История транзакций («Зачёты» 🎓)</h2>
     
     <!-- Фильтры -->
-    <form method="GET" action="/admin/economy" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <form method="GET" action="/admin/economy" class="economy-filter-form" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
       <input type="number" name="user_search" placeholder="ID студента" value="{{ user_search or '' }}" style="width:140px;padding:6px 10px;font-size:13px;">
       <select name="tx_type_filter" style="width:160px;padding:6px 10px;font-size:13px;">
         <option value="">Все типы транзакций</option>
@@ -192,30 +206,30 @@
     </form>
   </div>
 
-  <div style="overflow-x:auto;">
-    <table style="width:100%;border-collapse:collapse;">
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table style="width:100%;min-width:680px;border-collapse:collapse;">
       <thead>
         <tr>
-          <th>Время (UTC)</th>
-          <th>Студент ID</th>
-          <th>Изменение</th>
-          <th>Баланс после</th>
-          <th>Тип</th>
+          <th style="min-width:140px;">Время (UTC)</th>
+          <th style="min-width:90px;">Студент ID</th>
+          <th style="min-width:100px;">Изменение</th>
+          <th style="min-width:110px;">Баланс после</th>
+          <th style="min-width:120px;">Тип</th>
           <th>Описание</th>
         </tr>
       </thead>
       <tbody>
         {% for tx in transactions %}
         <tr>
-          <td class="mono" style="font-size:12px;color:var(--muted);">{{ tx.created_at.strftime("%d.%m.%Y %H:%M:%S") }}</td>
-          <td class="mono">
+          <td class="mono" style="font-size:12px;color:var(--muted);white-space:nowrap;">{{ tx.created_at.strftime("%d.%m.%Y %H:%M:%S") }}</td>
+          <td class="mono" style="white-space:nowrap;">
             <a href="/admin/users/{{ tx.user_id }}" style="color:var(--accent2);text-decoration:none;">{{ tx.user_id }}</a>
           </td>
-          <td class="mono font-bold" style="{% if tx.amount > 0 %}color:var(--success);{% else %}color:var(--danger);{% endif %}">
+          <td class="mono font-bold" style="white-space:nowrap;{% if tx.amount > 0 %}color:var(--success);{% else %}color:var(--danger);{% endif %}">
             {% if tx.amount > 0 %}+{{ tx.amount }}{% else %}{{ tx.amount }}{% endif %} 🎓
           </td>
-          <td class="mono">{{ tx.balance_after }} 🎓</td>
-          <td>
+          <td class="mono" style="white-space:nowrap;">{{ tx.balance_after }} 🎓</td>
+          <td style="white-space:nowrap;">
             <span class="badge {% if tx.amount > 0 %}badge-success{% else %}badge-purple{% endif %}">
               {{ tx.tx_type }}
             </span>

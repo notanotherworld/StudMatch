@@ -26,8 +26,34 @@ from aiogram import Bot
 from aiogram.types import Message, User as TgUser
 from aiogram.methods import SendMessage
 from aiogram.exceptions import TelegramNetworkError
+from contextlib import contextmanager
+import logging
 from bot.middlewares.retry import RetryRequestMiddleware, create_resilient_bot_session
 from bot.middlewares.maintenance import MaintenanceMiddleware
+
+
+@contextmanager
+def unittest_mock_logger():
+    captured = {"debug": [], "warning": [], "error": []}
+    logger = logging.getLogger("bot.middlewares.retry")
+    orig_debug = logger.debug
+    orig_warning = logger.warning
+    orig_error = logger.error
+    def mock_debug(msg, *args):
+        captured["debug"].append(msg % args if args else msg)
+    def mock_warning(msg, *args):
+        captured["warning"].append(msg % args if args else msg)
+    def mock_error(msg, *args):
+        captured["error"].append(msg % args if args else msg)
+    logger.debug = mock_debug
+    logger.warning = mock_warning
+    logger.error = mock_error
+    try:
+        yield captured
+    finally:
+        logger.debug = orig_debug
+        logger.warning = orig_warning
+        logger.error = orig_error
 
 
 def test_retry_on_network_error():
@@ -74,12 +100,50 @@ def test_retry_exhausted_raises():
 
 
 def test_resilient_session_ipv4():
-    """Проверка параметров сессии: явный таймаут и AF_INET (IPv4)."""
+    """Проверка параметров сессии: явный таймаут, AF_INET (IPv4) и keepalive/cleanup."""
     session = create_resilient_bot_session(timeout=25.0, max_retries=2)
     assert session.timeout == 25.0
     assert session._connector_init.get("family") == socket.AF_INET
+    assert session._connector_init.get("keepalive_timeout") == 30.0
+    assert session._connector_init.get("enable_cleanup_closed") is True
     assert len(session.middleware._middlewares) == 1
-    print("  ✅ [3] create_resilient_bot_session настраивает IPv4 и подключает middleware повторов: УСПЕШНО")
+    print("  ✅ [3] create_resilient_bot_session настраивает IPv4, keepalive и middleware: УСПЕШНО")
+
+
+def test_retry_getupdates_logging():
+    """Проверка разделения логгирования: GetUpdates на первой попытке пишется в debug, а SendMessage в warning."""
+    import logging
+    from aiogram.methods import GetUpdates
+
+    async def _run():
+        middleware = RetryRequestMiddleware(max_retries=2, delay=0.01)
+        bot = MagicMock(spec=Bot)
+        get_updates_method = GetUpdates(timeout=20)
+
+        # 1. Первая попытка GetUpdates: должна залогироваться в DEBUG, не засоряя production WARNING-логи
+        with unittest_mock_logger() as mock_log:
+            mock_make_request = AsyncMock(side_effect=[
+                TelegramNetworkError(method=get_updates_method, message="Request timeout error"),
+                MagicMock(status="ok", result=[])
+            ])
+            await middleware(mock_make_request, bot, get_updates_method)
+            # Убеждаемся, что debug был вызван, а warning НЕ был вызван на attempt 0 для GetUpdates
+            assert any("Telegram long-polling cycle reconnect" in msg for msg in mock_log["debug"])
+            assert not any("Request timeout error" in msg for msg in mock_log["warning"])
+
+        # 2. Обычный запрос (SendMessage): на первой же ошибке должен быть залогирован в WARNING
+        send_msg_method = SendMessage(chat_id=123, text="Hi")
+        with unittest_mock_logger() as mock_log:
+            mock_make_request = AsyncMock(side_effect=[
+                TelegramNetworkError(method=send_msg_method, message="Request timeout error"),
+                MagicMock(status="ok", result=MagicMock())
+            ])
+            await middleware(mock_make_request, bot, send_msg_method)
+            assert any("Telegram network glitch" in msg for msg in mock_log["warning"])
+
+        print("  ✅ [5] RetryRequestMiddleware фильтрует логи: GetUpdates reconnect -> DEBUG, ошибки бизнес-логики -> WARNING: УСПЕШНО")
+
+    asyncio.run(_run())
 
 
 def test_maintenance_middleware_network_error_safety():
@@ -122,7 +186,8 @@ if __name__ == "__main__":
     test_retry_on_network_error()
     test_retry_exhausted_raises()
     test_resilient_session_ipv4()
+    test_retry_getupdates_logging()
     test_maintenance_middleware_network_error_safety()
     print("=" * 70)
-    print("🎉 ВСЕ ТЕСТЫ СЕТЕВОЙ ОТКАЗОУСТОЙЧИВОСТИ УСПЕШНО ПРОЙДЕНЫ (4 из 4)!")
+    print("🎉 ВСЕ ТЕСТЫ СЕТЕВОЙ ОТКАЗОУСТОЙЧИВОСТИ УСПЕШНО ПРОЙДЕНЫ (5 из 5)!")
     print("=" * 70)

@@ -7,7 +7,7 @@ from typing import Optional, List
 
 from sqlalchemy import (
     BigInteger, Boolean, DateTime, Enum, Float, ForeignKey,
-    Integer, Numeric, String, Text, ARRAY, func, UniqueConstraint, Index,
+    Integer, Numeric, String, Text, ARRAY, func, UniqueConstraint, Index, text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -416,7 +416,23 @@ class Achievement(Base):
 class Swipe(Base):
     __tablename__ = "swipes"
     __table_args__ = (
-        UniqueConstraint("from_user_id", "to_user_id", "mode", name="uq_swipe_pair_mode"),
+        Index(
+            "uq_swipe_pair_mode_user",
+            "from_user_id",
+            "to_user_id",
+            "mode",
+            unique=True,
+            postgresql_where=text("to_project_id IS NULL"),
+            sqlite_where=text("to_project_id IS NULL"),
+        ),
+        Index(
+            "uq_swipe_pair_project",
+            "from_user_id",
+            "to_project_id",
+            unique=True,
+            postgresql_where=text("to_project_id IS NOT NULL"),
+            sqlite_where=text("to_project_id IS NOT NULL"),
+        ),
         Index("idx_swipes_to_user_action", "to_user_id", "action"),
         Index("idx_swipes_from_user_action", "from_user_id", "action"),
         Index("idx_swipes_viewer_mode_action_created", "from_user_id", "mode", "action", "created_at"),

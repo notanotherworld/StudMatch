@@ -779,6 +779,7 @@ async def create_swipe(
             match_cond = and_(
                 Swipe.from_user_id == from_id,
                 Swipe.to_user_id == to_id,
+                Swipe.to_project_id.is_(None),
                 or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
             )
 
@@ -1830,30 +1831,35 @@ async def founder_swipe_candidate(
     Фаундер свайпает кандидата. Если action in (like, superlike), создается мэтч по проекту!
     """
     now = datetime.now(timezone.utc)
-    existing_swipe = await db.scalar(
-        select(Swipe).where(
-            and_(
-                Swipe.from_user_id == founder_id,
-                Swipe.to_user_id == candidate_id,
-                Swipe.mode == ModeEnum.projects,
-            )
-        )
+    match_cond = and_(
+        Swipe.from_user_id == founder_id,
+        Swipe.to_user_id == candidate_id,
+        Swipe.to_project_id == project_id,
+        Swipe.mode == ModeEnum.projects,
     )
+    existing_swipe = await db.scalar(select(Swipe).where(match_cond))
     if existing_swipe:
-        existing_swipe.to_project_id = project_id
         existing_swipe.action = action
         existing_swipe.created_at = now
     else:
-        db.add(
-            Swipe(
-                from_user_id=founder_id,
-                to_user_id=candidate_id,
-                to_project_id=project_id,
-                mode=ModeEnum.projects,
-                action=action,
-                created_at=now,
-            )
-        )
+        try:
+            async with db.begin_nested():
+                db.add(
+                    Swipe(
+                        from_user_id=founder_id,
+                        to_user_id=candidate_id,
+                        to_project_id=project_id,
+                        mode=ModeEnum.projects,
+                        action=action,
+                        created_at=now,
+                    )
+                )
+                await db.flush()
+        except IntegrityError:
+            existing_swipe = await db.scalar(select(Swipe).where(match_cond))
+            if existing_swipe:
+                existing_swipe.action = action
+                existing_swipe.created_at = now
 
     is_match = False
     if action in (SwipeAction.like, SwipeAction.superlike):
@@ -2012,7 +2018,10 @@ async def claim_daily_streak(db: AsyncSession, user_id: int) -> Tuple[bool, str,
     Забрать ежедневную «Стипендию» (стрик входа).
     Возвращает (success: bool, status_message: str, current_streak: int, reward_credits: int).
     """
-    user = await get_user(db, user_id)
+    res = await db.execute(
+        select(User).where(User.id == user_id).with_for_update()
+    )
+    user = res.scalar_one_or_none()
     if not user:
         return False, "Пользователь не найден", 0, 0
 
@@ -2219,7 +2228,7 @@ async def claim_daily_quest(
                 UserDailyQuest.quest_date == today_start,
                 UserDailyQuest.quest_key == quest_key,
             )
-        )
+        ).with_for_update()
     )
     quest = res.scalar_one_or_none()
     if not quest:
@@ -2468,7 +2477,7 @@ async def claim_permanent_quest(
                 UserPermanentQuest.user_id == user_id,
                 UserPermanentQuest.quest_key == quest_key,
             )
-        )
+        ).with_for_update()
     )
     quest = res.scalar_one_or_none()
     if not quest:
@@ -3022,7 +3031,7 @@ async def send_campus_gift(
                 UserInventoryItem.item_code == gift_code,
                 UserInventoryItem.quantity > 0,
             )
-        )
+        ).with_for_update()
     )
     inv_item = inv_res.scalars().first()
 
@@ -3175,7 +3184,7 @@ async def convert_user_gift_to_credits(
     res = await db.execute(
         select(UserReceivedGift).where(
             and_(UserReceivedGift.id == gift_id, UserReceivedGift.recipient_id == user_id)
-        )
+        ).with_for_update()
     )
     gift = res.scalar_one_or_none()
     if not gift:
@@ -3284,7 +3293,10 @@ async def spin_fortune_wheel(
     Списывает валюту (если платно) или фиксирует дату (если бесплатно).
     Выдаёт выигранный приз и возвращает данные сектора.
     """
-    user = await get_user(db, user_id)
+    res = await db.execute(
+        select(User).where(User.id == user_id).with_for_update()
+    )
+    user = res.scalar_one_or_none()
     if not user:
         return False, "Пользователь не найден.", None
 
@@ -3317,9 +3329,10 @@ async def spin_fortune_wheel(
 
     user.fortune_spins_count = (user.fortune_spins_count or 0) + 1
 
-    # Случайный сектор с учётом весов
+    import secrets
+    # Случайный сектор с учётом весов (CSPRNG)
     weights = [s["weight"] for s in FORTUNE_WHEEL_SECTORS]
-    chosen_sector = random.choices(FORTUNE_WHEEL_SECTORS, weights=weights, k=1)[0]
+    chosen_sector = secrets.SystemRandom().choices(FORTUNE_WHEEL_SECTORS, weights=weights, k=1)[0]
 
     # Начисляем награду
     r_type = chosen_sector["type"]

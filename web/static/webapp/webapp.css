@@ -7452,12 +7452,12 @@ img, video, canvas {
 }
 
 .shop-modal-content {
-  max-height: 90vh;
+  height: 90vh;
+  height: 90dvh;
   max-height: 90dvh;
-  max-height: calc(var(--tg-viewport-height, 100dvh) * 0.90);
   display: flex;
   flex-direction: column;
-  padding: 12px 18px calc(24px + max(var(--safe-bottom, 0px), 16px));
+  padding: 10px 16px calc(20px + max(var(--safe-bottom, 0px), 12px));
   position: relative;
   overflow: hidden;
   background: var(--bg-card, #FFFFFF);
@@ -7465,15 +7465,18 @@ img, video, canvas {
   border-radius: 28px 28px 0 0;
   box-shadow: 0 -12px 40px rgba(24, 24, 27, 0.16);
   border-top: 1px solid rgba(226, 232, 240, 0.8);
+  container-type: inline-size;
+  container-name: shopModal;
 }
 
 .shop-drag-handle-wrap {
   width: 100%;
-  padding: 2px 0 8px;
+  padding: 2px 0 6px;
   display: flex;
   justify-content: center;
   align-items: center;
   cursor: grab;
+  flex-shrink: 0;
 }
 
 .shop-drag-handle {
@@ -7485,15 +7488,18 @@ img, video, canvas {
 
 .shop-modal-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .shop-header-title-wrap {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
 .shop-title-badge {
@@ -7505,7 +7511,7 @@ img, video, canvas {
   padding: 2px 8px;
   border-radius: 9999px;
   width: fit-content;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.6px;
   color: #904D00;
@@ -7521,17 +7527,19 @@ img, video, canvas {
 }
 
 .shop-modal-title {
-  font-size: 21px;
+  font-size: clamp(17px, 4.5vw, 20px);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: #18181B;
   margin: 0;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .shop-close-btn {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   background: #F1F5F9;
   border: 1px solid rgba(226, 232, 240, 0.9);
@@ -7539,11 +7547,13 @@ img, video, canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   cursor: pointer;
   transition: transform 0.12s ease, background 0.15s ease;
   flex-shrink: 0;
+  touch-action: manipulation;
+  margin-left: 8px;
 }
 
 .shop-close-btn:active {
@@ -7555,7 +7565,8 @@ img, video, canvas {
 .shop-balance-chips-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .shop-chip {
@@ -7639,50 +7650,84 @@ img, video, canvas {
   color: #EA580C;
 }
 
-/* Segmented Navigation Tabs (tactile iOS pill dock) */
+/* ─── Compact Tactile 5-Segment Grid Dock (Zero Scroll, 100% visible on any screen) ─── */
 .shop-nav-tabs {
-  display: flex;
-  gap: 3px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
   background: #F1F5F9;
-  padding: 3px;
-  border-radius: 9999px;
+  padding: 4px;
+  border-radius: 16px;
   border: 1px solid rgba(226, 232, 240, 0.9);
   margin-bottom: 12px;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .shop-tab-btn {
-  flex: 1;
-  padding: 7px 2px;
-  border: none;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #64748B;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
+  padding: 6px 1px;
+  min-height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  min-width: 0;
+}
+
+.shop-tab-icon {
+  font-size: 17px;
+  line-height: 1;
+  display: block;
+  transition: transform 0.18s ease;
+}
+
+.shop-tab-text {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
 }
 
 .shop-tab-btn:active {
-  transform: scale(0.96);
+  transform: scale(0.93);
 }
 
 .shop-tab-btn.active {
-  background: #6C5CE7;
-  color: #FFFFFF;
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.28);
+  background: #FFFFFF;
+  color: #18181B;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-/* Tab Content Scroll Body */
+.shop-tab-btn.active .shop-tab-icon {
+  transform: scale(1.1);
+}
+
+.shop-tab-btn.active .shop-tab-text {
+  color: #6C5CE7;
+  font-weight: 800;
+}
+
+/* Tab Content Scroll Body (Prevents pushing into header/tabs) */
 .shop-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  flex: 1;
   -webkit-overflow-scrolling: touch;
   padding-right: 1px;
 }
@@ -7700,12 +7745,12 @@ img, video, canvas {
 .shop-special-offer {
   background: linear-gradient(135deg, rgba(255, 237, 213, 0.85) 0%, rgba(254, 243, 199, 0.45) 50%, #F1F5F9 100%);
   border: 1px solid rgba(254, 147, 44, 0.35);
-  border-radius: 18px;
-  padding: 14px;
+  border-radius: 16px;
+  padding: 12px 14px;
   position: relative;
   overflow: hidden;
   box-shadow: 0 2px 10px rgba(234, 88, 12, 0.06);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .shop-special-offer-glow {
@@ -7967,14 +8012,17 @@ img, video, canvas {
   color: #FFFFFF;
   font-weight: 700;
   font-size: 12px;
-  padding: 7px 13px;
+  padding: 8px 14px;
+  min-height: 38px;
   border-radius: 11px;
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   box-shadow: 0 3px 8px rgba(108, 92, 231, 0.25);
   transition: transform 0.12s ease, opacity 0.15s ease, background 0.15s ease;
+  touch-action: manipulation;
 }
 
 .btn-buy-shop-item:active {
@@ -8200,7 +8248,7 @@ img, video, canvas {
 .streak-days-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: clamp(2px, 1vw, 5px);
   margin: 10px 0 12px;
 }
 
@@ -8209,13 +8257,14 @@ img, video, canvas {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 7px 2px;
+  padding: clamp(4px, 1.2vw, 7px) 1px;
   border-radius: 12px;
-  font-size: 11px;
+  font-size: clamp(9.5px, 2.5vw, 11px);
   transition: all 0.2s ease;
   background: #FFFFFF;
   border: 1px solid rgba(226, 232, 240, 0.9);
   text-align: center;
+  min-width: 0;
 }
 
 .streak-day-cell.done {
@@ -8250,11 +8299,12 @@ img, video, canvas {
 
 .streak-day-name {
   font-weight: 700;
-  font-size: 10.5px;
+  font-size: clamp(9px, 2.4vw, 10.5px);
+  line-height: 1.1;
 }
 
 .streak-day-status-icon {
-  font-size: 14px;
+  font-size: clamp(12px, 3vw, 14px);
   line-height: 1;
   margin: 2px 0 1px;
 }
@@ -8268,9 +8318,10 @@ img, video, canvas {
 }
 
 .streak-day-reward {
-  font-size: 9.5px;
+  font-size: clamp(8px, 2.2vw, 9.5px);
   font-weight: 700;
   font-family: "JetBrains Mono", monospace;
+  white-space: nowrap;
 }
 
 .btn-claim-streak {
@@ -8280,7 +8331,8 @@ img, video, canvas {
   color: #FFFFFF;
   font-weight: 700;
   font-size: 13.5px;
-  padding: 10px 16px;
+  padding: 11px 16px;
+  min-height: 44px;
   border-radius: 13px;
   cursor: pointer;
   display: flex;
@@ -8289,6 +8341,7 @@ img, video, canvas {
   gap: 6px;
   box-shadow: 0 3px 12px rgba(108, 92, 231, 0.3);
   transition: transform 0.12s ease, opacity 0.15s ease, background 0.15s ease;
+  touch-action: manipulation;
 }
 
 .btn-claim-streak:active {
@@ -8800,25 +8853,97 @@ img, video, canvas {
   .shop-chip-value {
     font-size: 12px;
   }
-  .streak-days-grid {
-    gap: 3px;
-  }
-  .streak-day-cell {
-    padding: 6px 1px;
-    font-size: 10px;
-    min-width: 0;
-  }
-  .streak-day-name {
-    font-size: 9px;
-  }
-  .streak-day-reward {
-    font-size: 8.5px;
-  }
   .shop-special-offer {
     padding: 12px;
   }
   .shop-card-item {
     padding: 10px 12px;
+  }
+}
+
+/* Ultra-compact Mobile Screens (≤ 360px, e.g. iPhone SE / small Androids) */
+@media (max-width: 360px) {
+  .shop-modal-content {
+    padding: 8px 10px calc(18px + max(var(--safe-bottom, 0px), 10px));
+  }
+  .shop-modal-title {
+    font-size: 17.5px;
+  }
+  .shop-title-badge {
+    font-size: 9.5px;
+    padding: 1px 6px;
+  }
+  .shop-nav-tabs {
+    gap: 2px;
+    padding: 3px;
+    margin-bottom: 10px;
+  }
+  .shop-tab-btn {
+    padding: 4px 1px;
+    min-height: 44px;
+    border-radius: 10px;
+  }
+  .shop-tab-icon {
+    font-size: 15px;
+  }
+  .shop-tab-text {
+    font-size: 9.5px;
+  }
+  .shop-special-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .shop-special-buy-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .starter-pack-action-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .btn-buy-starter-pack {
+    width: 100%;
+    justify-content: center;
+  }
+  .starter-perks-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .credit-packs-grid {
+    grid-template-columns: 1fr;
+  }
+  .shop-gifts-grid {
+    grid-template-columns: 1fr;
+  }
+  .fortune-controls-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .gift-picker-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .fortune-sectors-legend {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Responsive Container Queries (Telegram Desktop / Tablet Viewports) */
+@container shopModal (min-width: 520px) {
+  .shop-catalog-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .credit-packs-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .shop-gifts-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .starter-perks-grid {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -9323,24 +9448,24 @@ img, video, canvas {
   position: relative;
   background: linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%);
   border: 1.5px solid rgba(165, 180, 252, 0.35);
-  border-radius: 18px;
-  padding: 16px 16px;
-  margin-bottom: 14px;
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   overflow: hidden;
-  box-shadow: 0 8px 24px -6px rgba(67, 56, 202, 0.35);
+  box-shadow: 0 4px 16px -4px rgba(67, 56, 202, 0.3);
 }
 
 .fortune-banner-glow {
   position: absolute;
   top: -40px;
   right: -40px;
-  width: 140px;
-  height: 140px;
-  background: radial-gradient(circle, rgba(234, 179, 8, 0.4) 0%, transparent 70%);
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(234, 179, 8, 0.35) 0%, transparent 70%);
   border-radius: 50%;
   pointer-events: none;
 }
@@ -9349,21 +9474,22 @@ img, video, canvas {
   position: relative;
   z-index: 1;
   flex: 1;
+  min-width: 0;
 }
 
 .fortune-banner-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: rgba(234, 179, 8, 0.2);
   border: 1px solid rgba(234, 179, 8, 0.5);
   color: #FDE047;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  padding: 3px 8px;
+  padding: 2px 7px;
   border-radius: 999px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   text-transform: uppercase;
 }
 
@@ -9382,18 +9508,18 @@ img, video, canvas {
 }
 
 .fortune-banner-title {
-  font-size: 16px;
+  font-size: 14.5px;
   font-weight: 800;
   color: #FFFFFF;
-  margin: 0 0 4px 0;
+  margin: 0 0 2px 0;
   line-height: 1.2;
 }
 
 .fortune-banner-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: #C7D2FE;
   margin: 0;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .fortune-banner-right {
@@ -9406,16 +9532,16 @@ img, video, canvas {
   background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
   border: 1px solid rgba(255, 255, 255, 0.4);
   color: #FFFFFF;
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 800;
-  padding: 10px 16px;
-  border-radius: 14px;
+  padding: 8px 14px;
+  border-radius: 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.4);
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 5px;
+  box-shadow: 0 3px 10px rgba(217, 119, 6, 0.35);
+  touch-action: manipulation;
 }
 
 .fortune-banner-spin-btn:active {
@@ -9450,6 +9576,8 @@ img, video, canvas {
   width: 100%;
   max-width: 480px;
   max-height: 92vh;
+  max-height: 90dvh;
+  padding-bottom: calc(16px + max(var(--safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 8px));
   background: #0F172A;
   color: #F8FAFC;
   border-top-left-radius: 28px;
@@ -9497,8 +9625,10 @@ img, video, canvas {
 }
 
 .fortune-close-btn {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.1);
   border: none;
@@ -9509,6 +9639,7 @@ img, video, canvas {
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
 }
 
 .fortune-wheel-body {
@@ -9519,11 +9650,13 @@ img, video, canvas {
   align-items: center;
 }
 
-/* Wheel Canvas & Needle Stage */
+/* Wheel Canvas & Needle Stage (Fluid scaling on small screens) */
 .wheel-stage-wrapper {
   position: relative;
-  width: 290px;
-  height: 290px;
+  width: min(280px, calc(100vw - 44px));
+  height: min(280px, calc(100vw - 44px));
+  max-width: 100%;
+  aspect-ratio: 1;
   margin: 6px auto 14px;
   display: flex;
   align-items: center;
@@ -9549,8 +9682,10 @@ img, video, canvas {
 
 .wheel-outer-ring {
   position: relative;
-  width: 280px;
-  height: 280px;
+  width: 100%;
+  height: 100%;
+  max-width: 280px;
+  max-height: 280px;
   border-radius: 50%;
   padding: 6px;
   background: radial-gradient(circle, #312E81 0%, #1E1B4B 100%);
@@ -9562,8 +9697,10 @@ img, video, canvas {
 }
 
 .fortune-canvas {
-  width: 268px;
-  height: 268px;
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  max-width: 268px;
+  max-height: 268px;
   border-radius: 50%;
   display: block;
 }
@@ -9849,9 +9986,60 @@ img, video, canvas {
    🎁 ВИТРИНА ПОДАРКОВ КАМПУСА (В МАГАЗИНЕ)
    ══════════════════════════════════════════════════════════════════ */
 .shop-gifts-hero.telegram-gifts-hero {
-  background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 55%, #38BDF8 100%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 55%, #4F46E5 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 18px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
   box-shadow: 0 8px 24px -6px rgba(37, 99, 235, 0.35);
+  color: #FFFFFF;
+  overflow: hidden;
+}
+
+.shop-gifts-hero.telegram-gifts-hero::after {
+  content: "";
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.gifts-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.gifts-hero-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin: 0 0 4px 0;
+  line-height: 1.25;
+}
+
+.gifts-hero-desc {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  line-height: 1.35;
 }
 
 .shop-gifts-grid {
@@ -10102,6 +10290,8 @@ img, video, canvas {
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
+  max-height: 90dvh;
+  padding-bottom: calc(16px + max(var(--safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 8px));
   background: #FFFFFF;
   border-top-left-radius: 28px;
   border-top-right-radius: 28px;
@@ -10141,8 +10331,10 @@ img, video, canvas {
 }
 
 .gift-close-btn {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   background: #F1F5F9;
   border: none;
@@ -10153,6 +10345,7 @@ img, video, canvas {
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
 }
 
 .send-gift-body {

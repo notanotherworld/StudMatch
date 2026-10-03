@@ -43,7 +43,7 @@ async def main() -> None:
         storage = MemoryStorage()
         logger.warning(f"⚠️ Redis недоступен ({e}), переключено на MemoryStorage для FSM")
 
-    session = create_resilient_bot_session(timeout=30.0, max_retries=3)
+    session = create_resilient_bot_session(timeout=60.0, max_retries=3)
     bot = Bot(
         token=settings.BOT_TOKEN,
         session=session,
@@ -137,7 +137,11 @@ async def main() -> None:
 
     try:
         await bot.delete_webhook(drop_pending_updates=True)
-        await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
+        await dp.start_polling(
+            bot,
+            polling_timeout=20,
+            allowed_updates=["message", "callback_query"],
+        )
 
     finally:
         await bot.session.close()
