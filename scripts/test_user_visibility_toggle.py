@@ -114,3 +114,28 @@ def test_user_detail_feed_status_banners():
     )
 
     assert "Статус видимости анкеты в поиске успешно изменён!" in rendered
+
+
+def test_users_html_restore_all_button_and_banner():
+    env = Environment(loader=FileSystemLoader("web/templates"))
+    template = env.get_template("admin/users.html")
+
+    request = DummyRequest(query_params={"restored_count": "15"})
+    rendered = template.render(
+        users=[DummyUser()],
+        admin=type("Admin", (), {"id": 1, "username": "admin"})(),
+        q="",
+        page=1,
+        is_fake=False,
+        filter_type=None,
+        spammers_count=0,
+        premium_count=0,
+        verified_count=0,
+        csrf_token="csrf_123",
+        request=request,
+    )
+
+    assert "/admin/users/restore-all-visibility" in rendered
+    assert "Восстановить видимость" in rendered
+    assert "Успешно восстановлена видимость в поиске для <b>15</b> анкет" in rendered
+

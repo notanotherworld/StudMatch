@@ -437,6 +437,45 @@ async def toggle_user_complete(
     return RedirectResponse(f"/admin/users/{user_id}?complete_changed=1", status_code=302)
 
 
+@router.post("/users/restore-all-visibility", dependencies=[Depends(check_csrf)])
+async def restore_all_visibility(
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Массовое восстановление видимости (is_visible=True) для всех активных (незаблокированных) пользователей.
+    Исправляет последствия старого бага разбана и гарантирует присутствие всех активных анкет в поиске.
+    """
+    subq = select(User.id).where(User.is_active == True)
+    update_res = await db.execute(
+        update(Profile)
+        .where(
+            Profile.user_id.in_(subq),
+            Profile.is_visible == False,
+        )
+        .values(is_visible=True)
+    )
+    restored_count = update_res.rowcount
+    await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db,
+        admin,
+        action="bulk_restore_visibility",
+        target_type="system",
+        target_id="profiles",
+        details=f"Массовое восстановление видимости анкет: восстановлено {restored_count} анкет",
+        ip_address=client_ip,
+    )
+
+    return RedirectResponse(
+        f"/admin/users?restored_count={restored_count}",
+        status_code=302,
+    )
+
+
 @router.post("/users/{user_id}/verify-manual", dependencies=[Depends(check_csrf)])  # CSRF (#2)
 async def verify_user_manually(
     user_id: int,

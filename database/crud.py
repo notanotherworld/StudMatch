@@ -10,7 +10,9 @@ import logging
 import json
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, and_, or_, func, case, exists
+from sqlalchemy import select, update, and_, or_, func, case, exists, Float
+from sqlalchemy.sql import expression
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -23,6 +25,28 @@ from database.models import (
     Project, ShopItem, EconomyTransaction, UserDailyQuest, UserPermanentQuest, UserInventoryItem,
     UserReceivedGift,
 )
+
+
+class random_normalized(expression.FunctionElement):
+    """Возвращает случайное число [0.0, 1.0) для PostgreSQL и SQLite."""
+    type = Float()
+    inherit_cache = True
+
+
+@compiles(random_normalized, "postgresql")
+def compile_random_pg(element, compiler, **kw):
+    return "random()"
+
+
+@compiles(random_normalized, "sqlite")
+def compile_random_sqlite(element, compiler, **kw):
+    return "(abs(random()) % 1000) / 1000.0"
+
+
+@compiles(random_normalized)
+def compile_random_default(element, compiler, **kw):
+    return "random()"
+
 
 
 # ─────────────────────────────────────────────────────────────
@@ -641,7 +665,7 @@ async def get_next_profile(
         else_=0,
     )
 
-    # Получаем последние 15 свайпов пользователя для скользящего буфера
+    # Получаем последние 60 свайпов пользователя для скользящего буфера
     recent_swipes_res = await db.execute(
         select(Swipe.to_user_id)
         .where(
@@ -649,7 +673,7 @@ async def get_next_profile(
             or_(Swipe.mode == current_mode, Swipe.mode.is_(None)),
         )
         .order_by(Swipe.created_at.desc())
-        .limit(15)
+        .limit(60)
     )
     recent_swiped_ids = list(recent_swipes_res.scalars().all())
 
@@ -678,15 +702,24 @@ async def get_next_profile(
             (User.boost_until > now).desc(),
             (User.premium_until > now).desc(),
             User.email_verified.desc(),
-            case((priority <= 1, viewer_swipe_time), else_=None).asc().nulls_last(),
+            # Взвешенный джиттер для свежих анкет (priority == 2): рейтинг дает преимущество, но с рандомизацией
+            case(
+                (priority == 2, Profile.rating_score * 0.7 + (random_normalized() * 35.0)),
+                else_=None,
+            ).desc().nulls_last(),
+            # Случайный порядок для ресайкла скипов (priority <= 1), ломающий зацикленный круг FIFO
+            case(
+                (priority <= 1, random_normalized()),
+                else_=None,
+            ).desc().nulls_last(),
             Profile.rating_score.desc(),
         )
         .limit(1)
     )
 
-    # Проход 1: Со скользящим буфером (исключаем последние 10 свайпов, кроме активных входящих лайков)
+    # Проход 1: Со скользящим буфером (исключаем последние 50 свайпов, кроме активных входящих лайков)
     client_exclude: Set[int] = set(exclude_ids or ())
-    recent_buffer: Set[int] = set(recent_swiped_ids[:10])
+    recent_buffer: Set[int] = set(recent_swiped_ids[:50])
 
     q1_conds = list(base_conditions)
     if client_exclude:

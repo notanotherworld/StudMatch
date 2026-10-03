@@ -96,13 +96,17 @@ def test_rate_limiter_logic():
 
 @pytest.mark.asyncio
 async def test_wheel_csprng_and_row_locking():
+    from database.session import engine
+    from database.models import Base
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     async with AsyncSessionLocal() as db:
         res = await db.execute(
             select(User).where(User.id == 888001).with_for_update()
         )
         u = res.scalar_one_or_none()
         if not u:
-            u = User(id=888001, telegram_id=888001, username="test_lock_user")
+            u = User(id=888001, tg_username="test_lock_user")
             db.add(u)
             await db.commit()
 
