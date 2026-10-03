@@ -2515,7 +2515,7 @@
         });
 
         const targetGender = data.gender || "all";
-        document.querySelectorAll(".gender-pill").forEach((gp) => {
+        document.querySelectorAll("#genderFilterPills .gender-pill").forEach((gp) => {
           gp.classList.toggle("active", gp.dataset.gender === targetGender);
         });
       }
@@ -2529,20 +2529,20 @@
     // Filters Modal
     document.getElementById("closeFiltersBtn")?.addEventListener("click", () => filtersModal.classList.remove("active"));
     
-    // Gender pills
-    document.querySelectorAll(".gender-pill").forEach((pill) => {
+    // Gender pills (Filters Modal)
+    document.querySelectorAll("#genderFilterPills .gender-pill").forEach((pill) => {
       pill.addEventListener("click", () => {
         triggerHaptic("light");
-        document.querySelectorAll(".gender-pill").forEach((p) => p.classList.remove("active"));
+        document.querySelectorAll("#genderFilterPills .gender-pill").forEach((p) => p.classList.remove("active"));
         pill.classList.add("active");
       });
     });
 
-    // Course pills
-    document.querySelectorAll(".course-pill").forEach((pill) => {
+    // Course pills (Filters Modal)
+    document.querySelectorAll("#coursePills .course-pill").forEach((pill) => {
       pill.addEventListener("click", () => {
         triggerHaptic("light");
-        document.querySelectorAll(".course-pill").forEach((p) => p.classList.remove("active"));
+        document.querySelectorAll("#coursePills .course-pill").forEach((p) => p.classList.remove("active"));
         pill.classList.add("active");
       });
     });
@@ -2552,11 +2552,11 @@
       const maxAge = parseInt(document.getElementById("filterMaxAge").value || "35", 10);
       const major = document.getElementById("filterMajor").value.trim() || "all";
 
-      const activePill = document.querySelector(".course-pill.active");
+      const activePill = document.querySelector("#coursePills .course-pill.active");
       const minYear = activePill ? parseInt(activePill.dataset.min, 10) : 1;
       const maxYear = activePill ? parseInt(activePill.dataset.max, 10) : 6;
 
-      const activeGenderPill = document.querySelector(".gender-pill.active");
+      const activeGenderPill = document.querySelector("#genderFilterPills .gender-pill.active");
       const selectedGender = activeGenderPill ? activeGenderPill.dataset.gender : "all";
 
       triggerHaptic("medium");
@@ -2591,7 +2591,7 @@
           gender: "all",
         }),
       });
-      document.querySelectorAll(".gender-pill").forEach((p) => {
+      document.querySelectorAll("#genderFilterPills .gender-pill").forEach((p) => {
         p.classList.toggle("active", p.dataset.gender === "all");
       });
       filtersModal.classList.remove("active");
