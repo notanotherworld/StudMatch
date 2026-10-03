@@ -60,51 +60,69 @@ async def has_received_reward(
 
 
 async def reward_email_verification(db: AsyncSession, user_id: int) -> Tuple[bool, int]:
-    """Награда за подтверждение университетского email (+100 🎓)."""
+    """Награда за подтверждение университетского email (+100 🎓, x3 для Премиум: +300 🎓)."""
     ref_id = "onboarding_email_verified"
     if await has_received_reward(db, user_id, ref_id):
         return False, 0
 
+    user = await get_user(db, user_id)
+    is_prem = bool(user and user.is_premium)
+    mult = 3 if is_prem else 1
+    amount = 100 * mult
+    prem_suffix = " (👑 Премиум x3)" if is_prem else ""
+
     new_bal = await add_user_credits(
         db,
         user_id=user_id,
-        amount=100,
+        amount=amount,
         tx_type="onboarding",
-        description="Подтверждение университетской почты",
+        description=f"Подтверждение университетской почты{prem_suffix}",
         reference_id=ref_id,
     )
     return True, new_bal
 
 
 async def reward_profile_completion(db: AsyncSession, user_id: int) -> Tuple[bool, int]:
-    """Награда за полное заполнение анкеты (+50 🎓)."""
+    """Награда за полное заполнение анкеты (+50 🎓, x3 для Премиум: +150 🎓)."""
     ref_id = "onboarding_profile_complete"
     if await has_received_reward(db, user_id, ref_id):
         return False, 0
 
+    user = await get_user(db, user_id)
+    is_prem = bool(user and user.is_premium)
+    mult = 3 if is_prem else 1
+    amount = 50 * mult
+    prem_suffix = " (👑 Премиум x3)" if is_prem else ""
+
     new_bal = await add_user_credits(
         db,
         user_id=user_id,
-        amount=50,
+        amount=amount,
         tx_type="onboarding",
-        description="Заполнение всех разделов анкеты",
+        description=f"Заполнение всех разделов анкеты{prem_suffix}",
         reference_id=ref_id,
     )
     return True, new_bal
 
 
 async def reward_gallery_upload(db: AsyncSession, user_id: int) -> Tuple[bool, int]:
-    """Награда за добавление от 3 фото в профиль (+30 🎓)."""
+    """Награда за добавление от 3 фото в профиль (+30 🎓, x3 для Премиум: +90 🎓)."""
     ref_id = "onboarding_gallery_3_photos"
     if await has_received_reward(db, user_id, ref_id):
         return False, 0
 
+    user = await get_user(db, user_id)
+    is_prem = bool(user and user.is_premium)
+    mult = 3 if is_prem else 1
+    amount = 30 * mult
+    prem_suffix = " (👑 Премиум x3)" if is_prem else ""
+
     new_bal = await add_user_credits(
         db,
         user_id=user_id,
-        amount=30,
+        amount=amount,
         tx_type="onboarding",
-        description="Загрузка от 3-х фотографий в портфолио",
+        description=f"Загрузка от 3-х фотографий в портфолио{prem_suffix}",
         reference_id=ref_id,
     )
     return True, new_bal

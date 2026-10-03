@@ -98,12 +98,19 @@ async def _render_quests_main(user: User, db: AsyncSession):
     quest_cfg_map = {c["key"]: c for c in DEFAULT_DAILY_QUESTS_CONFIG}
 
     streak_visual = _render_streak_bar(streak)
+    is_prem = bool(u.is_premium)
+    prem_banner = (
+        "👑 <b>Премиум-бонус активен: x3 Зачётов за все задания!</b>\n\n"
+        if is_prem
+        else "💡 <i>С Премиум-подпиской награды за все задания умножаются на 3 (x3 🎓)!</i>\n\n"
+    )
 
     text = (
         f"📋 <b>Студенческая Зачётка и Задания</b>\n\n"
         f"Баланс: <b>{format_credits(bal)}</b>\n"
         f"🔥 Текущая серия (стрик): <b>{streak} дн.</b>\n"
         f"🩺 Справок от врача в запасе: <b>{u.streak_freeze_count or 0} шт.</b>\n\n"
+        f"{prem_banner}"
         f"<b>Серия посещений («Стипендия»):</b>\n"
         f"{streak_visual}\n\n"
         f"<b>Ежедневные задания на сегодня:</b>\n"
@@ -114,7 +121,8 @@ async def _render_quests_main(user: User, db: AsyncSession):
         title = cfg.get("title", q.quest_key)
         bar = _progress_bar(q.current_progress, q.target_progress)
         status_icon = "✅" if q.is_claimed else ("🎁 Готово!" if q.current_progress >= q.target_progress else "")
-        text += f"— {title}: {bar} {q.current_progress}/{q.target_progress} (+{q.reward_credits} 🎓) {status_icon}\n"
+        prem_badge = " [👑 x3]" if is_prem else ""
+        text += f"— {title}: {bar} {q.current_progress}/{q.target_progress} (+{q.reward_credits} 🎓{prem_badge}) {status_icon}\n"
 
     keyboard = quests_main_keyboard(can_claim_streak, today_reward, quests)
     return text, keyboard
@@ -180,6 +188,13 @@ async def cb_quests_onboarding(callback: CallbackQuery, user: User, db: AsyncSes
     photos_count = len(profile.photos) if profile and profile.photos else 0
     gallery_claimed = await has_received_reward(db, user.id, "onboarding_gallery_3_photos")
 
+    is_prem = bool(u.is_premium)
+    mult = 3 if is_prem else 1
+    email_rew = 100 * mult
+    profile_rew = 50 * mult
+    gallery_rew = 30 * mult
+    prem_notice = " <i>(👑 x3 Премиум)</i>" if is_prem else ""
+
     builder = InlineKeyboardBuilder()
 
     text = (
@@ -189,30 +204,30 @@ async def cb_quests_onboarding(callback: CallbackQuery, user: User, db: AsyncSes
 
     # 1. Почта
     if email_claimed:
-        text += "✅ <b>Верификация почты вуза</b> (+100 🎓) — Получено\n"
+        text += f"✅ <b>Верификация почты вуза</b> (+{email_rew} 🎓{prem_notice}) — Получено\n"
     elif has_email:
-        text += "🎁 <b>Верификация почты вуза</b> (+100 🎓) — Готово к получению!\n"
-        builder.button(text="🎁 Забрать +100 🎓 (Почта)", callback_data="quests:claim_ob:email")
+        text += f"🎁 <b>Верификация почты вуза</b> (+{email_rew} 🎓{prem_notice}) — Готово к получению!\n"
+        builder.button(text=f"🎁 Забрать +{email_rew} 🎓 (Почта)", callback_data="quests:claim_ob:email")
     else:
-        text += "⏳ <b>Верификация почты вуза</b> (+100 🎓) — Подтверди корпоративный email\n"
+        text += f"⏳ <b>Верификация почты вуза</b> (+{email_rew} 🎓{prem_notice}) — Подтверди корпоративный email\n"
 
     # 2. Анкета
     if profile_claimed:
-        text += "✅ <b>Заполнение анкеты на 100%</b> (+50 🎓) — Получено\n"
+        text += f"✅ <b>Заполнение анкеты на 100%</b> (+{profile_rew} 🎓{prem_notice}) — Получено\n"
     elif is_complete:
-        text += "🎁 <b>Заполнение анкеты на 100%</b> (+50 🎓) — Готово к получению!\n"
-        builder.button(text="🎁 Забрать +50 🎓 (Анкета)", callback_data="quests:claim_ob:profile")
+        text += f"🎁 <b>Заполнение анкеты на 100%</b> (+{profile_rew} 🎓{prem_notice}) — Готово к получению!\n"
+        builder.button(text=f"🎁 Забрать +{profile_rew} 🎓 (Анкета)", callback_data="quests:claim_ob:profile")
     else:
-        text += "⏳ <b>Заполнение анкеты на 100%</b> (+50 🎓) — Заполни все 5 вопросов анкеты\n"
+        text += f"⏳ <b>Заполнение анкеты на 100%</b> (+{profile_rew} 🎓{prem_notice}) — Заполни все 5 вопросов анкеты\n"
 
     # 3. Галерея
     if gallery_claimed:
-        text += "✅ <b>Портфолио из 3+ фото</b> (+30 🎓) — Получено\n"
+        text += f"✅ <b>Портфолио из 3+ фото</b> (+{gallery_rew} 🎓{prem_notice}) — Получено\n"
     elif photos_count >= 3:
-        text += "🎁 <b>Портфолио из 3+ фото</b> (+30 🎓) — Готово к получению!\n"
-        builder.button(text="🎁 Забрать +30 🎓 (Фото)", callback_data="quests:claim_ob:photos")
+        text += f"🎁 <b>Портфолио из 3+ фото</b> (+{gallery_rew} 🎓{prem_notice}) — Готово к получению!\n"
+        builder.button(text=f"🎁 Забрать +{gallery_rew} 🎓 (Фото)", callback_data="quests:claim_ob:photos")
     else:
-        text += f"⏳ <b>Портфолио из 3+ фото</b> (+30 🎓) — Загружено: {photos_count}/3 фото\n"
+        text += f"⏳ <b>Портфолио из 3+ фото</b> (+{gallery_rew} 🎓{prem_notice}) — Загружено: {photos_count}/3 фото\n"
 
     text += (
         "\n🤝 <b>Приглашение друзей:</b>\n"

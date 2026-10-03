@@ -709,5 +709,79 @@ async def test_12_fortune_wheel_and_campus_gifts():
         assert not any(g["id"] == gift_id for g in u2_gifts_after["gifts"])
 
 
+@pytest.mark.asyncio
+async def test_13_premium_x3_quest_rewards():
+    """Тестирование x3 множителя наград за ежедневные и постоянные задания для Премиум-пользователей."""
+    from database.crud import (
+        set_user_premium,
+        revoke_user_premium,
+        get_or_create_daily_quests,
+        track_daily_quest_event,
+        claim_daily_quest,
+        get_or_create_permanent_quests,
+        claim_permanent_quest,
+    )
+    from web.routers.webapp import webapp_economy_overview, webapp_claim_quest, webapp_claim_permanent_quest, ClaimQuestRequest
+
+    async with AsyncSessionLocal() as db:
+        user = await get_or_create_user(db, user_id=98765, tg_username="prem_quest_tester")
+        user.credits_balance = 0
+        user.premium_until = None
+        await db.commit()
+
+        # 1. Обычный пользователь (не премиум): награда за дейлик 1x (6 🎓)
+        quests_norm = await get_or_create_daily_quests(db, user.id)
+        q_swipes = next(q for q in quests_norm if q.quest_key == "swipes_15")
+        assert q_swipes.reward_credits == 6
+
+        # 2. Выдаем Премиум
+        await set_user_premium(db, user.id, days=30)
+        await db.refresh(user)
+        assert user.is_premium is True
+
+        # 3. get_or_create_daily_quests должен обновить награду до x3 (18 🎓)
+        quests_prem = await get_or_create_daily_quests(db, user.id)
+        q_swipes_prem = next(q for q in quests_prem if q.quest_key == "swipes_15")
+        assert q_swipes_prem.reward_credits == 18
+
+        # 4. Выполняем дейлик и забираем награду через WebApp API
+        await track_daily_quest_event(db, user.id, "swipes_15", increment=15)
+        claim_resp = await webapp_claim_quest(
+            req=ClaimQuestRequest(quest_key="swipes_15"),
+            student=user,
+            db=db,
+        )
+        assert claim_resp["status"] == "success"
+        assert claim_resp["reward_credits"] == 18
+        assert claim_resp["new_balance"] == 18
+
+        # 5. Проверяем постоянные задания (ачивки): должны быть x3
+        user.profile = Profile(user_id=user.id, name="Тестер", goal="Тест профиля для ачивки", is_complete=True)
+        await db.commit()
+
+        perm_quests = await get_or_create_permanent_quests(db, user.id)
+        perm_profile = next(pq for pq in perm_quests if pq.quest_key == "onboarding_profile")
+        assert perm_profile.reward_credits == 60  # 20 * 3 = 60
+        assert perm_profile.current_progress == 1
+
+        # Клеймим постоянное задание
+        claim_perm_resp = await webapp_claim_permanent_quest(
+            req=ClaimQuestRequest(quest_key="onboarding_profile"),
+            student=user,
+            db=db,
+        )
+        assert claim_perm_resp["status"] == "success"
+        assert claim_perm_resp["reward_credits"] == 60
+        assert claim_perm_resp["new_balance"] == 78  # 18 + 60
+
+        # 6. Проверяем overview API
+        ov = await webapp_economy_overview(student=user, db=db)
+        assert ov["is_premium"] is True
+        assert ov["quest_multiplier"] == 3
+        swipes_ov = next(q for q in ov["daily_quests"] if q["quest_key"] == "swipes_15")
+        assert swipes_ov["is_premium_boosted"] is True
+        assert swipes_ov["reward_multiplier"] == 3
+
+
 
 

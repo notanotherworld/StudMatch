@@ -2160,9 +2160,13 @@ DEFAULT_DAILY_QUESTS_CONFIG = [
 async def get_or_create_daily_quests(db: AsyncSession, user_id: int) -> List[UserDailyQuest]:
     """
     Возвращает актуальный список дейликов пользователя на сегодня (создаёт при отсутствии).
+    Для пользователей с активным Премиумом награда умножается на 3 (x3 🎓).
     """
     now = datetime.now(timezone.utc)
     today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+
+    user = await get_user(db, user_id)
+    multiplier = 3 if (user and user.is_premium) else 1
 
     # Ищем существующие квесты на сегодня
     res = await db.execute(
@@ -2179,10 +2183,11 @@ async def get_or_create_daily_quests(db: AsyncSession, user_id: int) -> List[Use
     created_any = False
     for cfg in DEFAULT_DAILY_QUESTS_CONFIG:
         q_key = cfg["key"]
+        expected_reward = cfg["reward"] * multiplier
         if q_key in existing_quests:
             eq = existing_quests[q_key]
-            if not eq.is_claimed and eq.reward_credits != cfg["reward"]:
-                eq.reward_credits = cfg["reward"]
+            if not eq.is_claimed and eq.reward_credits != expected_reward:
+                eq.reward_credits = expected_reward
                 created_any = True
             quests_list.append(eq)
         else:
@@ -2192,7 +2197,7 @@ async def get_or_create_daily_quests(db: AsyncSession, user_id: int) -> List[Use
                 quest_key=q_key,
                 current_progress=0,
                 target_progress=cfg["target"],
-                reward_credits=cfg["reward"],
+                reward_credits=expected_reward,
                 is_claimed=False,
             )
             db.add(new_q)
@@ -2232,13 +2237,15 @@ async def track_daily_quest_event(
         cfg = next((c for c in DEFAULT_DAILY_QUESTS_CONFIG if c["key"] == quest_key), None)
         if not cfg:
             return None
+        user = await get_user(db, user_id)
+        multiplier = 3 if (user and user.is_premium) else 1
         quest = UserDailyQuest(
             user_id=user_id,
             quest_date=today_start,
             quest_key=quest_key,
             current_progress=0,
             target_progress=cfg["target"],
-            reward_credits=cfg["reward"],
+            reward_credits=cfg["reward"] * multiplier,
             is_claimed=False,
         )
         db.add(quest)
@@ -2256,7 +2263,7 @@ async def claim_daily_quest(
     quest_key: str,
 ) -> Tuple[bool, str, int]:
     """
-    Забрать награду за выполненный дейлик.
+    Забрать награду за выполненный дейлик (x3 для пользователей с Премиум).
     Возвращает (success: bool, message: str, reward_credits: int).
     """
     now = datetime.now(timezone.utc)
@@ -2284,18 +2291,26 @@ async def claim_daily_quest(
     quest.is_claimed = True
     quest.claimed_at = now
 
+    user = await get_user(db, user_id)
+    is_premium = bool(user and user.is_premium)
+    multiplier = 3 if is_premium else 1
+
     cfg = next((c for c in DEFAULT_DAILY_QUESTS_CONFIG if c["key"] == quest_key), None)
-    reward = cfg["reward"] if cfg else quest.reward_credits
+    base_reward = cfg["reward"] if cfg else quest.reward_credits
+    reward = base_reward * multiplier
     quest.reward_credits = reward
+
+    prem_suffix = " (👑 Премиум x3)" if is_premium else ""
     await add_user_credits(
         db,
         user_id=user_id,
         amount=reward,
         tx_type="quest",
-        description=f"Награда за дейлик: {quest_key}",
+        description=f"Награда за дейлик: {quest_key}{prem_suffix}",
         reference_id=quest_key,
     )
-    return True, f"🎉 <b>+{reward} Зачётов начислено!</b>", reward
+    prem_notice = " <i>(👑 Премиум x3!)</i>" if is_premium else ""
+    return True, f"🎉 <b>+{reward} Зачётов начислено!{prem_notice}</b>", reward
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2459,11 +2474,14 @@ async def get_or_create_permanent_quests(db: AsyncSession, user_id: int) -> List
     result_list = []
     has_changes = False
 
+    is_premium = bool(user and user.is_premium)
+    multiplier = 3 if is_premium else 1
+
     for cfg in DEFAULT_PERMANENT_QUESTS_CONFIG:
         q_key = cfg["key"]
         calc_progress = progress_map.get(q_key, 0)
         target = cfg["target"]
-        reward = cfg["reward_credits"]
+        reward = cfg["reward_credits"] * multiplier
         badge = cfg.get("reward_badge")
 
         was_previously_rewarded = (
@@ -2514,7 +2532,7 @@ async def claim_permanent_quest(
     quest_key: str,
 ) -> Tuple[bool, str, int, Optional[str], int]:
     """
-    Забрать награду за выполненное постоянное задание.
+    Забрать награду за выполненное постоянное задание (x3 для пользователей с Премиум).
     Возвращает (success: bool, message: str, reward_credits: int, reward_badge: Optional[str], new_balance: int).
     """
     res = await db.execute(
@@ -2538,22 +2556,29 @@ async def claim_permanent_quest(
     quest.is_claimed = True
     quest.claimed_at = datetime.now(timezone.utc)
 
+    user = await get_user(db, user_id)
+    is_premium = bool(user and user.is_premium)
+    multiplier = 3 if is_premium else 1
+
     cfg = next((c for c in DEFAULT_PERMANENT_QUESTS_CONFIG if c["key"] == quest_key), None)
-    reward = cfg["reward_credits"] if cfg else (quest.reward_credits or 0)
+    base_reward = cfg["reward_credits"] if cfg else (quest.reward_credits or 0)
+    reward = base_reward * multiplier
     quest.reward_credits = reward
     badge = quest.reward_badge
     ref_id = f"perm_quest_{quest_key}"
 
+    prem_suffix = " (👑 Премиум x3)" if is_premium else ""
     new_bal = await add_user_credits(
         db,
         user_id=user_id,
         amount=reward,
         tx_type="quest",
-        description=f"Награда за достижение: {quest_key}",
+        description=f"Награда за достижение: {quest_key}{prem_suffix}",
         reference_id=ref_id,
     )
 
-    msg = f"🎉 <b>+{reward} Зачётов начислено!</b>"
+    prem_notice = " <i>(👑 Премиум x3!)</i>" if is_premium else ""
+    msg = f"🎉 <b>+{reward} Зачётов начислено!{prem_notice}</b>"
     if badge:
         msg += f"\n🏆 <i>Разблокирован титул: {badge}</i>"
 

@@ -3719,6 +3719,9 @@ async def webapp_economy_overview(
     cycle_day = ((next_streak - 1) % 7) + 1 if next_streak > 0 else 1
     today_reward = STREAK_REWARDS_MAP.get(cycle_day, 10)
 
+    is_premium = bool(user.is_premium)
+    quest_multiplier = 3 if is_premium else 1
+
     # Задания (Дейлики)
     quests = await get_or_create_daily_quests(db, user.id)
     cfg_map = {c["key"]: c for c in DEFAULT_DAILY_QUESTS_CONFIG}
@@ -3727,6 +3730,7 @@ async def webapp_economy_overview(
     for q in quests:
         cfg = cfg_map.get(q.quest_key, {})
         is_completed = (q.current_progress >= q.target_progress)
+        base_rew = cfg.get("reward", q.reward_credits)
         quests_data.append({
             "key": q.quest_key,
             "quest_key": q.quest_key,
@@ -3737,6 +3741,9 @@ async def webapp_economy_overview(
             "target_progress": q.target_progress,
             "target_count": q.target_progress,
             "reward_credits": q.reward_credits,
+            "base_reward": base_rew,
+            "is_premium_boosted": is_premium,
+            "reward_multiplier": quest_multiplier,
             "is_claimed": q.is_claimed,
             "is_completed": is_completed,
             "is_ready": (is_completed and not q.is_claimed),
@@ -3751,6 +3758,7 @@ async def webapp_economy_overview(
     for pq in perm_quests:
         cfg = perm_cfg_map.get(pq.quest_key, {})
         is_completed = (pq.current_progress >= pq.target_progress)
+        base_rew = cfg.get("reward_credits", pq.reward_credits)
         perm_quests_data.append({
             "key": pq.quest_key,
             "quest_key": pq.quest_key,
@@ -3760,6 +3768,9 @@ async def webapp_economy_overview(
             "current_progress": pq.current_progress,
             "target_progress": pq.target_progress,
             "reward_credits": pq.reward_credits,
+            "base_reward": base_rew,
+            "is_premium_boosted": is_premium,
+            "reward_multiplier": quest_multiplier,
             "reward_badge": pq.reward_badge,
             "is_claimed": pq.is_claimed,
             "is_completed": is_completed,
@@ -3853,6 +3864,8 @@ async def webapp_economy_overview(
     return {
         "status": "success",
         "ok": True,
+        "is_premium": is_premium,
+        "quest_multiplier": quest_multiplier,
         "credits_balance": user.credits_balance or 0,
         "superlike_balance": user.superlike_balance or 0,
         "streak_days": streak,

@@ -7488,7 +7488,31 @@
         return;
       }
 
-      questsList.innerHTML = rawQuests.map((q) => {
+      const isPrem = !!(ov.is_premium || state.currentUser?.is_premium);
+      const premBannerHtml = isPrem ? `
+        <div class="quests-prem-banner active">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;">👑</span>
+            <div>
+              <div style="font-weight:700;">Премиум-бонус активен!</div>
+              <div style="font-size:11.5px;opacity:0.9;">Вы получаете в 3 раза больше (x3 🎓) за каждое выполненное задание.</div>
+            </div>
+          </div>
+        </div>
+      ` : `
+        <div class="quests-prem-banner">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;">💡</span>
+            <div>
+              <div style="font-weight:700;">Хотите x3 зачётов?</div>
+              <div style="font-size:11.5px;opacity:0.85;">С Премиум-подпиской награды за все задания умножаются на 3!</div>
+            </div>
+          </div>
+          <button type="button" class="quests-prem-banner-btn" id="btnQuestsGetPrem">Премиум 💎</button>
+        </div>
+      `;
+
+      const questsItemsHtml = rawQuests.map((q) => {
         const key = q.quest_key || q.key;
         const target = q.target_count || q.target_progress || 1;
         const current = q.current_progress || 0;
@@ -7505,6 +7529,10 @@
           actionHtml = `<span class="shop-quest-progress-val">${current} / ${target}</span>`;
         }
 
+        const premBadgeHtml = (q.is_premium_boosted || isPrem)
+          ? `<span class="shop-quest-prem-pill">👑 x3</span>`
+          : "";
+
         return `
           <div class="shop-quest-item ${isCompleted && !isClaimed ? 'completed' : ''}">
             <div class="shop-quest-top">
@@ -7514,6 +7542,7 @@
                   <div class="shop-quest-title-wrap">
                     <span class="shop-quest-title">${escapeHtml(q.title || key)}</span>
                     <span class="shop-quest-reward-pill">+${q.reward_credits} 🎓</span>
+                    ${premBadgeHtml}
                   </div>
                   <div class="shop-quest-desc">${escapeHtml(q.description || "")}</div>
                 </div>
@@ -7526,6 +7555,13 @@
           </div>
         `;
       }).join("");
+
+      questsList.innerHTML = premBannerHtml + questsItemsHtml;
+
+      document.getElementById("btnQuestsGetPrem")?.addEventListener("click", () => {
+        switchShopTab("Catalog");
+        document.querySelector('#shopCatalogFilters [data-category="subscription"]')?.click();
+      });
 
       questsList.querySelectorAll(".btn-claim-quest").forEach((btn) => {
         btn.addEventListener("click", async () => {
@@ -7549,7 +7585,9 @@
       const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
       if (isOk) {
         triggerHaptic("success");
-        showAppToast(`🎉 Награда получена: +${resp.reward_credits} 🎓!`);
+        const isPrem = !!(shopState.overview?.is_premium || state.currentUser?.is_premium);
+        const premSuffix = isPrem ? " (Премиум x3)" : "";
+        showAppToast(`🎉 Награда получена: +${resp.reward_credits} 🎓!${premSuffix}`);
         await loadShopData();
       } else {
         const err = resp?.detail || resp?.message || "Задание еще не выполнено";
@@ -7573,6 +7611,8 @@
       return;
     }
 
+    const isPrem = !!(ov?.is_premium || state.currentUser?.is_premium);
+
     list.innerHTML = permQuests.map((q) => {
       const key = q.quest_key || q.key;
       const target = q.target_progress || 1;
@@ -7591,6 +7631,9 @@
       }
 
       const badgeHtml = q.reward_badge ? `<span class="shop-quest-badge-tag">${escapeHtml(q.reward_badge)}</span>` : "";
+      const premBadgeHtml = (q.is_premium_boosted || isPrem)
+        ? `<span class="shop-quest-prem-pill">👑 x3</span>`
+        : "";
 
       return `
         <div class="shop-quest-item permanent-quest ${isCompleted && !isClaimed ? 'completed' : ''}">
@@ -7601,6 +7644,7 @@
                 <div class="shop-quest-title-wrap" style="flex-wrap:wrap; gap:4px;">
                   <span class="shop-quest-title">${escapeHtml(q.title || key)}</span>
                   <span class="shop-quest-reward-pill">+${q.reward_credits} 🎓</span>
+                  ${premBadgeHtml}
                   ${badgeHtml}
                 </div>
                 <div class="shop-quest-desc">${escapeHtml(q.description || "")}</div>
@@ -7633,8 +7677,10 @@
       const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
       if (isOk) {
         triggerHaptic("success");
+        const isPrem = !!(shopState.overview?.is_premium || state.currentUser?.is_premium);
+        const premSuffix = isPrem ? " (Премиум x3)" : "";
         const extraBadgeMsg = resp.reward_badge ? `\n🏆 Титул разблокирован: ${resp.reward_badge}` : "";
-        showAppToast(`🎉 Награда получена: +${resp.reward_credits} 🎓!${extraBadgeMsg}`);
+        showAppToast(`🎉 Награда получена: +${resp.reward_credits} 🎓!${premSuffix}${extraBadgeMsg}`);
         await loadShopData();
       } else {
         const err = resp?.detail || resp?.message || "Задание еще не выполнено";
