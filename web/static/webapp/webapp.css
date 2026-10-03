@@ -7452,12 +7452,12 @@ img, video, canvas {
 }
 
 .shop-modal-content {
-  max-height: 90vh;
+  height: 90vh;
+  height: 90dvh;
   max-height: 90dvh;
-  max-height: calc(var(--tg-viewport-height, 100dvh) * 0.90);
   display: flex;
   flex-direction: column;
-  padding: 12px 18px calc(24px + max(var(--safe-bottom, 0px), 16px));
+  padding: 10px 16px calc(20px + max(var(--safe-bottom, 0px), 12px));
   position: relative;
   overflow: hidden;
   background: var(--bg-card, #FFFFFF);
@@ -7471,11 +7471,12 @@ img, video, canvas {
 
 .shop-drag-handle-wrap {
   width: 100%;
-  padding: 2px 0 8px;
+  padding: 2px 0 6px;
   display: flex;
   justify-content: center;
   align-items: center;
   cursor: grab;
+  flex-shrink: 0;
 }
 
 .shop-drag-handle {
@@ -7487,15 +7488,16 @@ img, video, canvas {
 
 .shop-modal-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .shop-header-title-wrap {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
   flex: 1;
 }
@@ -7509,7 +7511,7 @@ img, video, canvas {
   padding: 2px 8px;
   border-radius: 9999px;
   width: fit-content;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.6px;
   color: #904D00;
@@ -7525,17 +7527,17 @@ img, video, canvas {
 }
 
 .shop-modal-title {
-  font-size: clamp(18px, 4.8vw, 21px);
+  font-size: clamp(17px, 4.5vw, 20px);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: #18181B;
   margin: 0;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .shop-close-btn {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   min-width: 44px;
   min-height: 44px;
   border-radius: 50%;
@@ -7563,7 +7565,8 @@ img, video, canvas {
 .shop-balance-chips-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .shop-chip {
@@ -7647,62 +7650,84 @@ img, video, canvas {
   color: #EA580C;
 }
 
-/* Segmented Navigation Tabs (tactile iOS pill dock with fluid scroll on small screens) */
+/* ─── Compact Tactile 5-Segment Grid Dock (Zero Scroll, 100% visible on any screen) ─── */
 .shop-nav-tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   background: #F1F5F9;
   padding: 4px;
-  border-radius: 9999px;
+  border-radius: 16px;
   border: 1px solid rgba(226, 232, 240, 0.9);
   margin-bottom: 12px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x mandatory;
-}
-
-.shop-nav-tabs::-webkit-scrollbar {
-  display: none;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .shop-tab-btn {
-  flex: 1 0 auto;
-  min-width: max-content;
-  scroll-snap-align: center;
-  padding: 7px 11px;
-  border: none;
-  border-radius: 9999px;
-  font-size: clamp(11.5px, 2.7vw, 12.5px);
-  font-weight: 600;
-  color: #64748B;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  white-space: nowrap;
-  min-height: 38px;
+  gap: 2px;
+  padding: 6px 1px;
+  min-height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  min-width: 0;
+}
+
+.shop-tab-icon {
+  font-size: 17px;
+  line-height: 1;
+  display: block;
+  transition: transform 0.18s ease;
+}
+
+.shop-tab-text {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
 }
 
 .shop-tab-btn:active {
-  transform: scale(0.96);
+  transform: scale(0.93);
 }
 
 .shop-tab-btn.active {
-  background: #6C5CE7;
-  color: #FFFFFF;
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.28);
+  background: #FFFFFF;
+  color: #18181B;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-/* Tab Content Scroll Body */
+.shop-tab-btn.active .shop-tab-icon {
+  transform: scale(1.1);
+}
+
+.shop-tab-btn.active .shop-tab-text {
+  color: #6C5CE7;
+  font-weight: 800;
+}
+
+/* Tab Content Scroll Body (Prevents pushing into header/tabs) */
 .shop-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  flex: 1;
   -webkit-overflow-scrolling: touch;
   padding-right: 1px;
 }
@@ -7720,12 +7745,12 @@ img, video, canvas {
 .shop-special-offer {
   background: linear-gradient(135deg, rgba(255, 237, 213, 0.85) 0%, rgba(254, 243, 199, 0.45) 50%, #F1F5F9 100%);
   border: 1px solid rgba(254, 147, 44, 0.35);
-  border-radius: 18px;
-  padding: 14px;
+  border-radius: 16px;
+  padding: 12px 14px;
   position: relative;
   overflow: hidden;
   box-shadow: 0 2px 10px rgba(234, 88, 12, 0.06);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .shop-special-offer-glow {
@@ -8848,6 +8873,22 @@ img, video, canvas {
     font-size: 9.5px;
     padding: 1px 6px;
   }
+  .shop-nav-tabs {
+    gap: 2px;
+    padding: 3px;
+    margin-bottom: 10px;
+  }
+  .shop-tab-btn {
+    padding: 4px 1px;
+    min-height: 44px;
+    border-radius: 10px;
+  }
+  .shop-tab-icon {
+    font-size: 15px;
+  }
+  .shop-tab-text {
+    font-size: 9.5px;
+  }
   .shop-special-bottom {
     flex-direction: column;
     align-items: flex-start;
@@ -9407,24 +9448,24 @@ img, video, canvas {
   position: relative;
   background: linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%);
   border: 1.5px solid rgba(165, 180, 252, 0.35);
-  border-radius: 18px;
-  padding: 16px 16px;
-  margin-bottom: 14px;
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   overflow: hidden;
-  box-shadow: 0 8px 24px -6px rgba(67, 56, 202, 0.35);
+  box-shadow: 0 4px 16px -4px rgba(67, 56, 202, 0.3);
 }
 
 .fortune-banner-glow {
   position: absolute;
   top: -40px;
   right: -40px;
-  width: 140px;
-  height: 140px;
-  background: radial-gradient(circle, rgba(234, 179, 8, 0.4) 0%, transparent 70%);
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(234, 179, 8, 0.35) 0%, transparent 70%);
   border-radius: 50%;
   pointer-events: none;
 }
@@ -9433,21 +9474,22 @@ img, video, canvas {
   position: relative;
   z-index: 1;
   flex: 1;
+  min-width: 0;
 }
 
 .fortune-banner-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: rgba(234, 179, 8, 0.2);
   border: 1px solid rgba(234, 179, 8, 0.5);
   color: #FDE047;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  padding: 3px 8px;
+  padding: 2px 7px;
   border-radius: 999px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   text-transform: uppercase;
 }
 
@@ -9466,18 +9508,18 @@ img, video, canvas {
 }
 
 .fortune-banner-title {
-  font-size: 16px;
+  font-size: 14.5px;
   font-weight: 800;
   color: #FFFFFF;
-  margin: 0 0 4px 0;
+  margin: 0 0 2px 0;
   line-height: 1.2;
 }
 
 .fortune-banner-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: #C7D2FE;
   margin: 0;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .fortune-banner-right {
@@ -9490,18 +9532,17 @@ img, video, canvas {
   background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
   border: 1px solid rgba(255, 255, 255, 0.4);
   color: #FFFFFF;
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 800;
-  padding: 10px 16px;
-  border-radius: 14px;
+  padding: 8px 14px;
+  border-radius: 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.4);
+  gap: 5px;
+  box-shadow: 0 3px 10px rgba(217, 119, 6, 0.35);
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
+  touch-action: manipulation;
 .fortune-banner-spin-btn:active {
   transform: scale(0.94);
 }
