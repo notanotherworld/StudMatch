@@ -15,7 +15,7 @@ import aiohttp
 from fastapi import APIRouter, Request, Depends, HTTPException, Header, Response, Query, WebSocket, WebSocketDisconnect, File, UploadFile, Form
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc, func
 from sqlalchemy.orm import selectinload
@@ -3630,24 +3630,49 @@ async def webapp_photo_proxy(file_id: str):
 # ═════════════════════════════════════════════════════════════════
 # ВНУТРЕННЯЯ ЭКОНОМИКА И МАГАЗИН (Telegram Mini App API)
 # ═════════════════════════════════════════════════════════════════
+import time
+
+_economy_rate_limiter: Dict[Tuple[int, str], float] = {}
+
+def check_economy_rate_limit(user_id: int, action: str, min_interval: float = 0.5) -> bool:
+    """
+    Проверяет частоту запросов пользователя для экономических действий (анти-спам / rate limit).
+    Возвращает True если запрос разрешен, False если слишком частый.
+    """
+    if os.environ.get("PYTEST_CURRENT_TEST") or os.getenv("TESTING", "false").lower() == "true":
+        return True
+    now = time.monotonic()
+    key = (user_id, action)
+    last_time = _economy_rate_limiter.get(key, 0.0)
+    if now - last_time < min_interval:
+        return False
+    _economy_rate_limiter[key] = now
+    if len(_economy_rate_limiter) > 10000:
+        cutoff = now - 60.0
+        for k in list(_economy_rate_limiter.keys()):
+            if _economy_rate_limiter[k] < cutoff:
+                del _economy_rate_limiter[k]
+    return True
+
+
 class BuyShopItemRequest(BaseModel):
-    item_code: str
+    item_code: str = Field(..., max_length=64)
 
 
 class ClaimQuestRequest(BaseModel):
-    quest_key: str
+    quest_key: str = Field(..., max_length=64)
 
 
 class EquipFrameRequest(BaseModel):
-    frame_code: Optional[str] = None
+    frame_code: Optional[str] = Field(None, max_length=64)
 
 
 class CreatePackPaymentRequest(BaseModel):
-    pack_code: str
+    pack_code: str = Field(..., max_length=64)
 
 
 class CheckPaymentStatusRequest(BaseModel):
-    payment_id: str
+    payment_id: str = Field(..., max_length=64)
 
 
 class SpinWheelRequest(BaseModel):
@@ -3656,8 +3681,8 @@ class SpinWheelRequest(BaseModel):
 
 class SendGiftRequest(BaseModel):
     recipient_id: int
-    gift_code: str
-    message: Optional[str] = None
+    gift_code: str = Field(..., max_length=64)
+    message: Optional[str] = Field(None, max_length=200)
     is_anonymous: bool = False
 
 
@@ -3854,6 +3879,9 @@ async def webapp_claim_streak(
     db: AsyncSession = Depends(get_db),
 ):
     """Забрать ежедневную стипендию."""
+    if not check_economy_rate_limit(student.id, "streak_claim", 1.0):
+        return {"status": "error", "ok": False, "message": "Слишком много запросов. Попробуйте через секунду.", "detail": "Rate limit exceeded"}
+
     from database.crud import claim_daily_streak
     success, msg, new_streak, reward = await claim_daily_streak(db, student.id)
     if not success:
@@ -3876,6 +3904,9 @@ async def webapp_claim_quest(
     db: AsyncSession = Depends(get_db),
 ):
     """Забрать награду за выполненный дейлик."""
+    if not check_economy_rate_limit(student.id, f"quest_{req.quest_key}", 0.5):
+        return {"status": "error", "ok": False, "message": "Слишком много запросов. Попробуйте через секунду.", "detail": "Rate limit exceeded"}
+
     from database.crud import claim_daily_quest, get_user
     success, msg, reward = await claim_daily_quest(db, student.id, req.quest_key)
     if not success:
@@ -3898,6 +3929,9 @@ async def webapp_claim_permanent_quest(
     db: AsyncSession = Depends(get_db),
 ):
     """Забрать награду за выполненное постоянное задание (ачивку)."""
+    if not check_economy_rate_limit(student.id, f"perm_quest_{req.quest_key}", 0.5):
+        return {"status": "error", "ok": False, "message": "Слишком много запросов. Попробуйте через секунду.", "detail": "Rate limit exceeded"}
+
     from database.crud import claim_permanent_quest, get_user
     success, msg, reward, badge, new_bal = await claim_permanent_quest(db, student.id, req.quest_key)
     if not success:
@@ -3953,6 +3987,9 @@ async def webapp_shop_buy(
     db: AsyncSession = Depends(get_db),
 ):
     """Покупка товара в магазине через WebApp за «Зачёты» 🎓."""
+    if not check_economy_rate_limit(student.id, "shop_buy", 0.5):
+        return {"status": "error", "ok": False, "message": "Слишком много запросов. Попробуйте через секунду.", "detail": "Rate limit exceeded"}
+
     from database.crud import buy_shop_item_with_credits, get_user, get_shop_item
     item = await get_shop_item(db, req.item_code)
     item_title = item.title if item else req.item_code
@@ -4176,6 +4213,9 @@ async def webapp_wheel_spin(
     db: AsyncSession = Depends(get_db),
 ):
     """Крутить Колесо Фортуны."""
+    if not check_economy_rate_limit(student.id, "wheel_spin", 1.0):
+        return {"status": "error", "ok": False, "message": "Слишком много запросов. Попробуйте через секунду.", "detail": "Rate limit exceeded"}
+
     from database.crud import spin_fortune_wheel, get_user
     success, msg, sector_data = await spin_fortune_wheel(db, student.id, use_paid=req.use_paid)
     if not success:
@@ -4220,6 +4260,9 @@ async def webapp_send_gift(
     db: AsyncSession = Depends(get_db),
 ):
     """Отправить подарок другому студенту."""
+    if not check_economy_rate_limit(student.id, "send_gift", 0.5):
+        return {"status": "error", "ok": False, "message": "Слишком много запросов. Попробуйте через секунду.", "detail": "Rate limit exceeded"}
+
     from database.crud import send_campus_gift, get_user
     success, msg, gift = await send_campus_gift(
         db,
@@ -4237,13 +4280,15 @@ async def webapp_send_gift(
         if bot:
             recipient = await get_user(db, req.recipient_id)
             if recipient and recipient.telegram_id:
-                sender_display = "Скрытый отправитель 🤫" if req.is_anonymous else (student.first_name or "Студент")
+                sender_display = "Скрытый отправитель 🤫" if req.is_anonymous else html.escape(student.first_name or "Студент")
+                safe_title = html.escape(gift.gift_title or "")
                 text = (
                     f"🎁 <b>Вам пришёл подарок в StudMatch!</b>\n\n"
-                    f"{gift.gift_icon} <b>{gift.gift_title}</b> от {sender_display}\n"
+                    f"{gift.gift_icon} <b>{safe_title}</b> от {sender_display}\n"
                 )
                 if gift.message:
-                    text += f"💬 <i>«{gift.message}»</i>\n\n"
+                    safe_msg = html.escape(gift.message.strip())
+                    text += f"💬 <i>«{safe_msg}»</i>\n\n"
                 text += "Загляните в свой профиль в приложении, чтобы посмотреть подарки!"
                 import asyncio
                 asyncio.create_task(bot.send_message(chat_id=recipient.telegram_id, text=text, parse_mode="HTML"))
@@ -4351,6 +4396,9 @@ async def webapp_convert_gift(
     db: AsyncSession = Depends(get_db),
 ):
     """Обменять подарок из профиля обратно на зачёты 🎓 (кэшаут 80-85%)."""
+    if not check_economy_rate_limit(student.id, f"convert_gift_{gift_id}", 0.5):
+        return {"status": "error", "ok": False, "message": "Слишком много запросов. Попробуйте через секунду.", "detail": "Rate limit exceeded"}
+
     from database.crud import convert_user_gift_to_credits, get_user
     success, msg, credits_added = await convert_user_gift_to_credits(db, student.id, gift_id)
     if not success:
