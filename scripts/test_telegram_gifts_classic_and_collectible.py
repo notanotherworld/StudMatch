@@ -131,7 +131,7 @@ async def test_telegram_classic_and_collectible_gifts():
         }
 
         # 3. Начисляем баланс отправителю и дарим классический подарок
-        await add_user_credits(db, u_sender.id, 500, tx_type="admin", description="Баланс для тестов")
+        await add_user_credits(db, u_sender.id, 3000, tx_type="admin", description="Баланс для тестов")
         await db.refresh(u_sender)
         sender_bal_start = u_sender.credits_balance
 
@@ -169,7 +169,7 @@ async def test_telegram_classic_and_collectible_gifts():
         assert rew == 50
         assert badge == "Меценат 🎁"
 
-        # 6. Отправляем коллекционный подарок NFT: «Звёздная ракета» (150 🎓) анонимно
+        # 6. Отправляем коллекционный подарок NFT: «Звёздная ракета» (1500 🎓) анонимно
         send_nft_res = await webapp_send_gift(
             req=SendGiftRequest(
                 recipient_id=u_rec.id,
@@ -206,7 +206,7 @@ async def test_telegram_classic_and_collectible_gifts():
         assert nft_gift["is_anonymous"] is True
         assert nft_gift["sender_id"] is None
         assert nft_gift["sender_name"] == "Скрытый отправитель 🤫"
-        assert nft_gift["exchange_credits"] == 125
+        assert nft_gift["exchange_credits"] == 1250
 
         # 9. Проверяем квест «👑 Любимчик кампуса» (3 подарка)
         quests_rec = await get_or_create_permanent_quests(db, u_rec.id)
