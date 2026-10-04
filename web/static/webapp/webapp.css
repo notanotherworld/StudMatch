@@ -9390,6 +9390,64 @@ img, video, canvas {
   flex-shrink: 0;
 }
 
+/* 🖼️ Live Avatar Frame Preview in Shop Inventory */
+.shop-frame-avatar-preview {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  background: #F1F5F9;
+}
+
+.shop-frame-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.shop-frame-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.shop-frame-avatar-preview.frame-gold {
+  border: 2.5px solid #F59E0B;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.22), 0 4px 12px rgba(245, 158, 11, 0.25);
+}
+
+.shop-frame-avatar-preview.frame-headman {
+  border: 2.5px solid #3B82F6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22), 0 4px 12px rgba(59, 130, 246, 0.25);
+}
+
+.shop-frame-avatar-preview.frame-neon {
+  border: 2.5px solid #8B5CF6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.22), 0 4px 12px rgba(139, 92, 246, 0.25);
+}
+
+.shop-frame-avatar-preview.frame-none {
+  border: 2px dashed #CBD5E1;
+  box-shadow: none;
+}
+
 .shop-equipped-name {
   font-size: 13.5px;
   font-weight: 700;
@@ -10527,10 +10585,11 @@ img, video, canvas {
 }
 
 .wheel-cap-label {
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 900;
   color: #FFFFFF;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 /* Status & Cooldown Notice */

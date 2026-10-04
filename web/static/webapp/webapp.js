@@ -743,6 +743,12 @@
       screen.classList.toggle("active", screen.id === `screen-${tabName}`);
     });
 
+    const storiesRow = document.getElementById("storiesRow");
+    if (storiesRow) {
+      const isExploreDating = (tabName === "explore" && (!state.currentUser?.mode || state.currentUser?.mode === "dating"));
+      storiesRow.style.display = isExploreDating ? "flex" : "none";
+    }
+
     if (tabName !== "likes" && typeof window.flushPendingLikesSkips === "function") {
       window.flushPendingLikesSkips();
     }
@@ -920,6 +926,11 @@
       state.feed = [];
       state.currentCardIndex = 0;
       await loadFeed();
+    }
+
+    const storiesRow = document.getElementById("storiesRow");
+    if (storiesRow) {
+      storiesRow.style.display = (targetMode === "dating" && state.activeTab === "explore") ? "flex" : "none";
     }
 
     if (state.activeTab === "matches") {
@@ -8472,20 +8483,44 @@
     const ov = shopState.overview;
     const inv = ov?.inventory || [];
 
-    // Render Equipped Frame Slot in Showcase Card
+    const userAvatar = state.currentUser?.photos?.[0] || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';
+
+    // Render Equipped Frame Slot in Showcase Card with live avatar preview
     const equippedCard = document.getElementById("shopEquippedCard");
     const equippedStatusText = document.getElementById("shopEquippedStatusText");
     if (equippedCard) {
-      if (ov?.equipped_frame) {
+      const frameCode = ov?.equipped_frame;
+      let frameClass = "frame-none";
+      let frameBadge = "✨";
+      let frameDesc = "Выберите рамку ниже, чтобы надеть её в профиль";
+
+      if (frameCode === "frame_gold") {
+        frameClass = "frame-gold";
+        frameBadge = "👑";
+        frameDesc = "Золотая рамка «Отличник» активна в ленте и профиле";
+      } else if (frameCode === "frame_headman") {
+        frameClass = "frame-headman";
+        frameBadge = "🎓";
+        frameDesc = "Сапфировая рамка «Староста» выделяет вас в анкетах";
+      } else if (frameCode === "frame_neon") {
+        frameClass = "frame-neon";
+        frameBadge = "⚡";
+        frameDesc = "Киберпанк-рамка привлекает внимание сокурсников";
+      }
+
+      if (frameCode) {
         const frameTitle = ov.equipped_frame_title || "Рамка профиля";
         if (equippedStatusText) equippedStatusText.textContent = "1 слот активен";
         equippedCard.innerHTML = `
           <div class="shop-equipped-item">
             <div class="shop-equipped-left">
-              <div class="shop-equipped-icon">🥇</div>
+              <div class="shop-frame-avatar-preview ${frameClass}" title="Предпросмотр на вашей аватарке">
+                <img src="${userAvatar}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+                <span class="shop-frame-badge">${frameBadge}</span>
+              </div>
               <div>
                 <div class="shop-equipped-name">${escapeHtml(frameTitle)}</div>
-                <div class="shop-equipped-desc">Золотая рамка активна в ленте и профиле</div>
+                <div class="shop-equipped-desc">${escapeHtml(frameDesc)}</div>
               </div>
             </div>
             <button type="button" class="btn-unequip-frame" id="btnShopUnequipFrame">Снять</button>
@@ -8497,9 +8532,17 @@
       } else {
         if (equippedStatusText) equippedStatusText.textContent = "0 слотов активно";
         equippedCard.innerHTML = `
-          <div class="shop-equipped-empty">
-            <span style="font-size:20px;">🖼️</span>
-            <span>Рамка не выбрана. Выберите рамку ниже, чтобы надеть её в профиль.</span>
+          <div class="shop-equipped-item">
+            <div class="shop-equipped-left">
+              <div class="shop-frame-avatar-preview frame-none" title="Без рамки">
+                <img src="${userAvatar}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+                <span class="shop-frame-badge">🖼️</span>
+              </div>
+              <div>
+                <div class="shop-equipped-name">Рамка не выбрана</div>
+                <div class="shop-equipped-desc">Нажмите «Надеть» на любой рамке ниже для примерки</div>
+              </div>
+            </div>
           </div>
         `;
       }
@@ -8558,8 +8601,20 @@
       if (isGift) {
         const imgUrl = getGiftImgUrl(it.item_code, it.image_url);
         iconHtml = `<img src="${imgUrl}" class="tg-gift-inv-img" alt="${escapeHtml(it.title || '')}" onerror="this.onerror=null;this.parentElement.textContent='${it.icon || "🎁"}';" />`;
+      } else if (isFrame) {
+        let fClass = "frame-none";
+        let fBadge = "✨";
+        if (it.item_code === "frame_gold") { fClass = "frame-gold"; fBadge = "👑"; }
+        else if (it.item_code === "frame_headman") { fClass = "frame-headman"; fBadge = "🎓"; }
+        else if (it.item_code === "frame_neon") { fClass = "frame-neon"; fBadge = "⚡"; }
+        iconHtml = `
+          <div class="shop-frame-avatar-preview ${fClass}" style="width:38px;height:38px;" title="Примерка рамки">
+            <img src="${userAvatar}" class="shop-frame-avatar-img" alt="" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
+            <span class="shop-frame-badge" style="width:14px;height:14px;font-size:9px;">${fBadge}</span>
+          </div>
+        `;
       } else {
-        iconHtml = it.icon || (isFrame ? "🖼️" : "⚡");
+        iconHtml = it.icon || "⚡";
       }
 
       let subHtml = "";
