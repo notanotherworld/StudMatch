@@ -407,14 +407,16 @@
       </div>
 
       <!-- Живой тест ленты свайпов -->
+      <!-- Живой тест ленты свайпов & Полная воронка базы -->
       {% if feed_diagnostic and not feed_diagnostic.error %}
       <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;">
-        <div style="font-weight:700;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
           <span>📡 Тест выдачи ленты для этого аккаунта:</span>
         </div>
+
         {% if feed_diagnostic.next_candidate %}
-          <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#4ade80;padding:10px 14px;border-radius:6px;font-size:13px;display:flex;align-items:center;gap:12px;">
-            <span style="font-size:20px;">✅</span>
+          <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#4ade80;padding:10px 14px;border-radius:6px;font-size:13px;display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+            <span style="font-size:22px;">✅</span>
             <div>
               Лента работает! Следующая анкета в выдаче: 
               <b><a href="/admin/users/{{ feed_diagnostic.next_candidate.user_id }}" style="color:#4ade80;text-decoration:underline;">{{ feed_diagnostic.next_candidate.name or 'Без имени' }} (#{{ feed_diagnostic.next_candidate.user_id }})</a></b>
@@ -422,31 +424,70 @@
             </div>
           </div>
         {% else %}
-          <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:12px 14px;border-radius:6px;font-size:13px;">
-            <div style="font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+          <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:12px 14px;border-radius:6px;font-size:13px;margin-bottom:14px;">
+            <div style="font-weight:700;display:flex;align-items:center;gap:6px;">
               <span>⚠️ В ленте свайпов этого пользователя сейчас 0 анкет (лента пуста)!</span>
-            </div>
-            <div style="color:var(--text);font-size:12px;line-height:1.5;">
-              <b>Анализ базы относительно этого пользователя:</b>
-              <ul style="margin:4px 0 6px 18px;padding:0;">
-                <li>Всего других активных пользователей: <b>{{ feed_diagnostic.total_active_others }}</b></li>
-                <li>Из них скрыты (<code>is_visible=False</code>): <b>{{ feed_diagnostic.hidden_profiles_count }}</b></li>
-                <li>Из них не заполнили анкету (<code>is_complete=False</code>): <b>{{ feed_diagnostic.incomplete_profiles_count }}</b></li>
-                <li>Уже лайкнуто этим пользователем: <b>{{ feed_diagnostic.liked_by_user_count }}</b> <i style="color:var(--muted);">(лайкнутые анкеты скрываются навсегда, пока не сбросить свайпы)</i></li>
-                <li>Взаимных мэтчей: <b>{{ feed_diagnostic.matches_count }}</b> <i style="color:var(--muted);">(мэтчи также исключаются из ленты)</i></li>
-              </ul>
-              {% if feed_diagnostic.liked_by_user_count > 0 or feed_diagnostic.matches_count > 0 %}
-                <div style="margin-top:6px;color:#fbbf24;">
-                  💡 <b>Причина:</b> Этот аккаунт уже отправил лайки или имеет мэтчи со всеми доступными анкетами. Нажмите <b>«🔄 Сбросить свайпы и мэтчи»</b> ниже, чтобы карточки снова вернулись в ленту!
-                </div>
-              {% elif feed_diagnostic.hidden_profiles_count > 0 or feed_diagnostic.incomplete_profiles_count > 0 %}
-                <div style="margin-top:6px;color:#fbbf24;">
-                  💡 <b>Причина:</b> В базе есть анкеты, у которых выключена видимость или не проставлен флаг заполненности (<code>is_complete=False</code>). Нажмите <b>«⚡️ Сделать активной в поиске»</b> или восстановите все анкеты в общем списке.
-                </div>
-              {% endif %}
             </div>
           </div>
         {% endif %}
+
+        <!-- 📊 Полная воронка базы относительно этого аккаунта (Всегда отображается) -->
+        <div style="background:var(--surface2);border-radius:8px;padding:12px 14px;font-size:13px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
+            <span>📊 Воронка базы анкет:</span>
+            <span style="font-size:12px;color:var(--muted);font-weight:400;">всего в базе: <b style="color:var(--text);">{{ feed_diagnostic.total_active_others }}</b></span>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text);">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;">
+              <span>👥 Всего других активных аккаунтов:</span>
+              <span style="font-weight:700;color:#38bdf8;">{{ feed_diagnostic.total_active_others }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-top:1px solid rgba(255,255,255,0.05);">
+              <span>⚠️ Не заполнили анкету (пустышки / бросили):</span>
+              <span style="font-weight:700;color:#f59e0b;">−{{ feed_diagnostic.incomplete_profiles_count }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-top:1px solid rgba(255,255,255,0.05);">
+              <span>🔒 Скрыты из поиска (<code>is_visible=False</code>):</span>
+              <span style="font-weight:700;color:#94a3b8;">−{{ feed_diagnostic.hidden_profiles_count }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-top:1px solid rgba(255,255,255,0.05);">
+              <span>🚻 Не подошли по взаимному полу:</span>
+              <span style="font-weight:700;color:#ec4899;">−{{ feed_diagnostic.gender_mismatch_count }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-top:1px solid rgba(255,255,255,0.05);">
+              <span>🔍 Не подошли по фильтрам поиска (возраст/курс):</span>
+              <span style="font-weight:700;color:#a855f7;">−{{ feed_diagnostic.search_mismatch_count }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-top:1px solid rgba(255,255,255,0.05);">
+              <span>💖 Уже лайкнуто / взаимный мэтч (исключены):</span>
+              <span style="font-weight:700;color:#f87171;">−{{ feed_diagnostic.already_interacted_count }}</span>
+            </div>
+
+            <!-- Итог воронки -->
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-top:4px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:6px;">
+              <div>
+                <b style="color:#4ade80;font-size:13px;">🎯 Доступно в ленте прямо сейчас:</b>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+                  🆕 Свежих: <b style="color:#38bdf8;">{{ feed_diagnostic.fresh_count }}</b> &nbsp;|&nbsp; 
+                  🔄 В ресайкле: <b style="color:#fbbf24;">{{ feed_diagnostic.recycled_count }}</b>
+                </div>
+              </div>
+              <span style="font-size:18px;font-weight:700;color:#4ade80;">{{ feed_diagnostic.eligible_count }}</span>
+            </div>
+          </div>
+
+          <!-- Контекстная подсказка -->
+          {% if feed_diagnostic.fresh_count == 0 and feed_diagnostic.eligible_count > 0 %}
+            <div style="margin-top:10px;color:#fbbf24;font-size:12px;line-height:1.4;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);padding:8px 12px;border-radius:6px;">
+              💡 <b>Почему крутятся одни и те же?</b> Все свежие анкеты под ваши фильтры уже просмотрены (свежих: 0). Лента работает в режиме бесконечного ресайкла и показывает по кругу <b>{{ feed_diagnostic.recycled_count }}</b> ранее пропущенных вами анкет. Чтобы вернуть ранее лайкнутые анкеты, нажмите <b>«🔄 Сбросить свайпы»</b> ниже.
+            </div>
+          {% elif feed_diagnostic.eligible_count == 0 %}
+            <div style="margin-top:10px;color:#f87171;font-size:12px;line-height:1.4;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);padding:8px 12px;border-radius:6px;">
+              💡 <b>Лента пуста:</b> Все пользователи в базе либо не заполнили анкету, либо не подошли по полу/фильтрам, либо уже лайкнуты вами. Нажмите <b>«🔄 Сбросить свайпы»</b> или <b>«⚙️ Сбросить фильтры поиска»</b>.
+            </div>
+          {% endif %}
+        </div>
       </div>
       {% endif %}
 

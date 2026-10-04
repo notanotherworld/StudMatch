@@ -8,12 +8,12 @@ from fastapi import APIRouter, Request, Depends, Form, Query, Response, HTTPExce
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, or_, and_, func
+from sqlalchemy import select, update, delete, or_, and_, func, exists
 from sqlalchemy.orm import selectinload
 
 from web.dependencies import get_db, get_current_admin, check_csrf
 from web.utils.audit import log_admin_action
-from database.models import User, Profile, Swipe, Match, SwipeAction, ModeEnum
+from database.models import User, Profile, Swipe, Match, SwipeAction, ModeEnum, Report
 
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
@@ -255,23 +255,232 @@ async def user_detail(
     # ─── Диагностика выдачи в ленте свайпов ───
     feed_diagnostic = {}
     try:
-        from database.crud import get_next_profile
+        from database.crud import get_next_profile, get_profile
         user_mode = getattr(user, "mode", ModeEnum.dating) or ModeEnum.dating
         next_cand = await get_next_profile(db, viewer_id=user_id, mode=user_mode)
 
+        viewer_profile = await get_profile(db, user_id)
+
+        # 1. Всего других активных пользователей
         total_active_others = (await db.scalar(
             select(func.count(User.id)).where(User.id != user_id, User.is_active == True)
         )) or 0
 
-        hidden_profiles_count = (await db.scalar(
-            select(func.count(Profile.id)).join(User, Profile.user_id == User.id)
-            .where(User.id != user_id, User.is_active == True, Profile.is_visible == False)
+        # Условие завершенности и наличия реального имени и фото
+        valid_name_and_photo = and_(
+            Profile.name.isnot(None),
+            Profile.name != "",
+            Profile.name != "Студент",
+            or_(
+                Profile.avatar_file_id.isnot(None),
+                Profile.career_avatar_file_id.isnot(None),
+            ),
+        )
+
+        if user_mode == ModeEnum.career:
+            is_complete_cond = (Profile.career_is_complete == True)
+        elif user_mode == ModeEnum.projects:
+            is_complete_cond = or_(Profile.project_is_complete == True, Profile.is_complete == True)
+        else:
+            is_complete_cond = (Profile.is_complete == True)
+
+        ready_count = (await db.scalar(
+            select(func.count(Profile.id))
+            .join(User, Profile.user_id == User.id)
+            .where(
+                User.id != user_id,
+                User.is_active == True,
+                is_complete_cond,
+                valid_name_and_photo,
+                Profile.is_visible == True,
+            )
         )) or 0
 
-        incomplete_profiles_count = (await db.scalar(
-            select(func.count(Profile.id)).join(User, Profile.user_id == User.id)
-            .where(User.id != user_id, User.is_active == True, Profile.is_complete == False)
+        hidden_profiles_count = (await db.scalar(
+            select(func.count(Profile.id))
+            .join(User, Profile.user_id == User.id)
+            .where(
+                User.id != user_id,
+                User.is_active == True,
+                is_complete_cond,
+                valid_name_and_photo,
+                Profile.is_visible == False,
+            )
         )) or 0
+
+        incomplete_profiles_count = max(0, total_active_others - ready_count - hidden_profiles_count)
+
+        # Гендерные фильтры (для Знакомств)
+        gender_filters = []
+        if user_mode == ModeEnum.dating and viewer_profile:
+            if viewer_profile.target_gender == "female":
+                gender_filters.append(or_(Profile.gender == "female", Profile.gender.is_(None), Profile.gender == ""))
+            elif viewer_profile.target_gender == "male":
+                gender_filters.append(or_(Profile.gender == "male", Profile.gender.is_(None), Profile.gender == ""))
+
+            if viewer_profile.gender == "male":
+                gender_filters.append(
+                    or_(
+                        Profile.target_gender == "male",
+                        Profile.target_gender == "all",
+                        Profile.target_gender.is_(None),
+                        Profile.target_gender == "",
+                    )
+                )
+            elif viewer_profile.gender == "female":
+                gender_filters.append(
+                    or_(
+                        Profile.target_gender == "female",
+                        Profile.target_gender == "all",
+                        Profile.target_gender.is_(None),
+                        Profile.target_gender == "",
+                    )
+                )
+
+        gender_mismatch_count = 0
+        if gender_filters:
+            gender_mismatch_count = (await db.scalar(
+                select(func.count(Profile.id))
+                .join(User, Profile.user_id == User.id)
+                .where(
+                    User.id != user_id,
+                    User.is_active == True,
+                    is_complete_cond,
+                    valid_name_and_photo,
+                    Profile.is_visible == True,
+                    ~and_(*gender_filters),
+                )
+            )) or 0
+
+        after_gender_count = max(0, ready_count - gender_mismatch_count)
+
+        # Поисковые фильтры (возраст, курс, факультет)
+        search_filters = []
+        if viewer_profile:
+            min_a = viewer_profile.filter_min_age
+            max_a = viewer_profile.filter_max_age
+            if min_a and max_a:
+                search_filters.append(
+                    or_(
+                        Profile.age.is_(None),
+                        and_(Profile.age >= min_a, Profile.age <= max_a),
+                    )
+                )
+
+            min_y = viewer_profile.filter_min_year
+            max_y = viewer_profile.filter_max_year
+            if min_y and max_y:
+                search_filters.append(
+                    or_(
+                        Profile.year.is_(None),
+                        and_(Profile.year >= min_y, Profile.year <= max_y),
+                    )
+                )
+
+            f_major = viewer_profile.filter_major
+            if f_major and f_major != "all":
+                search_filters.append(
+                    or_(
+                        Profile.major.is_(None),
+                        Profile.major.ilike(f"%{f_major}%"),
+                    )
+                )
+
+        search_mismatch_count = 0
+        if search_filters:
+            search_mismatch_count = (await db.scalar(
+                select(func.count(Profile.id))
+                .join(User, Profile.user_id == User.id)
+                .where(
+                    User.id != user_id,
+                    User.is_active == True,
+                    is_complete_cond,
+                    valid_name_and_photo,
+                    Profile.is_visible == True,
+                    *gender_filters,
+                    ~and_(*search_filters),
+                )
+            )) or 0
+
+        after_search_count = max(0, after_gender_count - search_mismatch_count)
+
+        # Подзапросы исключения
+        reported_subq = exists(
+            select(1).where(
+                and_(
+                    Report.reporter_id == user_id,
+                    Report.reported_id == Profile.user_id,
+                )
+            )
+        )
+        liked_subq = exists(
+            select(1).where(
+                and_(
+                    Swipe.from_user_id == user_id,
+                    Swipe.to_user_id == Profile.user_id,
+                    or_(Swipe.mode == user_mode, Swipe.mode.is_(None)),
+                    Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
+                )
+            )
+        )
+        matched_subq = exists(
+            select(1).where(
+                and_(
+                    Match.mode == user_mode,
+                    or_(
+                        and_(Match.user1_id == user_id, Match.user2_id == Profile.user_id),
+                        and_(Match.user1_id == Profile.user_id, Match.user2_id == user_id),
+                    ),
+                )
+            )
+        )
+
+        already_interacted_count = (await db.scalar(
+            select(func.count(Profile.id))
+            .join(User, Profile.user_id == User.id)
+            .where(
+                User.id != user_id,
+                User.is_active == True,
+                is_complete_cond,
+                valid_name_and_photo,
+                Profile.is_visible == True,
+                *gender_filters,
+                *search_filters,
+                or_(liked_subq, matched_subq, reported_subq),
+            )
+        )) or 0
+
+        eligible_count = max(0, after_search_count - already_interacted_count)
+
+        # Свежие (ещё не свайпнутые)
+        swiped_any_subq = exists(
+            select(1).where(
+                and_(
+                    Swipe.from_user_id == user_id,
+                    Swipe.to_user_id == Profile.user_id,
+                    or_(Swipe.mode == user_mode, Swipe.mode.is_(None)),
+                )
+            )
+        )
+        fresh_count = (await db.scalar(
+            select(func.count(Profile.id))
+            .join(User, Profile.user_id == User.id)
+            .where(
+                User.id != user_id,
+                User.is_active == True,
+                is_complete_cond,
+                valid_name_and_photo,
+                Profile.is_visible == True,
+                *gender_filters,
+                *search_filters,
+                ~reported_subq,
+                ~liked_subq,
+                ~matched_subq,
+                ~swiped_any_subq,
+            )
+        )) or 0
+
+        recycled_count = max(0, eligible_count - fresh_count)
 
         liked_by_user_count = (await db.scalar(
             select(func.count(Swipe.id))
@@ -292,8 +501,15 @@ async def user_detail(
             "user_mode": str(user_mode.value if hasattr(user_mode, "value") else user_mode),
             "next_candidate": next_cand,
             "total_active_others": total_active_others,
-            "hidden_profiles_count": hidden_profiles_count,
+            "ready_count": ready_count,
             "incomplete_profiles_count": incomplete_profiles_count,
+            "hidden_profiles_count": hidden_profiles_count,
+            "gender_mismatch_count": gender_mismatch_count,
+            "search_mismatch_count": search_mismatch_count,
+            "already_interacted_count": already_interacted_count,
+            "eligible_count": eligible_count,
+            "fresh_count": fresh_count,
+            "recycled_count": recycled_count,
             "liked_by_user_count": liked_by_user_count,
             "matches_count": matches_count,
             "liked_this_user_count": liked_this_user_count,
