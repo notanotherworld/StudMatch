@@ -23,12 +23,12 @@ class MaintenanceMiddleware(BaseMiddleware):
         from_user = getattr(event, "from_user", None)
         user_id = from_user.id if from_user else None
 
-        # Супер-администраторы обходят экстренную блокировку
+        # Супер-администраторы и модераторы обходят экстренную блокировку (H8)
         is_admin = False
         if user_id:
             try:
-                admin_ids = [int(x.strip()) for x in str(settings.ADMIN_IDS).split(",") if x.strip().isdigit()]
-                if user_id in admin_ids or user_id == getattr(settings, "SUPERADMIN_ID", None):
+                allowed_admin_ids = getattr(settings, "admin_ids", [])
+                if user_id in allowed_admin_ids or user_id == getattr(settings, "SUPERADMIN_ID", None):
                     is_admin = True
             except Exception:
                 pass

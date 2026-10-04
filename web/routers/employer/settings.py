@@ -3,13 +3,14 @@
 Редактирование контактных данных, описания компании и смена пароля.
 """
 from typing import Optional
+from urllib.parse import quote_plus
 from fastapi import APIRouter, Request, Depends, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
-from web.dependencies import get_db, get_current_employer, verify_password, hash_password, check_csrf
+from web.dependencies import get_db, get_current_employer, verify_password, hash_password, check_csrf, validate_password_strength
 from database.models import Employer
 
 router = APIRouter()
@@ -76,8 +77,10 @@ async def change_password(
     if not verify_password(current_password, employer.password_hash):
         return RedirectResponse("/employer/settings?error=Текущий+пароль+введен+неверно", status_code=302)
 
-    if len(new_password) < 6:
-        return RedirectResponse("/employer/settings?error=Новый+пароль+должен+быть+не+менее+6+символов", status_code=302)
+    # H11: Проверка сложности пароля (мин. 8 символов, буква и цифра)
+    valid_pwd, pwd_err = validate_password_strength(new_password)
+    if not valid_pwd:
+        return RedirectResponse(f"/employer/settings?error={quote_plus(pwd_err or 'Слабый пароль')}", status_code=302)
 
     if new_password != confirm_password:
         return RedirectResponse("/employer/settings?error=Новые+пароли+не+совпадают", status_code=302)

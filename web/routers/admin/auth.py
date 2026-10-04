@@ -135,7 +135,7 @@ async def logout_get():
 
 
 # ─── Смена пароля администратора ───────────────────────────────
-from web.dependencies import get_current_admin, hash_password
+from web.dependencies import get_current_admin, hash_password, validate_password_strength
 from web.utils.audit import log_admin_action
 
 
@@ -178,13 +178,14 @@ async def change_password(
             status_code=400,
         )
 
-    if len(new_password) < 8:
+    valid_pwd, pwd_err = validate_password_strength(new_password)
+    if not valid_pwd:
         return templates.TemplateResponse(
             "admin/change_password.html",
             {
                 "request": request,
                 "admin": admin,
-                "error": "Новый пароль должен содержать не менее 8 символов.",
+                "error": pwd_err or "Пароль недостаточно надёжен.",
                 "success": None,
                 "csrf_token": getattr(request.state, "csrf_token", ""),
             },

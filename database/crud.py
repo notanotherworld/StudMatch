@@ -1371,40 +1371,51 @@ async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optiona
                 await add_user_credits(db, payment.user_id, bval, tx_type="donate", description=f"Покупка зачётов ({payment.amount_rub} ₽)", reference_id=prod_val)
         else:
             if prod_val == "starter_pack_99" or payment.product == PaymentProduct.starter_pack_99:
-                # Стартовый набор первокурсника (99 ₽):
-                # 1. 300 Зачётов на баланс
-                await add_user_credits(
-                    db,
-                    payment.user_id,
-                    300,
-                    tx_type="donate",
-                    description="Стартовый набор первокурсника (99 ₽)",
-                    reference_id="starter_pack_99",
-                )
                 user = await get_user(db, payment.user_id)
-                if user:
-                    # 2. Отмечаем флаг покупки (ограничен 1 на аккаунт)
-                    user.has_bought_starter_pack = True
-                    # 3. Буст анкеты 24ч
-                    now = datetime.now(timezone.utc)
-                    base_boost = user.boost_until if user.boost_until and user.boost_until > now else now
-                    user.boost_until = base_boost + timedelta(hours=24)
-                    # 4. 1 «Справка от врача» (защита стрика)
-                    user.streak_freeze_count = (user.streak_freeze_count or 0) + 1
-                    # 5. 3 «Шпоры» (откат свайпа) в инвентарь
-                    inv_res = await db.execute(
-                        select(UserInventoryItem).where(
-                            and_(
-                                UserInventoryItem.user_id == user.id,
-                                UserInventoryItem.item_code == "rewind",
+                if user and user.has_bought_starter_pack:
+                    # Повторная покупка стартового набора: начисляем стандартные 100 зачётов без бонусных бустов и шпор (H3)
+                    await add_user_credits(
+                        db,
+                        payment.user_id,
+                        100,
+                        tx_type="donate",
+                        description="Повторная покупка стартового набора (компенсация 100 🎓)",
+                        reference_id=f"starter_pack_repeat_{payment.id}",
+                    )
+                else:
+                    # Стартовый набор первокурсника (99 ₽):
+                    # 1. 300 Зачётов на баланс
+                    await add_user_credits(
+                        db,
+                        payment.user_id,
+                        300,
+                        tx_type="donate",
+                        description="Стартовый набор первокурсника (99 ₽)",
+                        reference_id="starter_pack_99",
+                    )
+                    if user:
+                        # 2. Отмечаем флаг покупки (ограничен 1 на аккаунт)
+                        user.has_bought_starter_pack = True
+                        # 3. Буст анкеты 24ч
+                        now = datetime.now(timezone.utc)
+                        base_boost = user.boost_until if user.boost_until and user.boost_until > now else now
+                        user.boost_until = base_boost + timedelta(hours=24)
+                        # 4. 1 «Справка от врача» (защита стрика)
+                        user.streak_freeze_count = (user.streak_freeze_count or 0) + 1
+                        # 5. 3 «Шпоры» (откат свайпа) в инвентарь
+                        inv_res = await db.execute(
+                            select(UserInventoryItem).where(
+                                and_(
+                                    UserInventoryItem.user_id == user.id,
+                                    UserInventoryItem.item_code == "rewind",
+                                )
                             )
                         )
-                    )
-                    rewind_item = inv_res.scalar_one_or_none()
-                    if rewind_item:
-                        rewind_item.quantity += 3
-                    else:
-                        db.add(UserInventoryItem(user_id=user.id, item_code="rewind", quantity=3))
+                        rewind_item = inv_res.scalar_one_or_none()
+                        if rewind_item:
+                            rewind_item.quantity += 3
+                        else:
+                            db.add(UserInventoryItem(user_id=user.id, item_code="rewind", quantity=3))
             elif prod_val == "credits_100":
                 await add_user_credits(db, payment.user_id, 100, tx_type="donate", description="Пакет «Шпаргалка» (100 🎓)", reference_id=prod_val)
             elif prod_val == "credits_300":
@@ -1431,8 +1442,13 @@ async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optiona
             elif payment.product == PaymentProduct.premium_1m:
                 await set_user_premium(db, payment.user_id, days=30)
                 await add_superlikes(db, payment.user_id, 10)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.error(
+            f"[SECURITY] Fulfillment failed for payment {payment.id} (user {payment.user_id}, product {payment.product}): {exc}",
+            exc_info=True,
+        )
+        await db.rollback()
+        raise
 
     await db.commit()
     return payment
@@ -2061,6 +2077,7 @@ async def add_user_credits(
     tx_type: str,
     description: str,
     reference_id: Optional[str] = None,
+    auto_commit: bool = True,
 ) -> int:
     """
     Начисление «Зачётов» с записью в аудит-лог транзакций.
@@ -2090,7 +2107,10 @@ async def add_user_credits(
         description=description,
     )
     db.add(tx)
-    await db.commit()
+    if auto_commit:
+        await db.commit()
+    else:
+        await db.flush()
     return new_balance
 
 
@@ -3438,7 +3458,7 @@ async def convert_user_gift_to_credits(
     else:
         exchange_amount = 20
 
-    # Начисляем зачёты за конвертацию
+    # Начисляем зачёты за конвертацию без промежуточного commit (удерживаем блокировку строки подарка)
     await add_user_credits(
         db,
         user_id=user_id,
@@ -3446,6 +3466,7 @@ async def convert_user_gift_to_credits(
         tx_type="gift_convert",
         description=f"Обмен подарка: {gift.gift_title}",
         reference_id=str(gift.id),
+        auto_commit=False,
     )
 
     # Удаляем подарок из профиля

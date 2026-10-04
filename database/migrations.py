@@ -384,6 +384,12 @@ MIGRATION_STATEMENTS = [
     ON swipes (from_user_id, to_project_id) 
     WHERE to_project_id IS NOT NULL;
     """,
+    # 030_economy_onboarding_unique_idx (Защита от дублирования разовых наград H4)
+    """
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_econ_tx_onboarding 
+    ON economy_transactions (user_id, reference_id) 
+    WHERE tx_type IN ('onboarding', 'referral');
+    """,
     # Установка версии alembic
     """
     DO $$
@@ -440,6 +446,18 @@ async def ensure_database_schema(engine: AsyncEngine) -> None:
 
             await conn.run_sync(sync_sqlite_columns)
 
+            def create_sqlite_indexes(sync_conn):
+                try:
+                    sync_conn.exec_driver_sql(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_econ_tx_onboarding "
+                        "ON economy_transactions (user_id, reference_id) "
+                        "WHERE tx_type IN ('onboarding', 'referral');"
+                    )
+                except Exception as e:
+                    logger.debug(f"SQLite unique index note: {e}")
+
+            await conn.run_sync(create_sqlite_indexes)
+
         async with AsyncSessionLocal() as session:
             # Посев каталога товаров
             items_count = (await session.execute(select(ShopItem))).scalars().first()
@@ -468,19 +486,11 @@ async def ensure_database_schema(engine: AsyncEngine) -> None:
                 )
                 await session.commit()
 
-            # Посев администратора по умолчанию (admin / admin123)
+            # H12: Предсказуемый пароль по умолчанию удален во избежание уязвимости.
+            # Администраторы создаются только вручную через scripts/create_admin.py
             admin_check = (await session.execute(select(Admin).limit(1))).scalars().first()
             if not admin_check:
-                pw_hash = bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode()
-                dev_admin = Admin(
-                    login="admin",
-                    password_hash=pw_hash,
-                    role=AdminRole.superadmin,
-                    is_active=True,
-                )
-                session.add(dev_admin)
-
-            await session.commit()
+                logger.info("ℹ️ В базе данных нет учётных записей администратора. Создайте её через: python create_admin.py")
         logger.info("✅ SQLite база данных и начальные данные успешно инициализированы!")
         return
 

@@ -13,6 +13,7 @@ import io, csv, json, os, logging, ipaddress, functools, asyncio
 
 from bot.config import settings
 from web.dependencies import get_db, get_current_admin, check_csrf
+from web.utils.csv_export import sanitize_csv_row
 from database.models import Payment, PaymentStatus, PaymentProduct, User, DataExportRequest, ExportStatus
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ async def export_payments_csv(
 
     for p in all_payments:
         u = p.user
-        writer.writerow([
+        writer.writerow(sanitize_csv_row([
             str(p.id),
             p.user_id,
             f"@{u.tg_username}" if u and u.tg_username else "",
@@ -65,7 +66,7 @@ async def export_payments_csv(
             p.status.value if hasattr(p.status, 'value') else str(p.status),
             p.yookassa_payment_id or "",
             p.created_at.strftime("%Y-%m-%d %H:%M:%S") if p.created_at else "",
-        ])
+        ]))
 
     csv_data = output.getvalue().encode("utf-8-sig")
     return Response(
@@ -191,13 +192,13 @@ async def export_payments_simple_csv(
     writer = csv.writer(output)
     writer.writerow(["ID ЮКассы", "Пользователь", "Email", "Продукт", "Сумма (₽)", "Дата"])
     for p in payments:
-        writer.writerow([
+        writer.writerow(sanitize_csv_row([
             p.yookassa_payment_id or "—",
             f"@{p.user.tg_username}" if p.user and p.user.tg_username else str(p.user_id),
             p.user.email if p.user else "—",
             p.product.value, float(p.amount_rub),
             p.created_at.strftime("%d.%m.%Y %H:%M"),
-        ])
+        ]))
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]), media_type="text/csv",

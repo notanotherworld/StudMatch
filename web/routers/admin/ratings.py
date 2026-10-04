@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 import io, csv
 
 from web.dependencies import get_db, get_current_admin
+from web.utils.csv_export import sanitize_csv_row
 from database.models import Profile, User, University
 
 router = APIRouter()
@@ -123,7 +124,7 @@ async def export_ratings_csv(
         verified_achievements = sum(1 for a in u.achievements if getattr(a.verified, 'value', a.verified) == "approved") if (u and u.achievements) else 0
         score_val = f"{p.rating_score:.0f}" if p.rating_score is not None else "0"
 
-        writer.writerow([
+        writer.writerow(sanitize_csv_row([
             i,
             score_val,
             p.name or "Без имени",
@@ -137,7 +138,7 @@ async def export_ratings_csv(
             verified_achievements,
             u.flood_ban_count if u else 0,
             u.created_at.strftime("%Y-%m-%d %H:%M:%S") if (u and u.created_at) else "—",
-        ])
+        ]))
 
     csv_data = output.getvalue().encode("utf-8-sig")
     now_str = datetime.now().strftime("%Y%m%d_%H%M")

@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from web.dependencies import get_db, get_current_admin, check_csrf
 from web.utils.audit import log_admin_action
+from web.utils.csv_export import sanitize_csv_row
 from database.models import User, Profile, Swipe, Match, SwipeAction, ModeEnum, Report
 
 router = APIRouter()
@@ -174,7 +175,7 @@ async def export_users_csv(
         prof = u.profile
         uni = u.university.name if u.university else (prof.major if prof else "")
         mode_name = "Карьера" if u.mode.value == "career" else "Знакомства"
-        writer.writerow([
+        writer.writerow(sanitize_csv_row([
             u.id,
             f"@{u.tg_username}" if u.tg_username else "",
             u.email or "",
@@ -191,7 +192,7 @@ async def export_users_csv(
             u.flood_ban_count,
             "Да" if u.is_flagged_spammer else "Нет",
             u.created_at.strftime("%Y-%m-%d %H:%M:%S") if u.created_at else "",
-        ])
+        ]))
 
     csv_data = output.getvalue().encode("utf-8-sig")
     return Response(
@@ -1296,21 +1297,21 @@ async def delete_single_user(
     """Каскадное удаление конкретного пользователя."""
     from sqlalchemy import text
     statements = [
-        f"UPDATE users SET referrer_id = NULL WHERE referrer_id = {user_id};",
-        f"DELETE FROM swipes WHERE from_user_id = {user_id} OR to_user_id = {user_id};",
-        f"DELETE FROM matches WHERE user1_id = {user_id} OR user2_id = {user_id};",
-        f"DELETE FROM achievements WHERE user_id = {user_id};",
-        f"DELETE FROM payments WHERE user_id = {user_id};",
-        f"DELETE FROM reports WHERE reporter_id = {user_id} OR reported_id = {user_id};",
-        f"DELETE FROM data_export_requests WHERE user_id = {user_id};",
-        f"DELETE FROM email_tokens WHERE user_id = {user_id};",
-        f"DELETE FROM promo_activations WHERE user_id = {user_id};",
-        f"DELETE FROM profiles WHERE user_id = {user_id};",
-        f"DELETE FROM users WHERE id = {user_id};",
+        "UPDATE users SET referrer_id = NULL WHERE referrer_id = :uid;",
+        "DELETE FROM swipes WHERE from_user_id = :uid OR to_user_id = :uid;",
+        "DELETE FROM matches WHERE user1_id = :uid OR user2_id = :uid;",
+        "DELETE FROM achievements WHERE user_id = :uid;",
+        "DELETE FROM payments WHERE user_id = :uid;",
+        "DELETE FROM reports WHERE reporter_id = :uid OR reported_id = :uid;",
+        "DELETE FROM data_export_requests WHERE user_id = :uid;",
+        "DELETE FROM email_tokens WHERE user_id = :uid;",
+        "DELETE FROM promo_activations WHERE user_id = :uid;",
+        "DELETE FROM profiles WHERE user_id = :uid;",
+        "DELETE FROM users WHERE id = :uid;",
     ]
     for stmt in statements:
         try:
-            await db.execute(text(stmt))
+            await db.execute(text(stmt), {"uid": user_id})
         except Exception:
             pass
     await db.commit()

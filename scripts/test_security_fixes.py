@@ -338,3 +338,248 @@ async def test_c9_websocket_cswsh_protection():
     legit_ws.close.assert_called_once_with(code=1008)
 
 
+# ═════════════════════════════════════════════════════════════════
+# ТЕСТЫ ДЛЯ HIGH-УЯЗВИМОСТЕЙ (H1 - H12)
+# ═════════════════════════════════════════════════════════════════
+
+@pytest.mark.asyncio
+async def test_h1_sql_injection_parameterization():
+    """Тест H1: Параметризация SQL-запросов в delete_single_user вместо f-string."""
+    from web.routers.admin.users import delete_single_user
+
+    mock_db = MagicMock()
+    mock_db.execute = AsyncMock()
+    mock_db.commit = AsyncMock()
+
+    malicious_user_id = 999
+    await delete_single_user(user_id=malicious_user_id, admin=MagicMock(), db=mock_db)
+
+    # Проверяем, что execute вызывался с bind-параметром :uid
+    assert mock_db.execute.call_count >= 10
+    for call in mock_db.execute.call_args_list:
+        args, kwargs = call
+        # args[0] это ClauseElement (text)
+        stmt_str = str(args[0])
+        assert ":uid" in stmt_str
+        assert "999" not in stmt_str  # Сырой ID не должен быть вшит в тело SQL-строки
+        # Проверяем переданные параметры
+        params = args[1] if len(args) > 1 else kwargs.get("parameters")
+        assert params == {"uid": 999}
+
+
+@pytest.mark.asyncio
+async def test_h2_gift_cashing_atomic_lock():
+    """Тест H2: Предотвращение race condition в convert_user_gift_to_credits через auto_commit=False."""
+    from database.crud import add_user_credits
+
+    mock_db = MagicMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = 500
+    mock_db.execute = AsyncMock(return_value=mock_result)
+    mock_db.commit = AsyncMock()
+    mock_db.flush = AsyncMock()
+    mock_db.add = MagicMock()
+
+    # 1. При auto_commit=False commit не вызывается, вызывается flush
+    balance = await add_user_credits(
+        mock_db, user_id=1, amount=100, tx_type="gift_convert",
+        description="test", auto_commit=False
+    )
+    assert balance == 500
+    mock_db.commit.assert_not_called()
+    mock_db.flush.assert_called_once()
+
+    # 2. При auto_commit=True (по умолчанию) вызывается commit
+    await add_user_credits(
+        mock_db, user_id=1, amount=100, tx_type="gift_convert",
+        description="test", auto_commit=True
+    )
+    mock_db.commit.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_h3_starter_pack_repeat_purchase():
+    """Тест H3: Повторная покупка стартового набора не начисляет бонусные бусты и шпоры повторно."""
+    import uuid
+    from database.crud import confirm_payment
+    from database.models import Payment, PaymentStatus, PaymentProduct, User
+
+    # Создаём пользователя, который УЖЕ покупал стартовый набор
+    user = User(id=42, credits_balance=100, has_bought_starter_pack=True, streak_freeze_count=1)
+    payment = Payment(id=uuid.uuid4(), user_id=42, product=PaymentProduct.starter_pack_99, amount_rub=99.0, status=PaymentStatus.pending)
+
+    mock_db = MagicMock()
+    mock_db.commit = AsyncMock()
+    # 1й select: Payment, 2й select: get_user
+    mock_db.execute = AsyncMock()
+    mock_pay_res = MagicMock()
+    mock_pay_res.scalar_one_or_none.return_value = payment
+    mock_db.execute.return_value = mock_pay_res
+
+    with patch("bot.utils.dynamic_settings.get_payment_products_catalog", AsyncMock(return_value=[])), \
+         patch("database.crud.get_user", AsyncMock(return_value=user)), \
+         patch("database.crud.add_user_credits", AsyncMock(return_value=200)) as mock_add_credits:
+        confirmed = await confirm_payment(mock_db, "yk_starter_pack_test")
+        assert confirmed is not None
+        assert confirmed.status == PaymentStatus.succeeded
+
+        # Должно быть начислено только 100 зачётов (компенсация), а не 300
+        mock_add_credits.assert_called_once()
+        args, kwargs = mock_add_credits.call_args
+        amt = args[2] if len(args) > 2 else kwargs.get("amount")
+        assert amt == 100
+        assert "компенсация" in kwargs.get("description", "")
+        # streak_freeze_count не должен увеличиться
+        assert user.streak_freeze_count == 1
+
+
+@pytest.mark.asyncio
+async def test_h4_onboarding_rewards_protection():
+    """Тест H4: Атомарная проверка разовых onboarding-наград с защитой от гонки."""
+    from bot.services.economy_service import reward_email_verification
+    from database.models import User
+
+    user = User(id=10, credits_balance=0)
+    mock_db = MagicMock()
+    mock_user_res = MagicMock()
+    mock_user_res.scalar_one_or_none.return_value = user
+    mock_db.execute = AsyncMock(return_value=mock_user_res)
+
+    # Если пользователь уже получал награду, функция возвращает (False, 0)
+    with patch("bot.services.economy_service.has_received_reward", AsyncMock(return_value=True)):
+        success, bal = await reward_email_verification(mock_db, user_id=10)
+        assert success is False
+        assert bal == 0
+
+
+def test_h6_csv_formula_injection_sanitization():
+    """Тест H6: Обезвреживание формульных инъекций в CSV экспортах."""
+    from web.utils.csv_export import sanitize_csv_cell, sanitize_csv_row
+
+    # Опасные значения формул
+    assert sanitize_csv_cell("=1+1") == "'=1+1"
+    assert sanitize_csv_cell("+cmd|' /C calc'!A0") == "'+cmd|' /C calc'!A0"
+    assert sanitize_csv_cell("-2+3+cmd|' /C calc'!A0") == "'-2+3+cmd|' /C calc'!A0"
+    assert sanitize_csv_cell("@SUM(1,2)") == "'@SUM(1,2)"
+    assert sanitize_csv_cell("\t=DDE(...)") == "'\t=DDE(...)"
+    assert sanitize_csv_cell("\r=cmd") == "'\r=cmd"
+
+    # Безопасные значения
+    assert sanitize_csv_cell("Иван Иванов") == "Иван Иванов"
+    assert sanitize_csv_cell(123) == 123
+    assert sanitize_csv_cell(None) == ""
+    assert sanitize_csv_cell("student@uni.ru") == "student@uni.ru"
+
+    # Вся строка целиком
+    row = [1, "=cmd", "Анна", "@evil"]
+    sanitized = sanitize_csv_row(row)
+    assert sanitized == [1, "'=cmd", "Анна", "'@evil"]
+
+
+@pytest.mark.asyncio
+async def test_h7_confirm_payment_exception_rollback():
+    """Тест H7: Ошибка начисления в confirm_payment не замалчивается, а откатывается и возбуждается."""
+    import uuid
+    from database.crud import confirm_payment
+    from database.models import Payment, PaymentStatus, PaymentProduct
+
+    payment = Payment(id=uuid.uuid4(), user_id=42, product=PaymentProduct.superlike_1, amount_rub=29.0, status=PaymentStatus.pending)
+
+    mock_db = MagicMock()
+    mock_pay_res = MagicMock()
+    mock_pay_res.scalar_one_or_none.return_value = payment
+    mock_db.execute = AsyncMock(return_value=mock_pay_res)
+    mock_db.rollback = AsyncMock()
+
+    with patch("bot.utils.dynamic_settings.get_payment_products_catalog", AsyncMock(return_value=[])), \
+         patch("database.crud.add_superlikes", AsyncMock(side_effect=RuntimeError("Database connection lost"))):
+        with pytest.raises(RuntimeError):
+            await confirm_payment(mock_db, "yk_err_test")
+        # Должен быть вызван rollback транзакции
+        mock_db.rollback.assert_called_once()
+
+
+def test_h8_admin_ids_and_maintenance():
+    """Тест H8: Поддержка admin_ids и ADMIN_IDS без AttributeError."""
+    from bot.config import settings
+
+    # Свойство admin_ids возвращает список целых чисел
+    assert isinstance(settings.admin_ids, list)
+    assert settings.SUPERADMIN_ID in settings.admin_ids
+
+    # Свойство ADMIN_IDS не выбрасывает исключение
+    assert isinstance(settings.ADMIN_IDS, str)
+
+
+@pytest.mark.asyncio
+async def test_h9_security_headers_telegram_frame():
+    """Тест H9: Разрешение фреймов Telegram для WebApp и DENY для админки."""
+    from web.main import SecurityHeadersMiddleware
+    from starlette.requests import Request
+    from starlette.responses import Response
+
+    middleware = SecurityHeadersMiddleware(app=MagicMock())
+
+    # 1. Запрос к WebApp (/app)
+    webapp_request = MagicMock(spec=Request)
+    webapp_request.url.path = "/app"
+    async def call_next_webapp(req):
+        return Response("ok")
+    resp_webapp = await middleware.dispatch(webapp_request, call_next_webapp)
+    assert "X-Frame-Options" not in resp_webapp.headers
+    assert "frame-ancestors 'self' https://web.telegram.org" in resp_webapp.headers["Content-Security-Policy"]
+
+    # 2. Запрос к панели администратора (/admin/users)
+    admin_request = MagicMock(spec=Request)
+    admin_request.url.path = "/admin/users"
+    async def call_next_admin(req):
+        return Response("ok")
+    resp_admin = await middleware.dispatch(admin_request, call_next_admin)
+    assert resp_admin.headers.get("X-Frame-Options") == "DENY"
+    assert resp_admin.headers.get("Content-Security-Policy") == "frame-ancestors 'none';"
+
+
+@pytest.mark.asyncio
+async def test_h10_webapp_rate_limiting():
+    """Тест H10: Rate limiting на WebApp API блокирует превышение частоты запросов."""
+    from web.routers.webapp import check_webapp_rate_limit
+    from fastapi import HTTPException
+
+    user_id = 777
+    action = "test_swipe"
+
+    with patch.dict(os.environ, {"TEST_RATE_LIMITER": "1", "TESTING": "false"}):
+        # Первые 2 запроса разрешены (limit=2)
+        await check_webapp_rate_limit(user_id, action, limit=2, window_seconds=1.0)
+        await check_webapp_rate_limit(user_id, action, limit=2, window_seconds=1.0)
+
+        # 3-й запрос превышает лимит и вызывает HTTP 429
+        with pytest.raises(HTTPException) as exc_info:
+            await check_webapp_rate_limit(user_id, action, limit=2, window_seconds=1.0)
+        assert exc_info.value.status_code == 429
+
+
+def test_h11_password_strength_validation():
+    """Тест H11: Валидация стойкости пароля (мин. 8 символов, буква и цифра)."""
+    from web.dependencies import validate_password_strength
+
+    # Слабые пароли
+    assert validate_password_strength("")[0] is False
+    assert validate_password_strength("12345")[0] is False
+    assert validate_password_strength("abcdefg")[0] is False  # Меньше 8
+    assert validate_password_strength("abcdefgh")[0] is False # Нет цифры
+    assert validate_password_strength("12345678")[0] is False # Нет буквы
+
+    # Надёжные пароли
+    assert validate_password_strength("Secret123")[0] is True
+    assert validate_password_strength("Пароль2026")[0] is True
+    assert validate_password_strength("StrongPass#42")[0] is True
+
+
+def test_h12_no_default_admin_in_migrations():
+    """Тест H12: В миграциях отсутствует авто-создание учетной записи admin:admin123."""
+    with open("database/migrations.py", "r", encoding="utf-8") as f:
+        content = f.read()
+
+    assert "admin123" not in content
+    assert "login=\"admin\"" not in content

@@ -14,6 +14,7 @@ from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import selectinload
 
 from web.dependencies import get_db, get_current_admin
+from web.utils.csv_export import sanitize_csv_row
 from database.models import User, Profile, University
 
 router = APIRouter()
@@ -120,7 +121,7 @@ async def export_consents_csv(
         consent_status = "Принято (Да)" if u.consent_given else "Не принято / Ожидает"
         consent_date = u.consent_at.strftime("%Y-%m-%d %H:%M:%S") if u.consent_at else "—"
         
-        writer.writerow([
+        writer.writerow(sanitize_csv_row([
             u.id,
             f"@{u.tg_username}" if u.tg_username else "—",
             prof_name,
@@ -130,7 +131,7 @@ async def export_consents_csv(
             consent_date,
             "Версия 1.0",
             "152-ФЗ РФ «О персональных данных»",
-        ])
+        ]))
 
     csv_data = output.getvalue().encode("utf-8-sig")
     return Response(

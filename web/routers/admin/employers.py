@@ -6,9 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, or_
 from sqlalchemy.orm import selectinload
 from typing import Optional
+from urllib.parse import quote_plus
 import uuid
 
-from web.dependencies import get_db, get_current_admin, require_superadmin, hash_password, check_csrf, generate_csrf_token
+from web.dependencies import get_db, get_current_admin, require_superadmin, hash_password, check_csrf, generate_csrf_token, validate_password_strength
 from database.models import Employer, EmployerProfileAccess, Profile, User, University, EmployerRequest
 from web.utils.audit import log_admin_action
 
@@ -67,6 +68,11 @@ async def create_employer(
 ):
     from sqlalchemy import func, text
     clean_login = login.strip().lower()
+
+    # H11: Проверка сложности пароля (мин. 8 символов, буква и цифра)
+    valid_pwd, pwd_err = validate_password_strength(password)
+    if not valid_pwd:
+        return RedirectResponse(f"/admin/employers?error={quote_plus(pwd_err or 'Слабый пароль')}", status_code=302)
 
     # Проверяем уникальность логина
     existing = await db.scalar(select(Employer).where(Employer.login == clean_login))

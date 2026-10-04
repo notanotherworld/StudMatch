@@ -58,7 +58,18 @@ from starlette.middleware.base import BaseHTTPMiddleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        response.headers["X-Frame-Options"] = "DENY"
+        path = request.url.path
+
+        # H9: Telegram Mini App открывается в iframe внутри Telegram Web/Desktop/Mobile.
+        # Для путей WebApp разрешаем frame-ancestors Telegram, а для остальных (/admin, /employer) блокируем iframes.
+        if path.startswith(("/app", "/webapp", "/api/webapp", "/static")):
+            response.headers["Content-Security-Policy"] = (
+                "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://t.me;"
+            )
+        else:
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["Content-Security-Policy"] = "frame-ancestors 'none';"
+
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "strict-origin"
         response.headers["X-XSS-Protection"] = "1; mode=block"

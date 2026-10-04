@@ -137,6 +137,10 @@ class Settings(BaseSettings):
             ids.extend([int(x.strip()) for x in self.ADMIN_TG_IDS.split(",") if x.strip() and x.strip().isdigit()])
         return list(set(ids))
 
+    @property
+    def ADMIN_IDS(self) -> str:
+        return self.ADMIN_TG_IDS or ""
+
 
 
 settings = Settings()

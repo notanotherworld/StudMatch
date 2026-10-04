@@ -1,8 +1,9 @@
 """
 Общие утилиты для Web: аутентификация сессий (JWT), зависимости FastAPI.
 """
+import re
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, Tuple
 import jwt
 import bcrypt
 from fastapi import Request, HTTPException, Depends
@@ -75,6 +76,22 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
+
+
+def validate_password_strength(password: str) -> Tuple[bool, Optional[str]]:
+    """
+    Проверка стойкости пароля (H11):
+    - Не менее 8 символов;
+    - Хотя бы одна буква;
+    - Хотя бы одна цифра.
+    """
+    if not password or len(password) < 8:
+        return False, "Пароль должен содержать не менее 8 символов"
+    if not re.search(r"[A-Za-zА-Яа-я]", password):
+        return False, "Пароль должен содержать хотя бы одну букву"
+    if not re.search(r"\d", password):
+        return False, "Пароль должен содержать хотя бы одну цифру"
+    return True, None
 
 
 def create_token(payload: dict, hours: int = SESSION_TTL_HOURS) -> str:

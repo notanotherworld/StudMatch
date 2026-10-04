@@ -186,6 +186,78 @@ async def get_current_student(
     return user
 
 
+# ─── WebApp Rate Limiting (H10) ──────────────────────────────
+from collections import defaultdict, deque
+import time
+
+_webapp_sliding_windows: Dict[Tuple[int, str], deque] = defaultdict(deque)
+
+async def check_webapp_rate_limit(
+    user_id: int,
+    action: str,
+    limit: int,
+    window_seconds: float = 1.0,
+) -> None:
+    """
+    H10: Гибридный rate limiter (Redis с fallback на in-memory sliding window).
+    Возбуждает HTTPException(429) при превышении лимита.
+    """
+    if os.environ.get("PYTEST_CURRENT_TEST") or os.getenv("TESTING", "false").lower() == "true":
+        if not os.environ.get("TEST_RATE_LIMITER"):
+            return
+
+    now = time.time()
+    redis = None
+    try:
+        from bot.utils.dynamic_settings import get_redis_client
+        redis = get_redis_client()
+    except Exception:
+        redis = None
+
+    if redis is not None:
+        try:
+            rkey = f"ratelimit:webapp:{user_id}:{action}"
+            pipe = redis.pipeline()
+            pipe.zremrangebyscore(rkey, 0, now - window_seconds)
+            pipe.zadd(rkey, {f"{now}": now})
+            pipe.zcard(rkey)
+            pipe.expire(rkey, int(window_seconds) + 3)
+            results = await pipe.execute()
+            count = results[2]
+            if count > limit:
+                raise HTTPException(
+                    status_code=429,
+                    detail="Слишком много запросов. Пожалуйста, подождите немного.",
+                    headers={"Retry-After": str(int(window_seconds) or 1)},
+                )
+            return
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.debug(f"Redis rate limit fallback: {e}")
+
+    key = (user_id, action)
+    dq = _webapp_sliding_windows[key]
+    cutoff = now - window_seconds
+    while dq and dq[0] < cutoff:
+        dq.popleft()
+
+    if len(dq) >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail="Слишком много запросов. Пожалуйста, подождите немного.",
+            headers={"Retry-After": str(int(window_seconds) or 1)},
+        )
+
+    dq.append(now)
+
+    if len(_webapp_sliding_windows) > 10000:
+        cleanup_cutoff = now - 60.0
+        for k in list(_webapp_sliding_windows.keys()):
+            if not _webapp_sliding_windows[k] or _webapp_sliding_windows[k][-1] < cleanup_cutoff:
+                del _webapp_sliding_windows[k]
+
+
 # ─── HTML Страница WebApp ─────────────────────────────────────
 @router.get("/app", response_class=HTMLResponse)
 async def webapp_page(request: Request):
@@ -338,6 +410,9 @@ async def webapp_feed(
     """
     Возвращает список анкет кандидатов для свайпов в WebApp.
     """
+    # H10: Rate limit 1 запрос в секунду на ленту
+    await check_webapp_rate_limit(student.id, "feed", limit=1, window_seconds=1.0)
+
     mode = student.mode or ModeEnum.dating
 
     # Получаем пачку до 10 кандидатов
@@ -465,6 +540,9 @@ async def webapp_swipe(
     Сохранение свайпа (Лайк, Скип, Суперлайк) через WebApp.
     При взаимном лайке возвращает статус match=True и данные партнёра.
     """
+    # H10: Rate limit 2 свайпа в секунду
+    await check_webapp_rate_limit(student.id, "swipe", limit=2, window_seconds=1.0)
+
     action_map = {
         "like": SwipeAction.like,
         "superlike": SwipeAction.superlike,
@@ -907,6 +985,9 @@ async def webapp_send_message(
     db: AsyncSession = Depends(get_db),
 ):
     """Отправка текстового сообщения во внутренний чат."""
+    # H10: Rate limit 2 сообщения в секунду
+    await check_webapp_rate_limit(student.id, "chat_msg", limit=2, window_seconds=1.0)
+
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Сообщение не может быть пустым")
@@ -2098,6 +2179,9 @@ async def webapp_career_feed(
     Профессиональная лента нетворкинга StudMatch:
     Возвращает карточки специалистов/студентов с навыками, целями и портфолио.
     """
+    # H10: Rate limit 1 запрос в секунду на ленту
+    await check_webapp_rate_limit(student.id, "feed", limit=1, window_seconds=1.0)
+
     query = (
         select(User)
         .options(selectinload(User.profile), selectinload(User.university))
@@ -2328,6 +2412,9 @@ async def webapp_projects_feed(
     Возвращает карточки проектов для свайп-колоды и каталога с фильтрацией.
     При catalog=True возвращаются все проекты (включая свои и те, на которые уже был свайп).
     """
+    # H10: Rate limit 1 запрос в секунду на ленту
+    await check_webapp_rate_limit(student.id, "feed", limit=1, window_seconds=1.0)
+
     exclude_swiped = not catalog
     exclude_own = not catalog
 
@@ -2421,6 +2508,9 @@ async def webapp_projects_swipe(
     db: AsyncSession = Depends(get_db),
 ):
     """Свайп проекта кандидатом (Хочу в команду / Скип / Суперлайк)."""
+    # H10: Rate limit 2 свайпа в секунду
+    await check_webapp_rate_limit(student.id, "swipe", limit=2, window_seconds=1.0)
+
     try:
         p_uuid = uuid.UUID(payload.project_id)
     except ValueError:

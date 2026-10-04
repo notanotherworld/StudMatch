@@ -59,90 +59,133 @@ async def has_received_reward(
     return res.scalar_one_or_none() is not None
 
 
+from sqlalchemy.exc import IntegrityError
+
 async def reward_email_verification(db: AsyncSession, user_id: int) -> Tuple[bool, int]:
     """Награда за подтверждение университетского email (+40 🎓, x3 для Премиум: +120 🎓)."""
     ref_id = "onboarding_email_verified"
+    
+    # Атомарная блокировка пользователя во избежание race condition (H4)
+    res = await db.execute(select(User).where(User.id == user_id).with_for_update())
+    user = res.scalar_one_or_none()
+    if not user:
+        return False, 0
+
     if await has_received_reward(db, user_id, ref_id) or await has_received_reward(db, user_id, "perm_quest_onboarding_email"):
         return False, 0
 
-    user = await get_user(db, user_id)
-    is_prem = bool(user and user.is_premium)
+    is_prem = bool(user.is_premium)
     mult = 3 if is_prem else 1
     amount = 40 * mult
     prem_suffix = " (👑 Премиум x3)" if is_prem else ""
 
-    new_bal = await add_user_credits(
-        db,
-        user_id=user_id,
-        amount=amount,
-        tx_type="onboarding",
-        description=f"Подтверждение университетской почты{prem_suffix}",
-        reference_id=ref_id,
-    )
-    return True, new_bal
+    try:
+        new_bal = await add_user_credits(
+            db,
+            user_id=user_id,
+            amount=amount,
+            tx_type="onboarding",
+            description=f"Подтверждение университетской почты{prem_suffix}",
+            reference_id=ref_id,
+        )
+        return True, new_bal
+    except IntegrityError:
+        await db.rollback()
+        return False, 0
 
 
 async def reward_profile_completion(db: AsyncSession, user_id: int) -> Tuple[bool, int]:
     """Награда за полное заполнение анкеты (+20 🎓, x3 для Премиум: +60 🎓)."""
     ref_id = "onboarding_profile_complete"
+
+    # Атомарная блокировка пользователя во избежание race condition (H4)
+    res = await db.execute(select(User).where(User.id == user_id).with_for_update())
+    user = res.scalar_one_or_none()
+    if not user:
+        return False, 0
+
     if await has_received_reward(db, user_id, ref_id) or await has_received_reward(db, user_id, "perm_quest_onboarding_profile"):
         return False, 0
 
-    user = await get_user(db, user_id)
-    is_prem = bool(user and user.is_premium)
+    is_prem = bool(user.is_premium)
     mult = 3 if is_prem else 1
     amount = 20 * mult
     prem_suffix = " (👑 Премиум x3)" if is_prem else ""
 
-    new_bal = await add_user_credits(
-        db,
-        user_id=user_id,
-        amount=amount,
-        tx_type="onboarding",
-        description=f"Заполнение всех разделов анкеты{prem_suffix}",
-        reference_id=ref_id,
-    )
-    return True, new_bal
+    try:
+        new_bal = await add_user_credits(
+            db,
+            user_id=user_id,
+            amount=amount,
+            tx_type="onboarding",
+            description=f"Заполнение всех разделов анкеты{prem_suffix}",
+            reference_id=ref_id,
+        )
+        return True, new_bal
+    except IntegrityError:
+        await db.rollback()
+        return False, 0
 
 
 async def reward_gallery_upload(db: AsyncSession, user_id: int) -> Tuple[bool, int]:
     """Награда за добавление от 3 фото в профиль (+12 🎓, x3 для Премиум: +36 🎓)."""
     ref_id = "onboarding_gallery_3_photos"
+
+    # Атомарная блокировка пользователя во избежание race condition (H4)
+    res = await db.execute(select(User).where(User.id == user_id).with_for_update())
+    user = res.scalar_one_or_none()
+    if not user:
+        return False, 0
+
     if await has_received_reward(db, user_id, ref_id) or await has_received_reward(db, user_id, "perm_quest_onboarding_gallery"):
         return False, 0
 
-    user = await get_user(db, user_id)
-    is_prem = bool(user and user.is_premium)
+    is_prem = bool(user.is_premium)
     mult = 3 if is_prem else 1
     amount = 12 * mult
     prem_suffix = " (👑 Премиум x3)" if is_prem else ""
 
-    new_bal = await add_user_credits(
-        db,
-        user_id=user_id,
-        amount=amount,
-        tx_type="onboarding",
-        description=f"Загрузка от 3-х фотографий в портфолио{prem_suffix}",
-        reference_id=ref_id,
-    )
-    return True, new_bal
+    try:
+        new_bal = await add_user_credits(
+            db,
+            user_id=user_id,
+            amount=amount,
+            tx_type="onboarding",
+            description=f"Загрузка от 3-х фотографий в портфолио{prem_suffix}",
+            reference_id=ref_id,
+        )
+        return True, new_bal
+    except IntegrityError:
+        await db.rollback()
+        return False, 0
 
 
 async def reward_achievement_approved(db: AsyncSession, user_id: int, achievement_id: int) -> Tuple[bool, int]:
     """Награда за подтверждённый модератором диплом/олимпиаду (+75 🎓)."""
     ref_id = f"achievement_{achievement_id}"
+
+    # Атомарная блокировка пользователя во избежание race condition (H4)
+    res = await db.execute(select(User).where(User.id == user_id).with_for_update())
+    user = res.scalar_one_or_none()
+    if not user:
+        return False, 0
+
     if await has_received_reward(db, user_id, ref_id):
         return False, 0
 
-    new_bal = await add_user_credits(
-        db,
-        user_id=user_id,
-        amount=75,
-        tx_type="onboarding",
-        description="Подтверждение академического достижения / диплома",
-        reference_id=ref_id,
-    )
-    return True, new_bal
+    try:
+        new_bal = await add_user_credits(
+            db,
+            user_id=user_id,
+            amount=75,
+            tx_type="onboarding",
+            description="Подтверждение академического достижения / диплома",
+            reference_id=ref_id,
+        )
+        return True, new_bal
+    except IntegrityError:
+        await db.rollback()
+        return False, 0
 
 
 async def reward_referral(db: AsyncSession, referrer_id: int, new_user_id: int) -> bool:
@@ -151,25 +194,36 @@ async def reward_referral(db: AsyncSession, referrer_id: int, new_user_id: int) 
     Рефереру +50 🎓, приглашённому другу +30 🎓.
     """
     ref_key = f"referral_{new_user_id}"
+
+    # Атомарная блокировка реферера во избежание race condition (H4)
+    res = await db.execute(select(User).where(User.id == referrer_id).with_for_update())
+    referrer = res.scalar_one_or_none()
+    if not referrer:
+        return False
+
     if await has_received_reward(db, referrer_id, ref_key):
         return False
 
-    # Начисляем пригласившему
-    await add_user_credits(
-        db,
-        user_id=referrer_id,
-        amount=50,
-        tx_type="referral",
-        description=f"Приглашение друга (ID {new_user_id})",
-        reference_id=ref_key,
-    )
-    # Начисляем другу
-    await add_user_credits(
-        db,
-        user_id=new_user_id,
-        amount=30,
-        tx_type="referral",
-        description="Бонус за регистрацию по приглашению друга",
-        reference_id=f"referred_by_{referrer_id}",
-    )
-    return True
+    try:
+        # Начисляем пригласившему
+        await add_user_credits(
+            db,
+            user_id=referrer_id,
+            amount=50,
+            tx_type="referral",
+            description=f"Приглашение друга (ID {new_user_id})",
+            reference_id=ref_key,
+        )
+        # Начисляем другу
+        await add_user_credits(
+            db,
+            user_id=new_user_id,
+            amount=30,
+            tx_type="referral",
+            description="Бонус за регистрацию по приглашению друга",
+            reference_id=f"referred_by_{referrer_id}",
+        )
+        return True
+    except IntegrityError:
+        await db.rollback()
+        return False

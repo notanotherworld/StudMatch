@@ -21,6 +21,7 @@ templates = Jinja2Templates(directory="web/templates")
 import csv
 import io
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from web.utils.csv_export import sanitize_csv_row
 
 @router.get("/profiles", response_class=HTMLResponse)
 async def profiles_list(
@@ -138,7 +139,7 @@ async def export_profiles_csv(
         univ = user.university.short_name if user and user.university else "РУДН"
         granted_str = acc.granted_at.strftime("%d.%m.%Y") if acc.granted_at else ""
 
-        writer.writerow([
+        writer.writerow(sanitize_csv_row([
             prof.name or "—",
             univ,
             f"{prof.year} курс" if prof.year else "—",
@@ -152,7 +153,7 @@ async def export_profiles_csv(
             status_label,
             acc.hr_comment or acc.note or "",
             granted_str,
-        ])
+        ]))
 
     import urllib.parse
     raw_filename = f"candidates_{employer.company_name}_{tab}.csv"
