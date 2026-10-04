@@ -8310,7 +8310,7 @@ img, video, canvas {
 }
 
 .shop-tab-text {
-  font-size: 10.5px;
+  font-size: clamp(9px, 2.6vw, 10.5px);
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.01em;
@@ -8345,8 +8345,19 @@ img, video, canvas {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   -webkit-overflow-scrolling: touch;
   padding-right: 1px;
+}
+
+.shop-view-section {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .shop-modal-body::-webkit-scrollbar {
@@ -8661,42 +8672,73 @@ img, video, canvas {
   font-weight: 500;
 }
 
-/* Bottom Refill Prompt Banner */
+/* Bottom Refill Prompt Banner (2-Tier Stacked Layout: Text on top, 50/50 Buttons below) */
 .shop-refill-banner {
   background: #F1F5F9;
   border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: 16px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 14px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .shop-refill-text {
-  font-size: 11.5px;
+  font-size: 12px;
   color: #64748B;
   margin: 0;
-  line-height: 1.35;
+  line-height: 1.4;
+  width: 100%;
+  text-align: left;
+}
+
+.shop-refill-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .shop-refill-btn {
-  background: #FFFFFF;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  color: #6C5CE7;
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 12px;
   font-weight: 700;
-  font-size: 11.5px;
-  padding: 6px 12px;
-  border-radius: 10px;
+  box-sizing: border-box;
+  white-space: nowrap;
   cursor: pointer;
-  flex-shrink: 0;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
-  transition: transform 0.12s ease, color 0.15s ease;
+  touch-action: manipulation;
+  transition: transform 0.12s ease, opacity 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .shop-refill-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.96);
+}
+
+.shop-refill-btn.highlight {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #FFFFFF;
+  border: none;
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.25);
+}
+
+.shop-refill-btn.secondary {
+  background: #FFFFFF;
+  color: #64748B;
+  border: 1px solid #CBD5E1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 /* 2. Quests & Streak View */
@@ -9502,7 +9544,7 @@ img, video, canvas {
     padding: 10px 14px calc(20px + max(var(--safe-bottom, 0px), 12px));
   }
   .shop-modal-title {
-    font-size: 19px;
+    font-size: 18px;
   }
   .shop-balance-chips-row {
     gap: 6px;
@@ -9522,6 +9564,14 @@ img, video, canvas {
   .shop-card-item {
     padding: 10px 12px;
   }
+  .shop-fortune-banner {
+    padding: 11px 12px;
+    gap: 8px;
+  }
+  .fortune-banner-spin-btn {
+    padding: 7px 11px;
+    font-size: 11.5px;
+  }
 }
 
 /* Ultra-compact Mobile Screens (≤ 360px, e.g. iPhone SE / small Androids) */
@@ -9530,10 +9580,10 @@ img, video, canvas {
     padding: 8px 10px calc(18px + max(var(--safe-bottom, 0px), 10px));
   }
   .shop-modal-title {
-    font-size: 17.5px;
+    font-size: 17px;
   }
   .shop-title-badge {
-    font-size: 9.5px;
+    font-size: 9px;
     padding: 1px 6px;
   }
   .shop-nav-tabs {
@@ -9550,7 +9600,21 @@ img, video, canvas {
     font-size: 15px;
   }
   .shop-tab-text {
-    font-size: 9.5px;
+    font-size: 9px;
+  }
+  .shop-fortune-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .fortune-banner-right {
+    width: 100%;
+  }
+  .fortune-banner-spin-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 8px 10px;
   }
   .shop-special-bottom {
     flex-direction: column;
@@ -9588,6 +9652,13 @@ img, video, canvas {
     grid-template-columns: repeat(2, 1fr);
   }
   .fortune-sectors-legend {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Micro screens (≤ 330px) */
+@media (max-width: 330px) {
+  .shop-refill-actions {
     grid-template-columns: 1fr;
   }
 }
@@ -9708,23 +9779,6 @@ img, video, canvas {
 /* ─────────────────────────────────────────────────────────────
    Credit Packs & Starter Pack (Google Stitch Collegiate Style)
    ───────────────────────────────────────────────────────────── */
-.shop-refill-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.shop-refill-btn.highlight {
-  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-  color: #FFFFFF;
-  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.3);
-}
-
-.shop-refill-btn.secondary {
-  background: #FFFFFF;
-  color: #64748B;
-  border: 1px solid #CBD5E1;
-}
 
 /* Starter Pack Hero Card */
 .starter-pack-card {
@@ -10120,6 +10174,8 @@ img, video, canvas {
   gap: 10px;
   overflow: hidden;
   box-shadow: 0 4px 16px -4px rgba(67, 56, 202, 0.3);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .fortune-banner-glow {
@@ -10202,9 +10258,12 @@ img, video, canvas {
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
   box-shadow: 0 3px 10px rgba(217, 119, 6, 0.35);
   touch-action: manipulation;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .fortune-banner-spin-btn:active {

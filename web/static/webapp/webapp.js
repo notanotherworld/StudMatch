@@ -8303,7 +8303,7 @@
     if (!statusData) return;
     wheelState.canSpinFree = Boolean(statusData.can_spin_free);
     wheelState.secondsLeft = statusData.seconds_left || 0;
-    wheelState.paidPrice = statusData.paid_price || 15;
+    wheelState.paidPrice = statusData.paid_price || 25;
     if (statusData.sectors && statusData.sectors.length > 0) {
       wheelState.sectors = statusData.sectors;
     }
