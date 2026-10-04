@@ -626,7 +626,7 @@ async def test_12_fortune_wheel_and_campus_gifts():
         assert len(api_cat["gifts"]) == 15
 
         # 7. Отправка подарка (user1 -> user2): Плюшевый мишка (50 🎓)
-        await add_user_credits(db, user1.id, 200, tx_type="admin", description="Тест подарков")
+        await add_user_credits(db, user1.id, 500, tx_type="admin", description="Тест подарков")
         await db.refresh(user1)
         bal_before_gift = user1.credits_balance
 
@@ -643,9 +643,9 @@ async def test_12_fortune_wheel_and_campus_gifts():
         assert send_res["status"] == "success"
         assert "успешно отправлен" in send_res["message"]
         await db.refresh(user1)
-        assert user1.credits_balance == bal_before_gift - 15  # плюшевый мишка Telegram стоит 15 🎓
+        assert user1.credits_balance == bal_before_gift - 50  # плюшевый мишка Telegram стоит 50 🎓
 
-        # 8. Отправка анонимного подарка (user1 -> user2): Ракета (50 🎓)
+        # 8. Отправка анонимного подарка (user1 -> user2): Ракета (160 🎓)
         send_anon_res = await webapp_send_gift(
             req=SendGiftRequest(
                 recipient_id=user2.id,
@@ -670,7 +670,7 @@ async def test_12_fortune_wheel_and_campus_gifts():
         assert bear_gift["is_anonymous"] is False
         assert bear_gift["sender_name"] == "Алексей"
         assert "мишку" in bear_gift["message"]
-        assert bear_gift["exchange_credits"] == 12
+        assert bear_gift["exchange_credits"] == 35
 
         # Находим анонимный подарок с ракетой
         rocket_gift = next(g for g in gifts_list if g["gift_code"] == "gift_rocket")
@@ -700,9 +700,9 @@ async def test_12_fortune_wheel_and_campus_gifts():
         u2_bal_before = user2.credits_balance or 0
         convert_ok = await webapp_convert_gift(gift_id=gift_id, student=user2, db=db)
         assert convert_ok["status"] == "success"
-        assert convert_ok["credits_added"] == 12
+        assert convert_ok["credits_added"] == 35
         await db.refresh(user2)
-        assert user2.credits_balance == u2_bal_before + 12
+        assert user2.credits_balance == u2_bal_before + 35
 
         # Проверяем, что подарок удалён из профиля
         u2_gifts_after = await webapp_get_user_gifts(user_id=user2.id, student=user2, db=db)

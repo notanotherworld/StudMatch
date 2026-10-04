@@ -135,7 +135,7 @@ async def test_telegram_classic_and_collectible_gifts():
         await db.refresh(u_sender)
         sender_bal_start = u_sender.credits_balance
 
-        # Отправляем Розу (25 🎓)
+        # Отправляем Розу (80 🎓)
         send_res = await webapp_send_gift(
             req=SendGiftRequest(
                 recipient_id=u_rec.id,
@@ -147,7 +147,7 @@ async def test_telegram_classic_and_collectible_gifts():
             db=db,
         )
         assert send_res["status"] == "success"
-        assert send_res["new_balance"] == sender_bal_start - 25
+        assert send_res["new_balance"] == sender_bal_start - 80
 
         # 4. Проверяем, что во внутреннем чате появилось сообщение типа "gift"
         msgs_res = await webapp_get_match_messages(match_id=str(match.id), student=u_rec, db=db)
@@ -182,7 +182,7 @@ async def test_telegram_classic_and_collectible_gifts():
         )
         assert send_nft_res["status"] == "success"
 
-        # 7. Отправляем третий подарок: «Коробка подарка» (15 🎓), чтобы выполнить квест получения 3 подарков
+        # 7. Отправляем третий подарок: «Коробка подарка» (80 🎓), чтобы выполнить квест получения 3 подарков
         send_box_res = await webapp_send_gift(
             req=SendGiftRequest(
                 recipient_id=u_rec.id,
@@ -234,13 +234,13 @@ async def test_telegram_classic_and_collectible_gifts():
         # Открепляем
         await webapp_toggle_pin_gift(gift_id=rose_id, student=u_rec, db=db)
 
-        # Конвертируем открепленный подарок -> успех (+20 🎓 за розу)
+        # Конвертируем открепленный подарок -> успех (+60 🎓 за розу)
         await db.refresh(u_rec)
         bal_before_conv = u_rec.credits_balance or 0
         conv_ok = await webapp_convert_gift(gift_id=rose_id, student=u_rec, db=db)
         assert conv_ok["status"] == "success"
-        assert conv_ok["credits_added"] == 20
-        assert conv_ok["new_balance"] == bal_before_conv + 20
+        assert conv_ok["credits_added"] == 60
+        assert conv_ok["new_balance"] == bal_before_conv + 60
 
         # Также конвертируем редкий коллекционный подарок (Звёздная ракета) -> +1600 🎓 (80% от 2000 🎓)
         nft_id = nft_gift["id"]
