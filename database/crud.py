@@ -3459,17 +3459,17 @@ async def convert_user_gift_to_credits(
 # Колесо Фортуны («Счастливый билет» 🎲)
 # ─────────────────────────────────────────────────────────────
 FORTUNE_WHEEL_SECTORS = [
-    {"id": 0, "code": "credits_15", "icon": "🎓", "title": "+15 Зачётов", "type": "credits", "value": 15, "weight": 28, "color": "#3B82F6"},
-    {"id": 1, "code": "credits_35", "icon": "🎓", "title": "+35 Зачётов", "type": "credits", "value": 35, "weight": 22, "color": "#F59E0B"},
+    {"id": 0, "code": "credits_5", "icon": "🎓", "title": "+5 Зачётов", "type": "credits", "value": 5, "weight": 30, "color": "#3B82F6"},
+    {"id": 1, "code": "credits_10", "icon": "🎓", "title": "+10 Зачётов", "type": "credits", "value": 10, "weight": 24, "color": "#F59E0B"},
     {"id": 2, "code": "rewind", "icon": "🔄", "title": "1 «Шпора»", "type": "item", "item_code": "rewind", "weight": 16, "color": "#8B5CF6"},
-    {"id": 3, "code": "credits_75", "icon": "💰", "title": "+75 Зачётов", "type": "credits", "value": 75, "weight": 8, "color": "#EF4444"},
-    {"id": 4, "code": "superlike", "icon": "⭐️", "title": "1 Суперлайк", "type": "superlike", "value": 1, "weight": 10, "color": "#EC4899"},
-    {"id": 5, "code": "boost_6h", "icon": "⚡️", "title": "Буст 6 часов", "type": "boost", "value": 6, "weight": 6, "color": "#F97316"},
-    {"id": 6, "code": "freeze", "icon": "🩺", "title": "1 «Справка»", "type": "freeze", "value": 1, "weight": 6, "color": "#10B981"},
-    {"id": 7, "code": "gift_stellar_rocket", "icon": "🚀", "title": "Звёздная ракета", "type": "gift_item", "gift_code": "gift_stellar_rocket", "weight": 4, "color": "#6366F1"},
+    {"id": 3, "code": "credits_25", "icon": "💰", "title": "+25 Зачётов", "type": "credits", "value": 25, "weight": 10, "color": "#EF4444"},
+    {"id": 4, "code": "superlike", "icon": "⭐️", "title": "1 Суперлайк", "type": "superlike", "value": 1, "weight": 8, "color": "#EC4899"},
+    {"id": 5, "code": "boost_6h", "icon": "⚡️", "title": "Буст 6 часов", "type": "boost", "value": 6, "weight": 5, "color": "#F97316"},
+    {"id": 6, "code": "freeze", "icon": "🩺", "title": "1 «Справка»", "type": "freeze", "value": 1, "weight": 4, "color": "#10B981"},
+    {"id": 7, "code": "gift_bear", "icon": "🧸", "title": "Мишка Telegram", "type": "gift_item", "gift_code": "gift_bear", "weight": 3, "color": "#6366F1"},
 ]
 
-FORTUNE_PAID_SPIN_PRICE = 15  # Зачётов за платное вращение
+FORTUNE_PAID_SPIN_PRICE = 25  # Зачётов за платное вращение
 
 
 async def get_fortune_wheel_status(db: AsyncSession, user_id: int) -> dict:

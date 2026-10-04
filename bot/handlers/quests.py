@@ -180,19 +180,19 @@ async def cb_quests_onboarding(callback: CallbackQuery, user: User, db: AsyncSes
 
     # Проверяем статусы
     has_email = bool(u.email_verified)
-    email_claimed = await has_received_reward(db, user.id, "onboarding_email_verified")
+    email_claimed = await has_received_reward(db, user.id, "onboarding_email_verified") or await has_received_reward(db, user.id, "perm_quest_onboarding_email")
 
     is_complete = bool(profile and profile.is_complete)
-    profile_claimed = await has_received_reward(db, user.id, "onboarding_profile_complete")
+    profile_claimed = await has_received_reward(db, user.id, "onboarding_profile_complete") or await has_received_reward(db, user.id, "perm_quest_onboarding_profile")
 
     photos_count = len(profile.photos) if profile and profile.photos else 0
-    gallery_claimed = await has_received_reward(db, user.id, "onboarding_gallery_3_photos")
+    gallery_claimed = await has_received_reward(db, user.id, "onboarding_gallery_3_photos") or await has_received_reward(db, user.id, "perm_quest_onboarding_gallery")
 
     is_prem = bool(u.is_premium)
     mult = 3 if is_prem else 1
-    email_rew = 100 * mult
-    profile_rew = 50 * mult
-    gallery_rew = 30 * mult
+    email_rew = 40 * mult
+    profile_rew = 20 * mult
+    gallery_rew = 12 * mult
     prem_notice = " <i>(👑 x3 Премиум)</i>" if is_prem else ""
 
     builder = InlineKeyboardBuilder()
@@ -247,6 +247,8 @@ async def cb_claim_onboarding_reward(callback: CallbackQuery, user: User, db: As
     """Выдача награды за онбординг."""
     reward_type = callback.data.split(":")[2]
     u = await get_user(db, user.id) or user
+    is_prem = bool(u.is_premium)
+    mult = 3 if is_prem else 1
 
     if reward_type == "email":
         if not u.email_verified:
@@ -254,7 +256,7 @@ async def cb_claim_onboarding_reward(callback: CallbackQuery, user: User, db: As
             return
         success, new_bal = await reward_email_verification(db, user.id)
         if success:
-            await callback.answer("🎉 +100 Зачётов начислено!", show_alert=True)
+            await callback.answer(f"🎉 +{40 * mult} Зачётов начислено!", show_alert=True)
         else:
             await callback.answer("Награда уже была получена ранее.")
 
@@ -266,7 +268,7 @@ async def cb_claim_onboarding_reward(callback: CallbackQuery, user: User, db: As
             return
         success, new_bal = await reward_profile_completion(db, user.id)
         if success:
-            await callback.answer("🎉 +50 Зачётов начислено!", show_alert=True)
+            await callback.answer(f"🎉 +{20 * mult} Зачётов начислено!", show_alert=True)
         else:
             await callback.answer("Награда уже была получена ранее.")
 
@@ -279,7 +281,7 @@ async def cb_claim_onboarding_reward(callback: CallbackQuery, user: User, db: As
             return
         success, new_bal = await reward_gallery_upload(db, user.id)
         if success:
-            await callback.answer("🎉 +30 Зачётов начислено!", show_alert=True)
+            await callback.answer(f"🎉 +{12 * mult} Зачётов начислено!", show_alert=True)
         else:
             await callback.answer("Награда уже была получена ранее.")
 

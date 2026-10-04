@@ -90,7 +90,7 @@ async def test_01_create_schema_and_seed_shop():
             ShopItem(code="superlike_1", title="⭐️ Суперлайк", category="consumable", price_credits=15, bonus_type="superlike", bonus_value=1),
             ShopItem(code="rewind", title="🔄 Шпора", category="consumable", price_credits=10, bonus_type="rewind", bonus_value=1),
             ShopItem(code="freeze_streak", title="🩺 Справка", category="insurance", price_credits=25, bonus_type="freeze", bonus_value=1),
-            ShopItem(code="premium_1d", title="💎 Премиум 1д", category="subscription", price_credits=30, bonus_type="premium", bonus_value=1, duration_days=1),
+            ShopItem(code="premium_7d", title="💎 Премиум 7д", category="subscription", price_credits=120, bonus_type="premium", bonus_value=7, duration_days=7),
             ShopItem(code="frame_gold", title="🥇 Рамка Отличник", category="cosmetic", price_credits=150, bonus_type="frame", bonus_value=1, duration_days=30),
         ]
         db.add_all(items)
@@ -282,10 +282,10 @@ async def test_07_onboarding_and_referral_rewards():
         ok_ref_repeat = await reward_referral(db, u_ref.id, u_new.id)
         assert ok_ref_repeat is False
 
-        # Верификация email (+100 🎓)
+        # Верификация email (+40 🎓)
         ok_em, new_bal = await reward_email_verification(db, u_new.id)
         assert ok_em is True
-        assert new_bal == 130
+        assert new_bal == 70
 
         # Повторно email награду не выдаёт
         ok_em_repeat, _ = await reward_email_verification(db, u_new.id)
@@ -550,7 +550,7 @@ async def test_12_fortune_wheel_and_campus_gifts():
         st = await get_fortune_wheel_status(db, user1.id)
         assert st["can_spin_free"] is True
         assert st["seconds_left"] == 0
-        assert st["paid_price"] == 15
+        assert st["paid_price"] == 25
         assert len(st["sectors"]) == 8
 
         # 2. Бесплатное вращение Колеса

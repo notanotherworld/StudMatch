@@ -8270,10 +8270,10 @@
   // ══════════════════════════════════════════════════════════════════
   const wheelState = {
     sectors: [
-      { id: 0, code: "credits_15", icon: "🎓", title: "+15 Зачётов", color: "#3B82F6" },
-      { id: 1, code: "credits_35", icon: "🎓", title: "+35 Зачётов", color: "#F59E0B" },
+      { id: 0, code: "credits_5", icon: "🎓", title: "+5 Зачётов", color: "#3B82F6" },
+      { id: 1, code: "credits_10", icon: "🎓", title: "+10 Зачётов", color: "#F59E0B" },
       { id: 2, code: "rewind", icon: "🔄", title: "1 Шпора", color: "#8B5CF6" },
-      { id: 3, code: "credits_75", icon: "💰", title: "+75 Зачётов", color: "#EF4444" },
+      { id: 3, code: "credits_25", icon: "💰", title: "+25 Зачётов", color: "#EF4444" },
       { id: 4, code: "superlike", icon: "⭐️", title: "1 Суперлайк", color: "#EC4899" },
       { id: 5, code: "boost_6h", icon: "⚡️", title: "Буст 6ч", color: "#F97316" },
       { id: 6, code: "freeze", icon: "🩺", title: "1 Справка", color: "#10B981" },
@@ -8281,7 +8281,7 @@
     ],
     canSpinFree: false,
     secondsLeft: 0,
-    paidPrice: 15,
+    paidPrice: 25,
     isSpinning: false,
     currentRotation: 0,
     countdownInterval: null,

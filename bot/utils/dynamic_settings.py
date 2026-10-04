@@ -143,7 +143,7 @@ DEFAULT_PAYMENT_PRODUCTS = [
         "id": "superlike_5",
         "name": "5 суперлайков",
         "emoji": "⭐️",
-        "price": 99,
+        "price": 69,
         "bonus_type": "superlikes",
         "bonus_value": 5,
         "description": "Пакет из 5 суперлайков",
@@ -154,7 +154,7 @@ DEFAULT_PAYMENT_PRODUCTS = [
         "id": "superlike_10",
         "name": "10 суперлайков",
         "emoji": "⭐️",
-        "price": 199,
+        "price": 119,
         "bonus_type": "superlikes",
         "bonus_value": 10,
         "description": "Выгодный пакет из 10 суперлайков",
@@ -220,6 +220,6 @@ async def get_dynamic_pricing() -> dict:
     pricing.setdefault("price_premium_1m", 199)
     pricing.setdefault("price_boost_24h", 99)
     pricing.setdefault("price_superlike_3", 49)
-    pricing.setdefault("price_superlike_5", 99)
-    pricing.setdefault("price_superlike_10", 199)
+    pricing.setdefault("price_superlike_5", 69)
+    pricing.setdefault("price_superlike_10", 119)
     return pricing

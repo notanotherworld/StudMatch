@@ -450,14 +450,23 @@ async def ensure_database_schema(engine: AsyncEngine) -> None:
                     ShopItem(code="rewind", title="🔄 «Шпора» (Откат свайпа)", description="Возможность отменить последний случайный дизлайк или пропуск", category="consumable", price_credits=10, icon="🔄", bonus_type="rewind", bonus_value=1, sort_order=30),
                     ShopItem(code="boost_24h", title="⚡️ Буст анкеты 24ч", description="Показ анкеты первым в ленте на 24 часа", category="consumable", price_credits=80, price_rub=99, icon="⚡️", bonus_type="boost", bonus_value=24, sort_order=40),
                     ShopItem(code="freeze_streak", title="🩺 «Справка от врача»", description="Защита серии посещений: спасает стрик при пропуске одного дня", category="insurance", price_credits=25, icon="🩺", bonus_type="freeze", bonus_value=1, sort_order=50),
-                    ShopItem(code="premium_1d", title="💎 Премиум 1 день", description="Суточный тест-драйв всех премиум возможностей", category="subscription", price_credits=30, icon="💎", bonus_type="premium", bonus_value=1, duration_days=1, sort_order=60),
                     ShopItem(code="premium_7d", title="💎 Премиум 7 дней", description="Неделя безлимитных лайков, фильтров и режима инкогнито", category="subscription", price_credits=120, icon="💎", bonus_type="premium", bonus_value=7, duration_days=7, sort_order=70),
-                    ShopItem(code="premium_30d", title="💎 Премиум 30 дней", description="Месяц максимального комфорта и привилегий", category="subscription", price_credits=400, price_rub=199, icon="💎", bonus_type="premium", bonus_value=30, duration_days=30, sort_order=80),
+                    ShopItem(code="premium_30d", title="💎 Премиум 30 дней", description="Месяц максимального комфорта и привилегий", category="subscription", price_credits=250, price_rub=199, icon="💎", bonus_type="premium", bonus_value=30, duration_days=30, sort_order=80),
                     ShopItem(code="frame_gold", title="🥇 Рамка «Отличник»", description="Золотая статусная рамка профиля на 30 дней", category="cosmetic", price_credits=150, icon="🥇", bonus_type="frame", bonus_value=1, duration_days=30, sort_order=90),
                     ShopItem(code="frame_headman", title="👔 Рамка «Староста»", description="Официальный бейдж лидера на 30 дней", category="cosmetic", price_credits=150, icon="👔", bonus_type="frame", bonus_value=1, duration_days=30, sort_order=100),
                     ShopItem(code="frame_neon", title="🌌 Неоновый стиль", description="Яркий киберпанк градиент карточки на 30 дней", category="cosmetic", price_credits=200, icon="🌌", bonus_type="frame", bonus_value=1, duration_days=30, sort_order=110),
                 ]
                 session.add_all(default_items)
+                await session.commit()
+            else:
+                # Синхронизация цен и деактивация 1-дневного премиума во избежание фарма x3 квестов
+                await session.execute(
+                    update(ShopItem).where(ShopItem.code == "premium_1d").values(is_active=False)
+                )
+                await session.execute(
+                    update(ShopItem).where(ShopItem.code == "premium_30d").values(price_credits=250)
+                )
+                await session.commit()
 
             # Посев администратора по умолчанию (admin / admin123)
             admin_check = (await session.execute(select(Admin).limit(1))).scalars().first()
