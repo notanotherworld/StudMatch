@@ -34,6 +34,7 @@ from database.models import (
 from database.crud import (
     get_user, get_profile, get_or_create_profile, get_next_profile, create_swipe,
     get_user_matches, get_incoming_likes, get_incoming_likes_count,
+    get_unlocked_like_target_ids, spend_user_credits,
     deduct_superlike, get_match_by_id, get_chat_messages, create_chat_message,
     mark_chat_messages_as_read, get_unread_messages_count, get_last_chat_message,
     approve_match_telegram, delete_match_by_id, get_match_between_users,
@@ -1216,41 +1217,126 @@ async def websocket_chat_endpoint(websocket: WebSocket, match_id: str):
 
 
 # ─── API: Входящие симпатии (Incoming Likes) ─────────────────
+class UnlockLikeRequest(BaseModel):
+    target_user_id: int
+
+
 @router.get("/api/webapp/incoming_likes")
 async def webapp_incoming_likes(
+    mode: Optional[str] = None,
     student: User = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Входящие лайки (для Премиум пользователей — список, для обычных — тизер).
+    Входящие лайки (для Премиум пользователей — полный список, для обычных — тизер с заблюренными карточками и возможностью разблокировки за зачёты).
     """
-    count = await get_incoming_likes_count(db, student.id)
-    is_prem = student.is_premium
+    filter_mode = None
+    if mode and mode.lower() in [m.value for m in ModeEnum]:
+        filter_mode = ModeEnum(mode.lower())
 
+    count = await get_incoming_likes_count(db, student.id, mode=filter_mode)
+    is_prem = bool(student.is_premium)
+    unlocked_ids = await get_unlocked_like_target_ids(db, student.id)
+
+    raw_likes = await get_incoming_likes(db, student.id, limit=60, mode=filter_mode)
     likes_list = []
-    if is_prem and count > 0:
-        raw_likes = await get_incoming_likes(db, student.id, limit=30)
-        for lk in raw_likes:
-            c = lk.from_user
-            p = c.profile
-            photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
-            first_p = photos[0] if photos else None
-            likes_list.append({
-                "user_id": c.id,
-                "name": p.name if (p and p.name) else "Студент",
-                "age": p.age if p else None,
-                "year": p.year if p else None,
-                "university": c.university.short_name if c.university else "",
-                "photo_url": resolve_photo_url(first_p) or DEFAULT_FALLBACK_AVATAR,
-                "is_superlike": lk.action == SwipeAction.superlike,
-                "comment": lk.comment,
-            })
+    superlikes_count = 0
+
+    for lk in raw_likes:
+        c = lk.from_user
+        if not c:
+            continue
+        p = c.profile
+        photos = list(p.photos) if (p and p.photos) else ([p.avatar_file_id] if (p and p.avatar_file_id) else [])
+        first_p = photos[0] if photos else None
+
+        is_super = lk.action == SwipeAction.superlike
+        if is_super:
+            superlikes_count += 1
+
+        is_unlocked = is_prem or (c.id in unlocked_ids)
+        likes_list.append({
+            "user_id": c.id,
+            "name": p.name if (p and p.name) else "Студент",
+            "age": p.age if p else None,
+            "year": p.year if p else None,
+            "university": c.university.short_name if c.university else (c.university.name if c.university else ""),
+            "major": p.major if p else None,
+            "faculty": getattr(p, "faculty", None),
+            "is_verified": bool(c.is_verified),
+            "is_premium": bool(c.is_premium),
+            "photo_url": resolve_photo_url(first_p) or DEFAULT_FALLBACK_AVATAR,
+            "is_superlike": is_super,
+            "comment": lk.comment if is_unlocked else (lk.comment[:12] + "..." if lk.comment else None),
+            "has_comment": bool(lk.comment),
+            "mode": lk.mode.value if hasattr(lk.mode, "value") else str(lk.mode or "dating"),
+            "created_at": lk.created_at.isoformat() if lk.created_at else None,
+            "is_unlocked": is_unlocked,
+        })
 
     return {
         "status": "ok",
         "is_premium": is_prem,
+        "credits_balance": getattr(student, "credits_balance", 0) or 0,
         "count": count,
+        "superlikes_count": superlikes_count,
         "likes": likes_list,
+    }
+
+
+@router.post("/api/webapp/incoming_likes/unlock")
+async def webapp_incoming_likes_unlock(
+    payload: UnlockLikeRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Разблокировка конкретной входящей симпатии за 50 зачётов.
+    """
+    target_id = payload.target_user_id
+    if target_id == student.id:
+        raise HTTPException(status_code=400, detail="Нельзя разблокировать самого себя")
+
+    is_prem = bool(student.is_premium)
+    if is_prem:
+        return {
+            "status": "ok",
+            "is_unlocked": True,
+            "message": "У вас активен Премиум!",
+            "credits_balance": getattr(student, "credits_balance", 0) or 0,
+            "target_user_id": target_id,
+        }
+
+    unlocked_ids = await get_unlocked_like_target_ids(db, student.id)
+    if target_id in unlocked_ids:
+        return {
+            "status": "ok",
+            "is_unlocked": True,
+            "message": "Уже разблокировано",
+            "credits_balance": getattr(student, "credits_balance", 0) or 0,
+            "target_user_id": target_id,
+        }
+
+    COST = 50
+    ok, new_balance = await spend_user_credits(
+        db,
+        user_id=student.id,
+        amount=COST,
+        tx_type="like_unlock",
+        description="Разблокировка входящей симпатии",
+        reference_id=str(target_id),
+    )
+    if not ok:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Недостаточно зачётов (требуется {COST} 🎓, у вас {new_balance})"
+        )
+
+    return {
+        "status": "ok",
+        "is_unlocked": True,
+        "credits_balance": new_balance,
+        "target_user_id": target_id,
     }
 
 

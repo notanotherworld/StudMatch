@@ -1518,11 +1518,10 @@ async def get_incoming_likes(
 ) -> List[Swipe]:
     """
     Возвращает список входящих лайков/суперлайков для user_id от пользователей,
-    которым user_id ещё не поставил ответный положительный свайп (like/superlike).
+    которым user_id ещё не поставил ответный свайп (like/superlike/skip).
     """
     swiped_conds = [
         Swipe.from_user_id == user_id,
-        Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
     ]
     if mode:
         swiped_conds.append(Swipe.mode == mode)
@@ -1565,7 +1564,6 @@ async def get_incoming_likes_count(
     """Количество непросмотренных входящих лайков."""
     swiped_conds = [
         Swipe.from_user_id == user_id,
-        Swipe.action.in_([SwipeAction.like, SwipeAction.superlike]),
     ]
     if mode:
         swiped_conds.append(Swipe.mode == mode)
@@ -1587,6 +1585,23 @@ async def get_incoming_likes_count(
         .where(and_(*query_conds))
     )
     return result or 0
+
+
+async def get_unlocked_like_target_ids(db: AsyncSession, user_id: int) -> Set[int]:
+    """Возвращает множество ID пользователей, чьи симпатии разблокированы текущим пользователем за зачёты."""
+    result = await db.execute(
+        select(EconomyTransaction.reference_id).where(
+            and_(
+                EconomyTransaction.user_id == user_id,
+                EconomyTransaction.tx_type == "like_unlock",
+            )
+        )
+    )
+    unlocked = set()
+    for row in result.scalars().all():
+        if row and str(row).isdigit():
+            unlocked.add(int(row))
+    return unlocked
 
 
 # ─────────────────────────────────────────────────────────────

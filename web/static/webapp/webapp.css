@@ -974,76 +974,693 @@ body {
   margin-bottom: 16px;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Revamped Likes Screen (Симпатии: Frosted Blur, Superlikes, Filters)
+   ───────────────────────────────────────────────────────────── */
+.likes-screen-content {
+  padding-bottom: 120px;
+}
+
+.likes-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.likes-balance-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #FFFBEB;
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  border-radius: 20px;
+  padding: 6px 12px;
+  color: #B45309;
+  font-family: 'JetBrains Mono', 'Geist Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.08);
+}
+
+.likes-balance-icon {
+  font-size: 14px;
+}
+
+/* Horizontal Filters Bar */
+.likes-filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 14px 2px;
+  margin-bottom: 8px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.likes-filters-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.likes-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--surface-muted, #F1F5F9);
+  color: var(--text-muted, #64748B);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+.likes-filter-pill:active {
+  transform: scale(0.96);
+}
+
+.likes-filter-pill.active {
+  background: #18181B;
+  color: #FFFFFF;
+  border-color: #18181B;
+  box-shadow: 0 4px 12px rgba(24, 24, 27, 0.15);
+}
+
+.likes-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: rgba(100, 116, 139, 0.2);
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.likes-filter-pill.active .likes-filter-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+}
+
+.likes-filter-badge.gold {
+  background: #FEF3C7;
+  color: #D97706;
+}
+
+/* Premium Teaser Banner */
+.likes-premium-banner {
+  position: relative;
+  background: linear-gradient(135deg, #2D1B69 0%, #1E1B4B 100%);
+  border-radius: 22px;
+  padding: 20px;
+  color: #FFFFFF;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: 0 10px 28px -6px rgba(108, 92, 231, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.likes-prem-banner-glow {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(108, 92, 231, 0.6) 0%, rgba(255, 75, 114, 0.3) 60%, transparent 80%);
+  filter: blur(24px);
+  pointer-events: none;
+}
+
+.likes-prem-banner-content {
+  position: relative;
+  z-index: 1;
+}
+
+.likes-prem-banner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #FFD166;
+  margin-bottom: 10px;
+}
+
+.likes-prem-banner-title {
+  font-size: 17px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  line-height: 1.25;
+  color: #FFFFFF;
+}
+
+.likes-prem-banner-desc {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.45;
+  margin-bottom: 16px;
+}
+
+.likes-prem-banner-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-likes-prem {
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(135deg, #6C5CE7 0%, #A855F7 50%, #FF4B72 100%);
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(108, 92, 231, 0.4);
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-likes-prem:active {
+  transform: scale(0.97);
+}
+
+.likes-prem-banner-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+}
+
+.likes-prem-banner-hint b {
+  color: #FEF3C7;
+}
+
+/* Likes 2-Column Grid */
 .likes-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 14px;
 }
 
+@media (max-width: 360px) {
+  .likes-grid {
+    gap: 10px;
+  }
+}
+
+/* Individual Like Card */
 .like-card {
   position: relative;
-  aspect-ratio: 3/4;
-  border-radius: var(--radius-lg);
+  aspect-ratio: 4/5.4;
+  border-radius: 22px;
   overflow: hidden;
-  background: #2a2b3d;
-  box-shadow: var(--shadow-sm);
+  background: #18181B;
+  box-shadow: 0 10px 24px -6px rgba(24, 24, 27, 0.08);
   cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, opacity 0.3s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  border: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.like-card:active {
+  transform: scale(0.97);
+}
+
+.like-card.superlike {
+  border: 2px solid #D97706;
+  box-shadow: 0 12px 28px -6px rgba(217, 119, 6, 0.35);
+}
+
+.like-card-img-wrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 .like-card-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: filter 0.4s ease, transform 0.4s ease;
 }
 
+/* Blurred state for non-premium */
+.like-card.blurred .like-card-img {
+  filter: blur(14px) brightness(0.85);
+  transform: scale(1.12);
+}
+
+/* Lock Overlay for locked cards */
+.like-card-lock-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  background: rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(4px);
+  z-index: 2;
+}
+
+.like-card-lock-icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+}
+
+.like-card-lock-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin-bottom: 8px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+
+.btn-unlock-credits {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid rgba(217, 119, 6, 0.4);
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.btn-unlock-credits:active {
+  transform: scale(0.94);
+  background: #FDE68A;
+}
+
+/* Top Badges (Superlike / Mode) */
+.like-card-top-badges {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  z-index: 3;
+}
+
+.like-card-super-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  background: linear-gradient(135deg, #F59E0B, #D97706);
+  color: #FFFFFF;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  box-shadow: 0 3px 8px rgba(217, 119, 6, 0.35);
+}
+
+.like-card-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(15, 23, 42, 0.65);
+  color: #FFFFFF;
+  backdrop-filter: blur(8px);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Comment Quote Snippet */
+.like-card-quote-pill {
+  position: absolute;
+  bottom: 84px;
+  left: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  border-radius: 12px;
+  padding: 6px 10px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.like-card-quote-pill span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #18181B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Card Info Overlay */
 .like-card-overlay {
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 100%;
-  padding: 12px 10px;
-  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.8) 100%);
-  color: #fff;
+  right: 0;
+  padding: 34px 10px 10px 10px;
+  background: linear-gradient(180deg, transparent 0%, rgba(15, 23, 42, 0.5) 40%, rgba(15, 23, 42, 0.94) 100%);
+  color: #FFFFFF;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.like-card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 2px;
 }
 
 .like-card-name {
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 800;
+  color: #FFFFFF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+.like-card-verified-icon {
+  font-size: 13px;
+  flex-shrink: 0;
 }
 
 .like-card-sub {
   font-size: 11px;
-  opacity: 0.85;
-}
-
-/* Paywall Teaser for non-premium */
-.paywall-card {
-  background: var(--bg-card);
-  border-radius: var(--radius-xl);
-  padding: 24px;
-  text-align: center;
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--border-light);
-  margin-top: 10px;
-}
-
-.paywall-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-}
-
-.paywall-title {
-  font-size: 20px;
-  font-weight: 800;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin-bottom: 8px;
 }
 
-.paywall-desc {
-  font-size: 14px;
-  color: var(--text-muted);
-  line-height: 1.5;
-  margin-bottom: 20px;
+/* Quick Action Buttons on Card */
+.like-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
 }
+
+.btn-card-action {
+  flex: 1;
+  height: 38px;
+  border-radius: 14px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), background 0.15s ease;
+}
+
+.btn-card-action:active {
+  transform: scale(0.9);
+}
+
+.btn-card-pass {
+  background: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-card-pass:hover {
+  background: rgba(239, 68, 68, 0.8);
+  color: #FFFFFF;
+}
+
+.btn-card-like {
+  background: linear-gradient(135deg, #FF4B72, #FF758C);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(255, 75, 114, 0.4);
+}
+
+.btn-card-like:hover {
+  filter: brightness(1.1);
+}
+
+/* Empty State */
+.likes-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 30px 16px 40px 16px;
+  background: var(--bg-card, #FFFFFF);
+  border-radius: 28px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 14px 34px -10px rgba(30, 31, 46, 0.08);
+}
+
+.likes-empty-icon-wrap {
+  width: 80px;
+  height: 80px;
+  border-radius: 24px;
+  background: #FFF1F2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 20px -4px rgba(255, 75, 114, 0.2);
+}
+
+.likes-empty-title {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--text-main, #18181B);
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+
+.likes-empty-desc {
+  font-size: 14px;
+  color: var(--text-muted, #64748B);
+  line-height: 1.5;
+  max-width: 290px;
+  margin-bottom: 24px;
+}
+
+.likes-empty-actions-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.likes-empty-card-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--surface-muted, #F8FAFC);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 18px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+}
+
+.likes-empty-card-btn:active {
+  transform: scale(0.98);
+  background: #F1F5F9;
+}
+
+.likes-empty-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.likes-empty-card-icon {
+  font-size: 22px;
+}
+
+.likes-empty-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main, #18181B);
+  margin-bottom: 2px;
+}
+
+.likes-empty-card-sub {
+  font-size: 12px;
+  color: var(--text-muted, #64748B);
+}
+
+.likes-empty-card-chevron {
+  font-size: 16px;
+  color: #94A3B8;
+}
+
+/* Floating Undo Snackbar */
+.likes-undo-snackbar {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  left: 50%;
+  transform: translateX(-50%) translateY(40px);
+  opacity: 0;
+  visibility: hidden;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(24, 24, 27, 0.94);
+  color: #FFFFFF;
+  backdrop-filter: blur(16px);
+  padding: 10px 18px;
+  border-radius: 9999px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  z-index: 999;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.likes-undo-snackbar.active {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  visibility: visible;
+}
+
+.likes-undo-text {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.likes-undo-btn {
+  background: #FEF3C7;
+  color: #92400E;
+  border: none;
+  border-radius: 9999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.likes-undo-btn:active {
+  transform: scale(0.92);
+}
+
+/* Superlike Quote in Candidate Details Sheet */
+.sheet-superlike-quote {
+  background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+  border: 1px solid rgba(217, 119, 6, 0.35);
+  border-radius: 18px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.08);
+}
+
+.sheet-superlike-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #B45309;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.sheet-superlike-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #78350F;
+  line-height: 1.45;
+  font-style: italic;
+}
+
+/* Likes Sheet Actions Row */
+.sheet-likes-actions-row {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.btn-sheet-like-pass {
+  flex: 1;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: #F1F5F9;
+  color: #475569;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.btn-sheet-like-pass:active {
+  transform: scale(0.96);
+  background: #E2E8F0;
+}
+
+.btn-sheet-like-accept {
+  flex: 2;
+  padding: 14px;
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(135deg, #FF4B72 0%, #6C5CE7 100%);
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(255, 75, 114, 0.35);
+  transition: transform 0.15s ease;
+}
+
+.btn-sheet-like-accept:active {
+  transform: scale(0.96);
+}
+
 
 .btn-primary {
   width: 100%;

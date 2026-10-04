@@ -262,10 +262,70 @@
 
       <!-- TAB 2: Likes -->
       <section class="app-screen" id="screen-likes">
-        <div class="screen-padding">
-          <h2 class="section-title">Симпатии</h2>
-          <p class="section-desc">Студенты, которые проявили к вам интерес</p>
+        <div class="screen-padding likes-screen-content">
+          <!-- Screen Header Row with Balance Widget -->
+          <div class="likes-header-row">
+            <div>
+              <h2 class="section-title">Симпатии</h2>
+              <p class="section-desc">Студенты, которые проявили к вам интерес</p>
+            </div>
+            <div class="likes-balance-chip" id="likesBalanceChip" title="Баланс зачётов">
+              <span class="likes-balance-icon">🎓</span>
+              <span class="likes-balance-val" id="likesCreditsBalance">0</span>
+            </div>
+          </div>
+
+          <!-- Filter Chips Bar -->
+          <div class="likes-filters-bar" id="likesFiltersBar">
+            <button type="button" class="likes-filter-pill active" data-filter="all">
+              <span>Все</span>
+              <span class="likes-filter-badge" id="likesFilterAllCount">0</span>
+            </button>
+            <button type="button" class="likes-filter-pill" data-filter="superlikes">
+              <span>⭐ Суперлайки</span>
+              <span class="likes-filter-badge gold" id="likesFilterSuperCount">0</span>
+            </button>
+            <button type="button" class="likes-filter-pill" data-filter="dating">
+              <span>💘 Знакомства</span>
+            </button>
+            <button type="button" class="likes-filter-pill" data-filter="career">
+              <span>💼 Карьера</span>
+            </button>
+            <button type="button" class="likes-filter-pill" data-filter="projects">
+              <span>🚀 Проекты</span>
+            </button>
+          </div>
+
+          <!-- Teaser Paywall Banner (Shown for non-premium users) -->
+          <div class="likes-premium-banner" id="likesPremiumBanner" style="display: none;">
+            <div class="likes-prem-banner-glow"></div>
+            <div class="likes-prem-banner-content">
+              <div class="likes-prem-banner-badge">
+                <span>💎 STUDMATCH PREMIUM</span>
+              </div>
+              <h3 class="likes-prem-banner-title">Смотрите всех без размытия</h3>
+              <p class="likes-prem-banner-desc">Мгновенно отвечайте взаимностью, читайте личные комментарии к суперлайкам и находите пару первыми.</p>
+              <div class="likes-prem-banner-actions">
+                <button type="button" class="btn-likes-prem" id="likesBannerPremBtn">
+                  <span>💎 Оформить Премиум</span>
+                </button>
+                <div class="likes-prem-banner-hint">или открывайте анкеты поштучно за <b>50 🎓 зачётов</b></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main Likes Grid / Empty State Container -->
           <div id="likesContainer"></div>
+        </div>
+
+        <!-- Floating Undo Snackbar for Skips -->
+        <div class="likes-undo-snackbar" id="likesUndoSnackbar">
+          <div class="likes-undo-text">
+            <span>Анкета скрыта</span>
+          </div>
+          <button type="button" class="likes-undo-btn" id="likesUndoBtn">
+            <span>↩️ Отменить</span>
+          </button>
         </div>
       </section>
 

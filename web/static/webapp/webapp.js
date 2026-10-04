@@ -635,6 +635,10 @@
       screen.classList.toggle("active", screen.id === `screen-${tabName}`);
     });
 
+    if (tabName !== "likes" && typeof window.flushPendingLikesSkips === "function") {
+      window.flushPendingLikesSkips();
+    }
+
     if (tabName === "matches") {
       loadMatches();
     } else if (tabName === "likes") {
@@ -2137,6 +2141,17 @@
           </button>
         `;
       }
+    } else if (source === "likes") {
+      actionButtonsHtml = `
+        <div class="sheet-likes-actions-row">
+          <button type="button" class="btn-sheet-like-pass" id="btnSheetPassLike">
+            ✕ Пропустить
+          </button>
+          <button type="button" class="btn-sheet-like-accept" id="btnSheetAcceptLike">
+            ❤️ Взаимно
+          </button>
+        </div>
+      `;
     } else if (source !== "feed") {
       actionButtonsHtml = `
         <div style="display:flex;flex-direction:column;gap:10px;">
@@ -2238,6 +2253,16 @@
               <span class="profile-distance-badge">📍 ${escapeHtml(distanceText)}</span>
             </div>
           </div>
+
+          <!-- Section: Superlike Quote (If opened from likes with comment) -->
+          ${(options.comment || options.is_superlike) ? `
+            <div class="sheet-superlike-quote">
+              <div class="sheet-superlike-label">
+                <span>⭐</span> ${options.is_superlike ? "Вам поставили Суперлайк" : "Сообщение к симпатии"}
+              </div>
+              ${options.comment ? `<div class="sheet-superlike-text">«${escapeHtml(options.comment)}»</div>` : ""}
+            </div>
+          ` : ""}
 
           <!-- Section: About -->
           ${bioText ? `
@@ -2420,6 +2445,21 @@
         openChat(matchId);
       } else {
         switchTab("matches");
+      }
+    });
+
+    // Likes actions from Candidate Sheet
+    document.getElementById("btnSheetAcceptLike")?.addEventListener("click", async () => {
+      triggerHaptic("medium");
+      closeDetailsSheet();
+      await window.acceptLike(targetUserId, profile);
+    });
+
+    document.getElementById("btnSheetPassLike")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      closeDetailsSheet();
+      if (window.scheduleSkipLike) {
+        window.scheduleSkipLike(targetUserId, null, profile);
       }
     });
 
@@ -4300,8 +4340,397 @@
     triggerHaptic("light");
   });
 
-  // 10. Раздел «Симпатии» (Incoming Likes)
+  // 10. Раздел «Симпатии» (Incoming Likes: Frosted Blur, Superlikes, Filter Tabs, Undo Skip, Credit Unlock)
+  const likesState = {
+    currentFilter: "all",
+    data: null,
+    pendingSkips: new Map(), // targetId -> { timer, cardEl, candidate }
+    filtersInitialized: false,
+  };
+
+  function hideLikesUndoSnackbar() {
+    const sb = document.getElementById("likesUndoSnackbar");
+    if (sb) sb.classList.remove("active");
+  }
+
+  function flushPendingLikesSkips() {
+    for (const [targetId, item] of likesState.pendingSkips.entries()) {
+      clearTimeout(item.timer);
+      sendSwipe(targetId, "skip");
+    }
+    likesState.pendingSkips.clear();
+    hideLikesUndoSnackbar();
+  }
+  window.flushPendingLikesSkips = flushPendingLikesSkips;
+
+  function scheduleSkipLike(targetId, cardEl, candidate) {
+    triggerHaptic("medium");
+    if (!cardEl) {
+      cardEl = document.querySelector(`.like-card[data-user-id="${targetId}"]`);
+    }
+
+    if (cardEl) {
+      cardEl.style.transition = "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)";
+      cardEl.style.opacity = "0";
+      cardEl.style.transform = "translateX(-40px) scale(0.9)";
+      setTimeout(() => {
+        if (cardEl && cardEl.style.opacity === "0") {
+          cardEl.style.display = "none";
+        }
+      }, 300);
+    }
+
+    // Clear any previous timer for this target
+    if (likesState.pendingSkips.has(targetId)) {
+      clearTimeout(likesState.pendingSkips.get(targetId).timer);
+    }
+
+    const sb = document.getElementById("likesUndoSnackbar");
+    const nameStr = candidate?.name ? escapeHtml(candidate.name) : "Студент";
+    if (sb) {
+      const textEl = sb.querySelector(".likes-undo-text span");
+      if (textEl) textEl.textContent = `Анкета (${nameStr}) скрыта`;
+      sb.classList.add("active");
+    }
+
+    const timer = setTimeout(async () => {
+      likesState.pendingSkips.delete(targetId);
+      if (likesState.pendingSkips.size === 0) {
+        hideLikesUndoSnackbar();
+      }
+      await sendSwipe(targetId, "skip");
+      const visibleCards = document.querySelectorAll(".like-card:not([style*='display: none'])");
+      if (visibleCards.length === 0) {
+        renderLikesUI();
+      }
+    }, 4000);
+
+    likesState.pendingSkips.set(targetId, { timer, cardEl, candidate });
+  }
+  window.scheduleSkipLike = scheduleSkipLike;
+
+  function undoLastSkip() {
+    triggerHaptic("light");
+    for (const [targetId, item] of likesState.pendingSkips.entries()) {
+      clearTimeout(item.timer);
+      if (item.cardEl) {
+        item.cardEl.style.display = "";
+        requestAnimationFrame(() => {
+          item.cardEl.style.opacity = "1";
+          item.cardEl.style.transform = "none";
+        });
+      }
+    }
+    likesState.pendingSkips.clear();
+    hideLikesUndoSnackbar();
+  }
+
+  async function unlockLikeWithCredits(targetId, cardEl) {
+    const curBalance = state.currentUser?.credits_balance !== undefined
+      ? state.currentUser.credits_balance
+      : (likesState.data?.credits_balance || 0);
+
+    if (curBalance < 50) {
+      triggerHaptic("error");
+      const wantShop = confirm(`Для разблокировки анкеты требуется 50 🎓 зачётов.\nВаш баланс: ${curBalance} 🎓.\n\nОткрыть магазин зачётов?`);
+      if (wantShop && typeof openShopModal === "function") {
+        openShopModal("catalog");
+      }
+      return;
+    }
+
+    triggerHaptic("medium");
+    try {
+      const res = await apiFetch("/api/webapp/incoming_likes/unlock", {
+        method: "POST",
+        body: JSON.stringify({ target_user_id: targetId }),
+      });
+
+      if (res && res.status === "ok") {
+        triggerHaptic("success");
+        if (res.credits_balance !== undefined) {
+          if (state.currentUser) state.currentUser.credits_balance = res.credits_balance;
+          if (likesState.data) likesState.data.credits_balance = res.credits_balance;
+          const chipBal = document.getElementById("likesCreditsBalance");
+          if (chipBal) chipBal.textContent = res.credits_balance;
+        }
+
+        if (likesState.data && Array.isArray(likesState.data.likes)) {
+          const lk = likesState.data.likes.find((item) => item.user_id === targetId);
+          if (lk) lk.is_unlocked = true;
+        }
+
+        if (cardEl) {
+          cardEl.classList.remove("blurred");
+          const lockOverlay = cardEl.querySelector(".like-card-lock-overlay");
+          if (lockOverlay) lockOverlay.remove();
+        }
+
+        await openDetailsSheet(targetId, { source: "likes" });
+        loadIncomingLikes();
+      } else {
+        alert(res?.detail || res?.message || "Не удалось разблокировать анкету");
+      }
+    } catch (e) {
+      console.error("Unlock like error:", e);
+      alert("Ошибка при разблокировке анкеты");
+    }
+  }
+  window.unlockLikeWithCredits = unlockLikeWithCredits;
+
+  window.acceptLike = async function (targetId, candidate = null) {
+    triggerHaptic("medium");
+    if (!candidate && likesState.data?.likes) {
+      candidate = likesState.data.likes.find((l) => l.user_id === targetId);
+    }
+    await sendSwipe(targetId, "like", null, candidate);
+    loadIncomingLikes();
+  };
+
+  function initLikesFilters() {
+    if (likesState.filtersInitialized) return;
+    likesState.filtersInitialized = true;
+
+    const filtersBar = document.getElementById("likesFiltersBar");
+    filtersBar?.querySelectorAll(".likes-filter-pill").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        triggerHaptic("light");
+        filtersBar.querySelectorAll(".likes-filter-pill").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        likesState.currentFilter = btn.dataset.filter || "all";
+        renderLikesUI();
+      });
+    });
+
+    document.getElementById("likesUndoBtn")?.addEventListener("click", () => {
+      undoLastSkip();
+    });
+
+    document.getElementById("likesBalanceChip")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      if (typeof openShopModal === "function") {
+        openShopModal("catalog");
+      }
+    });
+
+    document.getElementById("likesBannerPremBtn")?.addEventListener("click", () => {
+      triggerHaptic("medium");
+      const botUser = window.BOT_USERNAME || "edudating_bot";
+      const link = `https://t.me/${botUser}?start=premium`;
+      if (tg && tg.openTelegramLink) {
+        tg.openTelegramLink(link);
+      } else {
+        window.open(link, "_blank");
+      }
+    });
+  }
+
+  function renderLikesUI() {
+    const container = document.getElementById("likesContainer");
+    if (!container) return;
+
+    if (!likesState.data) {
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Загрузка...</div>';
+      return;
+    }
+
+    const isPrem = Boolean(likesState.data.is_premium);
+    let list = likesState.data.likes || [];
+
+    if (likesState.currentFilter === "superlikes") {
+      list = list.filter((lk) => lk.is_superlike);
+    } else if (likesState.currentFilter === "dating") {
+      list = list.filter((lk) => !lk.mode || lk.mode === "dating");
+    } else if (likesState.currentFilter === "career") {
+      list = list.filter((lk) => lk.mode === "career");
+    } else if (likesState.currentFilter === "projects") {
+      list = list.filter((lk) => lk.mode === "projects");
+    }
+
+    list = list.filter((lk) => !likesState.pendingSkips.has(lk.user_id));
+
+    if (list.length === 0) {
+      let emptyTitle = "Новых симпатий пока нет";
+      let emptyDesc = "Проявляйте активность в ленте анкет или поднимите свой профиль в топ кампуса, чтобы вас замечали чаще!";
+      if (likesState.currentFilter === "superlikes") {
+        emptyTitle = "Суперлайков пока нет";
+        emptyDesc = "Суперлайки — это знак особого внимания. Выделяйтесь классным профилем, и вам обязательно поставят суперлайк!";
+      } else if (likesState.currentFilter === "career") {
+        emptyTitle = "В карьере пока нет откликов";
+        emptyDesc = "Заполните резюме и карьерные цели в профиле, чтобы работодатели и студенты проявляли интерес!";
+      } else if (likesState.currentFilter === "projects") {
+        emptyTitle = "В проектах пока нет откликов";
+        emptyDesc = "Создайте свой проект или укажите навыки, чтобы собирать команды единомышленников!";
+      }
+
+      container.innerHTML = `
+        <div class="likes-empty-state">
+          <div class="likes-empty-icon-wrap">💌</div>
+          <h3 class="likes-empty-title">${emptyTitle}</h3>
+          <p class="likes-empty-desc">${emptyDesc}</p>
+          <div class="likes-empty-actions-grid">
+            <div class="likes-empty-card-btn" id="likesEmptyBoostBtn">
+              <div class="likes-empty-card-left">
+                <span class="likes-empty-card-icon">🚀</span>
+                <div>
+                  <div class="likes-empty-card-title">Поднять анкету в топ</div>
+                  <div class="likes-empty-card-sub">Покажите свой профиль сотням студентов</div>
+                </div>
+              </div>
+              <span class="likes-empty-card-chevron">›</span>
+            </div>
+
+            <div class="likes-empty-card-btn" id="likesEmptyProfileBtn">
+              <div class="likes-empty-card-left">
+                <span class="likes-empty-card-icon">📸</span>
+                <div>
+                  <div class="likes-empty-card-title">Улучшить профиль</div>
+                  <div class="likes-empty-card-sub">Добавьте новые фото, био и интересы</div>
+                </div>
+              </div>
+              <span class="likes-empty-card-chevron">›</span>
+            </div>
+
+            <div class="likes-empty-card-btn" id="likesEmptyExploreBtn">
+              <div class="likes-empty-card-left">
+                <span class="likes-empty-card-icon">🔍</span>
+                <div>
+                  <div class="likes-empty-card-title">Искать анкеты в ленте</div>
+                  <div class="likes-empty-card-sub">Смотрите профили и ставьте лайки первыми</div>
+                </div>
+              </div>
+              <span class="likes-empty-card-chevron">›</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById("likesEmptyBoostBtn")?.addEventListener("click", () => {
+        triggerHaptic("light");
+        if (typeof openShopModal === "function") {
+          openShopModal("catalog");
+        }
+      });
+      document.getElementById("likesEmptyProfileBtn")?.addEventListener("click", () => {
+        triggerHaptic("light");
+        switchTab("profile");
+      });
+      document.getElementById("likesEmptyExploreBtn")?.addEventListener("click", () => {
+        triggerHaptic("light");
+        switchTab("explore");
+      });
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="likes-grid">
+        ${list.map((lk) => {
+          const isUnlocked = Boolean(lk.is_unlocked || isPrem);
+          const isBlurred = !isUnlocked;
+          const img = lk.photo_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80";
+          const modeLabel = lk.mode === "career" ? "💼 Карьера" : (lk.mode === "projects" ? "🚀 Проекты" : "");
+          const subText = [lk.university, lk.year ? `${lk.year} курс` : null].filter(Boolean).join(" • ");
+
+          return `
+            <div class="like-card ${lk.is_superlike ? 'superlike' : ''} ${isBlurred ? 'blurred' : ''}" data-user-id="${lk.user_id}">
+              <div class="like-card-img-wrap">
+                <img src="${img}" class="like-card-img" alt="${escapeHtml(lk.name || 'Студент')}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80';" />
+              </div>
+
+              ${isBlurred ? `
+                <div class="like-card-lock-overlay">
+                  <span class="like-card-lock-icon">🔒</span>
+                  <div class="like-card-lock-title">Симпатия скрыта</div>
+                  <button type="button" class="btn-unlock-credits" data-unlock-id="${lk.user_id}">
+                    <span>🔓 Открыть за 50 🎓</span>
+                  </button>
+                </div>
+              ` : ""}
+
+              <div class="like-card-top-badges">
+                ${lk.is_superlike ? '<span class="like-card-super-badge">⭐ Суперлайк</span>' : '<span></span>'}
+                ${modeLabel ? `<span class="like-card-mode-badge">${modeLabel}</span>` : ""}
+              </div>
+
+              ${(!isBlurred && lk.comment) ? `
+                <div class="like-card-quote-pill">
+                  <span>💬 «${escapeHtml(lk.comment)}»</span>
+                </div>
+              ` : ""}
+
+              <div class="like-card-overlay">
+                <div class="like-card-name-row">
+                  <span class="like-card-name">${escapeHtml(lk.name || 'Студент')}${lk.age ? `, ${lk.age}` : ''}</span>
+                  ${lk.is_verified ? '<span class="like-card-verified-icon">🎓</span>' : ''}
+                </div>
+                <div class="like-card-sub">${escapeHtml(subText)}</div>
+
+                ${!isBlurred ? `
+                  <div class="like-card-actions">
+                    <button type="button" class="btn-card-action btn-card-pass" data-card-pass="${lk.user_id}" title="Пропустить">
+                      ✕
+                    </button>
+                    <button type="button" class="btn-card-action btn-card-like" data-card-like="${lk.user_id}" title="Взаимно">
+                      ❤️
+                    </button>
+                  </div>
+                ` : ""}
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+
+    container.querySelectorAll(".like-card").forEach((card) => {
+      const uId = parseInt(card.dataset.userId, 10);
+      const lk = list.find((item) => item.user_id === uId);
+
+      card.addEventListener("click", () => {
+        if (!lk) return;
+        if (!lk.is_unlocked && !isPrem) {
+          unlockLikeWithCredits(uId, card);
+        } else {
+          openDetailsSheet(uId, {
+            source: "likes",
+            comment: lk.comment,
+            is_superlike: lk.is_superlike,
+          });
+        }
+      });
+    });
+
+    container.querySelectorAll(".btn-unlock-credits").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const uId = parseInt(btn.dataset.unlockId, 10);
+        const card = btn.closest(".like-card");
+        unlockLikeWithCredits(uId, card);
+      });
+    });
+
+    container.querySelectorAll(".btn-card-pass").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const uId = parseInt(btn.dataset.cardPass, 10);
+        const card = btn.closest(".like-card");
+        const lk = list.find((item) => item.user_id === uId);
+        scheduleSkipLike(uId, card, lk);
+      });
+    });
+
+    container.querySelectorAll(".btn-card-like").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const uId = parseInt(btn.dataset.cardLike, 10);
+        const lk = list.find((item) => item.user_id === uId);
+        window.acceptLike(uId, lk);
+      });
+    });
+  }
+
   async function loadIncomingLikes() {
+    initLikesFilters();
     const container = document.getElementById("likesContainer");
     if (!container) return;
 
@@ -4309,69 +4738,35 @@
       const data = await apiFetch("/api/webapp/incoming_likes");
       if (!data) return;
 
-      const likesCount = data.count || (data.likes ? data.likes.length : 0);
-      updateNavBadges({ likes: likesCount });
+      likesState.data = data;
+      state.incomingLikes = data.likes || [];
 
-      if (!data.is_premium) {
-        container.innerHTML = `
-          <div class="paywall-card">
-            <div class="paywall-icon">💌</div>
-            <div class="paywall-title">${data.count || 0} человек лайкнули тебя!</div>
-            <p class="paywall-desc">Оформи Премиум-подписку, чтобы сразу видеть, кто проявил интерес, и отвечать взаимностью без ожидания.</p>
-            <button class="btn-primary" id="openPremiumBtn">💎 Оформить Премиум</button>
-          </div>
-        `;
-        document.getElementById("openPremiumBtn")?.addEventListener("click", () => {
-          triggerHaptic("medium");
-          const botUser = window.BOT_USERNAME || "edudating_bot";
-          const link = `https://t.me/${botUser}?start=premium`;
-          if (tg && tg.openTelegramLink) {
-            tg.openTelegramLink(link);
-          } else {
-            window.open(link, "_blank");
-          }
-          if (tg && tg.close) {
-            try {
-              tg.close();
-            } catch (err) {
-              console.warn("Could not close Telegram WebApp:", err);
-            }
-          }
-        });
-      } else {
-        if (data.likes.length === 0) {
-          container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Новых лайков пока нет</div>';
-          return;
-        }
-        container.innerHTML = `
-          <div class="likes-grid">
-            ${data.likes
-              .map((lk) => {
-                const img = lk.photo_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80";
-                return `
-                  <div class="like-card" onclick="window.acceptLike(${lk.user_id})">
-                    <img src="${img}" class="like-card-img" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
-                    <div class="like-card-overlay">
-                      <div class="like-card-name">${escapeHtml(lk.name)}</div>
-                      <div class="like-card-sub">${lk.university || ""}</div>
-                    </div>
-                  </div>
-                `;
-              })
-              .join("")}
-          </div>
-        `;
+      const totalLikes = data.count || (data.likes ? data.likes.length : 0);
+      updateNavBadges({ likes: totalLikes });
+
+      const balEl = document.getElementById("likesCreditsBalance");
+      if (balEl) {
+        const bal = data.credits_balance !== undefined ? data.credits_balance : (state.currentUser?.credits_balance || 0);
+        balEl.textContent = bal;
       }
+
+      const allCountEl = document.getElementById("likesFilterAllCount");
+      if (allCountEl) allCountEl.textContent = totalLikes;
+
+      const superCountEl = document.getElementById("likesFilterSuperCount");
+      if (superCountEl) superCountEl.textContent = data.superlikes_count || 0;
+
+      const banner = document.getElementById("likesPremiumBanner");
+      if (banner) {
+        banner.style.display = data.is_premium ? "none" : "block";
+      }
+
+      renderLikesUI();
     } catch (e) {
-      container.innerHTML = '<div style="text-align:center;padding:30px;color:red;">Ошибка загрузки</div>';
+      console.error("loadIncomingLikes error:", e);
+      container.innerHTML = '<div style="text-align:center;padding:30px;color:red;">Ошибка загрузки симпатий</div>';
     }
   }
-
-  window.acceptLike = async function (targetId) {
-    triggerHaptic("medium");
-    await sendSwipe(targetId, "like");
-    loadIncomingLikes();
-  };
 
   // 11. Раздел «Профиль» (Reference 2)
   async function loadProfile() {
