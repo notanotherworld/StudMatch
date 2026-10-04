@@ -539,6 +539,114 @@
     }, duration);
   }
 
+  // ==========================================
+  // 🛡️ Spend Confirmation Bottom Sheet (P0 Financial Safety)
+  // ==========================================
+  let pendingSpendConfirm = null;
+
+  function showSpendConfirmModal({
+    icon = "🎓",
+    title = "Подтверждение списания",
+    desc = "Вы собираетесь использовать зачёты",
+    cost = 50,
+    costLabel = null,
+    curBalanceLabel = null,
+    remainingLabel = null,
+    submitText = "Подтвердить",
+    onConfirm = null,
+    onCancel = null
+  } = {}) {
+    const modal = document.getElementById("spendConfirmModal");
+    if (!modal) {
+      if (typeof onConfirm === "function") onConfirm();
+      return;
+    }
+
+    const curBal = state.currentUser?.credits_balance !== undefined
+      ? state.currentUser.credits_balance
+      : (shopState?.overview?.credits_balance ?? likesState?.data?.credits_balance ?? 0);
+
+    const remaining = curBal - cost;
+
+    const iconEl = document.getElementById("spendConfirmIcon");
+    if (iconEl) iconEl.textContent = icon;
+
+    const titleEl = document.getElementById("spendConfirmTitle");
+    if (titleEl) titleEl.textContent = title;
+
+    const descEl = document.getElementById("spendConfirmDesc");
+    if (descEl) descEl.textContent = desc;
+
+    const costEl = document.getElementById("spendConfirmCost");
+    if (costEl) costEl.textContent = costLabel || `-${cost} 🎓`;
+
+    const balEl = document.getElementById("spendConfirmCurBalance");
+    if (balEl) balEl.textContent = curBalanceLabel || `${curBal} 🎓`;
+
+    const remEl = document.getElementById("spendConfirmRemaining");
+    if (remEl) {
+      remEl.textContent = remainingLabel || `${remaining >= 0 ? remaining : 0} 🎓`;
+      remEl.style.color = (cost > 0 && remaining < 0) ? "#EF4444" : "#10B981";
+    }
+
+    const submitBtn = document.getElementById("btnSpendConfirmSubmit");
+    const submitBtnText = document.getElementById("btnSpendConfirmSubmitText");
+    if (submitBtnText) {
+      submitBtnText.textContent = submitText;
+    }
+
+    if (submitBtn) {
+      const isInsufficient = (cost > 0 && remaining < 0);
+      submitBtn.disabled = isInsufficient;
+      if (isInsufficient && submitBtnText) {
+        submitBtnText.textContent = "Недостаточно зачётов";
+      }
+    }
+
+    pendingSpendConfirm = { onConfirm, onCancel, cost };
+
+    modal.style.display = "flex";
+    modal.classList.add("active");
+    triggerHaptic("selection");
+  }
+
+  function closeSpendConfirmModal() {
+    const modal = document.getElementById("spendConfirmModal");
+    if (modal) {
+      modal.classList.remove("active");
+      modal.style.display = "none";
+    }
+    if (pendingSpendConfirm && typeof pendingSpendConfirm.onCancel === "function") {
+      try {
+        pendingSpendConfirm.onCancel();
+      } catch (err) {
+        console.warn("[SpendConfirm] onCancel error:", err);
+      }
+    }
+    pendingSpendConfirm = null;
+  }
+
+  function handleSpendConfirmSubmit() {
+    if (!pendingSpendConfirm) return;
+    const cb = pendingSpendConfirm.onConfirm;
+    pendingSpendConfirm = null;
+    const modal = document.getElementById("spendConfirmModal");
+    if (modal) {
+      modal.classList.remove("active");
+      modal.style.display = "none";
+    }
+    if (typeof cb === "function") {
+      try {
+        cb();
+      } catch (err) {
+        console.error("[SpendConfirm] onConfirm error:", err);
+      }
+    }
+  }
+
+  window.showSpendConfirmModal = showSpendConfirmModal;
+  window.closeSpendConfirmModal = closeSpendConfirmModal;
+
   function openTelegramContact(username) {
     if (!username) return;
     const clean = username.replace(/^@/, "").trim();
@@ -1059,20 +1167,27 @@
         ${(profile.career_goal || profile.goal) ? `<p class="card-bio">${escapeHtml(profile.career_goal || profile.goal)}</p>` : ""}
         ${careerPortfolioBtn}
 
-        <!-- Authentic Figma Action Buttons (Reference Matched) -->
+        <!-- Action Buttons (Balanced Layout with Rewind «Шпора») -->
         <div class="card-actions-row">
-          <button class="action-btn dislike" data-action="skip" title="Пропустить">
-            <svg class="action-btn-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="3.5" stroke-linecap="round">
+          <button class="action-btn rewind" data-action="rewind" title="Шпора (Откатить свайп)" aria-label="Откатить свайп">
+            <svg class="action-btn-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+            </svg>
+            <span class="rewind-badge-count" id="rewindBadgeCount">${(shopState?.overview?.rewind_count !== undefined ? shopState.overview.rewind_count : (state.currentUser?.rewind_count || 0))}</span>
+          </button>
+          <button class="action-btn dislike" data-action="skip" title="Пропустить" aria-label="Пропустить">
+            <svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#18181B" stroke-width="3" stroke-linecap="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           </button>
-          <button class="action-btn superlike" data-action="superlike" title="Суперлайк">
-            <svg class="action-btn-icon" width="28" height="28" viewBox="0 0 24 24" fill="white">
+          <button class="action-btn superlike" data-action="superlike" title="Суперлайк" aria-label="Суперлайк">
+            <svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="white">
               <path d="M12 2.5L15.09 8.76L22 9.77L17 14.64L18.18 21.5L12 18.25L5.82 21.5L7 14.64L2 9.77L8.91 8.76L12 2.5Z"/>
             </svg>
           </button>
-          <button class="action-btn like ${isCareer ? 'career-like' : ''}" data-action="like" title="${isCareer ? 'Предложить проект' : 'Нравится'}">
+          <button class="action-btn like ${isCareer ? 'career-like' : ''}" data-action="like" title="${isCareer ? 'Предложить проект' : 'Нравится'}" aria-label="Лайк">
             ${isCareer 
               ? `<svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="white">
                    <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/>
@@ -1139,6 +1254,8 @@
           openDetailsSheet(profile);
         } else if (action === "superlike") {
           openSuperlikeModal(profile);
+        } else if (action === "rewind") {
+          triggerRewindSwipe();
         } else {
           handleSwipeAction(profile, action);
         }
@@ -1293,6 +1410,238 @@
     } else {
       finishSwipe(topCard, profile, "skip", -500, 0);
     }
+  }
+
+  // ==========================================
+  // 🔄 Swipe Rewind («Шпора») Engine (P1)
+  // ==========================================
+  let isRewinding = false;
+
+  async function triggerRewindSwipe() {
+    if (state.isSwiping || isRewinding) return;
+
+    const currentCount = shopState?.overview?.rewind_count !== undefined
+      ? shopState.overview.rewind_count
+      : (state.currentUser?.rewind_count || 0);
+
+    if (currentCount <= 0) {
+      triggerHaptic("warning");
+      showAppToast("У вас нет «Шпоры» для отката свайпа. Приобретите её в магазине!");
+      if (typeof openShopModal === "function") {
+        openShopModal("catalog");
+      }
+      return;
+    }
+
+    showSpendConfirmModal({
+      icon: "🔄",
+      title: "Откатить последний свайп?",
+      desc: "Использовать 1 предмет «Шпора» для возврата последней просмотренной анкеты в колоду.",
+      cost: 0,
+      costLabel: "1 шт. («Шпора»)",
+      curBalanceLabel: `${currentCount} шт.`,
+      remainingLabel: `${currentCount - 1} шт.`,
+      submitText: "Откатить анкету",
+      onConfirm: async () => {
+        await executeRewindCall();
+      }
+    });
+  }
+
+  async function executeRewindCall() {
+    if (isRewinding) return;
+    isRewinding = true;
+    triggerHaptic("medium");
+
+    try {
+      const res = await apiFetch("/api/webapp/economy/rewind", {
+        method: "POST"
+      });
+
+      if (res && (res.status === "success" || res.ok)) {
+        triggerHaptic("success");
+        showAppToast(res.message || "🔄 Свайп отменён! Анкета возвращена.");
+
+        if (res.rewind_count !== undefined) {
+          if (shopState?.overview) shopState.overview.rewind_count = res.rewind_count;
+          if (state.currentUser) state.currentUser.rewind_count = res.rewind_count;
+          const badge = document.getElementById("rewindBadgeCount");
+          if (badge) badge.textContent = res.rewind_count;
+        }
+
+        if (res.reverted_profile) {
+          if (state.currentCardIndex > 0) {
+            state.currentCardIndex--;
+            state.feed[state.currentCardIndex] = res.reverted_profile;
+          } else {
+            state.feed.unshift(res.reverted_profile);
+            state.currentCardIndex = 0;
+          }
+          renderCardStack();
+        } else if (state.currentCardIndex > 0) {
+          state.currentCardIndex--;
+          renderCardStack();
+        }
+      } else {
+        triggerHaptic("error");
+        showAppToast(res?.message || res?.detail || "Не удалось откатить свайп");
+      }
+    } catch (err) {
+      console.error("[Rewind] Error:", err);
+      triggerHaptic("error");
+      showAppToast("Ошибка при откате свайпа");
+    } finally {
+      isRewinding = false;
+    }
+  }
+
+  window.triggerRewindSwipe = triggerRewindSwipe;
+
+  // ==========================================
+  // ⌨️ Desktop Keyboard Navigation & Top Modal Management (P1)
+  // ==========================================
+  function closeTopActiveModal() {
+    // 1. Spend Confirm Sheet
+    const spendModal = document.getElementById("spendConfirmModal");
+    if (spendModal && (spendModal.classList.contains("active") || spendModal.style.display !== "none")) {
+      closeSpendConfirmModal();
+      return true;
+    }
+
+    // 2. Fortune Wheel Modal
+    const wheelModal = document.getElementById("fortuneWheelModal");
+    if (wheelModal && (wheelModal.classList.contains("active") || wheelModal.style.display !== "none")) {
+      if (typeof closeFortuneWheelModal === "function") closeFortuneWheelModal();
+      return true;
+    }
+
+    // 3. Send Gift Modal
+    const sendGiftModal = document.getElementById("sendGiftModal");
+    if (sendGiftModal && (sendGiftModal.classList.contains("active") || sendGiftModal.style.display !== "none")) {
+      if (typeof closeSendGiftModal === "function") closeSendGiftModal();
+      return true;
+    }
+
+    // 4. Superlike Modal
+    const slModal = document.getElementById("superlikeModal");
+    if (slModal && (slModal.classList.contains("active") || slModal.style.display !== "none")) {
+      slModal.classList.remove("active");
+      slModal.style.display = "none";
+      return true;
+    }
+
+    // 5. Match Modal
+    const matchModal = document.getElementById("matchModal");
+    if (matchModal && (matchModal.classList.contains("active") || matchModal.style.display !== "none")) {
+      matchModal.classList.remove("active");
+      matchModal.style.display = "none";
+      return true;
+    }
+
+    // 6. Shop Modal
+    const shopModal = document.getElementById("shopModal");
+    if (shopModal && (shopModal.classList.contains("active") || shopModal.style.display !== "none")) {
+      if (typeof closeShopModal === "function") closeShopModal();
+      return true;
+    }
+
+    // 7. Details Sheet Overlay
+    const detailsSheet = document.getElementById("detailsSheetOverlay") || document.getElementById("detailsSheet");
+    if (detailsSheet && (detailsSheet.classList.contains("active") || detailsSheet.style.display !== "none")) {
+      if (typeof closeDetailsSheet === "function") closeDetailsSheet();
+      return true;
+    }
+
+    // 8. Chat Screen Modal
+    const chatModal = document.getElementById("chatScreenModal");
+    if (chatModal && chatModal.style.display !== "none") {
+      if (typeof closeChat === "function") {
+        closeChat();
+      } else {
+        chatModal.style.display = "none";
+      }
+      return true;
+    }
+
+    // 9. Other active modals/sheets
+    const genericModals = Array.from(document.querySelectorAll(".modal-overlay.active, .bottom-sheet-overlay.active, .modal-card.active"));
+    if (genericModals.length > 0) {
+      const topM = genericModals[genericModals.length - 1];
+      topM.classList.remove("active");
+      topM.style.display = "none";
+      return true;
+    }
+
+    return false;
+  }
+
+  function initDesktopKeyboardNavigation() {
+    window.addEventListener("keydown", (e) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
+      const isInput = document.activeElement && (
+        document.activeElement.isContentEditable ||
+        activeTag === "input" ||
+        activeTag === "textarea" ||
+        activeTag === "select"
+      );
+
+      if (e.key === "Escape") {
+        if (closeTopActiveModal()) {
+          e.preventDefault();
+        }
+        return;
+      }
+
+      // If user is typing in form / chat, don't trigger deck swipes
+      if (isInput) return;
+
+      // Check if any modal is active
+      const hasActiveModal = document.querySelector(".modal-overlay.active, .bottom-sheet-overlay.active, #shopModal.active, #fortuneWheelModal.active, #spendConfirmModal.active, #chatScreenModal[style*='display: flex'], #chatScreenModal[style*='display: block']");
+      if (hasActiveModal) return;
+
+      // Only on explore deck
+      if (state.activeTab === "explore") {
+        const remaining = state.feed.slice(state.currentCardIndex);
+        const topProfile = remaining[0];
+        const topCard = deckContainer ? deckContainer.querySelector(".swipe-card:last-child") : null;
+
+        if (e.key === "ArrowLeft") {
+          // Pass / Dislike
+          e.preventDefault();
+          if (topProfile) {
+            triggerHaptic("medium");
+            handleSwipeAction(topProfile, "skip");
+          }
+        } else if (e.key === "ArrowRight") {
+          // Like
+          e.preventDefault();
+          if (topProfile) {
+            triggerHaptic("medium");
+            handleSwipeAction(topProfile, "like");
+          }
+        } else if (e.key === "ArrowUp") {
+          // Superlike
+          e.preventDefault();
+          if (topProfile) {
+            triggerHaptic("heavy");
+            openSuperlikeModal(topProfile);
+          }
+        } else if (e.key === " " || e.code === "Space") {
+          // Space: next photo in carousel
+          e.preventDefault();
+          if (topCard) {
+            const tapRight = topCard.querySelector(".card-tap-right");
+            if (tapRight) {
+              tapRight.click();
+            }
+          }
+        } else if (e.key === "Backspace" || (e.ctrlKey && (e.key.toLowerCase() === "z" || e.key.toLowerCase() === "я"))) {
+          // Backspace / Ctrl+Z: Rewind swipe
+          e.preventDefault();
+          triggerRewindSwipe();
+        }
+      }
+    });
   }
 
   const pendingSwipeIds = new Set();
@@ -4432,13 +4781,34 @@
 
     if (curBalance < 50) {
       triggerHaptic("error");
-      const wantShop = confirm(`Для разблокировки анкеты требуется 50 🎓 зачётов.\nВаш баланс: ${curBalance} 🎓.\n\nОткрыть магазин зачётов?`);
-      if (wantShop && typeof openShopModal === "function") {
-        openShopModal("catalog");
-      }
+      showSpendConfirmModal({
+        icon: "🔒",
+        title: "Недостаточно зачётов",
+        desc: `Для открытия профиля требуется 50 🎓. Ваш текущий баланс: ${curBalance} 🎓. Пополните баланс в магазине!`,
+        cost: 50,
+        submitText: "Магазин зачётов",
+        onConfirm: () => {
+          if (typeof openShopModal === "function") {
+            openShopModal("catalog");
+          }
+        }
+      });
       return;
     }
 
+    showSpendConfirmModal({
+      icon: "🔓",
+      title: "Разблокировать анкету?",
+      desc: "Вы сможете увидеть имя, фотографии и полную анкету понравившегося студента.",
+      cost: 50,
+      submitText: "Разблокировать за 50 🎓",
+      onConfirm: async () => {
+        await executeUnlockLikeWithCredits(targetId, cardEl);
+      }
+    });
+  }
+
+  async function executeUnlockLikeWithCredits(targetId, cardEl) {
     triggerHaptic("medium");
     try {
       const res = await apiFetch("/api/webapp/incoming_likes/unlock", {
@@ -4453,6 +4823,7 @@
           if (likesState.data) likesState.data.credits_balance = res.credits_balance;
           const chipBal = document.getElementById("likesCreditsBalance");
           if (chipBal) chipBal.textContent = res.credits_balance;
+          updateEconomyHeaderBadges(res.credits_balance, shopState?.overview?.streak_days);
         }
 
         if (likesState.data && Array.isArray(likesState.data.likes)) {
@@ -4466,14 +4837,17 @@
           if (lockOverlay) lockOverlay.remove();
         }
 
+        showAppToast("🔓 Анкета успешно открыта!");
         await openDetailsSheet(targetId, { source: "likes" });
         loadIncomingLikes();
       } else {
-        alert(res?.detail || res?.message || "Не удалось разблокировать анкету");
+        triggerHaptic("error");
+        showAppToast(res?.detail || res?.message || "Не удалось разблокировать анкету");
       }
     } catch (e) {
       console.error("Unlock like error:", e);
-      alert("Ошибка при разблокировке анкеты");
+      triggerHaptic("error");
+      showAppToast("Ошибка при разблокировке анкеты");
     }
   }
   window.unlockLikeWithCredits = unlockLikeWithCredits;
@@ -7495,6 +7869,10 @@
     if (shopStrk) {
       shopStrk.textContent = `${strkVal} дн. 🔥`;
     }
+    const rewindBadge = document.getElementById("rewindBadgeCount");
+    if (rewindBadge && shopState?.overview?.rewind_count !== undefined) {
+      rewindBadge.textContent = `${shopState.overview.rewind_count}`;
+    }
   }
 
   function startQuestsCountdown() {
@@ -9005,19 +9383,51 @@
       return;
     }
 
-    const hasInInventory = (shopState.overview?.inventory || []).some(
+    const inventoryItem = (shopState.overview?.inventory || []).find(
       it => it.item_code === giftsState.selectedGiftCode && (it.quantity || 0) > 0
     );
+    const hasInInventory = Boolean(inventoryItem);
     const currentBal = shopState.overview?.credits_balance || 0;
+
     if (!hasInInventory && currentBal < gift.price_credits) {
       triggerHaptic("warning");
-      showAppToast(`Недостаточно зачётов (${currentBal} / ${gift.price_credits} 🎓). Пополните баланс!`);
+      showSpendConfirmModal({
+        icon: "🔒",
+        title: "Недостаточно зачётов",
+        desc: `Для подарка «${gift.title}» нужно ${gift.price_credits} 🎓. Баланс: ${currentBal} 🎓. Пополните баланс в магазине!`,
+        cost: gift.price_credits,
+        submitText: "Магазин зачётов",
+        onConfirm: () => {
+          closeSendGiftModal();
+          if (typeof openShopModal === "function") {
+            openShopModal("catalog");
+          }
+        }
+      });
       return;
     }
 
     const message = (document.getElementById("giftMessageInput")?.value || "").trim();
     const isAnonymous = Boolean(document.getElementById("giftAnonymousToggle")?.checked);
 
+    showSpendConfirmModal({
+      icon: gift.emoji || "🎁",
+      title: `Подарить «${gift.title}»?`,
+      desc: hasInInventory
+        ? `Использовать 1 предмет из инвентаря для отправки ${isAnonymous ? "анонимно" : "со своим именем"}.`
+        : `С вашего баланса будет списано ${gift.price_credits} 🎓.${isAnonymous ? " Отправка анонимная." : ""}`,
+      cost: hasInInventory ? 0 : gift.price_credits,
+      costLabel: hasInInventory ? "1 шт. (Инвентарь)" : `-${gift.price_credits} 🎓`,
+      curBalanceLabel: hasInInventory ? `${inventoryItem.quantity} шт.` : `${currentBal} 🎓`,
+      remainingLabel: hasInInventory ? `${inventoryItem.quantity - 1} шт.` : `${currentBal - gift.price_credits} 🎓`,
+      submitText: hasInInventory ? "Отправить из инвентаря" : `Подарить за ${gift.price_credits} 🎓`,
+      onConfirm: async () => {
+        await executeSendGift(recipientId, gift, message, isAnonymous);
+      }
+    });
+  }
+
+  async function executeSendGift(recipientId, gift, message, isAnonymous) {
     const btn = document.getElementById("btnSubmitSendGift");
     if (btn) btn.disabled = true;
 
@@ -9039,6 +9449,7 @@
         closeSendGiftModal();
         if (resp.new_balance !== undefined) {
           if (shopState.overview) shopState.overview.credits_balance = resp.new_balance;
+          if (state.currentUser) state.currentUser.credits_balance = resp.new_balance;
           updateEconomyHeaderBadges(resp.new_balance, shopState.overview?.streak_days);
         }
         await loadShopData();
@@ -9265,6 +9676,16 @@
       });
     }
 
+    // Spend Confirmation Modal Listeners
+    document.getElementById("btnSpendConfirmCancel")?.addEventListener("click", () => closeSpendConfirmModal());
+    document.getElementById("btnSpendConfirmSubmit")?.addEventListener("click", () => handleSpendConfirmSubmit());
+    const spendConfirmModal = document.getElementById("spendConfirmModal");
+    if (spendConfirmModal) {
+      spendConfirmModal.addEventListener("click", (e) => {
+        if (e.target === spendConfirmModal) closeSpendConfirmModal();
+      });
+    }
+
     // Catalog Filter Pills
     const catalogFilterContainer = document.getElementById("shopCatalogFilters");
     if (catalogFilterContainer) {
@@ -9352,6 +9773,7 @@
     setupMaintenanceListeners();
     setupHallOfFameListeners();
     setupShopListeners();
+    initDesktopKeyboardNavigation();
     if (window.MAINTENANCE_DATA) {
       updateMaintenanceUI(window.MAINTENANCE_DATA);
     }

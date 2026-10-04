@@ -4127,9 +4127,10 @@ async def webapp_economy_overview(
         "inventory": inv_data,
         "has_bought_starter_pack": bool(getattr(user, "has_bought_starter_pack", False)),
         "can_buy_starter": can_buy_starter,
-        "packages": packages_data,
         "credit_packages": packages_data,
+        "packages": packages_data,
         "wheel_status": wheel_status,
+        "rewind_count": next((it.quantity for it in inventory_items if it.item_code == "rewind"), 0),
     }
 
 
@@ -4694,5 +4695,63 @@ async def webapp_convert_gift(
         "credits_added": credits_added,
         "new_balance": u.credits_balance or 0 if u else 0,
     }
+
+
+@router.post("/api/webapp/economy/rewind")
+async def webapp_economy_rewind(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Откат последнего свайпа («Шпора» 🔄)."""
+    if not check_economy_rate_limit(student.id, "swipe_rewind", 1.0):
+        return {"status": "error", "ok": False, "message": "Слишком много запросов. Подождите секунду.", "detail": "Rate limit exceeded"}
+
+    from database.crud import rewind_last_swipe, get_profile
+    from database.models import UserInventoryItem
+
+    success, msg, reverted_id = await rewind_last_swipe(db, student.id)
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+
+    reverted_profile = None
+    if reverted_id:
+        p = await get_profile(db, reverted_id)
+        if p:
+            reverted_profile = {
+                "id": p.user_id,
+                "user_id": p.user_id,
+                "name": p.name,
+                "age": p.age,
+                "city": p.city,
+                "university": p.university,
+                "course": p.course,
+                "major": p.major,
+                "bio": p.bio,
+                "about": p.about,
+                "goal": p.goal,
+                "photos": p.photos or [],
+                "photos_meta": p.photos_meta or [],
+                "interests": p.interests or [],
+                "tags": p.tags or [],
+                "is_verified": bool(p.is_verified),
+                "gender": p.gender,
+            }
+
+    # Подсчитываем оставшиеся шпоры
+    inv_res = await db.execute(
+        select(UserInventoryItem.quantity).where(
+            and_(UserInventoryItem.user_id == student.id, UserInventoryItem.item_code == "rewind")
+        )
+    )
+    rem = inv_res.scalar_one_or_none() or 0
+
+    return {
+        "status": "success",
+        "ok": True,
+        "message": msg,
+        "reverted_profile": reverted_profile,
+        "rewind_count": rem,
+    }
+
 
 
