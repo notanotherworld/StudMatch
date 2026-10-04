@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request, Depends, Form, Query, Response, HTTPExce
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, or_, func
+from sqlalchemy import select, update, delete, or_, and_, func
 from sqlalchemy.orm import selectinload
 
 from web.dependencies import get_db, get_current_admin, check_csrf
@@ -499,25 +499,57 @@ async def restore_all_visibility(
     Гарантирует присутствие всех активных анкет в поиске и устраняет пустые ленты свайпов.
     """
     subq = select(User.id).where(User.is_active == True)
+
+    # 1. Восстанавливаем видимость для тех, у кого есть валидное фото и имя
+    valid_profile_filter = and_(
+        Profile.name.isnot(None),
+        Profile.name != "",
+        Profile.name != "Студент",
+        or_(
+            Profile.avatar_file_id.isnot(None),
+            Profile.career_avatar_file_id.isnot(None),
+        ),
+    )
+
     vis_res = await db.execute(
         update(Profile)
         .where(
             Profile.user_id.in_(subq),
             Profile.is_visible == False,
+            valid_profile_filter,
         )
         .values(is_visible=True)
     )
     restored_vis = vis_res.rowcount
 
+    # 2. Восстанавливаем заполненность только для анкет с реальными данными
     comp_res = await db.execute(
         update(Profile)
         .where(
             Profile.user_id.in_(subq),
             Profile.is_complete == False,
+            valid_profile_filter,
         )
         .values(is_complete=True)
     )
     restored_comp = comp_res.rowcount
+
+    # 3. Деактивируем анкеты-пустышки (без фото или без имени)
+    ghost_res = await db.execute(
+        update(Profile)
+        .where(
+            Profile.user_id.in_(subq),
+            or_(
+                Profile.name.is_(None),
+                Profile.name == "",
+                Profile.name == "Студент",
+                and_(Profile.avatar_file_id.is_(None), Profile.career_avatar_file_id.is_(None)),
+            ),
+            or_(Profile.is_complete == True, Profile.is_visible == True),
+        )
+        .values(is_complete=False, is_visible=False)
+    )
+    ghosts_hidden = ghost_res.rowcount
     await db.commit()
 
     client_ip = request.client.host if request.client else None
@@ -527,12 +559,54 @@ async def restore_all_visibility(
         action="bulk_restore_visibility",
         target_type="system",
         target_id="profiles",
-        details=f"Массовое восстановление анкет: видимость={restored_vis}, заполненность={restored_comp}",
+        details=f"Массовое восстановление анкет: видимость={restored_vis}, заполненность={restored_comp}, скрыто пустышек={ghosts_hidden}",
         ip_address=client_ip,
     )
 
     return RedirectResponse(
-        f"/admin/users?restored_count={restored_vis}&restored_comp={restored_comp}",
+        f"/admin/users?restored_count={restored_vis}&restored_comp={restored_comp}&ghosts_hidden={ghosts_hidden}",
+        status_code=302,
+    )
+
+
+@router.post("/users/hide-empty-profiles", dependencies=[Depends(check_csrf)])
+async def hide_empty_profiles_admin(
+    request: Request,
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Скрыть и снять заполненность со всех анкет-пустышек (где нет фото или имени)."""
+    subq = select(User.id).where(User.is_active == True)
+    update_res = await db.execute(
+        update(Profile)
+        .where(
+            Profile.user_id.in_(subq),
+            or_(
+                Profile.name.is_(None),
+                Profile.name == "",
+                Profile.name == "Студент",
+                and_(Profile.avatar_file_id.is_(None), Profile.career_avatar_file_id.is_(None)),
+            ),
+            or_(Profile.is_complete == True, Profile.is_visible == True),
+        )
+        .values(is_complete=False, is_visible=False)
+    )
+    hidden_count = update_res.rowcount
+    await db.commit()
+
+    client_ip = request.client.host if request.client else None
+    await log_admin_action(
+        db,
+        admin,
+        action="hide_empty_profiles",
+        target_type="system",
+        target_id="profiles",
+        details=f"Скрыто {hidden_count} анкет-пустышек без фото/имени",
+        ip_address=client_ip,
+    )
+
+    return RedirectResponse(
+        f"/admin/users?hidden_empty_count={hidden_count}",
         status_code=302,
     )
 

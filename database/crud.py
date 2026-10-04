@@ -679,12 +679,19 @@ async def get_next_profile(
     )
     recent_swiped_ids = list(recent_swipes_res.scalars().all())
 
-    # Базовые условия выборки
+    # Базовые условия выборки (исключаем анкеты-пустышки без фото, без имени или с дефолтным "Студент")
     base_conditions = [
         Profile.is_visible == True,
         is_complete_cond,
         User.is_active == True,
         Profile.user_id != viewer_id,
+        Profile.name.isnot(None),
+        Profile.name != "",
+        Profile.name != "Студент",
+        or_(
+            Profile.avatar_file_id.isnot(None),
+            Profile.career_avatar_file_id.isnot(None),
+        ),
         ~reported_subq,
         ~liked_subq,
         ~matched_subq,

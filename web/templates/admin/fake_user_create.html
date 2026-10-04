@@ -405,7 +405,7 @@
   const previewFormat = document.getElementById('previewFormat');
 
   function updatePreview() {
-    const name = inputName.value.trim() || 'Студент';
+    const name = inputName.value.trim() || 'Имя';
     const year = inputYear.value || '1';
     const ageVal = inputAge && inputAge.value ? inputAge.value : (17 + parseInt(year));
     previewTitle.innerText = `${name}, ${ageVal} лет, ${year} курс`;

@@ -120,7 +120,7 @@ def test_users_html_restore_all_button_and_banner():
     env = Environment(loader=FileSystemLoader("web/templates"))
     template = env.get_template("admin/users.html")
 
-    request = DummyRequest(query_params={"restored_count": "15"})
+    request = DummyRequest(query_params={"restored_count": "15", "hidden_empty_count": "7"})
     rendered = template.render(
         users=[DummyUser()],
         admin=type("Admin", (), {"id": 1, "username": "admin"})(),
@@ -138,6 +138,9 @@ def test_users_html_restore_all_button_and_banner():
     assert "/admin/users/restore-all-visibility" in rendered
     assert "Восстановить видимость" in rendered
     assert "Успешно восстановлена видимость в поиске для <b>15</b> анкет" in rendered
+    assert "/admin/users/hide-empty-profiles" in rendered
+    assert "Скрыть пустышки" in rendered
+    assert "Успешно скрыто <b>7</b> анкет без фотографий или с дефолтным именем «Студент»!" in rendered
     assert "/admin/users/reset-all-swipes" in rendered
 
 
@@ -234,5 +237,164 @@ def test_user_detail_action_banners():
             admin=type("Admin", (), {"id": 1, "username": "admin"})(),
         )
         assert expected_text in rendered
+
+
+import pytest
+import sqlite3
+import json
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select, update, or_, and_
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.types import ARRAY
+from sqlalchemy.dialects.postgresql import UUID
+
+sqlite3.register_adapter(list, json.dumps)
+sqlite3.register_converter("JSON", json.loads)
+
+@compiles(ARRAY, "sqlite")
+def compile_array_sqlite(type_, compiler, **kw):
+    return "JSON"
+
+@compiles(UUID, "sqlite")
+def compile_uuid_sqlite(type_, compiler, **kw):
+    return "VARCHAR(36)"
+
+from database.models import Base, User, Profile, ModeEnum
+from database.crud import get_next_profile
+
+
+@pytest.mark.asyncio
+async def test_ghost_profiles_excluded_and_cleanup():
+    db_path = "test_ghost_profiles.db"
+    if os.path.exists(db_path):
+        try:
+            os.remove(db_path)
+        except Exception:
+            pass
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}", echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with async_session() as db:
+        # 1. Создаем смотрящего
+        viewer = User(id=700000001, tg_username="viewer", is_active=True, mode=ModeEnum.dating)
+        viewer_prof = Profile(
+            user_id=viewer.id,
+            name="Алексей",
+            gender="male",
+            target_gender="all",
+            avatar_file_id="photo_viewer",
+            is_visible=True,
+            is_complete=True,
+        )
+
+        # 2. Валидный кандидат (должен выдаваться)
+        valid_user = User(id=700000002, tg_username="valid_user", is_active=True, mode=ModeEnum.dating)
+        valid_prof = Profile(
+            user_id=valid_user.id,
+            name="Алина",
+            gender="female",
+            target_gender="all",
+            avatar_file_id="photo_alina",
+            is_visible=True,
+            is_complete=True,
+        )
+
+        # 3. Пустышка 1: имя "Студент" (дефолтное)
+        ghost_student = User(id=700000003, tg_username="ghost_student", is_active=True, mode=ModeEnum.dating)
+        ghost_student_prof = Profile(
+            user_id=ghost_student.id,
+            name="Студент",
+            gender="female",
+            target_gender="all",
+            avatar_file_id="photo_student",
+            is_visible=True,
+            is_complete=True,
+        )
+
+        # 4. Пустышка 2: нет аватара
+        ghost_no_photo = User(id=700000004, tg_username="ghost_no_photo", is_active=True, mode=ModeEnum.dating)
+        ghost_no_photo_prof = Profile(
+            user_id=ghost_no_photo.id,
+            name="Мария",
+            gender="female",
+            target_gender="all",
+            avatar_file_id=None,
+            career_avatar_file_id=None,
+            is_visible=True,
+            is_complete=True,
+        )
+
+        # 5. Пустышка 3: пустое имя (None)
+        ghost_no_name = User(id=700000005, tg_username="ghost_no_name", is_active=True, mode=ModeEnum.dating)
+        ghost_no_name_prof = Profile(
+            user_id=ghost_no_name.id,
+            name=None,
+            gender="female",
+            target_gender="all",
+            avatar_file_id="photo_noname",
+            is_visible=True,
+            is_complete=True,
+        )
+
+        db.add_all([
+            viewer, viewer_prof,
+            valid_user, valid_prof,
+            ghost_student, ghost_student_prof,
+            ghost_no_photo, ghost_no_photo_prof,
+            ghost_no_name, ghost_no_name_prof,
+        ])
+        await db.commit()
+
+        # Тест get_next_profile: должен вернуть ТОЛЬКО валидного кандидата Алину
+        cand = await get_next_profile(db, viewer_id=viewer.id, mode=ModeEnum.dating)
+        assert cand is not None, "Валидная анкета должна быть найдена"
+        assert cand.user_id == valid_user.id
+        assert cand.name == "Алина"
+
+        # Когда Алина исключена (например, уже свайпнута), get_next_profile не должен выдавать пустышек
+        cand_next = await get_next_profile(db, viewer_id=viewer.id, mode=ModeEnum.dating, exclude_ids=[valid_user.id])
+        assert cand_next is None, "Пустышки (Студент, без фото, без имени) не должны выдаваться в свайпах!"
+
+        # Тест массовой очистки hide-empty-profiles
+        subq = select(User.id).where(User.is_active == True)
+        update_res = await db.execute(
+            update(Profile)
+            .where(
+                Profile.user_id.in_(subq),
+                or_(
+                    Profile.name.is_(None),
+                    Profile.name == "",
+                    Profile.name == "Студент",
+                    and_(Profile.avatar_file_id.is_(None), Profile.career_avatar_file_id.is_(None)),
+                ),
+                or_(Profile.is_complete == True, Profile.is_visible == True),
+            )
+            .values(is_complete=False, is_visible=False)
+        )
+        assert update_res.rowcount == 3, f"Должно быть скрыто ровно 3 пустышки, скрыто: {update_res.rowcount}"
+        await db.commit()
+
+        # Проверяем, что валидная анкета осталась нетронутой
+        res_valid = await db.scalar(select(Profile).where(Profile.user_id == valid_user.id))
+        assert res_valid.is_visible is True
+        assert res_valid.is_complete is True
+
+        # Проверяем, что пустышки деактивированы
+        for ghost_id in [ghost_student.id, ghost_no_photo.id, ghost_no_name.id]:
+            p = await db.scalar(select(Profile).where(Profile.user_id == ghost_id))
+            assert p.is_visible is False
+            assert p.is_complete is False
+
+    await engine.dispose()
+    if os.path.exists(db_path):
+        try:
+            os.remove(db_path)
+        except Exception:
+            pass
 
 
