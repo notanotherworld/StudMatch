@@ -1339,9 +1339,9 @@ async def create_payment(
 
 
 async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optional[Payment]:
-    """Подтвердить платёж и начислить товар."""
+    """Подтвердить платёж и начислить товар с защитой от race condition."""
     result = await db.execute(
-        select(Payment).where(Payment.yookassa_payment_id == yookassa_payment_id)
+        select(Payment).where(Payment.yookassa_payment_id == yookassa_payment_id).with_for_update()
     )
     payment = result.scalar_one_or_none()
     if not payment or payment.status != PaymentStatus.pending:
@@ -1435,6 +1435,109 @@ async def confirm_payment(db: AsyncSession, yookassa_payment_id: str) -> Optiona
         pass
 
     await db.commit()
+    return payment
+
+
+async def process_payment_refund(
+    db: AsyncSession, yookassa_payment_id: str, reason: str = "refund"
+) -> Optional[Payment]:
+    """
+    Обработка отмены/возврата платежа (refund/chargeback).
+    Переводит статус платежа в refunded/canceled и отзывает начисленные блага.
+    """
+    result = await db.execute(
+        select(Payment).where(Payment.yookassa_payment_id == yookassa_payment_id).with_for_update()
+    )
+    payment = result.scalar_one_or_none()
+    if not payment:
+        return None
+
+    if payment.status in (PaymentStatus.refunded, PaymentStatus.canceled):
+        return payment
+
+    # Если платёж был успешно подтверждён ранее, отзываем начисленные товары
+    if payment.status == PaymentStatus.succeeded:
+        user = await get_user(db, payment.user_id)
+        if user:
+            prod_val = payment.product.value if hasattr(payment.product, 'value') else str(payment.product)
+            try:
+                from bot.utils.dynamic_settings import get_payment_products_catalog
+                catalog = await get_payment_products_catalog()
+                catalog_map = {p["id"]: p for p in catalog}
+            except Exception:
+                catalog_map = {}
+
+            prod_meta = catalog_map.get(prod_val)
+            if prod_meta:
+                btype = prod_meta.get("bonus_type")
+                bval = int(prod_meta.get("bonus_value", 1))
+                if btype == "superlikes":
+                    user.superlikes_balance = max(0, (user.superlikes_balance or 0) - bval)
+                elif btype == "boost":
+                    user.boost_until = None
+                elif btype == "premium":
+                    user.is_premium = False
+                    user.premium_until = None
+                elif btype == "credits":
+                    await deduct_user_credits_forced(
+                        db, payment.user_id, bval,
+                        tx_type="refund",
+                        description=f"Отзыв зачётов (возврат {payment.amount_rub} ₽)",
+                        reference_id=prod_val,
+                    )
+            else:
+                if prod_val == "starter_pack_99" or payment.product == PaymentProduct.starter_pack_99:
+                    await deduct_user_credits_forced(
+                        db, payment.user_id, 300,
+                        tx_type="refund",
+                        description="Отзыв стартового набора (возврат 99 ₽)",
+                        reference_id="starter_pack_99",
+                    )
+                    user.has_bought_starter_pack = False
+                    user.boost_until = None
+                    user.streak_freeze_count = max(0, (user.streak_freeze_count or 0) - 1)
+                    inv_res = await db.execute(
+                        select(UserInventoryItem).where(
+                            and_(
+                                UserInventoryItem.user_id == user.id,
+                                UserInventoryItem.item_code == "rewind",
+                            )
+                        )
+                    )
+                    rewind_item = inv_res.scalar_one_or_none()
+                    if rewind_item:
+                        rewind_item.quantity = max(0, rewind_item.quantity - 3)
+                elif prod_val == "credits_100":
+                    await deduct_user_credits_forced(db, payment.user_id, 100, tx_type="refund", description="Отзыв пакета «Шпаргалка»", reference_id=prod_val)
+                elif prod_val == "credits_300":
+                    await deduct_user_credits_forced(db, payment.user_id, 330, tx_type="refund", description="Отзыв пакета «Студенческий»", reference_id=prod_val)
+                elif prod_val == "credits_700":
+                    await deduct_user_credits_forced(db, payment.user_id, 800, tx_type="refund", description="Отзыв пакета «Сессия закрыта»", reference_id=prod_val)
+                elif prod_val == "credits_1500":
+                    await deduct_user_credits_forced(db, payment.user_id, 1800, tx_type="refund", description="Отзыв пакета «Красный диплом»", reference_id=prod_val)
+                elif prod_val == "credits_3000":
+                    await deduct_user_credits_forced(db, payment.user_id, 3800, tx_type="refund", description="Отзыв пакета «Грант ректора»", reference_id=prod_val)
+                elif prod_val == "credits_6000":
+                    await deduct_user_credits_forced(db, payment.user_id, 8000, tx_type="refund", description="Отзыв пакета «Кампусный инвестор»", reference_id=prod_val)
+                elif payment.product == PaymentProduct.superlike_1:
+                    user.superlikes_balance = max(0, (user.superlikes_balance or 0) - 1)
+                elif payment.product == PaymentProduct.superlike_3:
+                    user.superlikes_balance = max(0, (user.superlikes_balance or 0) - 3)
+                elif payment.product == PaymentProduct.superlike_5:
+                    user.superlikes_balance = max(0, (user.superlikes_balance or 0) - 5)
+                elif payment.product == PaymentProduct.superlike_10:
+                    user.superlikes_balance = max(0, (user.superlikes_balance or 0) - 10)
+                elif payment.product == PaymentProduct.boost_24h:
+                    user.boost_until = None
+                elif payment.product == PaymentProduct.premium_1m:
+                    user.is_premium = False
+                    user.premium_until = None
+                    user.superlikes_balance = max(0, (user.superlikes_balance or 0) - 10)
+
+    payment.status = PaymentStatus.refunded if reason == "refund" else PaymentStatus.canceled
+    payment.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(payment)
     return payment
 
 
@@ -2032,6 +2135,45 @@ async def spend_user_credits(
     db.add(tx)
     await db.commit()
     return True, new_balance
+
+
+async def deduct_user_credits_forced(
+    db: AsyncSession,
+    user_id: int,
+    amount: int,
+    tx_type: str = "refund",
+    description: str = "Списание зачётов (возврат платежа)",
+    reference_id: Optional[str] = None,
+) -> int:
+    """
+    Принудительное списание зачётов (например, при chargeback или возврате средств).
+    Баланс пользователя может уйти в минус.
+    """
+    if amount <= 0:
+        res = await db.execute(select(User.credits_balance).where(User.id == user_id))
+        return res.scalar_one_or_none() or 0
+
+    result = await db.execute(
+        update(User)
+        .where(User.id == user_id)
+        .values(credits_balance=User.credits_balance - amount)
+        .returning(User.credits_balance)
+    )
+    new_balance = result.scalar_one_or_none()
+    if new_balance is None:
+        return 0
+
+    tx = EconomyTransaction(
+        user_id=user_id,
+        amount=-amount,
+        balance_after=new_balance,
+        tx_type=tx_type,
+        reference_id=reference_id,
+        description=description,
+    )
+    db.add(tx)
+    await db.commit()
+    return new_balance
 
 
 async def get_user_credits_balance(db: AsyncSession, user_id: int) -> int:

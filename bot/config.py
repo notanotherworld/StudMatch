@@ -76,6 +76,41 @@ class Settings(BaseSettings):
 
     # Web
     SECRET_KEY: str = "change_me"
+
+    @field_validator("SECRET_KEY", mode="before")
+    @classmethod
+    def ensure_secure_secret_key(cls, v: Any) -> str:
+        s = str(v or "").strip().strip("\"'").strip()
+        insecure_defaults = {"change_me", "change_this_to_random_secret_64chars", "secret", "default", ""}
+        if not s or s in insecure_defaults or len(s) < 32:
+            import secrets, os, logging
+            new_key = secrets.token_hex(32)
+            logging.getLogger(__name__).warning(
+                "[SECURITY] Insecure or missing SECRET_KEY detected. Automatically generated a strong 64-character secret key."
+            )
+            env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+            try:
+                if os.path.exists(env_path) and os.access(env_path, os.W_OK):
+                    with open(env_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    if "SECRET_KEY=" in content:
+                        lines = content.splitlines()
+                        new_lines = []
+                        for line in lines:
+                            if line.strip().startswith("SECRET_KEY="):
+                                new_lines.append(f"SECRET_KEY={new_key}")
+                            else:
+                                new_lines.append(line)
+                        new_content = "\n".join(new_lines) + ("\n" if content.endswith("\n") else "")
+                    else:
+                        new_content = content + f"\nSECRET_KEY={new_key}\n"
+                    with open(env_path, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+                    logging.getLogger(__name__).info(f"[SECURITY] Successfully persisted generated SECRET_KEY to {env_path}")
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"[SECURITY] Could not persist SECRET_KEY to .env: {e}")
+            return new_key
+        return s
     WEB_HOST: str = "0.0.0.0"
     WEB_PORT: int = 8000
     DOMAIN: str = "https://stud-match.ru"

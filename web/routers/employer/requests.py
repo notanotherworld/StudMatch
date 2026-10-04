@@ -12,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
-from web.dependencies import get_db, get_current_employer
+from web.dependencies import get_db, get_current_employer, check_csrf
 from database.models import EmployerRequest, Employer, Admin
 from bot.config import settings
 
@@ -46,7 +46,7 @@ async def requests_page(
     )
 
 
-@router.post("/requests")
+@router.post("/requests", dependencies=[Depends(check_csrf)])
 async def create_request(
     request: Request,
     title: str = Form(...),

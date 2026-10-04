@@ -405,9 +405,10 @@ async def webapp_feed(
             # Первое фото (idx == 0) ВСЕГДА открыто
             # Дополнительные фото (idx > 0) приватны, если они в private_photos
             is_priv = bool(idx > 0 and str(pid).strip() in priv_photos_set)
+            safe_url = DEFAULT_FALLBACK_AVATAR if is_priv else url
             photos_meta.append({
-                "id": str(pid),
-                "url": url,
+                "id": str(pid) if not is_priv else f"private_{idx}",
+                "url": safe_url,
                 "is_private": is_priv,
             })
 
@@ -1155,6 +1156,38 @@ async def webapp_report_from_chat(
 @router.websocket("/api/webapp/ws/chat/{match_id}")
 async def websocket_chat_endpoint(websocket: WebSocket, match_id: str):
     """WebSocket для real-time обмена сообщениями и статусами диалога."""
+    # C9: Защита от Cross-Site WebSocket Hijacking (CSWSH)
+    origin = websocket.headers.get("origin")
+    if origin:
+        from urllib.parse import urlparse
+        parsed = urlparse(origin)
+        origin_host = (parsed.hostname or "").lower()
+        is_dev = (
+            getattr(settings, "DEBUG", False)
+            or os.getenv("DEBUG", "false").lower() == "true"
+            or os.getenv("TESTING") == "true"
+            or str(settings.DATABASE_URL).startswith("sqlite")
+        )
+        domain_host = urlparse(settings.DOMAIN).hostname if settings.DOMAIN else "stud-match.ru"
+        allowed_hosts = {
+            "stud-match.ru", "www.stud-match.ru", "landing.stud-match.ru",
+            "web.telegram.org", "t.me",
+        }
+        if domain_host:
+            allowed_hosts.add(domain_host.lower())
+        if is_dev:
+            allowed_hosts.update({"localhost", "127.0.0.1", "0.0.0.0"})
+
+        is_allowed = (
+            origin_host in allowed_hosts
+            or origin_host.endswith(".stud-match.ru")
+            or origin_host.endswith(".telegram.org")
+        )
+        if not is_allowed:
+            logger.warning(f"[SECURITY] CSWSH rejected: WebSocket from unauthorized origin: {origin!r}")
+            await websocket.close(code=1008)
+            return
+
     token = websocket.query_params.get("token")
     if not token:
         token = websocket.cookies.get("student_token")
@@ -1524,6 +1557,34 @@ async def webapp_profile(
 
 
 # ─── API: Редактирование профиля студента ───────────────────
+def sanitize_portfolio_url(url: Optional[str]) -> Optional[str]:
+    """
+    Валидирует и нормализует URL портфолио/резюме для защиты от Stored XSS (javascript: и т.д.).
+    Разрешает только протоколы http:// и https://.
+    Автоматически добавляет https://, если передан чистый домен.
+    """
+    if not url:
+        return None
+    cleaned = str(url).strip()
+    if not cleaned:
+        return None
+    lower = cleaned.lower()
+    # Защита от опасных псевдо-протоколов
+    if lower.startswith(("javascript:", "data:", "vbscript:", "file:", "blob:")):
+        raise HTTPException(
+            status_code=400,
+            detail="Недопустимый формат ссылки. Разрешены только протоколы http:// и https://",
+        )
+    if lower.startswith("http://") or lower.startswith("https://"):
+        return cleaned[:500]
+    if "." in cleaned and not cleaned.startswith("/"):
+        return f"https://{cleaned}"[:500]
+    raise HTTPException(
+        status_code=400,
+        detail="Некорректная ссылка на портфолио. Ссылка должна начинаться с https://",
+    )
+
+
 class ProfileUpdateRequest(BaseModel):
     name: Optional[str] = None
     age: Optional[int] = None
@@ -1541,6 +1602,11 @@ class ProfileUpdateRequest(BaseModel):
     project_role: Optional[str] = None
     project_skills: Optional[str] = None
     project_bio: Optional[str] = None
+
+    @field_validator("career_portfolio_url")
+    @classmethod
+    def validate_career_portfolio_url(cls, v: Optional[str]) -> Optional[str]:
+        return sanitize_portfolio_url(v)
 
 
 @router.get("/api/webapp/tags")
@@ -1970,6 +2036,11 @@ class CareerProfileUpdateRequest(BaseModel):
     career_portfolio_url: Optional[str] = None
     career_work_format: Optional[str] = None
     career_avatar_file_id: Optional[str] = None
+
+    @field_validator("career_portfolio_url")
+    @classmethod
+    def validate_career_portfolio_url(cls, v: Optional[str]) -> Optional[str]:
+        return sanitize_portfolio_url(v)
 
 
 @router.post("/api/webapp/profile/career")

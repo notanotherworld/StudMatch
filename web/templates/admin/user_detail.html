@@ -617,10 +617,12 @@
         <div>
           <div style="color:var(--muted);font-size:11px;margin-bottom:2px;">Портфолио / Резюме</div>
           <div>
-            {% if user.profile.career_portfolio_url %}
-              <a href="{{ user.profile.career_portfolio_url }}" target="_blank" style="color:var(--accent2);word-break:break-all;">
+            {% if user.profile.career_portfolio_url and user.profile.career_portfolio_url.lower().startswith(('http://', 'https://')) %}
+              <a href="{{ user.profile.career_portfolio_url }}" target="_blank" rel="noopener noreferrer" style="color:var(--accent2);word-break:break-all;">
                 🔗 {{ user.profile.career_portfolio_url }}
               </a>
+            {% elif user.profile.career_portfolio_url %}
+              <span style="color:var(--danger);font-size:12px;">⚠️ Небезопасная ссылка заблокирована</span>
             {% else %}
               —
             {% endif %}

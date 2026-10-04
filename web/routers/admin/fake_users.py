@@ -12,6 +12,7 @@ from sqlalchemy import select, delete
 from web.dependencies import get_db, get_current_admin, check_csrf
 from web.utils.audit import log_admin_action
 from web.utils.uploads import save_avatar_upload
+from web.routers.webapp import sanitize_portfolio_url
 from database.models import (
     User, Profile, University, InterestTag, ModeEnum, Swipe, Match, Report, Achievement
 )
@@ -48,8 +49,8 @@ async def create_fake_user_page(
     )
 
 
-@router.post("/users/create-fake")
-@router.post("/fake-users/create")
+@router.post("/users/create-fake", dependencies=[Depends(check_csrf)])
+@router.post("/fake-users/create", dependencies=[Depends(check_csrf)])
 async def create_fake_user_action(
     request: Request,
     admin=Depends(get_current_admin),
@@ -137,7 +138,9 @@ async def create_fake_user_action(
         career_avatar_file_id=career_photo_url,
         career_goal=career_goal.strip() if career_goal else "Ищу стажировку в IT и команду для хакатонов",
         career_custom_skills=career_custom_skills.strip() if career_custom_skills else "Python, FastApi, SQL, Git",
-        career_portfolio_url=career_portfolio_url.strip() if career_portfolio_url else None,
+        career_portfolio_url=(
+            sanitize_portfolio_url(career_portfolio_url) if career_portfolio_url else None
+        ),
         career_work_format=career_work_format if career_work_format else "🌐 Удалённо",
         rating_score=rating_score,
         is_complete=(is_dating_complete == "on" or is_dating_complete == "true" or is_dating_complete == "1"),
@@ -155,7 +158,7 @@ async def create_fake_user_action(
     return RedirectResponse(url="/admin/users?is_fake=true", status_code=303)
 
 
-@router.post("/users/{user_id}/delete-fake")
+@router.post("/users/{user_id}/delete-fake", dependencies=[Depends(check_csrf)])
 async def delete_fake_user(
     user_id: int,
     request: Request,

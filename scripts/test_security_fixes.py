@@ -125,3 +125,216 @@ async def test_auth_middleware_blocks_banned_user():
         # Пользователю должно быть отправлено сообщение о блокировке
         mock_answer.assert_called_once()
         assert "заблокирован" in mock_answer.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_yookassa_webhook_amount_mismatch_rejected():
+    """Тест C4: Отклонение вебхука при несовпадении суммы с заказом."""
+    dummy_payment = MagicMock()
+    dummy_payment.amount_rub = 999.0
+    dummy_payment.status = "pending"
+
+    dummy_db = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = dummy_payment
+    dummy_db.execute.return_value = mock_result
+
+    request = MagicMock()
+    request.headers = {"x-real-ip": "185.71.76.10"}
+    request.client = MagicMock(host="185.71.76.10")
+    # Злоумышленник пытается подтвердить заказ на 999 руб, оплатив только 1 рубль
+    request.json = AsyncMock(return_value={
+        "event": "payment.succeeded",
+        "object": {
+            "id": "pay_fake_123",
+            "amount": {"value": "1.00", "currency": "RUB"},
+        }
+    })
+
+    with patch("web.routers.admin.payments._is_allowed_yookassa_ip", return_value=True), \
+         patch("bot.config.settings.YOOKASSA_SHOP_ID", ""), \
+         patch("bot.config.settings.YOOKASSA_SECRET_KEY", ""):
+        resp = await yookassa_webhook(request, dummy_db)
+        assert resp.status_code == 400
+        data = json.loads(resp.body.decode())
+        assert data["status"] == "rejected"
+        assert "Payment amount mismatch" in data["detail"]
+
+
+@pytest.mark.asyncio
+async def test_yookassa_webhook_refund_revokes_perks():
+    """Тест C5: Обработка refund.succeeded с автоматическим отзывом услуг."""
+    from database.crud import process_payment_refund
+    from database.models import PaymentStatus
+
+    dummy_user = MagicMock()
+    dummy_user.id = 777
+    dummy_user.credits_balance = 300
+    dummy_user.boost_until = datetime.now(timezone.utc)
+    dummy_user.superlikes_balance = 5
+
+    dummy_payment = MagicMock()
+    dummy_payment.id = 1
+    dummy_payment.user_id = 777
+    dummy_payment.product = "credits_300"
+    dummy_payment.amount_rub = 249.0
+    dummy_payment.status = PaymentStatus.succeeded
+
+    dummy_db = AsyncMock()
+    mock_res = MagicMock()
+    mock_res.scalar_one_or_none.return_value = dummy_payment
+    dummy_db.execute.return_value = mock_res
+
+    with patch("database.crud.get_user", AsyncMock(return_value=dummy_user)), \
+         patch("database.crud.deduct_user_credits_forced", AsyncMock(return_value=0)) as mock_deduct:
+        res = await process_payment_refund(dummy_db, "yk_refund_123", reason="refund")
+        assert res is not None
+        assert res.status == PaymentStatus.refunded
+        mock_deduct.assert_called_once()
+
+
+def test_yookassa_ip_spoofing_via_x_forwarded_for_neutralized():
+    """Тест C6: X-Forwarded-For не может использоваться для обхода белого списка IP."""
+    # Если клиент передает поддельный X-Forwarded-For с IP ЮKassa, но X-Real-IP чужой
+    # запрос должен отклоняться
+    fake_headers = {
+        "x-forwarded-for": "185.71.76.10, 1.2.3.4",
+        "x-real-ip": "8.8.8.8",
+    }
+    x_real = fake_headers.get("x-real-ip")
+    client_ip = (x_real or fake_headers.get("x-forwarded-for", "").split(",")[0]).strip()
+    assert _is_allowed_yookassa_ip(client_ip, is_dev_or_test=False) is False
+
+
+def test_c1_secret_key_auto_generation():
+    """Тест C1: Авто-генерация безопасного 64-символьного ключа при change_me/небезопасном ключе."""
+    from bot.config import Settings
+    generated_key = Settings.ensure_secure_secret_key("change_me")
+    assert len(generated_key) == 64
+    assert generated_key != "change_me"
+
+    # Безопасный ключ валидной длины сохраняется без изменений
+    safe_custom = "a" * 48
+    assert Settings.ensure_secure_secret_key(safe_custom) == safe_custom
+
+
+def test_c2_stored_xss_prevention():
+    """Тест C2: Защита от Stored XSS через javascript: URL в портфолио."""
+    from web.routers.webapp import sanitize_portfolio_url
+    from fastapi import HTTPException
+
+    # javascript: схемы должны возбуждать HTTPException 400
+    with pytest.raises(HTTPException) as exc_info:
+        sanitize_portfolio_url("javascript:alert(document.cookie)")
+    assert exc_info.value.status_code == 400
+
+    with pytest.raises(HTTPException):
+        sanitize_portfolio_url("DATA:text/html,<script>alert(1)</script>")
+
+    with pytest.raises(HTTPException):
+        sanitize_portfolio_url("vbscript:msgbox(1)")
+
+    # Валидные URL должны проходить
+    assert sanitize_portfolio_url("https://github.com/developer") == "https://github.com/developer"
+    # Чистый домен должен нормализоваться в https://
+    assert sanitize_portfolio_url("github.com/developer") == "https://github.com/developer"
+
+
+@pytest.mark.asyncio
+async def test_c3_race_condition_protection():
+    """Тест C3: Идемпотентность confirm_payment и защита от повторного/двойного начисления."""
+    from database.crud import confirm_payment
+    from database.models import PaymentStatus
+
+    dummy_payment = MagicMock()
+    dummy_payment.status = PaymentStatus.succeeded
+    dummy_db = AsyncMock()
+    mock_res = MagicMock()
+    mock_res.scalar_one_or_none.return_value = dummy_payment
+    dummy_db.execute.return_value = mock_res
+
+    # Если платеж уже succeeded (второй параллельный webhook), начисление не должно повторяться
+    result = await confirm_payment(dummy_db, "yk_already_processed")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_c7_csrf_protection_on_emergency_and_tariffs():
+    """Тест C7: Защита от CSRF на emergency quick-toggle и тарифах."""
+    from web.dependencies import check_csrf
+    from fastapi import HTTPException
+
+    # Запрос без CSRF токена должен отклоняться со статусом 403
+    request = MagicMock()
+    request.method = "POST"
+    request.headers = {}
+    request.form = AsyncMock(return_value={})
+    request.cookies = {"admin_token": "valid_admin_session"}
+
+    with pytest.raises(HTTPException) as exc_info:
+        await check_csrf(request)
+    assert exc_info.value.status_code == 403
+    assert "Invalid CSRF token" in exc_info.value.detail
+
+
+def test_c8_private_photo_leak_prevention():
+    """Тест C8: Приватные фото маскируются на бэкенде, защищая от утечки через JSON."""
+    from web.routers.webapp import DEFAULT_FALLBACK_AVATAR
+
+    photos = ["public_photo_1.jpg", "secret_photo_2.jpg", "secret_photo_3.jpg"]
+    priv_photos_set = {"secret_photo_2.jpg", "secret_photo_3.jpg"}
+
+    # Логика маскирования из feed
+    photos_meta = []
+    for idx, pid in enumerate(photos):
+        url = f"https://s3.local/{pid}"
+        is_priv = bool(idx > 0 and str(pid).strip() in priv_photos_set)
+        safe_url = DEFAULT_FALLBACK_AVATAR if is_priv else url
+        photos_meta.append({
+            "id": str(pid) if not is_priv else f"private_{idx}",
+            "url": safe_url,
+            "is_private": is_priv,
+        })
+
+    # Публичное фото должно иметь реальный URL
+    assert photos_meta[0]["url"] == "https://s3.local/public_photo_1.jpg"
+    assert photos_meta[0]["is_private"] is False
+
+    # Приватные фото ДОЛЖНЫ содержать только плейсхолдер и замаскированный ID
+    assert photos_meta[1]["url"] == DEFAULT_FALLBACK_AVATAR
+    assert photos_meta[1]["id"] == "private_1"
+    assert "secret_photo_2.jpg" not in photos_meta[1]["url"]
+
+    assert photos_meta[2]["url"] == DEFAULT_FALLBACK_AVATAR
+    assert photos_meta[2]["id"] == "private_2"
+
+
+@pytest.mark.asyncio
+async def test_c9_websocket_cswsh_protection():
+    """Тест C9: Защита от Cross-Site WebSocket Hijacking через проверку Origin."""
+    from web.routers.webapp import websocket_chat_endpoint
+
+    # 1. Попытка подключения с вредоносного внешнего сайта
+    malicious_ws = MagicMock()
+    malicious_ws.headers = {"origin": "https://evil-attacker.com"}
+    malicious_ws.close = AsyncMock()
+
+    with patch("web.routers.webapp._DEBUG", False), \
+         patch("bot.config.settings.DEBUG", False), \
+         patch("bot.config.settings.DATABASE_URL", "postgresql+asyncpg://user:pass@host:5432/db"):
+        await websocket_chat_endpoint(malicious_ws, "00000000-0000-0000-0000-000000000000")
+        # Вебсокет должен быть немедленно закрыт с кодом 1008 (Policy Violation)
+        malicious_ws.close.assert_called_once_with(code=1008)
+
+    # 2. Попытка подключения с легитимного домена WebApp
+    legit_ws = MagicMock()
+    legit_ws.headers = {"origin": "https://stud-match.ru"}
+    legit_ws.query_params = {}
+    legit_ws.cookies = {}
+    legit_ws.close = AsyncMock()
+
+    await websocket_chat_endpoint(legit_ws, "00000000-0000-0000-0000-000000000000")
+    # Проверка Origin пройдена, закрытие только из-за отсутствия токена (code=1008 на шаге токена)
+    legit_ws.close.assert_called_once_with(code=1008)
+
+

@@ -88,7 +88,7 @@ async def economy_dashboard_page(
     )
 
 
-@router.post("/economy/items/add")
+@router.post("/economy/items/add", dependencies=[Depends(check_csrf)])
 async def add_shop_item_endpoint(
     request: Request,
     admin=Depends(get_current_admin),
@@ -145,7 +145,7 @@ async def add_shop_item_endpoint(
     return RedirectResponse("/admin/economy?success=Товар+успешно+добавлен", status_code=303)
 
 
-@router.post("/economy/items/edit")
+@router.post("/economy/items/edit", dependencies=[Depends(check_csrf)])
 async def edit_shop_item_endpoint(
     request: Request,
     admin=Depends(get_current_admin),
@@ -164,8 +164,6 @@ async def edit_shop_item_endpoint(
     is_active: Optional[str] = Form(None),
 ):
     """Редактирование параметров существующего товара."""
-    await check_csrf(request)
-
     res = await db.execute(select(ShopItem).where(ShopItem.id == item_id))
     item = res.scalar_one_or_none()
     if not item:
@@ -200,7 +198,7 @@ async def edit_shop_item_endpoint(
     return RedirectResponse("/admin/economy?success=Товар+успешно+обновлён", status_code=303)
 
 
-@router.post("/economy/items/toggle")
+@router.post("/economy/items/toggle", dependencies=[Depends(check_csrf)])
 async def toggle_shop_item_endpoint(
     request: Request,
     admin=Depends(get_current_admin),
@@ -208,8 +206,6 @@ async def toggle_shop_item_endpoint(
     item_id: int = Form(...),
 ):
     """Быстрое переключение активности товара."""
-    await check_csrf(request)
-
     res = await db.execute(select(ShopItem).where(ShopItem.id == item_id))
     item = res.scalar_one_or_none()
     if not item:
@@ -221,7 +217,7 @@ async def toggle_shop_item_endpoint(
     return RedirectResponse("/admin/economy?success=Статус+товара+изменён", status_code=303)
 
 
-@router.post("/economy/users/adjust")
+@router.post("/economy/users/adjust", dependencies=[Depends(check_csrf)])
 async def adjust_user_credits_endpoint(
     request: Request,
     admin=Depends(get_current_admin),
@@ -231,7 +227,6 @@ async def adjust_user_credits_endpoint(
     reason: str = Form("Корректировка администратором"),
 ):
     """Ручное начисление или списание «Зачётов» студента администратором."""
-    await check_csrf(request)
 
     user = await get_user(db, user_id)
     if not user:

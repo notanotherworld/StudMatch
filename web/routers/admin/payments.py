@@ -322,10 +322,15 @@ async def yookassa_webhook(request: Request, db: AsyncSession = Depends(get_db))
     )
 
     # 1. Проверяем IP-адрес источника
+    # X-Real-IP устанавливается только доверенным обратным прокси Nginx ($remote_addr).
+    # Никогда не берем x_forwarded_for.split(",")[0], так как первый элемент может быть подделан клиентом.
     x_real_ip = request.headers.get("x-real-ip")
-    x_forwarded_for = request.headers.get("x-forwarded-for")
-    forwarded_first = x_forwarded_for.split(",")[0].strip() if x_forwarded_for else None
-    client_ip = (x_real_ip or forwarded_first or (request.client.host if request.client else "")).strip()
+    if x_real_ip:
+        client_ip = x_real_ip.strip()
+    elif request.client and request.client.host:
+        client_ip = request.client.host.strip()
+    else:
+        client_ip = ""
 
     if not _is_allowed_yookassa_ip(client_ip, is_dev_or_test):
         logger.warning(f"[SECURITY] Unauthorized YooKassa webhook attempt from IP={client_ip!r}")
@@ -338,6 +343,40 @@ async def yookassa_webhook(request: Request, db: AsyncSession = Depends(get_db))
 
     event = body.get("event")
     obj = body.get("object", {})
+
+    # C5: Обработка возвратов и отмен (refund.succeeded / payment.canceled)
+    if event in ("refund.succeeded", "payment.canceled"):
+        yk_id = obj.get("payment_id") or obj.get("id")
+        if not yk_id:
+            return JSONResponse({"status": "error", "detail": "Missing payment id"}, status_code=400)
+
+        from database.crud import process_payment_refund
+        reason = "refund" if "refund" in event else "canceled"
+        refunded_payment = await process_payment_refund(db, yk_id, reason=reason)
+
+        if refunded_payment:
+            logger.info(f"[PAYMENTS] Payment {yk_id} processed for {event} (user={refunded_payment.user_id})")
+            try:
+                from aiogram import Bot
+                bot = Bot(token=settings.BOT_TOKEN)
+                if settings.SUPERADMIN_ID:
+                    await bot.send_message(
+                        settings.SUPERADMIN_ID,
+                        f"⚠️ <b>Возврат платежа / Chargeback</b> ({event})\n\n"
+                        f"ID платежа: <code>{refunded_payment.id}</code>\n"
+                        f"ЮKassa ID: <code>{yk_id}</code>\n"
+                        f"Пользователь: <code>{refunded_payment.user_id}</code>\n"
+                        f"Сумма: {refunded_payment.amount_rub} ₽\n"
+                        f"Статус: <b>{refunded_payment.status.value}</b>.\n"
+                        f"Все начисленные услуги/зачёты автоматически отозваны.",
+                        parse_mode="HTML",
+                    )
+                await bot.session.close()
+            except Exception as notify_err:
+                logger.warning(f"Failed to notify admin about refund: {notify_err}")
+
+        return {"status": "ok", "event": event, "processed": bool(refunded_payment)}
+
     if event != "payment.succeeded":
         # Другие события ЮKassa просто квитируем HTTP 200
         return {"status": "ok"}
@@ -345,6 +384,13 @@ async def yookassa_webhook(request: Request, db: AsyncSession = Depends(get_db))
     yk_id = obj.get("id")
     if not yk_id:
         return JSONResponse({"status": "error", "detail": "Missing payment id"}, status_code=400)
+
+    # C4: Предварительно проверяем наличие платежа в БД и соответствие суммы
+    res_p = await db.execute(select(Payment).where(Payment.yookassa_payment_id == yk_id))
+    payment_record = res_p.scalar_one_or_none()
+    if not payment_record:
+        logger.warning(f"[SECURITY] YooKassa webhook received for unknown payment yk_id={yk_id}")
+        return JSONResponse({"status": "not_found", "detail": "Payment not found"}, status_code=404)
 
     # 2. Верификация через официальный API ЮKassa
     has_yk = bool(
@@ -367,11 +413,31 @@ async def yookassa_webhook(request: Request, db: AsyncSession = Depends(get_db))
                     f"status={getattr(verified, 'status', None)}, paid={getattr(verified, 'paid', None)}"
                 )
                 return JSONResponse({"status": "rejected", "detail": "Payment status mismatch"}, status_code=400)
+
+            # C4: Проверка суммы и валюты из верифицированного платежа ЮKassa
+            yk_amount = float(getattr(getattr(verified, "amount", None), "value", 0))
+            yk_currency = str(getattr(getattr(verified, "amount", None), "currency", "RUB")).upper()
+            if yk_currency != "RUB" or abs(yk_amount - float(payment_record.amount_rub)) > 0.01:
+                logger.warning(
+                    f"[SECURITY] YooKassa webhook rejected for yk_id={yk_id}: "
+                    f"Amount/currency mismatch. YooKassa={yk_amount} {yk_currency}, expected={payment_record.amount_rub} RUB"
+                )
+                return JSONResponse({"status": "rejected", "detail": "Payment amount mismatch"}, status_code=400)
         except Exception as e:
             logger.error(f"[SECURITY] Error verifying payment {yk_id} with YooKassa API: {e}", exc_info=True)
             return JSONResponse({"status": "error", "detail": "Upstream verification failed"}, status_code=502)
     elif is_dev_or_test:
         logger.info(f"YooKassa webhook accepted in dev/test mode for yk_id={yk_id}")
+        # C4: В dev/test режиме также проверяем сумму из тела запроса, если передана
+        body_amount = float(obj.get("amount", {}).get("value", 0)) if obj.get("amount") else None
+        body_currency = str(obj.get("amount", {}).get("currency", "RUB")).upper() if obj.get("amount") else "RUB"
+        if body_amount is not None and body_amount > 0:
+            if body_currency != "RUB" or abs(body_amount - float(payment_record.amount_rub)) > 0.01:
+                logger.warning(
+                    f"[SECURITY] YooKassa webhook rejected in dev/test for yk_id={yk_id}: "
+                    f"Amount mismatch. Body={body_amount} {body_currency}, expected={payment_record.amount_rub} RUB"
+                )
+                return JSONResponse({"status": "rejected", "detail": "Payment amount mismatch"}, status_code=400)
     else:
         logger.error("[SECURITY] YooKassa webhook received in production without YooKassa credentials configured!")
         return JSONResponse({"status": "error", "detail": "Payment gateway not configured"}, status_code=503)

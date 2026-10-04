@@ -113,7 +113,7 @@ async def save_all_tariff_prices(
     return RedirectResponse("/admin/tariffs?success=Цены+тарифов+успешно+сохранены+и+обновлены", status_code=302)
 
 
-@router.post("/tariffs/update-single")
+@router.post("/tariffs/update-single", dependencies=[Depends(check_csrf)])
 async def update_single_price_ajax(
     request: Request,
     admin=Depends(get_current_admin),

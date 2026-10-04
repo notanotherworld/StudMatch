@@ -107,7 +107,7 @@ async def save_settings(
     return RedirectResponse("/admin/settings?saved=1", status_code=302)
 
 
-@router.post("/emergency/quick-toggle")
+@router.post("/emergency/quick-toggle", dependencies=[Depends(check_csrf)])
 async def quick_toggle_emergency(
     request: Request,
     admin=Depends(get_current_admin),

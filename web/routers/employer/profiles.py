@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from web.dependencies import get_db, get_current_employer
+from web.dependencies import get_db, get_current_employer, check_csrf
 from database.models import EmployerProfileAccess, Profile, Achievement, VerifiedStatus, User
 from database.crud import get_employer_profiles, get_employer_profile_counts, update_employer_candidate_status
 
@@ -317,7 +317,7 @@ async def profile_detail_json(
     }
 
 
-@router.post("/profiles/{access_id}/status")
+@router.post("/profiles/{access_id}/status", dependencies=[Depends(check_csrf)])
 async def set_candidate_status(
     access_id: str,
     request: Request,
@@ -364,7 +364,7 @@ async def set_candidate_status(
         return RedirectResponse(f"/employer/profiles/{access_id}", status_code=302)
 
 
-@router.post("/profiles/{access_id}/comment")
+@router.post("/profiles/{access_id}/comment", dependencies=[Depends(check_csrf)])
 async def update_candidate_comment(
     access_id: str,
     request: Request,
