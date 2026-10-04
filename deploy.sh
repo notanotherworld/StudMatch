@@ -26,7 +26,7 @@ NEED_BUILD=false
 if [ -n "$PREV_COMMIT" ] && [ "$PREV_COMMIT" != "$NEW_COMMIT" ]; then
   CHANGED=$(git diff --name-only "$PREV_COMMIT" "$NEW_COMMIT" 2>/dev/null || true)
   for f in $CHANGED; do
-    if [ "$f" = "requirements.txt" ] || [ "$f" = "Dockerfile" ] || [ "$f" = "docker-compose.yml" ]; then
+    if [ "$f" = "requirements.txt" ] || [ "$f" = "Dockerfile" ]; then
       echo "📦 Обнаружены изменения в $f: требуется пересборка..."
       NEED_BUILD=true
       break
@@ -39,8 +39,8 @@ if [ "$NEED_BUILD" = "true" ]; then
   docker compose up -d --build web bot
   docker image prune -f || true
 else
-  echo "⚡ Быстрый перезапуск контейнеров (код смонтирован, зависимости без изменений)..."
-  docker compose restart web bot || docker compose up -d web bot
+  echo "⚡ Применяем изменения и перезапускаем контейнеры..."
+  docker compose up -d web bot
 fi
 
 echo "⏳ Ожидаем запуск сервисов..."
