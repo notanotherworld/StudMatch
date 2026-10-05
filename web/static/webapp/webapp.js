@@ -425,9 +425,15 @@
         ? `<div class="story-premium-badge" title="Премиум активен">💎</div>`
         : `<div class="story-add-badge" title="Попасть в топ">+</div>`;
 
+      const myFrame = my.equipped_frame || state.currentUser?.equipped_frame;
+      let myFrameClass = "";
+      if (myFrame === "frame_gold") myFrameClass = "frame-gold";
+      else if (myFrame === "frame_headman") myFrameClass = "frame-headman";
+      else if (myFrame === "frame_neon") myFrameClass = "frame-neon";
+
       let html = `
         <div class="story-item" id="myStoryItem">
-          <div class="story-avatar-wrap my-story ${my.is_premium ? "premium-ring" : ""}">
+          <div class="story-avatar-wrap my-story ${my.is_premium ? "premium-ring" : ""} ${myFrameClass}">
             <img src="${my.avatar_url}" class="story-avatar" alt="Вы" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
             ${myBadge}
           </div>
@@ -439,13 +445,19 @@
         html += data.stories
           .map((s) => {
             const premRing = s.is_premium ? "premium-ring" : "";
+            const sFrame = s.equipped_frame;
+            let sFrameClass = "";
+            if (sFrame === "frame_gold") sFrameClass = "frame-gold";
+            else if (sFrame === "frame_headman") sFrameClass = "frame-headman";
+            else if (sFrame === "frame_neon") sFrameClass = "frame-neon";
+
             const badge = s.is_premium
               ? `<div class="story-premium-badge" title="Премиум">💎</div>`
               : (s.is_verified ? `<div class="story-premium-badge" style="background:#4834d4;" title="Студент">🎓</div>` : "");
 
             return `
               <div class="story-item" data-user-id="${s.user_id}">
-                <div class="story-avatar-wrap ${premRing}">
+                <div class="story-avatar-wrap ${premRing} ${sFrameClass}">
                   <img src="${s.avatar_url}" class="story-avatar" alt="${escapeHtml(s.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
                   ${badge}
                 </div>
@@ -477,6 +489,15 @@
     } catch (e) {
       console.warn("[StudMatch] Failed to load stories:", e);
     }
+  }
+
+  function updateStoriesRowFrame(frameCode) {
+    const myWrap = document.querySelector("#myStoryItem .story-avatar-wrap");
+    if (!myWrap) return;
+    myWrap.classList.remove("frame-gold", "frame-headman", "frame-neon");
+    if (frameCode === "frame_gold") myWrap.classList.add("frame-gold");
+    else if (frameCode === "frame_headman") myWrap.classList.add("frame-headman");
+    else if (frameCode === "frame_neon") myWrap.classList.add("frame-neon");
   }
 
   function parseRolesList(roles) {
@@ -1087,6 +1108,18 @@
 
     const verifiedBadge = profile.is_verified ? '<span class="card-badge verified">🎓 ВУЗ</span>' : "";
     const premiumBadge = profile.is_premium ? '<span class="card-badge premium">💎 VIP</span>' : "";
+    const frameCode = profile.equipped_frame;
+    let frameBadgeHtml = "";
+    if (frameCode === "frame_gold") {
+      card.classList.add("frame-gold");
+      frameBadgeHtml = '<span class="card-badge frame-gold-badge">👑 Отличник</span>';
+    } else if (frameCode === "frame_headman") {
+      card.classList.add("frame-headman");
+      frameBadgeHtml = '<span class="card-badge frame-headman-badge">🎓 Староста</span>';
+    } else if (frameCode === "frame_neon") {
+      card.classList.add("frame-neon");
+      frameBadgeHtml = '<span class="card-badge frame-neon-badge">⚡ Неон</span>';
+    }
     const yearStr = profile.year ? `${profile.year} курс` : "";
     const univStr = profile.university ? profile.university : "";
 
@@ -1158,6 +1191,7 @@
         <div class="card-tags-top">
           ${verifiedBadge}
           ${premiumBadge}
+          ${frameBadgeHtml}
         </div>
         <div class="card-rating-badge">
           ⭐ <span>${profile.rating_score || 0}</span>
@@ -2567,15 +2601,34 @@
       `;
     }
 
+    const frameCode = profile.equipped_frame;
+    let frameClass = "frame-none";
+    let frameBadge = "";
+    let frameTitle = "";
+    if (frameCode === "frame_gold") {
+      frameClass = "frame-gold";
+      frameBadge = "👑";
+      frameTitle = "🥇 «Отличник»";
+    } else if (frameCode === "frame_headman") {
+      frameClass = "frame-headman";
+      frameBadge = "🎓";
+      frameTitle = "👔 «Староста»";
+    } else if (frameCode === "frame_neon") {
+      frameClass = "frame-neon";
+      frameBadge = "⚡";
+      frameTitle = "🌌 «Неон»";
+    }
+
     body.innerHTML = `
       <div class="profile-view-wrapper">
         <!-- Top Hero Section -->
-        <div class="profile-hero-wrap" id="candidateHeroWrap">
+        <div class="profile-hero-wrap ${frameClass}" id="candidateHeroWrap">
           <button class="profile-hero-back-btn" id="closeCandidateSheetBtn" aria-label="Назад">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E53935" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
           </button>
+          ${frameCode ? `<div class="profile-hero-frame-badge ${frameClass}">${frameBadge} ${escapeHtml(frameTitle)}</div>` : ''}
           ${indicatorsHtml}
           <div class="profile-hero-gradient-top"></div>
           <div class="profile-hero-gradient-bottom"></div>
@@ -2591,6 +2644,14 @@
 
           <!-- Header: Name, Age, Subtitle & Airplane Button -->
           <div class="profile-header-row">
+            ${frameCode ? `
+              <div class="profile-header-avatar-col">
+                <div class="shop-frame-avatar-preview ${frameClass}" title="${escapeHtml(frameTitle)}">
+                  <img src="${photos[0]}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+                  <span class="shop-frame-badge">${frameBadge}</span>
+                </div>
+              </div>
+            ` : ''}
             <div class="profile-header-left">
               <h2 class="profile-name-title">
                 ${escapeHtml(profile.name || "Студент")}${profile.age ? `, ${profile.age}` : ""}
@@ -2599,6 +2660,12 @@
               </h2>
               <p class="profile-role-subtitle">${escapeHtml(subtitleText)}</p>
               ${onlineStatusHtml}
+              ${frameCode ? `
+                <div class="profile-frame-active-pill ${frameClass}">
+                  <span>${frameBadge}</span>
+                  <span>Рамка: ${escapeHtml(frameTitle)}</span>
+                </div>
+              ` : ''}
             </div>
             ${airplaneBtnHtml}
           </div>
@@ -3749,6 +3816,11 @@
           const photoUrl = m.photo_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
           const verified = m.is_verified ? " 🎓" : "";
           const prem = m.is_premium ? " 💎" : "";
+          const frameCode = m.equipped_frame;
+          let frameClass = "";
+          if (frameCode === "frame_gold") frameClass = "frame-gold";
+          else if (frameCode === "frame_headman") frameClass = "frame-headman";
+          else if (frameCode === "frame_neon") frameClass = "frame-neon";
           const unreadBadge = m.unread_count > 0 ? `<div class="match-unread-badge">${m.unread_count}</div>` : "";
           const onlineDot = m.is_online ? `<div class="match-online-dot"></div>` : "";
 
@@ -3769,7 +3841,7 @@
 
           return `
             <div class="match-item" data-match-id="${m.match_id}" data-partner-id="${m.user_id}">
-              <div class="match-avatar-wrap">
+              <div class="match-avatar-wrap ${frameClass}">
                 <img src="${photoUrl}" class="match-avatar" alt="${escapeHtml(m.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
                 ${onlineDot}
                 ${unreadBadge}
@@ -5234,10 +5306,29 @@
       const bioText = u.goal || u.about || u.bio || "";
       const isBioLong = bioText.length > 140;
 
+      const frameCode = u.equipped_frame;
+      let frameClass = "frame-none";
+      let frameBadge = "";
+      let frameTitle = "";
+      if (frameCode === "frame_gold") {
+        frameClass = "frame-gold";
+        frameBadge = "👑";
+        frameTitle = "🥇 «Отличник»";
+      } else if (frameCode === "frame_headman") {
+        frameClass = "frame-headman";
+        frameBadge = "🎓";
+        frameTitle = "👔 «Староста»";
+      } else if (frameCode === "frame_neon") {
+        frameClass = "frame-neon";
+        frameBadge = "⚡";
+        frameTitle = "🌌 «Неон»";
+      }
+
       container.innerHTML = `
         <div class="profile-view-wrapper">
           <!-- Top Hero Section -->
-          <div class="profile-hero-wrap" id="myProfileHeroWrap">
+          <div class="profile-hero-wrap ${frameClass}" id="myProfileHeroWrap">
+            ${frameCode ? `<div class="profile-hero-frame-badge ${frameClass}">${frameBadge} ${escapeHtml(frameTitle)}</div>` : ''}
             ${indicatorsHtml}
             <div class="profile-hero-gradient-top"></div>
             <div class="profile-hero-gradient-bottom"></div>
@@ -5263,12 +5354,24 @@
 
             <!-- Header: Name, Age, Subtitle & Edit Button -->
             <div class="profile-header-row">
+              <div class="profile-header-avatar-col">
+                <div class="shop-frame-avatar-preview ${frameClass}" title="${frameCode ? escapeHtml(frameTitle) : 'Аватар профиля'}">
+                  <img src="${photos[0]}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+                  ${frameCode ? `<span class="shop-frame-badge">${frameBadge}</span>` : ''}
+                </div>
+              </div>
               <div class="profile-header-left">
                 <h2 class="profile-name-title">
                   ${escapeHtml(u.name || "Студент")}${u.age ? `, ${u.age}` : ""}
                   ${u.is_verified ? "🎓" : ""} ${u.is_premium ? "💎" : ""}
                 </h2>
                 <p class="profile-role-subtitle">${escapeHtml(subtitleText)}</p>
+                ${frameCode ? `
+                  <div class="profile-frame-active-pill ${frameClass}">
+                    <span>${frameBadge}</span>
+                    <span>Рамка: ${escapeHtml(frameTitle)}</span>
+                  </div>
+                ` : ''}
               </div>
               <button class="profile-airplane-btn" id="btnMyEditQuick" title="Редактировать анкету">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF4B6E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -7631,6 +7734,11 @@
         list.innerHTML = restItems.map((u) => {
           const verified = u.is_verified ? "🎓" : "";
           const prem = u.is_premium ? "💎" : "";
+          const frameCode = u.equipped_frame;
+          let frameClass = "";
+          if (frameCode === "frame_gold") frameClass = "frame-gold";
+          else if (frameCode === "frame_headman") frameClass = "frame-headman";
+          else if (frameCode === "frame_neon") frameClass = "frame-neon";
           const meTag = u.is_me ? '<span class="hall-me-pill">Вы</span>' : "";
           const metaParts = [];
           if (u.university_name) metaParts.push(u.university_name);
@@ -7641,7 +7749,7 @@
           return `
             <div class="hall-card ${u.is_me ? 'is-me' : ''}" data-user-id="${u.user_id}">
               <div class="hall-card-rank">#${u.rank}</div>
-              <img src="${escapeHtml(u.avatar_url)}" class="hall-card-avatar" alt="${escapeHtml(u.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
+              <img src="${escapeHtml(u.avatar_url)}" class="hall-card-avatar ${frameClass}" alt="${escapeHtml(u.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
               <div class="hall-card-info">
                 <div class="hall-card-name-row">
                   <span class="hall-card-name">${escapeHtml(u.name)}${u.age ? `, ${u.age}` : ''} ${verified} ${prem}</span>
@@ -7667,6 +7775,11 @@
   function renderPodiumCol(u, rank, medalEmoji) {
     const verified = u.is_verified ? "🎓" : "";
     const prem = u.is_premium ? "💎" : "";
+    const frameCode = u.equipped_frame;
+    let frameClass = "";
+    if (frameCode === "frame_gold") frameClass = "frame-gold";
+    else if (frameCode === "frame_headman") frameClass = "frame-headman";
+    else if (frameCode === "frame_neon") frameClass = "frame-neon";
     const metaParts = [];
     if (u.university_name) metaParts.push(u.university_name);
     else if (u.faculty) metaParts.push(u.faculty);
@@ -7674,7 +7787,7 @@
 
     return `
       <div class="podium-col rank-${rank}" data-user-id="${u.user_id}">
-        <div class="podium-avatar-wrap">
+        <div class="podium-avatar-wrap ${frameClass}">
           <img src="${escapeHtml(u.avatar_url)}" class="podium-avatar" alt="${escapeHtml(u.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
           <div class="podium-medal">${medalEmoji}</div>
         </div>
@@ -8489,7 +8602,7 @@
     const equippedCard = document.getElementById("shopEquippedCard");
     const equippedStatusText = document.getElementById("shopEquippedStatusText");
     if (equippedCard) {
-      const frameCode = ov?.equipped_frame;
+      const frameCode = ov?.equipped_frame || state.currentUser?.equipped_frame;
       let frameClass = "frame-none";
       let frameBadge = "✨";
       let frameDesc = "Выберите рамку ниже, чтобы надеть её в профиль";
@@ -8509,7 +8622,7 @@
       }
 
       if (frameCode) {
-        const frameTitle = ov.equipped_frame_title || "Рамка профиля";
+        const frameTitle = ov?.equipped_frame_title || state.currentUser?.equipped_frame_title || (frameCode === 'frame_gold' ? '🥇 «Отличник»' : frameCode === 'frame_headman' ? '👔 «Староста»' : frameCode === 'frame_neon' ? '🌌 «Неон»' : 'Рамка профиля');
         if (equippedStatusText) equippedStatusText.textContent = "1 слот активен";
         equippedCard.innerHTML = `
           <div class="shop-equipped-item">
@@ -8578,7 +8691,8 @@
 
       let actionBtn = "";
       if (isFrame) {
-        const isEquipped = !!it.is_equipped;
+        const curEquipped = ov?.equipped_frame || state.currentUser?.equipped_frame;
+        const isEquipped = (it.item_code === curEquipped) || Boolean(it.is_equipped);
         actionBtn = `
           <button type="button" class="btn-toggle-frame ${isEquipped ? 'equipped' : 'unequipped'}" data-code="${escapeHtml(it.item_code)}" data-equipped="${isEquipped ? '1' : '0'}">
             ${isEquipped ? "Надето ✓" : "Надеть"}
@@ -8668,6 +8782,25 @@
       if (isOk) {
         triggerHaptic("success");
         showAppToast(frameCode ? "Рамка надета ✨" : "Рамка снята");
+        const normCode = (frameCode && frameCode !== "none") ? frameCode : null;
+        if (state.currentUser) {
+          state.currentUser.equipped_frame = normCode;
+        }
+        if (shopState.overview) {
+          shopState.overview.equipped_frame = normCode;
+          if (Array.isArray(shopState.overview.inventory)) {
+            shopState.overview.inventory.forEach((it) => {
+              if (it.item_code && it.item_code.startsWith("frame_")) {
+                it.is_equipped = (it.item_code === normCode);
+              }
+            });
+          }
+        }
+        renderShopInventory();
+        updateStoriesRowFrame(normCode);
+        if (state.currentTab === "profile" && typeof loadProfile === "function") {
+          loadProfile();
+        }
         await loadShopData();
       } else {
         showAppToast(resp?.message || "Не удалось применить рамку");

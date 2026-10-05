@@ -226,12 +226,20 @@ async def test_05_shop_purchases_and_inventory():
         assert ok3 is True
         assert user.equipped_frame == "frame_gold"
 
-        # Снятие и повторное надевание рамки
+        # Снятие и повторное надевание рамки с проверкой синхронизации UserInventoryItem.is_equipped
         await equip_profile_frame(db, user.id, None)
         assert user.equipped_frame is None
+        inv_after_unequip = await get_user_inventory(db, user.id)
+        gold_item = next((i for i in inv_after_unequip if i.item_code == "frame_gold"), None)
+        assert gold_item is not None
+        assert gold_item.is_equipped is False
 
         await equip_profile_frame(db, user.id, "frame_gold")
         assert user.equipped_frame == "frame_gold"
+        inv_after_equip = await get_user_inventory(db, user.id)
+        gold_item_eq = next((i for i in inv_after_equip if i.item_code == "frame_gold"), None)
+        assert gold_item_eq is not None
+        assert gold_item_eq.is_equipped is True
 
 
 @pytest.mark.asyncio
@@ -346,9 +354,30 @@ async def test_09_webapp_economy_api():
         assert buy_res["status"] == "success"
         assert buy_res["new_balance"] == 189  # 200 + 4 (streak day 1) - 15 (superlike) = 189
 
-        # 5. Equip Frame
-        frame_res = await webapp_equip_frame(req=EquipFrameRequest(frame_code="none"), student=student, db=db)
-        assert frame_res["status"] == "success"
+        # 5. Equip Frame & Overview & Profile serialization
+        from web.routers.webapp import webapp_profile
+        # Покупаем рамку Отличник
+        buy_frame_res = await webapp_shop_buy(req=BuyShopItemRequest(item_code="frame_gold"), student=student, db=db)
+        assert buy_frame_res["status"] == "success"
+
+        # Проверяем, что рамка надета и в overview is_equipped == True
+        ov_frame = await webapp_economy_overview(student=student, db=db)
+        assert ov_frame["equipped_frame"] == "frame_gold"
+        frame_inv = next(it for it in ov_frame["inventory"] if it["item_code"] == "frame_gold")
+        assert frame_inv["is_equipped"] is True
+
+        # Проверяем отдачу рамки в веб-профиле
+        prof_res = await webapp_profile(student=student, db=db)
+        assert prof_res["user"]["equipped_frame"] == "frame_gold"
+        assert "Отличник" in prof_res["user"]["equipped_frame_title"]
+
+        # Снимаем рамку
+        frame_unequip = await webapp_equip_frame(req=EquipFrameRequest(frame_code="none"), student=student, db=db)
+        assert frame_unequip["status"] == "success"
+        ov_unequip = await webapp_economy_overview(student=student, db=db)
+        assert ov_unequip["equipped_frame"] is None
+        frame_inv_unequipped = next(it for it in ov_unequip["inventory"] if it["item_code"] == "frame_gold")
+        assert frame_inv_unequipped["is_equipped"] is False
 
 
 @pytest.mark.asyncio

@@ -44,6 +44,7 @@ from database.crud import (
     create_project, get_project, get_user_projects, update_project, delete_project,
     get_projects_feed, get_project_candidates, founder_swipe_candidate,
 )
+from bot.services.economy_service import get_frame_title
 
 logger = logging.getLogger(__name__)
 _DEBUG = getattr(settings, "DEBUG", False) or os.getenv("DEBUG", "false").lower() == "true"
@@ -394,6 +395,9 @@ async def webapp_auth(
             "is_premium": user.is_premium,
             "is_verified": user.is_verified,
             "superlike_balance": user.superlike_balance,
+            "credits_balance": user.credits_balance or 0,
+            "equipped_frame": user.equipped_frame,
+            "equipped_frame_title": get_frame_title(user.equipped_frame),
             "mode": user.mode.value if user.mode else "dating",
             "has_profile": profile is not None and bool(profile.name),
             "is_superadmin": is_superadmin,
@@ -512,6 +516,8 @@ async def webapp_feed(
             "rating_score": round(p.rating_score or 0.0, 1),
             "is_verified": getattr(u, "email_verified", False),
             "is_premium": getattr(u, "is_premium", False),
+            "equipped_frame": getattr(u, "equipped_frame", None),
+            "equipped_frame_title": get_frame_title(getattr(u, "equipped_frame", None)),
             # Специфика карьеры
             "career_goal": p.career_goal if mode == ModeEnum.career else None,
             "career_skills": p.career_skills if mode == ModeEnum.career else None,
@@ -819,6 +825,8 @@ async def webapp_matches(
             "created_at": date_str,
             "is_verified": getattr(partner, "email_verified", False),
             "is_premium": getattr(partner, "is_premium", False),
+            "equipped_frame": getattr(partner, "equipped_frame", None),
+            "equipped_frame_title": get_frame_title(getattr(partner, "equipped_frame", None)),
             "is_online": is_user_online_visible_to(student.id, partner, is_mutual_match=True),
             "online_status_text": get_user_online_status_text_for(student.id, partner, is_mutual_match=True),
             "unread_count": unread_count,
@@ -1508,6 +1516,8 @@ async def webapp_stories(
             "avatar_url": avatar_url,
             "is_premium": bool(u.is_premium),
             "is_verified": bool(u.is_verified),
+            "equipped_frame": getattr(u, "equipped_frame", None),
+            "equipped_frame_title": get_frame_title(getattr(u, "equipped_frame", None)),
             "university": univ,
         })
 
@@ -1523,6 +1533,8 @@ async def webapp_stories(
             "name": "Моя анкета",
             "avatar_url": my_avatar,
             "is_premium": bool(student.is_premium),
+            "equipped_frame": getattr(student, "equipped_frame", None),
+            "equipped_frame_title": get_frame_title(getattr(student, "equipped_frame", None)),
         },
         "stories": stories
     }
@@ -1624,6 +1636,9 @@ async def webapp_profile(
             "project_is_complete": p.project_is_complete if p else False,
             "rating_score": round(p.rating_score or 0.0, 1) if p else 0.0,
             "is_superadmin": is_superadmin,
+            "credits_balance": student.credits_balance or 0,
+            "equipped_frame": student.equipped_frame,
+            "equipped_frame_title": get_frame_title(student.equipped_frame),
             "privacy": {
                 "online_visibility": privacy.online_visibility or "all",
                 "message_permission": privacy.message_permission or "matches",
@@ -3061,6 +3076,8 @@ async def webapp_get_user_details(
             "rating_score": round(p.rating_score or 0.0, 1) if p else 0.0,
             "is_verified": getattr(target, "email_verified", False),
             "is_premium": getattr(target, "is_premium", False),
+            "equipped_frame": getattr(target, "equipped_frame", None),
+            "equipped_frame_title": get_frame_title(getattr(target, "equipped_frame", None)),
             "tg_username": target.tg_username if (is_tg_unlocked and not is_me) else None,
             # Карьерные параметры
             "career_goal": p.career_goal if p else None,
@@ -3156,6 +3173,8 @@ async def webapp_get_hall_of_fame(
             "rating_score": round(p.rating_score or 0.0, 1),
             "is_verified": bool(u.email_verified),
             "is_premium": bool(u.is_premium),
+            "equipped_frame": getattr(u, "equipped_frame", None),
+            "equipped_frame_title": get_frame_title(getattr(u, "equipped_frame", None)),
             "is_me": is_me,
         })
 
@@ -4073,7 +4092,7 @@ async def webapp_economy_overview(
             "icon": item_icon,
             "item_type": item_type,
             "quantity": item.quantity,
-            "is_equipped": item.is_equipped,
+            "is_equipped": bool(user.equipped_frame == item.item_code) if item.item_code.startswith("frame_") else bool(item.is_equipped),
             "expires_at": item.expires_at.isoformat() if item.expires_at else None,
             "image_url": image_url,
             "is_gift": is_gift,

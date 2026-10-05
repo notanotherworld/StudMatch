@@ -2957,33 +2957,41 @@ async def equip_profile_frame(db: AsyncSession, user_id: int, frame_code: Option
     if not user:
         return False
 
+    # Получаем все рамки в инвентаре пользователя
+    inv_res = await db.execute(
+        select(UserInventoryItem).where(
+            and_(
+                UserInventoryItem.user_id == user_id,
+                UserInventoryItem.item_code.like("frame_%"),
+            )
+        )
+    )
+    frame_items = list(inv_res.scalars().all())
+
     if frame_code is None or frame_code == "none":
         user.equipped_frame = None
+        for it in frame_items:
+            it.is_equipped = False
         await db.commit()
         return True
 
     # Проверяем наличие активной рамки в инвентаре
     now = datetime.now(timezone.utc)
-    res = await db.execute(
-        select(UserInventoryItem).where(
-            and_(
-                UserInventoryItem.user_id == user_id,
-                UserInventoryItem.item_code == frame_code,
-            )
-        )
-    )
-    inv_item = res.scalar_one_or_none()
-    if not inv_item:
+    target_item = next((it for it in frame_items if it.item_code == frame_code), None)
+    if not target_item:
         return False
 
-    if inv_item.expires_at:
-        exp = inv_item.expires_at
+    if target_item.expires_at:
+        exp = target_item.expires_at
         if exp.tzinfo is None:
             exp = exp.replace(tzinfo=timezone.utc)
         if exp < now:
             return False
 
     user.equipped_frame = frame_code
+    for it in frame_items:
+        it.is_equipped = (it.item_code == frame_code)
+
     await db.commit()
     return True
 

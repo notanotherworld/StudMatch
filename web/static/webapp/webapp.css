@@ -9512,6 +9512,196 @@ img, video, canvas {
   box-shadow: none;
 }
 
+/* 🖼️ Profile Screen & Header Avatar Frames */
+.profile-header-avatar-col {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-frame-active-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin-top: 6px;
+  letter-spacing: 0.1px;
+  width: fit-content;
+}
+
+.profile-frame-active-pill.frame-gold {
+  background: rgba(245, 158, 11, 0.12);
+  color: #B45309;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.profile-frame-active-pill.frame-headman {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1D4ED8;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.profile-frame-active-pill.frame-neon {
+  background: rgba(139, 92, 246, 0.12);
+  color: #6D28D9;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+/* Profile Hero Badge & Frame Highlights */
+.profile-hero-frame-badge {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  animation: framePillPulse 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes framePillPulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.03); }
+}
+
+.profile-hero-frame-badge.frame-gold {
+  background: rgba(245, 158, 11, 0.88);
+  color: #FFFFFF;
+  border: 1px solid rgba(253, 230, 138, 0.7);
+}
+
+.profile-hero-frame-badge.frame-headman {
+  background: rgba(37, 99, 235, 0.88);
+  color: #FFFFFF;
+  border: 1px solid rgba(191, 219, 254, 0.7);
+}
+
+.profile-hero-frame-badge.frame-neon {
+  background: rgba(139, 92, 246, 0.88);
+  color: #FFFFFF;
+  border: 1px solid rgba(233, 213, 255, 0.7);
+}
+
+.profile-hero-wrap.frame-gold {
+  box-shadow: 0 0 0 2px #F59E0B, 0 8px 24px rgba(245, 158, 11, 0.2);
+}
+
+.profile-hero-wrap.frame-headman {
+  box-shadow: 0 0 0 2px #3B82F6, 0 8px 24px rgba(59, 130, 246, 0.2);
+}
+
+.profile-hero-wrap.frame-neon {
+  box-shadow: 0 0 0 2px #8B5CF6, 0 8px 24px rgba(139, 92, 246, 0.2);
+}
+
+/* Stories row frame styles */
+.story-avatar-wrap.frame-gold {
+  background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 50%, #D97706 100%) !important;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35), 0 4px 14px rgba(245, 158, 11, 0.3) !important;
+}
+
+.story-avatar-wrap.frame-headman {
+  background: linear-gradient(135deg, #2563EB 0%, #3B82F6 50%, #1D4ED8 100%) !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35), 0 4px 14px rgba(59, 130, 246, 0.3) !important;
+}
+
+.story-avatar-wrap.frame-neon {
+  background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 50%, #06B6D4 100%) !important;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.35), 0 4px 14px rgba(139, 92, 246, 0.3) !important;
+}
+
+/* Match list avatar frames */
+.match-avatar-wrap.frame-gold {
+  border: 2.5px solid #F59E0B;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+  border-radius: 50%;
+}
+
+.match-avatar-wrap.frame-headman {
+  border: 2.5px solid #3B82F6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  border-radius: 50%;
+}
+
+.match-avatar-wrap.frame-neon {
+  border: 2.5px solid #8B5CF6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25);
+  border-radius: 50%;
+}
+
+/* Explore Card frame badges */
+.card-badge.frame-gold-badge {
+  background: rgba(245, 158, 11, 0.9);
+  color: #fff;
+  border: 1px solid rgba(253, 230, 138, 0.6);
+}
+
+.card-badge.frame-headman-badge {
+  background: rgba(37, 99, 235, 0.9);
+  color: #fff;
+  border: 1px solid rgba(191, 219, 254, 0.6);
+}
+
+.card-badge.frame-neon-badge {
+  background: rgba(139, 92, 246, 0.9);
+  color: #fff;
+  border: 1px solid rgba(233, 213, 255, 0.6);
+}
+
+.swipe-card.frame-gold {
+  box-shadow: 0 10px 30px rgba(245, 158, 11, 0.15), 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.swipe-card.frame-headman {
+  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.15), 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.swipe-card.frame-neon {
+  box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15), 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Hall of Fame Podium & Card frames */
+.podium-avatar-wrap.frame-gold .podium-avatar {
+  border: 3px solid #F59E0B;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+.podium-avatar-wrap.frame-headman .podium-avatar {
+  border: 3px solid #3B82F6;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.podium-avatar-wrap.frame-neon .podium-avatar {
+  border: 3px solid #8B5CF6;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
+}
+
+.hall-card-avatar.frame-gold {
+  border: 2px solid #F59E0B;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.35);
+}
+
+.hall-card-avatar.frame-headman {
+  border: 2px solid #3B82F6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.35);
+}
+
+.hall-card-avatar.frame-neon {
+  border: 2px solid #8B5CF6;
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.35);
+}
+
 .shop-equipped-name {
   font-size: 13.5px;
   font-weight: 700;
