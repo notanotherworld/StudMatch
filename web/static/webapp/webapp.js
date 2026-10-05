@@ -583,11 +583,12 @@
       return;
     }
 
-    const curBal = state.currentUser?.credits_balance !== undefined
-      ? state.currentUser.credits_balance
-      : (shopState?.overview?.credits_balance ?? likesState?.data?.credits_balance ?? 0);
+    const curBal = shopState?.overview?.credits_balance !== undefined
+      ? shopState.overview.credits_balance
+      : (state.currentUser?.credits_balance ?? likesState?.data?.credits_balance ?? 0);
 
     const remaining = curBal - cost;
+    const isInsufficient = (cost > 0 && remaining < 0);
 
     const iconEl = document.getElementById("spendConfirmIcon");
     if (iconEl) iconEl.textContent = icon;
@@ -607,24 +608,24 @@
     const remEl = document.getElementById("spendConfirmRemaining");
     if (remEl) {
       remEl.textContent = remainingLabel || `${remaining >= 0 ? remaining : 0} 🎓`;
-      remEl.style.color = (cost > 0 && remaining < 0) ? "#EF4444" : "#10B981";
+      remEl.style.color = isInsufficient ? "#EF4444" : "#10B981";
     }
 
     const submitBtn = document.getElementById("btnSpendConfirmSubmit");
     const submitBtnText = document.getElementById("btnSpendConfirmSubmitText");
-    if (submitBtnText) {
-      submitBtnText.textContent = submitText;
-    }
 
     if (submitBtn) {
-      const isInsufficient = (cost > 0 && remaining < 0);
-      submitBtn.disabled = isInsufficient;
-      if (isInsufficient && submitBtnText) {
-        submitBtnText.textContent = "Недостаточно зачётов";
+      submitBtn.disabled = false;
+      if (isInsufficient) {
+        submitBtn.classList.add("refill-action");
+        if (submitBtnText) submitBtnText.textContent = "💳 Пополнить зачёты";
+      } else {
+        submitBtn.classList.remove("refill-action");
+        if (submitBtnText) submitBtnText.textContent = submitText;
       }
     }
 
-    pendingSpendConfirm = { onConfirm, onCancel, cost };
+    pendingSpendConfirm = { onConfirm, onCancel, cost, isInsufficient };
 
     modal.style.display = "flex";
     modal.classList.add("active");
@@ -649,12 +650,18 @@
 
   function handleSpendConfirmSubmit() {
     if (!pendingSpendConfirm) return;
+    const isRefill = pendingSpendConfirm.isInsufficient;
     const cb = pendingSpendConfirm.onConfirm;
     pendingSpendConfirm = null;
     const modal = document.getElementById("spendConfirmModal");
     if (modal) {
       modal.classList.remove("active");
       modal.style.display = "none";
+    }
+    if (isRefill) {
+      triggerHaptic("light");
+      openShopModal("packs");
+      return;
     }
     if (typeof cb === "function") {
       try {
@@ -8280,46 +8287,45 @@
   }
 
   async function buyShopItem(itemCode, itemTitle, price) {
-    const currentBalance = shopState.overview?.credits_balance || 0;
-    if (currentBalance < price) {
-      triggerHaptic("warning");
-      showAppToast(`Недостаточно зачётов (нужно ${price} 🎓, у вас ${currentBalance} 🎓)`);
-      return;
-    }
+    const item = (shopState.catalog || []).find((it) => it.code === itemCode);
+    const title = itemTitle || item?.title || itemCode;
+    const icon = item?.icon || "🛍";
+    const desc = item?.description || "Товар будет зачислен в ваш студенческий профиль или рюкзак.";
 
-    const confirmMsg = `Купить «${itemTitle || itemCode}» за ${price} 🎓?`;
-    let confirmed = false;
-    if (window.Telegram?.WebApp?.showConfirm) {
-      confirmed = await new Promise((resolve) => {
-        window.Telegram.WebApp.showConfirm(confirmMsg, (ok) => resolve(!!ok));
-      });
-    } else {
-      confirmed = window.confirm(confirmMsg);
-    }
+    showSpendConfirmModal({
+      icon: icon,
+      title: `Купить «${title}»?`,
+      desc: desc,
+      cost: price,
+      submitText: `Купить за ${price} 🎓`,
+      onConfirm: async () => {
+        triggerHaptic("medium");
+        try {
+          const resp = await apiFetch("/api/webapp/economy/shop/buy", {
+            method: "POST",
+            body: JSON.stringify({ item_code: itemCode }),
+          });
 
-    if (!confirmed) return;
-
-    triggerHaptic("medium");
-    try {
-      const resp = await apiFetch("/api/webapp/economy/shop/buy", {
-        method: "POST",
-        body: JSON.stringify({ item_code: itemCode }),
-      });
-
-      const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
-      if (isOk) {
-        triggerHaptic("success");
-        showAppToast(`🎉 Успешно куплено: ${resp.item_title || itemTitle}!`);
-        await loadShopData();
-      } else {
-        const err = resp?.detail || resp?.message || "Недостаточно зачётов или товар недоступен";
-        triggerHaptic("warning");
-        showAppToast(err);
+          const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
+          if (isOk) {
+            triggerHaptic("success");
+            const boughtTitle = resp.item_title || title;
+            showAppToast(`🎉 Успешно куплено: ${boughtTitle}!`);
+            await loadShopData();
+            if (itemCode.startsWith("frame_")) {
+              showAppToast("🎒 Рамка добавлена в Рюкзак профиля");
+            }
+          } else {
+            const err = resp?.detail || resp?.message || "Недостаточно зачётов или товар недоступен";
+            triggerHaptic("warning");
+            showAppToast(err);
+          }
+        } catch (e) {
+          triggerHaptic("error");
+          showAppToast(e.message || "Ошибка при покупке");
+        }
       }
-    } catch (e) {
-      triggerHaptic("error");
-      showAppToast(e.message || "Ошибка при покупке");
-    }
+    });
   }
 
   function renderShopQuests() {

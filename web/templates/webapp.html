@@ -1375,25 +1375,27 @@
         <div id="shopViewCatalog" class="shop-view-section">
           <!-- Campus Academic Grant Banner («Зачётный грант» 🎟️) -->
           <div class="shop-fortune-banner" id="shopFortuneBanner">
-            <div class="fortune-banner-glow"></div>
             <div class="fortune-banner-left">
-              <div class="fortune-banner-badge" id="fortuneBannerBadge">
-                <span id="fortuneBadgeText">БЕСПЛАТНЫЙ БИЛЕТ ГОТОВ!</span>
+              <span class="fortune-ticket-icon">🎟️</span>
+              <div class="fortune-banner-text-wrap">
+                <div class="fortune-banner-title-row">
+                  <span class="fortune-banner-title">Зачётный грант</span>
+                  <div class="fortune-banner-badge" id="fortuneBannerBadge">
+                    <span id="fortuneBadgeText">БЕСПЛАТНЫЙ БИЛЕТ ГОТОВ!</span>
+                  </div>
+                </div>
+                <p class="fortune-banner-desc">Испытай студенческую удачу: зачёты, шпоры и подарки</p>
               </div>
-              <h3 class="fortune-banner-title">Зачётный грант кампуса 🎟️</h3>
-              <p class="fortune-banner-desc">Испытай студенческую удачу раз в день: гранты в зачётах, шпоры, суперлайки и подарки!</p>
             </div>
             <div class="fortune-banner-right">
               <button type="button" class="fortune-banner-spin-btn" id="btnOpenFortuneWheel">
-                <span class="fortune-spin-icon">🎟️</span>
-                <span id="fortuneBtnLabel">Испытать</span>
+                <span id="fortuneBtnLabel">Получить</span>
               </button>
             </div>
           </div>
 
           <!-- Featured Deal Banner (Спецпредложение) -->
           <div class="shop-special-offer" id="shopSpecialOffer">
-            <div class="shop-special-offer-glow"></div>
             <div class="shop-special-top">
               <div class="shop-badge-hot">
                 <span class="shop-badge-hot-icon">⚡</span>
@@ -1404,19 +1406,20 @@
                 <span id="shopSpecialCountdown">--:--:--</span>
               </div>
             </div>
-            <div class="shop-special-info">
-              <h3 class="shop-special-title">Шпора: Буст в ленте х3</h3>
-              <p class="shop-special-desc">Твой профиль увидят в 3 раза больше студентов кампуса в прайм-тайм!</p>
-            </div>
-            <div class="shop-special-bottom">
-              <div class="shop-special-price-wrap">
-                <span class="shop-special-credits">80 🎓</span>
-                <span class="shop-special-rub">или 99 ₽</span>
+            <div class="shop-special-middle">
+              <div class="shop-special-info">
+                <h3 class="shop-special-title">Шпора: Буст в ленте х3</h3>
+                <p class="shop-special-desc">Профиль увидят в 3 раза больше студентов кампуса</p>
               </div>
-              <button type="button" class="shop-special-buy-btn" id="btnBuySpecialOffer">
-                <span>⚡</span>
-                <span>Забрать</span>
-              </button>
+              <div class="shop-special-actions">
+                <div class="shop-special-price-wrap">
+                  <span class="shop-special-credits">80 🎓</span>
+                  <span class="shop-special-rub">99 ₽</span>
+                </div>
+                <button type="button" class="shop-special-buy-btn" id="btnBuySpecialOffer">
+                  <span>Забрать</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1657,7 +1660,7 @@
       <div class="fortune-wheel-header">
         <div class="fortune-header-title-wrap">
           <span class="fortune-badge">🏛 СТУДЕНЧЕСКИЙ ГРАНТ</span>
-          <h2 class="fortune-modal-title">Зачётная лотерея</h2>
+          <h2 class="fortune-modal-title">Зачётный грант кампуса</h2>
         </div>
         <button type="button" class="fortune-close-btn" id="closeFortuneWheelBtn" aria-label="Закрыть">✕</button>
       </div>
@@ -1711,10 +1714,13 @@
   </div>
 
 
-  <!-- 🏆 Fortune Win Celebration Modal -->
+  <!-- 🏆 Fortune Win Celebration Modal (Collegiate Academic Grant) -->
   <div class="modal-overlay fortune-win-overlay" id="fortuneWinModal" style="display:none;">
     <div class="modal-card fortune-win-card">
-      <div class="fortune-win-confetti-bg"></div>
+      <div class="fortune-win-header-badge">
+        <span class="fortune-win-badge-dot"></span>
+        <span>АКАДЕМИЧЕСКИЙ ГРАНТ</span>
+      </div>
       <div class="fortune-win-icon-wrapper">
         <span class="fortune-win-emoji" id="fortuneWinEmoji">🎉</span>
       </div>
@@ -1722,7 +1728,7 @@
       <p class="fortune-win-desc" id="fortuneWinDesc">Награда успешно зачислена в ваш студенческий профиль.</p>
       <div class="fortune-win-reward-pill" id="fortuneWinRewardPill">+35 🎓 Зачётов</div>
       <button type="button" class="btn-primary fortune-win-claim-btn" id="closeFortuneWinBtn">
-        Забрать награду 🚀
+        Забрать в зачётку 🎓
       </button>
     </div>
   </div>
