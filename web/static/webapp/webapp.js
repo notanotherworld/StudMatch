@@ -1180,25 +1180,25 @@
 
         <!-- Action Buttons (Balanced Layout with Rewind «Шпора») -->
         <div class="card-actions-row">
-          <button class="action-btn rewind" data-action="rewind" title="Шпора (Откатить свайп)" aria-label="Откатить свайп">
+          <button class="action-btn rewind" data-action="rewind" title="Шпора (Откатить свайп) [Backspace]" aria-label="Откатить свайп">
             <svg class="action-btn-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
               <path d="M3 3v5h5"/>
             </svg>
             <span class="rewind-badge-count" id="rewindBadgeCount">${(shopState?.overview?.rewind_count !== undefined ? shopState.overview.rewind_count : (state.currentUser?.rewind_count || 0))}</span>
           </button>
-          <button class="action-btn dislike" data-action="skip" title="Пропустить" aria-label="Пропустить">
+          <button class="action-btn dislike" data-action="skip" title="Пропустить [←]" aria-label="Пропустить">
             <svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#18181B" stroke-width="3" stroke-linecap="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           </button>
-          <button class="action-btn superlike" data-action="superlike" title="Суперлайк" aria-label="Суперлайк">
+          <button class="action-btn superlike" data-action="superlike" title="Суперлайк [↑]" aria-label="Суперлайк">
             <svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="white">
               <path d="M12 2.5L15.09 8.76L22 9.77L17 14.64L18.18 21.5L12 18.25L5.82 21.5L7 14.64L2 9.77L8.91 8.76L12 2.5Z"/>
             </svg>
           </button>
-          <button class="action-btn like ${isCareer ? 'career-like' : ''}" data-action="like" title="${isCareer ? 'Предложить проект' : 'Нравится'}" aria-label="Лайк">
+          <button class="action-btn like ${isCareer ? 'career-like' : ''}" data-action="like" title="${isCareer ? 'Предложить проект' : 'Нравится'} [→]" aria-label="Лайк">
             ${isCareer 
               ? `<svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="white">
                    <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/>
@@ -1785,18 +1785,18 @@
         </div>
 
         <div class="card-actions-row" style="margin-top:12px;">
-          <button class="action-btn dislike" data-action="skip" title="Пропустить">
+          <button class="action-btn dislike" data-action="skip" title="Пропустить [←]">
             <svg class="action-btn-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="3.5" stroke-linecap="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           </button>
-          <button class="action-btn superlike" data-action="superlike" title="Откликнуться с питчем" style="background:linear-gradient(135deg, #F59E0B, #D97706);">
+          <button class="action-btn superlike" data-action="superlike" title="Откликнуться с питчем [↑]" style="background:linear-gradient(135deg, #F59E0B, #D97706);">
             <svg class="action-btn-icon" width="26" height="26" viewBox="0 0 24 24" fill="white">
               <path d="M12 2.5L15.09 8.76L22 9.77L17 14.64L18.18 21.5L12 18.25L5.82 21.5L7 14.64L2 9.77L8.91 8.76L12 2.5Z"/>
             </svg>
           </button>
-          <button class="action-btn like" data-action="like" title="Хочу в команду!" style="background:linear-gradient(135deg, #F59E0B, #B45309);">
+          <button class="action-btn like" data-action="like" title="Хочу в команду! [→]" style="background:linear-gradient(135deg, #F59E0B, #B45309);">
             <svg class="action-btn-icon" width="24" height="24" viewBox="0 0 24 24" fill="white">
               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
             </svg>
@@ -8745,10 +8745,10 @@
     const bannerBadge = document.getElementById("fortuneBadgeText");
     const bannerBtnLabel = document.getElementById("fortuneBtnLabel");
     if (bannerBadge) {
-      bannerBadge.textContent = wheelState.canSpinFree ? "БЕСПЛАТНЫЙ СПИН ГОТОВ!" : `СПИН ЧЕРЕЗ ${formatTimeRemaining(wheelState.secondsLeft)}`;
+      bannerBadge.textContent = wheelState.canSpinFree ? "БЕСПЛАТНЫЙ БИЛЕТ ГОТОВ!" : `БИЛЕТ ЧЕРЕЗ ${formatTimeRemaining(wheelState.secondsLeft)}`;
     }
     if (bannerBtnLabel) {
-      bannerBtnLabel.textContent = wheelState.canSpinFree ? "Крутить (Бесплатно)" : `Крутить (${wheelState.paidPrice} 🎓)`;
+      bannerBtnLabel.textContent = wheelState.canSpinFree ? "Получить грант" : `Испытать (${wheelState.paidPrice} 🎓)`;
     }
 
     // Update modal controls
@@ -8766,8 +8766,8 @@
     }
     if (statusText) {
       statusText.textContent = wheelState.canSpinFree
-        ? "Бесплатное вращение доступно!"
-        : `Следующий бесплатный спин через ${formatTimeRemaining(wheelState.secondsLeft)}`;
+        ? "Бесплатный грант доступен!"
+        : `Следующий грант через ${formatTimeRemaining(wheelState.secondsLeft)}`;
     }
     if (btnFree) {
       btnFree.disabled = !wheelState.canSpinFree || wheelState.isSpinning;
@@ -8944,7 +8944,7 @@
       if (!isOk) {
         wheelState.isSpinning = false;
         triggerHaptic("error");
-        showAppToast(resp?.detail || resp?.message || "Ошибка вращения колеса");
+        showAppToast(resp?.detail || resp?.message || "Ошибка розыгрыша гранта");
         updateFortuneWheelUI({
           can_spin_free: wheelState.canSpinFree,
           seconds_left: wheelState.secondsLeft,
@@ -9011,7 +9011,7 @@
     } catch (e) {
       wheelState.isSpinning = false;
       triggerHaptic("error");
-      showAppToast(e.message || "Ошибка вращения колеса");
+      showAppToast(e.message || "Ошибка розыгрыша гранта");
       updateFortuneWheelUI({
         can_spin_free: wheelState.canSpinFree,
         seconds_left: wheelState.secondsLeft,
@@ -9035,7 +9035,7 @@
         emojiEl.textContent = sector?.sector_icon || "🎉";
       }
     }
-    if (descEl) descEl.textContent = sector?.sector_title ? `Приз добавлен: ${sector.sector_title}` : "Награда успешно зачислена в профиль!";
+    if (descEl) descEl.textContent = sector?.sector_title ? `Грант зачислен: ${sector.sector_title}` : "Студенческий грант успешно зачислен в профиль!";
     if (pillEl) pillEl.textContent = `${sector?.sector_icon || "🎁"} ${sector?.sector_title || "Приз"}`;
     modal.style.display = "flex";
   }

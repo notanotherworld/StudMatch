@@ -13,7 +13,7 @@
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
   <link rel="stylesheet" href="/static/webapp/webapp.css?v={{ css_version|default('20260913_2125') }}" />
@@ -1373,21 +1373,20 @@
       <div class="shop-modal-body custom-scrollbar">
         <!-- 1. Catalog View -->
         <div id="shopViewCatalog" class="shop-view-section">
-          <!-- Fortune Wheel Hero Banner («Счастливый билет» 🎲) -->
+          <!-- Campus Academic Grant Banner («Зачётный грант» 🎟️) -->
           <div class="shop-fortune-banner" id="shopFortuneBanner">
             <div class="fortune-banner-glow"></div>
             <div class="fortune-banner-left">
               <div class="fortune-banner-badge" id="fortuneBannerBadge">
-                <span class="fortune-badge-pulse"></span>
-                <span id="fortuneBadgeText">БЕСПЛАТНЫЙ СПИН ГОТОВ!</span>
+                <span id="fortuneBadgeText">БЕСПЛАТНЫЙ БИЛЕТ ГОТОВ!</span>
               </div>
-              <h3 class="fortune-banner-title">Счастливый билет 🎲</h3>
-              <p class="fortune-banner-desc">Крути Колесо Фортуны раз в день: зачёты, шпоры, суперлайки и подарки!</p>
+              <h3 class="fortune-banner-title">Зачётный грант кампуса 🎟️</h3>
+              <p class="fortune-banner-desc">Испытай студенческую удачу раз в день: гранты в зачётах, шпоры, суперлайки и подарки!</p>
             </div>
             <div class="fortune-banner-right">
               <button type="button" class="fortune-banner-spin-btn" id="btnOpenFortuneWheel">
-                <span class="fortune-spin-icon">🎡</span>
-                <span id="fortuneBtnLabel">Крутить</span>
+                <span class="fortune-spin-icon">🎟️</span>
+                <span id="fortuneBtnLabel">Испытать</span>
               </button>
             </div>
           </div>
@@ -1649,7 +1648,7 @@
   </div>
 
 
-  <!-- 🎲 Fortune Wheel Modal («Счастливый билет») -->
+  <!-- 🎟️ Campus Academic Grant Modal («Зачётная лотерея») -->
   <div class="bottom-sheet-overlay fortune-wheel-overlay" id="fortuneWheelModal" style="display:none;">
     <div class="bottom-sheet-content fortune-wheel-content">
       <div class="sheet-drag-handle-wrap">
@@ -1657,8 +1656,8 @@
       </div>
       <div class="fortune-wheel-header">
         <div class="fortune-header-title-wrap">
-          <span class="fortune-badge">🎲 СЧАСТЛИВЫЙ БИЛЕТ</span>
-          <h2 class="fortune-modal-title">Колесо Фортуны</h2>
+          <span class="fortune-badge">🏛 СТУДЕНЧЕСКИЙ ГРАНТ</span>
+          <h2 class="fortune-modal-title">Зачётная лотерея</h2>
         </div>
         <button type="button" class="fortune-close-btn" id="closeFortuneWheelBtn" aria-label="Закрыть">✕</button>
       </div>
@@ -1681,7 +1680,7 @@
         <!-- Status & Cooldown Notice -->
         <div class="fortune-status-box" id="fortuneStatusBox">
           <div class="fortune-status-indicator ready" id="fortuneStatusIndicator"></div>
-          <div class="fortune-status-text" id="fortuneStatusText">Бесплатное вращение доступно!</div>
+          <div class="fortune-status-text" id="fortuneStatusText">Бесплатный грант доступен!</div>
         </div>
 
         <!-- Spin Action Buttons -->
@@ -1689,21 +1688,21 @@
           <button type="button" class="fortune-spin-action-btn free-spin-btn" id="btnSpinWheelFree">
             <span class="spin-btn-icon">🎁</span>
             <div class="spin-btn-col">
-              <span class="spin-btn-main" id="spinFreeBtnText">Крутить бесплатно</span>
+              <span class="spin-btn-main" id="spinFreeBtnText">Получить грант</span>
               <span class="spin-btn-sub" id="spinFreeCooldownSub">1 раз в 24 часа</span>
             </div>
           </button>
           <button type="button" class="fortune-spin-action-btn paid-spin-btn" id="btnSpinWheelPaid">
-            <span class="spin-btn-icon">🎲</span>
+            <span class="spin-btn-icon">🎟️</span>
             <div class="spin-btn-col">
-              <span class="spin-btn-main" id="spinPaidBtnText">Ещё спин: 25 🎓</span>
+              <span class="spin-btn-main" id="spinPaidBtnText">Доп. билет: 25 🎓</span>
               <span class="spin-btn-sub" id="spinPaidSubText">Баланс: 0 🎓</span>
             </div>
           </button>
         </div>
 
         <!-- Sectors Legend (8 Prizes) -->
-        <div class="fortune-legend-heading">🎁 Призы в Колесе Фортуны:</div>
+        <div class="fortune-legend-heading">🏛 Призовой фонд грантов:</div>
         <div class="fortune-sectors-legend" id="fortuneSectorsLegend">
           <!-- Dynamically filled or static items -->
         </div>
@@ -1719,8 +1718,8 @@
       <div class="fortune-win-icon-wrapper">
         <span class="fortune-win-emoji" id="fortuneWinEmoji">🎉</span>
       </div>
-      <h3 class="fortune-win-title" id="fortuneWinTitle">Поздравляем!</h3>
-      <p class="fortune-win-desc" id="fortuneWinDesc">Вы выиграли награду в Колесе Фортуны.</p>
+      <h3 class="fortune-win-title" id="fortuneWinTitle">Грант получен!</h3>
+      <p class="fortune-win-desc" id="fortuneWinDesc">Награда успешно зачислена в ваш студенческий профиль.</p>
       <div class="fortune-win-reward-pill" id="fortuneWinRewardPill">+35 🎓 Зачётов</div>
       <button type="button" class="btn-primary fortune-win-claim-btn" id="closeFortuneWinBtn">
         Забрать награду 🚀
