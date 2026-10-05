@@ -9318,13 +9318,41 @@
     } else {
       if (recRow) recRow.style.display = "none";
       if (recSelectBox) recSelectBox.style.display = "block";
-      if (recSelect) {
-        const matches = state.matches || [];
-        recSelect.innerHTML = `<option value="">Выберите студента из ваших мэтчей...</option>` +
-          matches.map(m => {
+      const matches = state.matches || [];
+      const avatarRow = document.getElementById("giftRecipientsAvatarRow");
+      if (avatarRow) {
+        if (matches.length === 0) {
+          avatarRow.innerHTML = `<div style="padding: 10px 14px; font-size: 12px; color: var(--text-muted); background: #F1F5F9; border-radius: 12px; width: 100%;">У вас пока нет активных мэтчей. Начните общаться во вкладке «Мэтчи», чтобы дарить подарки!</div>`;
+        } else {
+          avatarRow.innerHTML = matches.map((m, idx) => {
             const pId = m.partner?.id || m.user_id;
             const pName = m.partner?.name || m.name || "Студент";
-            return `<option value="${pId}">${escapeHtml(pName)}</option>`;
+            const pPhoto = m.photo_url || m.partner?.avatar || (m.photos && m.photos[0]) || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+            return `
+              <div class="gift-recipient-pill ${idx === 0 ? 'active' : ''}" data-recipient-id="${pId}">
+                <img src="${pPhoto}" class="gift-recipient-pill-avatar" alt="${escapeHtml(pName)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
+                <span class="gift-recipient-pill-name">${escapeHtml(pName)}</span>
+              </div>
+            `;
+          }).join("");
+
+          avatarRow.querySelectorAll(".gift-recipient-pill").forEach(pill => {
+            pill.addEventListener("click", () => {
+              avatarRow.querySelectorAll(".gift-recipient-pill").forEach(p => p.classList.remove("active"));
+              pill.classList.add("active");
+              const rid = pill.dataset.recipientId;
+              if (recSelect) recSelect.value = rid;
+              triggerHaptic("selection");
+            });
+          });
+        }
+      }
+      if (recSelect) {
+        recSelect.innerHTML = `<option value="">Выберите студента из ваших мэтчей...</option>` +
+          matches.map((m, idx) => {
+            const pId = m.partner?.id || m.user_id;
+            const pName = m.partner?.name || m.name || "Студент";
+            return `<option value="${pId}" ${idx === 0 ? 'selected' : ''}>${escapeHtml(pName)}</option>`;
           }).join("");
       }
     }
