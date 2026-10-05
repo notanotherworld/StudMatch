@@ -7953,9 +7953,87 @@
     countdownInterval: null,
   };
 
+  // ─── Shimmer Skeleton Generators (DESIGN.md Section 5) ─────────────
+  function getCatalogSkeletonsHtml(count = 3) {
+    return Array.from({ length: count }).map(() => `
+      <div class="shop-card-skeleton" aria-hidden="true">
+        <div class="skeleton-shimmer skeleton-icon"></div>
+        <div class="skeleton-info">
+          <div class="skeleton-shimmer skeleton-title"></div>
+          <div class="skeleton-shimmer skeleton-desc"></div>
+        </div>
+        <div class="skeleton-shimmer skeleton-btn"></div>
+      </div>
+    `).join("");
+  }
+
+  function getPacksSkeletonsHtml(count = 4) {
+    return Array.from({ length: count }).map(() => `
+      <div class="credit-pack-skeleton" aria-hidden="true">
+        <div class="skeleton-pack-header">
+          <div class="skeleton-shimmer skeleton-pack-icon"></div>
+          <div class="skeleton-shimmer skeleton-pack-title"></div>
+        </div>
+        <div class="skeleton-shimmer skeleton-pack-amount"></div>
+        <div class="skeleton-shimmer skeleton-pack-btn"></div>
+      </div>
+    `).join("");
+  }
+
+  function getGiftsSkeletonsHtml(count = 4) {
+    return Array.from({ length: count }).map(() => `
+      <div class="shop-gift-skeleton" aria-hidden="true">
+        <div class="skeleton-shimmer skeleton-gift-img"></div>
+        <div class="skeleton-shimmer skeleton-gift-title"></div>
+        <div class="skeleton-shimmer skeleton-gift-desc"></div>
+        <div class="skeleton-shimmer skeleton-gift-btn"></div>
+      </div>
+    `).join("");
+  }
+
+  function getQuestsSkeletonsHtml(count = 3) {
+    return Array.from({ length: count }).map(() => `
+      <div class="shop-quest-skeleton" aria-hidden="true">
+        <div class="skeleton-quest-top">
+          <div class="skeleton-quest-left">
+            <div class="skeleton-shimmer skeleton-quest-icon"></div>
+            <div class="skeleton-quest-text">
+              <div class="skeleton-shimmer skeleton-quest-title"></div>
+              <div class="skeleton-shimmer skeleton-quest-desc"></div>
+            </div>
+          </div>
+          <div class="skeleton-shimmer skeleton-quest-btn"></div>
+        </div>
+        <div class="skeleton-shimmer skeleton-quest-bar"></div>
+      </div>
+    `).join("");
+  }
+
+  function getInventorySkeletonsHtml(count = 3) {
+    return Array.from({ length: count }).map(() => `
+      <div class="shop-inventory-skeleton" aria-hidden="true">
+        <div class="skeleton-inv-left">
+          <div class="skeleton-shimmer skeleton-inv-icon"></div>
+          <div class="skeleton-inv-text">
+            <div class="skeleton-shimmer skeleton-inv-title"></div>
+            <div class="skeleton-shimmer skeleton-inv-desc"></div>
+          </div>
+        </div>
+        <div class="skeleton-shimmer skeleton-inv-btn"></div>
+      </div>
+    `).join("");
+  }
+
   async function loadShopData() {
     if (!state.token) return;
+    shopState.loading = true;
     try {
+      if (!shopState.catalog || shopState.catalog.length === 0) {
+        const catGrid = document.getElementById("shopCatalogGrid");
+        if (catGrid && catGrid.children.length === 0) {
+          catGrid.innerHTML = getCatalogSkeletonsHtml(3);
+        }
+      }
       const [overviewRes, catalogRes] = await Promise.all([
         apiFetch("/api/webapp/economy/overview"),
         apiFetch("/api/webapp/economy/shop/catalog"),
@@ -7977,6 +8055,8 @@
       renderShopTabContent();
     } catch (err) {
       console.warn("[Shop] Error loading shop data:", err);
+    } finally {
+      shopState.loading = false;
     }
   }
 
@@ -8096,6 +8176,10 @@
     const container = document.getElementById("shopCatalogGrid");
     if (!container) return;
     if (!shopState.catalog || shopState.catalog.length === 0) {
+      if (shopState.loading) {
+        container.innerHTML = getCatalogSkeletonsHtml(3);
+        return;
+      }
       container.innerHTML = `<div style="text-align:center; padding:32px 16px; color:var(--text-muted); font-size:13.5px;">В магазине пока нет доступных товаров.</div>`;
       return;
     }
@@ -8202,6 +8286,10 @@
 
     // 2. Render Regular Credit Packs
     if (!grid) return;
+    if (shopState.loading && !ov) {
+      grid.innerHTML = getPacksSkeletonsHtml(4);
+      return;
+    }
     const packs = (ov && (ov.packages || ov.credit_packages)) ? (ov.packages || ov.credit_packages) : [
       { code: "credits_100", title: "«Шпаргалка»", credits: 100, bonus: 0, price: 99, icon: "🎒" },
       { code: "credits_300", title: "«Студенческий»", credits: 300, bonus: 30, price: 249, icon: "📚", badge: "+10% Бонус" },
@@ -8330,7 +8418,13 @@
 
   function renderShopQuests() {
     const ov = shopState.overview;
-    if (!ov) return;
+    const questsList = document.getElementById("shopQuestsList");
+    if (!ov) {
+      if (shopState.loading && questsList) {
+        questsList.innerHTML = getQuestsSkeletonsHtml(3);
+      }
+      return;
+    }
 
     // Streak Row
     const daysRow = document.getElementById("streakDaysRow");
@@ -8383,7 +8477,6 @@
     }
 
     // Quests List
-    const questsList = document.getElementById("shopQuestsList");
     const rawQuests = ov.quests || ov.daily_quests || [];
     if (questsList) {
       if (rawQuests.length === 0) {
@@ -8510,7 +8603,11 @@
     const permQuests = ov?.permanent_quests || [];
 
     if (permQuests.length === 0) {
-      list.innerHTML = `<div style="text-align:center; padding:24px 16px; color:var(--text-muted); font-size:13px;">Постоянные задания загружаются...</div>`;
+      if (shopState.loading) {
+        list.innerHTML = getQuestsSkeletonsHtml(3);
+        return;
+      }
+      list.innerHTML = `<div style="text-align:center; padding:24px 16px; color:var(--text-muted); font-size:13px;">Постоянные задания пока не назначены.</div>`;
       return;
     }
 
@@ -8600,6 +8697,10 @@
     const list = document.getElementById("shopInventoryList");
     if (!list) return;
     const ov = shopState.overview;
+    if (!ov && shopState.loading) {
+      list.innerHTML = getInventorySkeletonsHtml(3);
+      return;
+    }
     const inv = ov?.inventory || [];
 
     const userAvatar = state.currentUser?.photos?.[0] || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';

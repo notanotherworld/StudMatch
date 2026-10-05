@@ -8443,9 +8443,9 @@ img, video, canvas {
 }
 
 .shop-tab-text {
-  font-size: clamp(9px, 2.6vw, 10.5px);
+  font-size: clamp(11px, 2.8vw, 12px);
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.15;
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
@@ -8701,6 +8701,292 @@ img, video, canvas {
   border-color: rgba(108, 92, 231, 0.4);
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   ✨ FLUID SKELETAL SHIMMER SYSTEM (DESIGN.md Section 5)
+   ══════════════════════════════════════════════════════════════════ */
+@keyframes skeletonShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #F1F5F9 0%,
+    #E2E8F0 50%,
+    #F1F5F9 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+    background: #E2E8F0;
+  }
+}
+
+/* 1. Shop Catalog Card Skeleton */
+.shop-card-skeleton {
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.shop-card-skeleton .skeleton-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.shop-card-skeleton .skeleton-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shop-card-skeleton .skeleton-title {
+  width: 55%;
+  height: 14px;
+  border-radius: 6px;
+}
+
+.shop-card-skeleton .skeleton-desc {
+  width: 85%;
+  height: 11px;
+  border-radius: 5px;
+}
+
+.shop-card-skeleton .skeleton-btn {
+  width: 80px;
+  height: 38px;
+  border-radius: 11px;
+  flex-shrink: 0;
+}
+
+/* 2. Credit Pack Card Skeleton */
+.credit-pack-skeleton {
+  position: relative;
+  background: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 18px;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.credit-pack-skeleton .skeleton-pack-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.credit-pack-skeleton .skeleton-pack-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.credit-pack-skeleton .skeleton-pack-title {
+  width: 65%;
+  height: 14px;
+  border-radius: 6px;
+}
+
+.credit-pack-skeleton .skeleton-pack-amount {
+  width: 50%;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.credit-pack-skeleton .skeleton-pack-btn {
+  width: 100%;
+  height: 38px;
+  border-radius: 12px;
+}
+
+/* 3. Gift Card Skeleton */
+.shop-gift-skeleton {
+  position: relative;
+  background: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 18px;
+  padding: 16px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+}
+
+.shop-gift-skeleton .skeleton-gift-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  margin-bottom: 4px;
+}
+
+.shop-gift-skeleton .skeleton-gift-title {
+  width: 70%;
+  height: 14px;
+  border-radius: 6px;
+}
+
+.shop-gift-skeleton .skeleton-gift-desc {
+  width: 85%;
+  height: 11px;
+  border-radius: 5px;
+}
+
+.shop-gift-skeleton .skeleton-gift-hint {
+  width: 90%;
+  height: 20px;
+  border-radius: 6px;
+}
+
+.shop-gift-skeleton .skeleton-gift-btn {
+  width: 100%;
+  height: 36px;
+  border-radius: 12px;
+  margin-top: 4px;
+}
+
+/* 4. Quest Card Skeleton */
+.shop-quest-skeleton {
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.shop-quest-skeleton .skeleton-quest-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.shop-quest-skeleton .skeleton-quest-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.shop-quest-skeleton .skeleton-quest-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.shop-quest-skeleton .skeleton-quest-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.shop-quest-skeleton .skeleton-quest-title {
+  width: 60%;
+  height: 13px;
+  border-radius: 5px;
+}
+
+.shop-quest-skeleton .skeleton-quest-desc {
+  width: 85%;
+  height: 10px;
+  border-radius: 4px;
+}
+
+.shop-quest-skeleton .skeleton-quest-btn {
+  width: 68px;
+  height: 28px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.shop-quest-skeleton .skeleton-quest-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+}
+
+/* 5. Inventory Item Skeleton */
+.shop-inventory-skeleton {
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.shop-inventory-skeleton .skeleton-inv-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.shop-inventory-skeleton .skeleton-inv-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.shop-inventory-skeleton .skeleton-inv-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.shop-inventory-skeleton .skeleton-inv-title {
+  width: 50%;
+  height: 14px;
+  border-radius: 6px;
+}
+
+.shop-inventory-skeleton .skeleton-inv-desc {
+  width: 75%;
+  height: 11px;
+  border-radius: 5px;
+}
+
+.shop-inventory-skeleton .skeleton-inv-btn {
+  width: 72px;
+  height: 32px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
 .shop-card-item.featured-card {
   border-color: rgba(217, 119, 6, 0.35);
   background: rgba(254, 243, 199, 0.12);
@@ -8753,9 +9039,9 @@ img, video, canvas {
 }
 
 .shop-item-tag {
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 800;
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 9999px;
   background: #FEF3C7;
   color: #904D00;
@@ -8815,8 +9101,8 @@ img, video, canvas {
 }
 
 .shop-rub-price {
-  font-size: 10.5px;
-  color: #94A3B8;
+  font-size: 11px;
+  color: #64748B;
   font-weight: 500;
 }
 
@@ -8982,9 +9268,9 @@ img, video, canvas {
 }
 
 .shop-quest-badge-tag {
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 800;
-  padding: 1px 7px;
+  padding: 2px 7px;
   border-radius: 9999px;
   background: #FEF3C7;
   color: #904D00;
@@ -9039,7 +9325,7 @@ img, video, canvas {
 .streak-flame-badge {
   background: #EA580C;
   color: #FFFFFF;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 9999px;
@@ -9279,12 +9565,12 @@ img, video, canvas {
 }
 
 .shop-quest-prem-pill {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   color: #92400E;
   background: linear-gradient(135deg, #FEF3C7, #FDE68A);
   border: 1px solid rgba(245, 158, 11, 0.35);
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: 9999px;
   display: inline-flex;
   align-items: center;
@@ -9500,7 +9786,7 @@ img, video, canvas {
   border-radius: 50%;
   background: #FFFFFF;
   border: 1px solid rgba(226, 232, 240, 0.9);
-  font-size: 10px;
+  font-size: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9883,11 +10169,11 @@ img, video, canvas {
 
 .tg-gift-inv-badge {
   display: inline-block;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 6px;
   margin-right: 4px;
   vertical-align: middle;
@@ -9979,8 +10265,8 @@ img, video, canvas {
     font-size: 17px;
   }
   .shop-title-badge {
-    font-size: 9px;
-    padding: 1px 6px;
+    font-size: 11px;
+    padding: 2px 7px;
   }
   .shop-nav-tabs {
     gap: 2px;
@@ -9996,21 +10282,20 @@ img, video, canvas {
     font-size: 15px;
   }
   .shop-tab-text {
-    font-size: 9px;
+    font-size: 11px;
   }
   .shop-fortune-banner {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 8px 10px;
   }
   .fortune-banner-right {
-    width: 100%;
+    width: auto;
   }
   .fortune-banner-spin-btn {
-    width: 100%;
-    justify-content: center;
-    padding: 8px 10px;
+    width: auto;
+    padding: 6px 12px;
   }
   .shop-special-bottom {
     flex-direction: column;
@@ -10226,7 +10511,7 @@ img, video, canvas {
 }
 
 .starter-badge-limit {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   color: #B45309;
   background: rgba(245, 158, 11, 0.15);
@@ -10310,8 +10595,8 @@ img, video, canvas {
 }
 
 .starter-perk-sub {
-  font-size: 10px;
-  color: #78716C;
+  font-size: 11px;
+  color: #64748B;
   line-height: 1.2;
   margin-top: 1px;
 }
@@ -10436,9 +10721,9 @@ img, video, canvas {
   right: 10px;
   background: linear-gradient(135deg, #6C5CE7 0%, #4834D4 100%);
   color: #FFFFFF;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  padding: 2px 7px;
+  padding: 3px 8px;
   border-radius: 9999px;
   letter-spacing: 0.2px;
   box-shadow: 0 2px 6px rgba(108, 92, 231, 0.25);
@@ -10476,7 +10761,7 @@ img, video, canvas {
 
 .credit-pack-bonus {
   display: inline-block;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   color: #059669;
   background: #ECFDF5;
@@ -10539,10 +10824,10 @@ img, video, canvas {
   background: #FFFFFF;
   border: 1px solid #CBD5E1;
   border-radius: 6px;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   color: #475569;
-  padding: 3px 8px;
+  padding: 4px 8px;
 }
 
 .payment-trust-note {
@@ -10730,7 +11015,7 @@ img, video, canvas {
 }
 
 .fortune-badge {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.05em;
   color: #F59E0B;
@@ -10856,10 +11141,10 @@ img, video, canvas {
 }
 
 .wheel-cap-label {
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 900;
   color: #FFFFFF;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 
@@ -10968,7 +11253,7 @@ img, video, canvas {
 }
 
 .spin-btn-sub {
-  font-size: 10.5px;
+  font-size: 11px;
   opacity: 0.85;
 }
 
@@ -11166,10 +11451,10 @@ img, video, canvas {
   background: rgba(255, 255, 255, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.35);
   color: #FFFFFF;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.05em;
-  padding: 3px 9px;
+  padding: 4px 10px;
   border-radius: 9999px;
   margin-bottom: 6px;
   text-transform: uppercase;
@@ -11235,14 +11520,14 @@ img, video, canvas {
   position: absolute;
   top: 8px;
   left: 8px;
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   background: #EEF2FF;
   color: #4F46E5;
   border: 1px solid rgba(99, 102, 241, 0.25);
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 6px;
 }
 
@@ -11364,12 +11649,12 @@ img, video, canvas {
 }
 
 .gift-card-exchange-hint {
-  font-size: 10px;
+  font-size: 11px;
   color: #059669;
   background: #ECFDF5;
   border: 1px dashed rgba(16, 185, 129, 0.4);
   border-radius: 8px;
-  padding: 3px 6px;
+  padding: 4px 8px;
   margin-bottom: 8px;
   width: 100%;
   box-sizing: border-box;
@@ -11466,7 +11751,7 @@ img, video, canvas {
 }
 
 .gift-badge {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.05em;
   color: #7C3AED;
@@ -11843,7 +12128,7 @@ img, video, canvas {
 }
 
 .profile-gift-card-sender {
-  font-size: 9.5px;
+  font-size: 11px;
   color: #64748B;
   white-space: nowrap;
   overflow: hidden;
@@ -11853,9 +12138,9 @@ img, video, canvas {
 
 .profile-gift-pin-toggle-btn {
   margin-top: 6px;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
-  padding: 3px 6px;
+  padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid #CBD5E1;
   background: #FFFFFF;
@@ -11909,9 +12194,9 @@ img, video, canvas {
   position: absolute;
   top: 4px;
   left: 4px;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 800;
-  padding: 1px 4px;
+  padding: 2px 6px;
   border-radius: 4px;
   background: #FEF3C7;
   color: #92400E;
@@ -11920,9 +12205,9 @@ img, video, canvas {
 
 .profile-gift-exchange-btn {
   margin-top: 4px;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
-  padding: 4px 6px;
+  padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid #10B981;
   background: #ECFDF5;
@@ -12020,7 +12305,7 @@ img, video, canvas {
 }
 
 .chat-gift-badge-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
