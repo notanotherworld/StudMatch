@@ -10335,6 +10335,19 @@ img, video, canvas {
   .fortune-sectors-legend {
     grid-template-columns: 1fr;
   }
+  .send-gift-header {
+    padding: 10px 14px 8px;
+  }
+  .send-gift-body {
+    padding: 12px 14px 10px;
+  }
+  .send-gift-footer {
+    padding: 10px 14px calc(12px + max(var(--safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 6px));
+  }
+  .gift-send-btn {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
 }
 
 /* Micro screens (≤ 330px) */
@@ -11725,8 +11738,8 @@ img, video, canvas {
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
-  max-height: 90dvh;
-  padding-bottom: calc(16px + max(var(--safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 8px));
+  max-height: min(90dvh, var(--tg-viewport-height, 90vh));
+  padding-bottom: 0;
   background: #FFFFFF;
   border-top-left-radius: 28px;
   border-top-right-radius: 28px;
@@ -11743,6 +11756,7 @@ img, video, canvas {
   justify-content: space-between;
   padding: 12px 20px 10px;
   border-bottom: 1px solid #F1F5F9;
+  flex-shrink: 0;
 }
 
 .gift-header-title-wrap {
@@ -11784,8 +11798,12 @@ img, video, canvas {
 }
 
 .send-gift-body {
-  padding: 16px 20px 24px;
+  flex: 1;
+  min-height: 0;
+  padding: 14px 20px 12px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .gift-recipient-row {
@@ -11952,26 +11970,29 @@ img, video, canvas {
 }
 
 .gift-message-box {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .gift-textarea {
   width: 100%;
-  height: 72px;
+  height: 68px;
   background: #F8FAFC;
-  border: 1.5px solid #E2E8F0;
+  border: 1px solid #E2E8F0;
   border-radius: 12px;
   padding: 10px 12px;
-  font-size: 13px;
+  font-size: 13.5px;
   color: #0F172A;
+  caret-color: #6C5CE7;
   outline: none;
   resize: none;
   font-family: inherit;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
 }
 
 .gift-textarea:focus {
-  border-color: #6366F1;
+  border-color: #6C5CE7;
+  box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.2);
   background: #FFFFFF;
 }
 
@@ -11979,7 +12000,7 @@ img, video, canvas {
   text-align: right;
   font-size: 11px;
   color: #94A3B8;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 .gift-anon-toggle {
@@ -11990,14 +12011,15 @@ img, video, canvas {
   border: 1px solid #E2E8F0;
   border-radius: 12px;
   padding: 10px 12px;
-  margin-bottom: 16px;
+  margin-bottom: 4px;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .gift-anon-toggle input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #6366F1;
+  accent-color: #6C5CE7;
   cursor: pointer;
 }
 
@@ -12017,13 +12039,24 @@ img, video, canvas {
   color: #64748B;
 }
 
+/* Sticky Send Gift Footer */
+.send-gift-footer {
+  flex-shrink: 0;
+  padding: 12px 20px calc(14px + max(var(--safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 8px));
+  background: #FFFFFF;
+  border-top: 1px solid #F1F5F9;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.04);
+  position: relative;
+  z-index: 10;
+}
+
 .gift-send-btn {
   width: 100%;
-  background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+  background: #6C5CE7;
   color: #FFFFFF;
   font-size: 15px;
   font-weight: 800;
-  padding: 14px;
+  padding: 13px 16px;
   border-radius: 14px;
   border: none;
   cursor: pointer;
@@ -12031,12 +12064,20 @@ img, video, canvas {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
-  transition: all 0.15s ease;
+  box-shadow: 0 3px 10px rgba(108, 92, 231, 0.25);
+  transition: transform 0.12s ease, opacity 0.15s ease, background 0.15s ease;
+  touch-action: manipulation;
 }
 
 .gift-send-btn:active {
-  transform: scale(0.98);
+  transform: scale(0.97) translateY(1px);
+  background: #5846E2;
+}
+
+.gift-send-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* ══════════════════════════════════════════════════════════════════

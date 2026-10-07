@@ -9972,11 +9972,19 @@
     // Send Gift Triggers
     document.getElementById("closeSendGiftBtn")?.addEventListener("click", () => closeSendGiftModal());
     document.getElementById("btnSubmitSendGift")?.addEventListener("click", () => submitSendGift());
-    document.getElementById("giftMessageInput")?.addEventListener("input", (e) => {
-      const val = e.target.value || "";
-      const counter = document.getElementById("giftCharCount");
-      if (counter) counter.textContent = String(val.length);
-    });
+    const giftMsgInput = document.getElementById("giftMessageInput");
+    if (giftMsgInput) {
+      giftMsgInput.addEventListener("input", (e) => {
+        const val = e.target.value || "";
+        const counter = document.getElementById("giftCharCount");
+        if (counter) counter.textContent = String(val.length);
+      });
+      giftMsgInput.addEventListener("focus", () => {
+        setTimeout(() => {
+          giftMsgInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 250);
+      });
+    }
 
     const fortuneWheelModal = document.getElementById("fortuneWheelModal");
     if (fortuneWheelModal) {
