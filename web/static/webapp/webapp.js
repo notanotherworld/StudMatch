@@ -2023,6 +2023,19 @@
               const remainingPhotos = resp.photos || [];
               if (remainingPhotos.length === 0) {
                 closeFullscreenGallery();
+                setTimeout(() => {
+                  const promptText = "Все фото удалены. Загрузить новое фото сейчас?";
+                  if (window.Telegram?.WebApp?.showConfirm) {
+                    window.Telegram.WebApp.showConfirm(promptText, (ok) => {
+                      if (ok) {
+                        triggerHaptic("light");
+                        document.getElementById("profilePhotoFileInput")?.click();
+                      }
+                    });
+                  } else if (confirm(promptText)) {
+                    document.getElementById("profilePhotoFileInput")?.click();
+                  }
+                }, 350);
               } else {
                 currentGalleryPhotos = remainingPhotos;
                 currentGalleryIndex = Math.max(0, Math.min(currentGalleryIndex, currentGalleryPhotos.length - 1));
@@ -5319,8 +5332,16 @@
 
       // Hero slides
       const heroSlidesHtml = photos.map((url, i) => `
-        <div class="profile-hero-slide" data-slide-index="${i}">
+        <div class="profile-hero-slide ${!hasRealPhotos ? 'profile-hero-placeholder-slide' : ''}" data-slide-index="${i}">
           <img src="${url}" class="profile-hero-img" alt="${escapeHtml(u.name || 'User')}" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
+          ${!hasRealPhotos ? `
+            <div class="profile-placeholder-overlay" id="profilePlaceholderOverlay">
+              <button class="profile-placeholder-upload-pill" type="button" id="btnPlaceholderUpload">
+                <span class="placeholder-upload-icon">📸</span>
+                <span class="placeholder-upload-text">Добавить фото</span>
+              </button>
+            </div>
+          ` : ""}
         </div>
       `).join("");
 
@@ -5423,9 +5444,9 @@
             <!-- Header: Name, Age, Subtitle & Edit Button -->
             <div class="profile-header-row">
               <div class="profile-header-avatar-col">
-                <div class="shop-frame-avatar-preview ${frameClass}" title="${frameCode ? escapeHtml(frameTitle) : 'Аватар профиля'}">
+                <div class="shop-frame-avatar-preview ${frameClass} ${!hasRealPhotos ? 'empty-avatar-clickable' : ''}" id="profileHeaderAvatarCol" title="${!hasRealPhotos ? 'Нажмите, чтобы загрузить фото' : (frameCode ? escapeHtml(frameTitle) : 'Аватар профиля')}">
                   <img src="${photos[0]}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
-                  ${frameCode ? `<span class="shop-frame-badge">${frameBadge}</span>` : ''}
+                  ${!hasRealPhotos ? `<span class="empty-avatar-add-badge" title="Добавить фото">+</span>` : (frameCode ? `<span class="shop-frame-badge">${frameBadge}</span>` : '')}
                 </div>
               </div>
               <div class="profile-header-left">
@@ -5597,16 +5618,34 @@
 
       // Setup Hero Slider gestures
       const heroWrap = document.getElementById("myProfileHeroWrap");
-      setupHeroSlider(heroWrap, photos);
+      if (hasRealPhotos) {
+        setupHeroSlider(heroWrap, photos);
 
-      // Hero slides tap -> open fullscreen gallery
-      heroWrap?.querySelectorAll(".profile-hero-slide").forEach((slide, i) => {
-        slide.addEventListener("click", () => {
-          openFullscreenGallery(userPhotos.length > 0 ? userPhotos : photos, i, hasRealPhotos, () => {
-            loadProfile();
+        // Hero slides tap -> open fullscreen gallery
+        heroWrap?.querySelectorAll(".profile-hero-slide").forEach((slide, i) => {
+          slide.addEventListener("click", () => {
+            openFullscreenGallery(userPhotos.length > 0 ? userPhotos : photos, i, hasRealPhotos, () => {
+              loadProfile();
+            });
           });
         });
-      });
+      } else {
+        // When no photos: tapping anywhere on the hero placeholder opens photo upload immediately
+        heroWrap?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          triggerHaptic("light");
+          document.getElementById("profilePhotoFileInput")?.click();
+        });
+      }
+
+      // Circular avatar click when no photos: also triggers instant upload
+      if (!hasRealPhotos) {
+        document.getElementById("profileHeaderAvatarCol")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          triggerHaptic("light");
+          document.getElementById("profilePhotoFileInput")?.click();
+        });
+      }
 
       // Gallery cells tap -> open fullscreen gallery
       container.querySelectorAll(".gallery-grid-cell").forEach((cell) => {
@@ -5642,6 +5681,22 @@
               triggerHaptic("success");
               showAppToast("Фото удалено");
               await loadProfile();
+              const remaining = resp.photos || [];
+              if (remaining.length === 0) {
+                setTimeout(() => {
+                  const promptText = "Все фото удалены. Загрузить новое фото сейчас?";
+                  if (window.Telegram?.WebApp?.showConfirm) {
+                    window.Telegram.WebApp.showConfirm(promptText, (ok) => {
+                      if (ok) {
+                        triggerHaptic("light");
+                        document.getElementById("profilePhotoFileInput")?.click();
+                      }
+                    });
+                  } else if (confirm(promptText)) {
+                    document.getElementById("profilePhotoFileInput")?.click();
+                  }
+                }, 350);
+              }
             } else {
               triggerHaptic("error");
               showAppToast(resp?.detail || "Ошибка при удалении фото");
@@ -5715,6 +5770,20 @@
               <div class="gallery-upload-spinner"></div>
               <div class="gallery-upload-text">Загрузка...</div>
             `;
+          }
+          const placeholderOverlay = document.getElementById("profilePlaceholderOverlay");
+          if (placeholderOverlay) {
+            placeholderOverlay.classList.add("loading");
+            placeholderOverlay.innerHTML = `
+              <div class="placeholder-upload-loading">
+                <div class="gallery-upload-spinner"></div>
+                <div class="placeholder-loading-text">Загрузка фото...</div>
+              </div>
+            `;
+          }
+          const avatarCol = document.getElementById("profileHeaderAvatarCol");
+          if (avatarCol) {
+            avatarCol.classList.add("uploading-pulse");
           }
           const headerBtn = document.getElementById("btnHeaderUploadPhoto");
           if (headerBtn) {
