@@ -8041,6 +8041,95 @@
     `).join("");
   }
 
+  // ─── Celebratory Reward Confetti Burst ─────────────────────────────
+  function fireRewardConfetti(originX, originY) {
+    try {
+      let canvas = document.getElementById("rewardConfettiCanvas");
+      if (!canvas) {
+        canvas = document.createElement("canvas");
+        canvas.id = "rewardConfettiCanvas";
+        canvas.style.position = "fixed";
+        canvas.style.inset = "0";
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.pointerEvents = "none";
+        canvas.style.zIndex = "999999";
+        document.body.appendChild(canvas);
+      }
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.scale(dpr, dpr);
+
+      const startX = (typeof originX === "number" && !isNaN(originX)) ? originX : (width / 2);
+      const startY = (typeof originY === "number" && !isNaN(originY)) ? originY : (height * 0.4);
+
+      const colors = ["#F59E0B", "#6C5CE7", "#10B981", "#EC4899", "#3B82F6", "#8B5CF6", "#F97316"];
+      const particles = [];
+      const count = 42;
+
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 4 + Math.random() * 8;
+        particles.push({
+          x: startX,
+          y: startY,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 3,
+          size: 5 + Math.random() * 5,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          alpha: 1,
+          rotation: Math.random() * Math.PI * 2,
+          rotationSpeed: (Math.random() - 0.5) * 0.2,
+          gravity: 0.22,
+          decay: 0.015 + Math.random() * 0.012,
+        });
+      }
+
+      let animationFrame;
+      function updateConfetti() {
+        ctx.clearRect(0, 0, width, height);
+        let alive = 0;
+
+        for (const p of particles) {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += p.gravity;
+          p.vx *= 0.98;
+          p.alpha -= p.decay;
+          p.rotation += p.rotationSpeed;
+
+          if (p.alpha > 0) {
+            alive++;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation);
+            ctx.globalAlpha = Math.max(0, p.alpha);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.7);
+            ctx.restore();
+          }
+        }
+
+        if (alive > 0) {
+          animationFrame = requestAnimationFrame(updateConfetti);
+        } else {
+          ctx.clearRect(0, 0, width, height);
+          if (animationFrame) cancelAnimationFrame(animationFrame);
+        }
+      }
+
+      requestAnimationFrame(updateConfetti);
+    } catch (e) {
+      console.warn("Confetti error:", e);
+    }
+  }
+
   async function loadShopData() {
     if (!state.token) return;
     shopState.loading = true;
@@ -8522,39 +8611,74 @@
       return;
     }
 
-    // Streak Row
+    // Streak Row & Freeze Status
     const daysRow = document.getElementById("streakDaysRow");
     if (daysRow) {
       const streak = ov.streak_days || 0;
+      const freezeCount = ov.streak_freeze_count || 0;
       const canClaim = !!ov.can_claim_streak;
       const streakMap = [4, 6, 8, 10, 12, 16, 24];
-      const cycleDay = streak > 0 ? ((streak - 1) % 7) + 1 : 0;
 
       // Update flame badge text
       const flameBadge = document.getElementById("streakFlameBadge");
       if (flameBadge) {
-        flameBadge.textContent = `🔥 ${streak} дн. подряд!`;
+        flameBadge.textContent = streak > 0 ? `🔥 ${streak} дн. подряд!` : "🔥 0 дн.";
       }
 
+      // Update freeze pill status
+      const freezePill = document.getElementById("streakFreezePill");
+      const freezeText = document.getElementById("streakFreezeText");
+      if (freezePill && freezeText) {
+        if (freezeCount > 0) {
+          freezePill.className = "streak-freeze-pill";
+          freezeText.textContent = `${freezeCount} шт.`;
+          freezePill.title = `Заморозка активна (${freezeCount} шт.) — серия защищена от сгорания`;
+        } else {
+          freezePill.className = "streak-freeze-pill empty";
+          freezeText.textContent = "0 шт.";
+          freezePill.title = "0 заморозок — защитите серию в Колесе Фортуны или Стартовом наборе";
+        }
+        freezePill.onclick = () => {
+          triggerHaptic("light");
+          showAppToast(
+            freezeCount > 0
+              ? `🧊 Заморозка активна (${freezeCount} шт.)! Если пропустить один день, серия не сгорит.`
+              : "🧊 У вас 0 заморозок. Заморозку можно выиграть в Колесе Фортуны («Зачётный грант») или получить в Стартовом наборе первокурсника!"
+          );
+        };
+      }
+
+      const nextStreak = canClaim ? streak + 1 : streak;
+      const activeClaimDay = canClaim ? (((nextStreak - 1) % 7) + 1) : 0;
+      const completedDay = !canClaim ? (((streak - 1) % 7) + 1) : (activeClaimDay - 1);
+
       daysRow.innerHTML = [1, 2, 3, 4, 5, 6, 7].map((d) => {
-        const isDone = d <= cycleDay;
-        const isCurrent = canClaim && (d === cycleDay + 1 || (cycleDay === 7 && d === 1) || (cycleDay === 0 && d === 1));
+        const isDone = d <= completedDay;
+        const isCurrent = canClaim && (d === activeClaimDay);
+        const isSuper = (d === 7);
+
         let cellClass = "streak-day-cell future";
-        let iconHtml = `<span class="streak-day-status-icon">•</span>`;
+        let iconHtml = `<span class="streak-day-status-icon">${isSuper ? "👑" : d}</span>`;
 
         if (isDone) {
           cellClass = "streak-day-cell done";
           iconHtml = `<span class="streak-day-status-icon">✓</span>`;
         } else if (isCurrent) {
           cellClass = "streak-day-cell current";
-          iconHtml = `<span class="streak-day-status-icon">★</span>`;
+          iconHtml = `<span class="streak-day-status-icon">${isSuper ? "🔥👑" : "🔥"}</span>`;
         }
 
+        if (isSuper) {
+          cellClass += " super-day";
+        }
+
+        const rewardLabel = isSuper ? `+24 🎓⭐` : `+${streakMap[d - 1]}`;
+
         return `
-          <div class="${cellClass}">
+          <div class="${cellClass}" title="День ${d}: ${rewardLabel}">
             <div class="streak-day-name">Д${d}</div>
             ${iconHtml}
-            <div class="streak-day-reward">+${streakMap[d-1]}</div>
+            <div class="streak-day-reward">${rewardLabel}</div>
           </div>
         `;
       }).join("");
@@ -8677,6 +8801,13 @@
       const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
       if (isOk) {
         triggerHaptic("success");
+        const btn = document.querySelector(`.btn-claim-quest[data-key="${questKey}"]`);
+        if (btn) {
+          const rect = btn.getBoundingClientRect();
+          fireRewardConfetti(rect.left + rect.width / 2, rect.top);
+        } else {
+          fireRewardConfetti();
+        }
         const isPrem = !!(shopState.overview?.is_premium || state.currentUser?.is_premium);
         const premSuffix = isPrem ? " (Премиум x3)" : "";
         showAppToast(`🎉 Награда получена: +${resp.reward_credits} 🎓!${premSuffix}`);
@@ -8773,6 +8904,13 @@
       const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
       if (isOk) {
         triggerHaptic("success");
+        const btn = document.querySelector(`.btn-claim-perm-quest[data-key="${questKey}"]`);
+        if (btn) {
+          const rect = btn.getBoundingClientRect();
+          fireRewardConfetti(rect.left + rect.width / 2, rect.top);
+        } else {
+          fireRewardConfetti();
+        }
         const isPrem = !!(shopState.overview?.is_premium || state.currentUser?.is_premium);
         const premSuffix = isPrem ? " (Премиум x3)" : "";
         const extraBadgeMsg = resp.reward_badge ? `\n🏆 Титул разблокирован: ${resp.reward_badge}` : "";
@@ -10154,6 +10292,13 @@
         const isOk = resp && (resp.status === "ok" || resp.status === "success" || resp.ok);
         if (isOk) {
           triggerHaptic("success");
+          const btn = document.getElementById("btnClaimDailyStreak");
+          if (btn) {
+            const rect = btn.getBoundingClientRect();
+            fireRewardConfetti(rect.left + rect.width / 2, rect.top);
+          } else {
+            fireRewardConfetti();
+          }
           showAppToast(`🔥 Стипендия получена: +${resp.reward_credits} 🎓! Серия: ${resp.new_streak || resp.streak_days} дн.`);
           await loadShopData();
         } else {
