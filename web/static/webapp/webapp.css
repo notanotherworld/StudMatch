@@ -10148,7 +10148,34 @@ img, video, canvas {
   border-radius: 18px;
   padding: 12px 14px;
   box-shadow: 0 2px 8px rgba(24, 24, 27, 0.03);
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.shop-inventory-item.is-equipped-item {
+  border-color: #10B981;
+  background: linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 100%);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.12);
+}
+
+.shop-inv-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.shop-equipped-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #DCFCE7;
+  color: #166534;
+  border: 1px solid #86EFAC;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  line-height: 1.2;
 }
 
 .shop-inv-left {
@@ -10201,9 +10228,15 @@ img, video, canvas {
 }
 
 .btn-toggle-frame.equipped {
-  background: #DCFCE7;
-  border: 1px solid #86EFAC;
-  color: #166534;
+  background: #F1F5F9;
+  border: 1px solid #CBD5E1;
+  color: #475569;
+}
+
+.btn-toggle-frame.equipped:hover {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+  color: #991B1B;
 }
 
 .btn-toggle-frame.unequipped {
@@ -10214,6 +10247,76 @@ img, video, canvas {
 
 .btn-toggle-frame:active {
   transform: scale(0.95);
+}
+
+/* Tactile Collegiate Empty State for Inventory */
+.shop-empty-state-box {
+  background: #FFFFFF;
+  border: 1.5px dashed #CBD5E1;
+  border-radius: 20px;
+  padding: 32px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 12px 0 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+}
+
+.shop-empty-icon {
+  font-size: 38px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.shop-empty-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #1E293B;
+  line-height: 1.2;
+}
+
+.shop-empty-desc {
+  font-size: 12.5px;
+  color: #64748B;
+  max-width: 290px;
+  line-height: 1.45;
+  margin-bottom: 4px;
+}
+
+.btn-empty-state-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #6C5CE7;
+  color: #FFFFFF;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 3px 10px rgba(108, 92, 231, 0.25);
+}
+
+.btn-empty-state-action:active {
+  transform: scale(0.96);
+  background: #5A4AD1;
+}
+
+.btn-empty-state-action.secondary {
+  background: #F1F5F9;
+  color: #475569;
+  border: 1px solid #CBD5E1;
+  box-shadow: none;
+}
+
+.btn-empty-state-action.secondary:active {
+  background: #E2E8F0;
 }
 
 .shop-inv-qty {

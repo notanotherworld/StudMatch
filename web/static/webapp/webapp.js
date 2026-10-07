@@ -9003,7 +9003,20 @@
     }
 
     if (inv.length === 0) {
-      list.innerHTML = `<div style="text-align:center; padding:32px 16px; color:var(--text-muted); font-size:13.5px;">Инвентарь пуст. Приобретите предметы или рамки на витрине!</div>`;
+      list.innerHTML = `
+        <div class="shop-empty-state-box">
+          <div class="shop-empty-icon">🎒</div>
+          <div class="shop-empty-title">В рюкзаке пока пусто</div>
+          <div class="shop-empty-desc">Загляните в Маркет, чтобы выбрать первую рамку профиля, забрать подарки или активировать бусты!</div>
+          <button type="button" class="btn-empty-state-action" id="btnGoToShopFromEmptyInv">
+            <span>🛍️ Перейти в Маркет</span>
+          </button>
+        </div>
+      `;
+      document.getElementById("btnGoToShopFromEmptyInv")?.addEventListener("click", () => {
+        triggerHaptic("light");
+        switchShopTab("catalog");
+      });
       return;
     }
 
@@ -9021,7 +9034,23 @@
     });
 
     if (filteredInv.length === 0) {
-      list.innerHTML = `<div style="text-align:center; padding:24px 16px; color:var(--text-muted); font-size:13px;">В этой категории предметов нет.</div>`;
+      list.innerHTML = `
+        <div class="shop-empty-state-box">
+          <div class="shop-empty-icon">🔍</div>
+          <div class="shop-empty-title">В этой категории пока пусто</div>
+          <div class="shop-empty-desc">Попробуйте переключить категорию или загляните в Маркет за новыми предметами.</div>
+          <button type="button" class="btn-empty-state-action secondary" id="btnResetInvFilter">
+            <span>Показать все (${inv.length})</span>
+          </button>
+        </div>
+      `;
+      document.getElementById("btnResetInvFilter")?.addEventListener("click", () => {
+        triggerHaptic("light");
+        shopState.inventoryFilter = "all";
+        const filterBtns = document.querySelectorAll("#shopInventoryFilters .shop-filter-pill");
+        filterBtns.forEach(b => b.classList.toggle("active", b.dataset.filter === "all"));
+        renderShopInventory();
+      });
       return;
     }
 
@@ -9029,14 +9058,14 @@
       const isFrame = it.item_type === "cosmetic" || it.item_code.startsWith("frame_");
       const isGift = Boolean(it.is_gift || it.item_type === "gift" || it.item_code.startsWith("gift_"));
       const isCollectible = Boolean(it.is_collectible || (it.badge && it.badge.includes("NFT")));
+      const curEquipped = ov?.equipped_frame || state.currentUser?.equipped_frame;
+      const isEquippedFrame = isFrame && ((it.item_code === curEquipped) || Boolean(it.is_equipped));
 
       let actionBtn = "";
       if (isFrame) {
-        const curEquipped = ov?.equipped_frame || state.currentUser?.equipped_frame;
-        const isEquipped = (it.item_code === curEquipped) || Boolean(it.is_equipped);
         actionBtn = `
-          <button type="button" class="btn-toggle-frame ${isEquipped ? 'equipped' : 'unequipped'}" data-code="${escapeHtml(it.item_code)}" data-equipped="${isEquipped ? '1' : '0'}">
-            ${isEquipped ? "Надето ✓" : "Надеть"}
+          <button type="button" class="btn-toggle-frame ${isEquippedFrame ? 'equipped' : 'unequipped'}" data-code="${escapeHtml(it.item_code)}" data-equipped="${isEquippedFrame ? '1' : '0'}">
+            ${isEquippedFrame ? "Снять" : "Надеть"}
           </button>
         `;
       } else if (isGift) {
@@ -9078,16 +9107,25 @@
         const badgeClass = isCollectible ? "collectible" : "classic";
         const exchangePart = it.exchange_credits ? ` • Обмен: <b>${it.exchange_credits} 🎓</b>` : "";
         subHtml = `<span class="tg-gift-inv-badge ${badgeClass}">${escapeHtml(badgeBadge)}</span> <span class="shop-inv-gift-desc">${escapeHtml(it.description || "Подарок Telegram")}</span>${exchangePart}`;
+      } else if (isFrame) {
+        subHtml = isEquippedFrame ? "Активна в анкете и ленте" : "Рамка профиля • Нажмите «Надеть» для выбора";
       } else {
         subHtml = it.expires_at ? `Действует до ${it.expires_at.slice(0, 10)}` : "Постоянный / расходный бонус";
       }
 
+      const equippedBadgeHtml = isEquippedFrame
+        ? `<span class="shop-equipped-badge">✨ Надето на аватарку</span>`
+        : "";
+
       return `
-        <div class="shop-inventory-item ${isGift ? 'is-gift-inv-item' : ''} ${isCollectible ? 'is-collectible-inv-item' : ''}">
+        <div class="shop-inventory-item ${isGift ? 'is-gift-inv-item' : ''} ${isCollectible ? 'is-collectible-inv-item' : ''} ${isEquippedFrame ? 'is-equipped-item' : ''}">
           <div class="shop-inv-left">
             <div class="shop-inv-icon ${isGift ? 'tg-gift-inv-icon-wrap' : ''} ${isCollectible ? 'is-collectible-inv' : ''}">${iconHtml}</div>
             <div class="shop-inv-info">
-              <div class="shop-inv-title">${escapeHtml(it.title || it.item_code)}</div>
+              <div class="shop-inv-title-wrap">
+                <span class="shop-inv-title">${escapeHtml(it.title || it.item_code)}</span>
+                ${equippedBadgeHtml}
+              </div>
               <div class="shop-inv-sub">${subHtml}</div>
             </div>
           </div>
