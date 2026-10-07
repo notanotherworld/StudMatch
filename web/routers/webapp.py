@@ -56,7 +56,7 @@ STUDENT_SESSION_TTL_DAYS = 30
 
 PHOTO_CACHE_DIR = os.path.abspath("web/static/uploads/cache")
 os.makedirs(PHOTO_CACHE_DIR, exist_ok=True)
-DEFAULT_FALLBACK_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"
+DEFAULT_FALLBACK_AVATAR = "/static/webapp/assets/default_avatar.jpg"
 
 
 def resolve_photo_url(photo_id: Optional[str]) -> Optional[str]:

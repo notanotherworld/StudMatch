@@ -971,12 +971,12 @@ async def show_my_profile(
 
     reply_kb = my_profile_keyboard(user, current_view=current_view_param)
 
-    from bot.handlers.browse import _get_photo_input
+    from bot.handlers.browse import _get_photo_input, DEFAULT_FALLBACK_AVATAR_PATH
     from aiogram.types import InputMediaPhoto, InputMediaVideo
 
     if is_career_view:
         # Для карьеры отправляем деловое фото
-        photo_input = _get_photo_input(photo_file_id)
+        photo_input = _get_photo_input(photo_file_id) or _get_photo_input(DEFAULT_FALLBACK_AVATAR_PATH)
         if photo_input:
             try:
                 await message.answer_photo(
@@ -993,6 +993,8 @@ async def show_my_profile(
         photos = list(profile.photos) if profile.photos else ([profile.avatar_file_id] if profile.avatar_file_id else [])
         photos = photos[:3]
         video_id = profile.video_file_id
+        if not photos and not video_id:
+            photos = [DEFAULT_FALLBACK_AVATAR_PATH]
         total_media_count = len(photos) + (1 if video_id else 0)
 
         if total_media_count > 1:

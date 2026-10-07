@@ -33,6 +33,8 @@ import logging
 logger = logging.getLogger(__name__)
 router = Router()
 
+DEFAULT_FALLBACK_AVATAR_PATH = "web/static/webapp/assets/default_avatar.jpg"
+
 
 STAGE_LABELS = {
     "idea": "💡 Идея",
@@ -436,6 +438,10 @@ async def send_next_card(
     # Ограничиваем до 3 фото
     photos = photos[:3]
 
+    # Если фото нет и нет видео — используем брендовую 3D-заглушку
+    if not photos and not video_id:
+        photos = [DEFAULT_FALLBACK_AVATAR_PATH]
+
     # Скрытие приватных фото до взаимного мэтча
     from database.crud import get_or_create_user_privacy
     cand_privacy = await get_or_create_user_privacy(db, profile.user_id)
@@ -825,6 +831,8 @@ async def view_match_profile(callback: CallbackQuery, user: User, db: AsyncSessi
         else:
             photos = list(partner.profile.photos) if partner.profile.photos else ([partner.profile.avatar_file_id] if partner.profile.avatar_file_id else [])
         photos = photos[:3]
+        if not photos:
+            photos = [DEFAULT_FALLBACK_AVATAR_PATH]
 
         photo_input = _get_photo_input(photos[0]) if photos else None
         if photo_input:
@@ -1038,6 +1046,8 @@ async def show_incoming_likes_entry(event: Message | CallbackQuery, user: User, 
     else:
         photos = list(cand_profile.photos) if cand_profile.photos else ([cand_profile.avatar_file_id] if cand_profile.avatar_file_id else [])
     photos = photos[:3]
+    if not photos:
+        photos = [DEFAULT_FALLBACK_AVATAR_PATH]
 
     photo_input = _get_photo_input(photos[0]) if photos else None
     if photo_input:
@@ -1131,6 +1141,8 @@ async def send_like_notification(
         if profile.career_avatar_file_id not in photos:
             photos = [profile.career_avatar_file_id] + photos
     photos = photos[:3]
+    if not photos and not video_id:
+        photos = [DEFAULT_FALLBACK_AVATAR_PATH]
     video_id = profile.video_file_id
 
     total_media_count = len(photos) + (1 if video_id else 0)

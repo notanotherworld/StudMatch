@@ -48,6 +48,7 @@
   };
 
   const GIFTS_ASSET_VERSION = "20261001_v4";
+  const DEFAULT_FALLBACK_AVATAR = "/static/webapp/assets/default_avatar.jpg";
   function getGiftImgUrl(code, customUrl) {
     let base = customUrl || (code ? `/static/webapp/gifts/${code}.webp` : "/static/webapp/gifts/gift_box.webp");
     return base.includes("?") ? `${base}&v=${GIFTS_ASSET_VERSION}` : `${base}?v=${GIFTS_ASSET_VERSION}`;
@@ -417,7 +418,7 @@
 
       const my = data.my_story || {
         name: "Вы",
-        avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+        avatar_url: "/static/webapp/assets/default_avatar.jpg",
         is_premium: false,
       };
 
@@ -434,7 +435,7 @@
       let html = `
         <div class="story-item" id="myStoryItem">
           <div class="story-avatar-wrap my-story ${my.is_premium ? "premium-ring" : ""} ${myFrameClass}">
-            <img src="${my.avatar_url}" class="story-avatar" alt="Вы" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
+            <img src="${my.avatar_url}" class="story-avatar" alt="Вы" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
             ${myBadge}
           </div>
           <span class="story-name">Вы</span>
@@ -458,7 +459,7 @@
             return `
               <div class="story-item" data-user-id="${s.user_id}">
                 <div class="story-avatar-wrap ${premRing} ${sFrameClass}">
-                  <img src="${s.avatar_url}" class="story-avatar" alt="${escapeHtml(s.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
+                  <img src="${s.avatar_url}" class="story-avatar" alt="${escapeHtml(s.name)}" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
                   ${badge}
                 </div>
                 <span class="story-name">${escapeHtml(s.name)}</span>
@@ -1164,7 +1165,7 @@
 
     const photos = profile.photos && profile.photos.length > 0
       ? profile.photos
-      : ["https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"];
+      : ["/static/webapp/assets/default_avatar.jpg"];
 
     card.dataset.photoIndex = "0";
 
@@ -1238,7 +1239,7 @@
 
     card.innerHTML = `
       ${barsHtml}
-      <img src="${photos[0]}" class="card-photo-bg" alt="${escapeHtml(profile.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+      <img src="${photos[0]}" class="card-photo-bg" alt="${escapeHtml(profile.name)}" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
       <div class="photo-private-overlay" style="display: none;">
         <div class="photo-private-lock-icon">🔒</div>
         <div class="photo-private-text">Фото скрыто автором</div>
@@ -1321,7 +1322,7 @@
 
     const updateCardPhoto = (idx) => {
       const meta = photosMeta[idx] || { is_private: false };
-      photoImg.onerror = function() { this.onerror = null; this.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"; };
+      photoImg.onerror = function() { this.onerror = null; this.src = "/static/webapp/assets/default_avatar.jpg"; };
       photoImg.src = photos[idx];
       storyBars.forEach((bar, i) => bar.classList.toggle("active", i <= idx));
       if (meta.is_private) {
@@ -1848,7 +1849,7 @@
       : "";
 
     const founder = project.founder || {};
-    const founderAvatar = founder.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+    const founderAvatar = founder.avatar_url || "/static/webapp/assets/default_avatar.jpg";
     const founderUni = [founder.university, founder.year ? `${founder.year} курс` : ""].filter(Boolean).join(" • ");
 
     card.innerHTML = `
@@ -1997,7 +1998,7 @@
     if (!modal) return;
 
     if (!photos || photos.length === 0) {
-      photos = ["https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"];
+      photos = ["/static/webapp/assets/default_avatar.jpg"];
     }
 
     currentGalleryPhotos = photos.map((p) => (typeof p === "string" ? p : (p.url || p)));
@@ -2061,7 +2062,7 @@
         mainImg.onload = () => { mainImg.style.opacity = "1"; };
         mainImg.onerror = () => {
           mainImg.style.opacity = "1";
-          mainImg.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80";
+          mainImg.src = "/static/webapp/assets/default_avatar.jpg";
         };
       }
       if (counter) {
@@ -2070,7 +2071,7 @@
       if (strip) {
         strip.innerHTML = currentGalleryPhotos.map((url, idx) => `
           <div class="gallery-thumb-item ${idx === currentGalleryIndex ? "active" : ""}" data-thumb-idx="${idx}">
-            <img src="${url}" alt="thumb" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+            <img src="${url}" alt="thumb" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
           </div>
         `).join("");
 
@@ -2176,7 +2177,7 @@
           <div class="profile-gallery-grid">
             <div class="gallery-grid-row-top">
               <div class="gallery-grid-cell" data-gallery-index="0">
-                <img src="${rawList[0]}" alt="Photo 1" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+                <img src="${rawList[0]}" alt="Photo 1" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
                 ${getDeleteBtnHtml(0)}
               </div>
               ${uploadCellHtml}
@@ -2189,7 +2190,7 @@
         <div class="profile-gallery-grid">
           <div class="gallery-grid-row-top" style="grid-template-columns: 1fr;">
             <div class="gallery-grid-cell" data-gallery-index="0" style="aspect-ratio: 16/10;">
-              <img src="${rawList[0]}" alt="Photo 1" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+              <img src="${rawList[0]}" alt="Photo 1" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
               ${isPrivate ? `
                 <div class="photo-private-overlay">
                   <div class="photo-private-lock-icon">🔒</div>
@@ -2210,7 +2211,7 @@
       const isPrivate = !isOwnProfile && pm && pm.is_private;
       return `
         <div class="gallery-grid-cell" data-gallery-index="${i}">
-          <img src="${url}" alt="Photo ${i + 1}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+          <img src="${url}" alt="Photo ${i + 1}" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
           ${getDeleteBtnHtml(i)}
           ${isPrivate ? `
             <div class="photo-private-overlay">
@@ -2229,7 +2230,7 @@
         const actualIdx = idx + 2;
         return `
           <div class="gallery-grid-cell" data-gallery-index="${actualIdx}">
-            <img src="${url}" alt="Photo ${actualIdx + 1}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';" />
+            <img src="${url}" alt="Photo ${actualIdx + 1}" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
             ${getDeleteBtnHtml(actualIdx)}
           </div>
         `;
@@ -2260,7 +2261,7 @@
               const isLastWithMore = (idx === 2 && remaining > 0);
               return `
                 <div class="gallery-grid-cell" data-gallery-index="${actualIdx}">
-                  <img src="${url}" alt="Photo ${actualIdx + 1}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';" />
+                  <img src="${url}" alt="Photo ${actualIdx + 1}" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
                   ${isPrivate ? `
                     <div class="photo-private-overlay">
                       <div class="photo-private-lock-icon" style="font-size:16px;">🔒</div>
@@ -2441,7 +2442,7 @@
 
     const rawPhotos = profile.photos && profile.photos.length > 0
       ? profile.photos
-      : [profile.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"];
+      : [profile.avatar || "/static/webapp/assets/default_avatar.jpg"];
 
     const photosMeta = profile.photos_meta || rawPhotos.map((p, i) => ({ url: p, is_private: false, index: i }));
     const photos = rawPhotos;
@@ -2449,7 +2450,7 @@
     // Build Hero Slides
     const heroSlidesHtml = photos.map((url, i) => `
       <div class="profile-hero-slide" data-slide-index="${i}">
-        <img src="${url}" class="profile-hero-img" alt="${escapeHtml(profile.name || 'Student')}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+        <img src="${url}" class="profile-hero-img" alt="${escapeHtml(profile.name || 'Student')}" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
       </div>
     `).join("");
 
@@ -2714,7 +2715,7 @@
             ${frameCode ? `
               <div class="profile-header-avatar-col">
                 <div class="shop-frame-avatar-preview ${frameClass}" title="${escapeHtml(frameTitle)}">
-                  <img src="${photos[0]}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+                  <img src="${photos[0]}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
                   <span class="shop-frame-badge">${frameBadge}</span>
                 </div>
               </div>
@@ -3282,7 +3283,7 @@
       return `
         <div class="privacy-photo-card" data-photo-id="${escapeHtml(String(p.id))}">
           <div class="privacy-photo-thumb-wrap">
-            <img src="${escapeHtml(p.url)}" class="privacy-photo-thumb ${isPrivate ? 'blurred' : ''}" alt="Фото" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80';" />
+            <img src="${escapeHtml(p.url)}" class="privacy-photo-thumb ${isPrivate ? 'blurred' : ''}" alt="Фото" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
             <div class="privacy-photo-status-badge ${isMain ? 'main' : (isPrivate ? 'locked' : 'open')}">
               ${isMain ? '⭐ Главное' : (isPrivate ? '🔒 До мэтча' : '👁 Публично')}
             </div>
@@ -3786,7 +3787,7 @@
     const partnerName = partner?.name || candidate?.name || "Студент";
     if (pNameEl) pNameEl.textContent = partnerName;
 
-    const fallbackAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80";
+    const fallbackAvatar = "/static/webapp/assets/default_avatar.jpg";
     const partnerPhoto = partner?.photo_url || (partner?.photos && partner.photos[0]) || (candidate?.photos && candidate.photos[0]) || fallbackAvatar;
     if (pAvatarEl) {
       pAvatarEl.src = partnerPhoto;
@@ -3880,7 +3881,7 @@
 
       container.innerHTML = data.matches
         .map((m) => {
-          const photoUrl = m.photo_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+          const photoUrl = m.photo_url || "/static/webapp/assets/default_avatar.jpg";
           const verified = m.is_verified ? " 🎓" : "";
           const prem = m.is_premium ? " 💎" : "";
           const frameCode = m.equipped_frame;
@@ -3909,7 +3910,7 @@
           return `
             <div class="match-item" data-match-id="${m.match_id}" data-partner-id="${m.user_id}">
               <div class="match-avatar-wrap ${frameClass}">
-                <img src="${photoUrl}" class="match-avatar" alt="${escapeHtml(m.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+                <img src="${photoUrl}" class="match-avatar" alt="${escapeHtml(m.name)}" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
                 ${onlineDot}
                 ${unreadBadge}
               </div>
@@ -4049,11 +4050,11 @@
         chatPartnerPremBadge.style.display = currentChatPartner.is_premium ? "inline" : "none";
       }
       if (chatPartnerAvatar) {
-        const photo = currentChatPartner.photo_url || currentChatPartner.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+        const photo = currentChatPartner.photo_url || currentChatPartner.avatar_url || "/static/webapp/assets/default_avatar.jpg";
         chatPartnerAvatar.src = photo;
         chatPartnerAvatar.onerror = function() {
           this.onerror = null;
-          this.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+          this.src = "/static/webapp/assets/default_avatar.jpg";
         };
       }
       if (chatTypingName) {
@@ -5151,14 +5152,14 @@
         ${list.map((lk) => {
           const isUnlocked = Boolean(lk.is_unlocked || isPrem);
           const isBlurred = !isUnlocked;
-          const img = lk.photo_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80";
+          const img = lk.photo_url || "/static/webapp/assets/default_avatar.jpg";
           const modeLabel = lk.mode === "career" ? "💼 Карьера" : (lk.mode === "projects" ? "🚀 Проекты" : "");
           const subText = [lk.university, lk.year ? `${lk.year} курс` : null].filter(Boolean).join(" • ");
 
           return `
             <div class="like-card ${lk.is_superlike ? 'superlike' : ''} ${isBlurred ? 'blurred' : ''}" data-user-id="${lk.user_id}">
               <div class="like-card-img-wrap">
-                <img src="${img}" class="like-card-img" alt="${escapeHtml(lk.name || 'Студент')}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80';" />
+                <img src="${img}" class="like-card-img" alt="${escapeHtml(lk.name || 'Студент')}" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
               </div>
 
               ${isBlurred ? `
@@ -5308,18 +5309,18 @@
       state.currentUser = u;
 
       const hasRealPhotos = (Array.isArray(u.raw_photos) && u.raw_photos.length > 0)
-        || (Array.isArray(u.photos) && u.photos.length > 0 && !u.photos[0].includes("images.unsplash.com"));
+        || (Array.isArray(u.photos) && u.photos.length > 0 && !u.photos[0].includes("default_avatar") && !u.photos[0].includes("images.unsplash.com"));
       const userPhotos = hasRealPhotos ? u.photos : [];
       const photos = userPhotos.length > 0
         ? userPhotos
-        : [u.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"];
+        : [u.avatar || "/static/webapp/assets/default_avatar.jpg"];
 
       const photosMeta = u.photos_meta || photos.map((p, i) => ({ url: p, is_private: false, index: i }));
 
       // Hero slides
       const heroSlidesHtml = photos.map((url, i) => `
         <div class="profile-hero-slide" data-slide-index="${i}">
-          <img src="${url}" class="profile-hero-img" alt="${escapeHtml(u.name || 'User')}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';" />
+          <img src="${url}" class="profile-hero-img" alt="${escapeHtml(u.name || 'User')}" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
         </div>
       `).join("");
 
@@ -5423,7 +5424,7 @@
             <div class="profile-header-row">
               <div class="profile-header-avatar-col">
                 <div class="shop-frame-avatar-preview ${frameClass}" title="${frameCode ? escapeHtml(frameTitle) : 'Аватар профиля'}">
-                  <img src="${photos[0]}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+                  <img src="${photos[0]}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
                   ${frameCode ? `<span class="shop-frame-badge">${frameBadge}</span>` : ''}
                 </div>
               </div>
@@ -6609,7 +6610,7 @@
     card.innerHTML = `
       <div class="career-card-header">
         <div class="career-card-author">
-          <img src="${escapeHtml(cand.avatar_url)}" class="career-card-avatar" alt="${escapeHtml(cand.name)}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'" />
+          <img src="${escapeHtml(cand.avatar_url)}" class="career-card-avatar" alt="${escapeHtml(cand.name)}" onerror="this.src='/static/webapp/assets/default_avatar.jpg'" />
           <div>
             <div class="career-card-name">
               ${escapeHtml(cand.name)}
@@ -7816,7 +7817,7 @@
           return `
             <div class="hall-card ${u.is_me ? 'is-me' : ''}" data-user-id="${u.user_id}">
               <div class="hall-card-rank">#${u.rank}</div>
-              <img src="${escapeHtml(u.avatar_url)}" class="hall-card-avatar ${frameClass}" alt="${escapeHtml(u.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
+              <img src="${escapeHtml(u.avatar_url)}" class="hall-card-avatar ${frameClass}" alt="${escapeHtml(u.name)}" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
               <div class="hall-card-info">
                 <div class="hall-card-name-row">
                   <span class="hall-card-name">${escapeHtml(u.name)}${u.age ? `, ${u.age}` : ''} ${verified} ${prem}</span>
@@ -7855,7 +7856,7 @@
     return `
       <div class="podium-col rank-${rank}" data-user-id="${u.user_id}">
         <div class="podium-avatar-wrap ${frameClass}">
-          <img src="${escapeHtml(u.avatar_url)}" class="podium-avatar" alt="${escapeHtml(u.name)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+          <img src="${escapeHtml(u.avatar_url)}" class="podium-avatar" alt="${escapeHtml(u.name)}" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
           <div class="podium-medal">${medalEmoji}</div>
         </div>
         <div class="podium-name">${escapeHtml(u.name)} ${verified}${prem}</div>
@@ -8997,7 +8998,7 @@
     }
     const inv = ov?.inventory || [];
 
-    const userAvatar = state.currentUser?.photos?.[0] || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';
+    const userAvatar = state.currentUser?.photos?.[0] || '/static/webapp/assets/default_avatar.jpg';
 
     // Render Equipped Frame Slot in Showcase Card with live avatar preview
     const equippedCard = document.getElementById("shopEquippedCard");
@@ -9029,7 +9030,7 @@
           <div class="shop-equipped-item">
             <div class="shop-equipped-left">
               <div class="shop-frame-avatar-preview ${frameClass}" title="Предпросмотр на вашей аватарке">
-                <img src="${userAvatar}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+                <img src="${userAvatar}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
                 <span class="shop-frame-badge">${frameBadge}</span>
               </div>
               <div>
@@ -9049,7 +9050,7 @@
           <div class="shop-equipped-item">
             <div class="shop-equipped-left">
               <div class="shop-frame-avatar-preview frame-none" title="Без рамки">
-                <img src="${userAvatar}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';" />
+                <img src="${userAvatar}" class="shop-frame-avatar-img" alt="Avatar" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
                 <span class="shop-frame-badge">🖼️</span>
               </div>
               <div>
@@ -9153,7 +9154,7 @@
         else if (it.item_code === "frame_neon") { fClass = "frame-neon"; fBadge = "⚡"; }
         iconHtml = `
           <div class="shop-frame-avatar-preview ${fClass}" style="width:38px;height:38px;" title="Примерка рамки">
-            <img src="${userAvatar}" class="shop-frame-avatar-img" alt="" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
+            <img src="${userAvatar}" class="shop-frame-avatar-img" alt="" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
             <span class="shop-frame-badge" style="width:14px;height:14px;font-size:9px;">${fBadge}</span>
           </div>
         `;
@@ -9884,7 +9885,7 @@
     if (recipient) {
       if (recRow) recRow.style.display = "flex";
       if (recSelectBox) recSelectBox.style.display = "none";
-      const photo = (recipient.photos && recipient.photos[0]) || recipient.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80";
+      const photo = (recipient.photos && recipient.photos[0]) || recipient.avatar || "/static/webapp/assets/default_avatar.jpg";
       if (recAvatar) recAvatar.src = photo;
       if (recName) recName.textContent = recipient.name || recipient.first_name || "Студент";
     } else {
@@ -9899,10 +9900,10 @@
           avatarRow.innerHTML = matches.map((m, idx) => {
             const pId = m.partner?.id || m.user_id;
             const pName = m.partner?.name || m.name || "Студент";
-            const pPhoto = m.photo_url || m.partner?.avatar || (m.photos && m.photos[0]) || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+            const pPhoto = m.photo_url || m.partner?.avatar || (m.photos && m.photos[0]) || "/static/webapp/assets/default_avatar.jpg";
             return `
               <div class="gift-recipient-pill ${idx === 0 ? 'active' : ''}" data-recipient-id="${pId}">
-                <img src="${pPhoto}" class="gift-recipient-pill-avatar" alt="${escapeHtml(pName)}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';" />
+                <img src="${pPhoto}" class="gift-recipient-pill-avatar" alt="${escapeHtml(pName)}" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
                 <span class="gift-recipient-pill-name">${escapeHtml(pName)}</span>
               </div>
             `;
