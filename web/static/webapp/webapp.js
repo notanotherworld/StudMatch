@@ -7950,6 +7950,7 @@
     inventoryFilter: "all",
     questsSubTab: "daily",
     loading: false,
+    packsExpanded: false,
     countdownInterval: null,
   };
 
@@ -7967,8 +7968,16 @@
     `).join("");
   }
 
-  function getPacksSkeletonsHtml(count = 4) {
-    return Array.from({ length: count }).map(() => `
+  function getPacksSkeletonsHtml() {
+    return `
+      <div class="credit-pack-skeleton featured-hit-skeleton" aria-hidden="true">
+        <div class="skeleton-pack-header">
+          <div class="skeleton-shimmer skeleton-pack-icon"></div>
+          <div class="skeleton-shimmer skeleton-pack-title"></div>
+        </div>
+        <div class="skeleton-shimmer skeleton-pack-amount"></div>
+        <div class="skeleton-shimmer skeleton-pack-btn"></div>
+      </div>
       <div class="credit-pack-skeleton" aria-hidden="true">
         <div class="skeleton-pack-header">
           <div class="skeleton-shimmer skeleton-pack-icon"></div>
@@ -7977,7 +7986,15 @@
         <div class="skeleton-shimmer skeleton-pack-amount"></div>
         <div class="skeleton-shimmer skeleton-pack-btn"></div>
       </div>
-    `).join("");
+      <div class="credit-pack-skeleton" aria-hidden="true">
+        <div class="skeleton-pack-header">
+          <div class="skeleton-shimmer skeleton-pack-icon"></div>
+          <div class="skeleton-shimmer skeleton-pack-title"></div>
+        </div>
+        <div class="skeleton-shimmer skeleton-pack-amount"></div>
+        <div class="skeleton-shimmer skeleton-pack-btn"></div>
+      </div>
+    `;
   }
 
   function getGiftsSkeletonsHtml(count = 4) {
@@ -8264,6 +8281,8 @@
     const limitBadge = document.getElementById("starterPackLimitBadge");
     const btnStarter = document.getElementById("btnBuyStarterPack");
     const grid = document.getElementById("shopCreditPacksGrid");
+    const btnToggle = document.getElementById("btnToggleAllPacks");
+    const toggleText = document.getElementById("btnTogglePacksText");
 
     const canBuyStarter = ov ? (ov.can_buy_starter && !ov.has_bought_starter_pack) : true;
 
@@ -8287,7 +8306,8 @@
     // 2. Render Regular Credit Packs
     if (!grid) return;
     if (shopState.loading && !ov) {
-      grid.innerHTML = getPacksSkeletonsHtml(4);
+      grid.innerHTML = getPacksSkeletonsHtml();
+      if (btnToggle) btnToggle.style.display = "none";
       return;
     }
     const packs = (ov && (ov.packages || ov.credit_packages)) ? (ov.packages || ov.credit_packages) : [
@@ -8301,13 +8321,70 @@
 
     const regularPacks = packs.filter(p => !p.is_starter && p.code !== "starter_pack_99");
 
-    grid.innerHTML = regularPacks.map(p => {
+    // Curated anchors: Hit (499 ₽), Start (99 ₽), VIP (2799 ₽)
+    const hitPack = regularPacks.find(p => p.code === "credits_700") || regularPacks.find(p => p.badge && p.badge.includes("ХИТ"));
+    const startPack = regularPacks.find(p => p.code === "credits_100") || regularPacks[0];
+    const vipPack = regularPacks.find(p => p.code === "credits_6000") || regularPacks[regularPacks.length - 1];
+
+    const anchorCodes = new Set([hitPack?.code, startPack?.code, vipPack?.code].filter(Boolean));
+    const secondaryPacks = regularPacks.filter(p => !anchorCodes.has(p.code)).sort((a, b) => (a.price || 0) - (b.price || 0));
+    const primaryPacks = [hitPack, startPack, vipPack].filter(Boolean);
+    const orderedPacks = [...primaryPacks, ...secondaryPacks];
+
+    // Synchronize grid expansion state
+    if (shopState.packsExpanded) {
+      grid.classList.remove("collapsed-tiers");
+      if (btnToggle) {
+        btnToggle.classList.add("expanded");
+        if (toggleText) toggleText.textContent = "Свернуть тарифы";
+      }
+    } else {
+      grid.classList.add("collapsed-tiers");
+      if (btnToggle) {
+        btnToggle.classList.remove("expanded");
+        if (toggleText) toggleText.textContent = `Показать все тарифы (ещё ${secondaryPacks.length})`;
+      }
+    }
+
+    if (btnToggle) {
+      btnToggle.style.display = secondaryPacks.length > 0 ? "flex" : "none";
+    }
+
+    grid.innerHTML = orderedPacks.map(p => {
       const totalCreds = (p.credits || 0) + (p.bonus || 0);
       const bonusHtml = p.bonus ? `<span class="credit-pack-bonus">+${p.bonus} 🎓 бонус</span>` : "";
       const badgeHtml = p.badge ? `<div class="credit-pack-badge">${escapeHtml(p.badge)}</div>` : "";
+      const isFeatured = (hitPack && p.code === hitPack.code);
+      const isSecondary = !anchorCodes.has(p.code);
+
+      if (isFeatured) {
+        return `
+          <div class="credit-pack-card featured-hit-card" data-code="${escapeHtml(p.code)}">
+            ${badgeHtml}
+            <div class="featured-hit-body">
+              <div class="featured-hit-info">
+                <div class="credit-pack-header">
+                  <span class="credit-pack-icon">${p.icon || "⚡️"}</span>
+                  <div>
+                    <span class="credit-pack-title">${escapeHtml(p.title)}</span>
+                    <div class="featured-hit-subtitle">Самый популярный выбор студентов</div>
+                  </div>
+                </div>
+                <div class="credit-pack-amount-box">
+                  <span class="credit-pack-amount">${totalCreds} 🎓</span>
+                  ${bonusHtml}
+                </div>
+              </div>
+              <button type="button" class="btn-buy-credit-pack featured-hit-btn" data-code="${escapeHtml(p.code)}">
+                💳 ${p.price} ₽
+              </button>
+            </div>
+          </div>
+        `;
+      }
 
       return `
-        <div class="credit-pack-card" data-code="${escapeHtml(p.code)}">
+        <div class="credit-pack-card ${isSecondary ? 'secondary-pack-tier' : ''}" data-code="${escapeHtml(p.code)}">
           ${badgeHtml}
           <div class="credit-pack-header">
             <span class="credit-pack-icon">${p.icon || "🎓"}</span>
@@ -8330,6 +8407,25 @@
         if (code) buyCreditPack(code);
       });
     });
+  }
+
+  function toggleCreditPacksExpansion() {
+    shopState.packsExpanded = !shopState.packsExpanded;
+    triggerHaptic("light");
+    const grid = document.getElementById("shopCreditPacksGrid");
+    const btnToggle = document.getElementById("btnToggleAllPacks");
+    const toggleText = document.getElementById("btnTogglePacksText");
+
+    if (shopState.packsExpanded) {
+      grid?.classList.remove("collapsed-tiers");
+      btnToggle?.classList.add("expanded");
+      if (toggleText) toggleText.textContent = "Свернуть тарифы";
+    } else {
+      grid?.classList.add("collapsed-tiers");
+      btnToggle?.classList.remove("expanded");
+      const secondaryCount = grid?.querySelectorAll(".secondary-pack-tier").length || 3;
+      if (toggleText) toggleText.textContent = `Показать все тарифы (ещё ${secondaryCount})`;
+    }
   }
 
   async function buyCreditPack(packCode) {
@@ -9933,6 +10029,11 @@
     // Starter pack purchase button
     document.getElementById("btnBuyStarterPack")?.addEventListener("click", () => {
       buyCreditPack("starter_pack_99");
+    });
+
+    // Expand / collapse all credit pack tiers
+    document.getElementById("btnToggleAllPacks")?.addEventListener("click", () => {
+      toggleCreditPacksExpansion();
     });
 
     // Quests Subtabs (Daily vs Permanent)

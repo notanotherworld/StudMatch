@@ -1539,17 +1539,9 @@
             <span class="shop-section-sub">Мгновенное зачисление зачётов</span>
           </div>
 
-          <!-- Credit Packs Grid -->
-          <div class="credit-packs-grid" id="shopCreditPacksGrid">
-            <div class="credit-pack-skeleton" aria-hidden="true">
-              <div class="skeleton-pack-header">
-                <div class="skeleton-shimmer skeleton-pack-icon"></div>
-                <div class="skeleton-shimmer skeleton-pack-title"></div>
-              </div>
-              <div class="skeleton-shimmer skeleton-pack-amount"></div>
-              <div class="skeleton-shimmer skeleton-pack-btn"></div>
-            </div>
-            <div class="credit-pack-skeleton" aria-hidden="true">
+          <!-- Credit Packs Grid (Default: 3 Curated Tiers, Expandable) -->
+          <div class="credit-packs-grid collapsed-tiers" id="shopCreditPacksGrid">
+            <div class="credit-pack-skeleton featured-hit-skeleton" aria-hidden="true">
               <div class="skeleton-pack-header">
                 <div class="skeleton-shimmer skeleton-pack-icon"></div>
                 <div class="skeleton-shimmer skeleton-pack-title"></div>
@@ -1574,6 +1566,12 @@
               <div class="skeleton-shimmer skeleton-pack-btn"></div>
             </div>
           </div>
+
+          <!-- Expand / Collapse All Tiers Button -->
+          <button type="button" class="btn-toggle-all-packs" id="btnToggleAllPacks" style="display:none;">
+            <span id="btnTogglePacksText">Показать все тарифы (ещё 3)</span>
+            <span class="toggle-packs-arrow" id="btnTogglePacksArrow">▾</span>
+          </button>
 
           <!-- Trust & Security Box -->
           <div class="payment-trust-box">

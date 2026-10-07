@@ -8823,6 +8823,43 @@ img, video, canvas {
   border-radius: 12px;
 }
 
+.credit-pack-skeleton.featured-hit-skeleton {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 14px;
+}
+
+.credit-pack-skeleton.featured-hit-skeleton .skeleton-pack-header {
+  flex: 1;
+}
+
+.credit-pack-skeleton.featured-hit-skeleton .skeleton-pack-amount {
+  width: 90px;
+  margin: 0 16px;
+}
+
+.credit-pack-skeleton.featured-hit-skeleton .skeleton-pack-btn {
+  width: 110px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 380px) {
+  .credit-pack-skeleton.featured-hit-skeleton {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .credit-pack-skeleton.featured-hit-skeleton .skeleton-pack-amount {
+    width: 50%;
+    margin: 0;
+  }
+  .credit-pack-skeleton.featured-hit-skeleton .skeleton-pack-btn {
+    width: 100%;
+  }
+}
+
 /* 3. Gift Card Skeleton */
 .shop-gift-skeleton {
   position: relative;
@@ -10703,6 +10740,10 @@ img, video, canvas {
   margin-bottom: 18px;
 }
 
+.credit-packs-grid.collapsed-tiers .secondary-pack-tier {
+  display: none !important;
+}
+
 @media (max-width: 380px) {
   .credit-packs-grid {
     grid-template-columns: 1fr;
@@ -10801,6 +10842,133 @@ img, video, canvas {
   transform: scale(0.96);
   background: #6C5CE7;
   color: #FFFFFF;
+}
+
+/* Featured Hero Pack («Сессия закрыта» / 499 ₽) */
+.credit-pack-card.featured-hit-card {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 65%);
+  border: 1.5px solid #F59E0B;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.12);
+  padding: 14px 16px;
+}
+
+.credit-pack-card.featured-hit-card:hover {
+  border-color: #D97706;
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.20);
+}
+
+.credit-pack-card.featured-hit-card .credit-pack-badge {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.35);
+}
+
+.credit-pack-card.featured-hit-card .featured-hit-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+}
+
+.credit-pack-card.featured-hit-card .featured-hit-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.credit-pack-card.featured-hit-card .credit-pack-header {
+  margin-bottom: 0;
+}
+
+.credit-pack-card.featured-hit-card .credit-pack-icon {
+  font-size: 26px;
+}
+
+.credit-pack-card.featured-hit-card .featured-hit-subtitle {
+  font-size: 11px;
+  color: #64748B;
+  font-weight: 600;
+  margin-top: 1px;
+}
+
+.credit-pack-card.featured-hit-card .credit-pack-amount-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.credit-pack-card.featured-hit-card .featured-hit-btn {
+  width: auto;
+  min-width: 110px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #FFFFFF;
+  border: none;
+  font-weight: 800;
+  box-shadow: 0 3px 10px rgba(245, 158, 11, 0.3);
+}
+
+.credit-pack-card.featured-hit-card .featured-hit-btn:hover {
+  background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
+}
+
+.credit-pack-card.featured-hit-card .featured-hit-btn:active {
+  transform: scale(0.96);
+  background: #B45309;
+}
+
+@media (max-width: 380px) {
+  .credit-pack-card.featured-hit-card .featured-hit-body {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .credit-pack-card.featured-hit-card .featured-hit-btn {
+    width: 100%;
+  }
+}
+
+/* Secondary Packs Toggle Button */
+.btn-toggle-all-packs {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #FFFFFF;
+  border: 1.5px dashed #CBD5E1;
+  border-radius: 12px;
+  padding: 11px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: -6px;
+  margin-bottom: 18px;
+}
+
+.btn-toggle-all-packs:hover {
+  border-color: #6C5CE7;
+  color: #6C5CE7;
+  background: #F8F9FE;
+}
+
+.btn-toggle-all-packs:active {
+  transform: scale(0.98);
+}
+
+.toggle-packs-arrow {
+  display: inline-block;
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.btn-toggle-all-packs.expanded .toggle-packs-arrow {
+  transform: rotate(180deg);
 }
 
 /* Payment Trust Box */
