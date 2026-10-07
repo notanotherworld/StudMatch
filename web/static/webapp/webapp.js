@@ -565,6 +565,34 @@
   // ==========================================
   let pendingSpendConfirm = null;
 
+  function getRecommendedCreditPack(deficit) {
+    const packs = [
+      { code: "credits_100", title: "«Шпаргалка»", credits: 100, price: 99 },
+      { code: "credits_300", title: "«Студенческий»", credits: 330, price: 249 },
+      { code: "credits_700", title: "«Сессия закрыта»", credits: 800, price: 499 },
+      { code: "credits_1500", title: "«Красный диплом»", credits: 1800, price: 899 },
+      { code: "credits_3000", title: "«Грант ректора»", credits: 3800, price: 1499 },
+      { code: "credits_6000", title: "«Кампусный инвестор»", credits: 8000, price: 2799 },
+    ];
+    const match = packs.find(p => p.credits >= deficit);
+    return match || packs[packs.length - 1];
+  }
+
+  function highlightCreditPack(packCode) {
+    setTimeout(() => {
+      const grid = document.getElementById("shopCreditPacksGrid");
+      if (!grid) return;
+      const card = grid.querySelector(`.credit-pack-card[data-code="${packCode}"]`);
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.classList.add("highlight-targeted-pack");
+        setTimeout(() => {
+          card.classList.remove("highlight-targeted-pack");
+        }, 3200);
+      }
+    }, 220);
+  }
+
   function showSpendConfirmModal({
     icon = "🎓",
     title = "Подтверждение списания",
@@ -589,6 +617,7 @@
 
     const remaining = curBal - cost;
     const isInsufficient = (cost > 0 && remaining < 0);
+    const deficit = isInsufficient ? (cost - curBal) : 0;
 
     const iconEl = document.getElementById("spendConfirmIcon");
     if (iconEl) iconEl.textContent = icon;
@@ -611,6 +640,23 @@
       remEl.style.color = isInsufficient ? "#EF4444" : "#10B981";
     }
 
+    // Shortage Recommendation Box
+    const shortageBox = document.getElementById("spendConfirmShortageBox");
+    const deficitEl = document.getElementById("spendConfirmDeficit");
+    const packTitleEl = document.getElementById("spendConfirmPackTitle");
+    const packDetailsEl = document.getElementById("spendConfirmPackDetails");
+
+    let recPack = null;
+    if (isInsufficient) {
+      recPack = getRecommendedCreditPack(deficit);
+      if (shortageBox) shortageBox.style.display = "flex";
+      if (deficitEl) deficitEl.textContent = `${deficit} 🎓`;
+      if (packTitleEl) packTitleEl.textContent = recPack.title;
+      if (packDetailsEl) packDetailsEl.textContent = `(+${recPack.credits} 🎓 за ${recPack.price} ₽)`;
+    } else {
+      if (shortageBox) shortageBox.style.display = "none";
+    }
+
     const submitBtn = document.getElementById("btnSpendConfirmSubmit");
     const submitBtnText = document.getElementById("btnSpendConfirmSubmitText");
 
@@ -618,14 +664,20 @@
       submitBtn.disabled = false;
       if (isInsufficient) {
         submitBtn.classList.add("refill-action");
-        if (submitBtnText) submitBtnText.textContent = "💳 Пополнить зачёты";
+        if (submitBtnText) submitBtnText.textContent = `💳 Пополнить зачёты (${recPack ? recPack.price + ' ₽' : 'от 99 ₽'})`;
       } else {
         submitBtn.classList.remove("refill-action");
         if (submitBtnText) submitBtnText.textContent = submitText;
       }
     }
 
-    pendingSpendConfirm = { onConfirm, onCancel, cost, isInsufficient };
+    pendingSpendConfirm = {
+      onConfirm,
+      onCancel,
+      cost,
+      isInsufficient,
+      recommendedPackCode: recPack?.code || "credits_100",
+    };
 
     modal.style.display = "flex";
     modal.classList.add("active");
@@ -651,6 +703,7 @@
   function handleSpendConfirmSubmit() {
     if (!pendingSpendConfirm) return;
     const isRefill = pendingSpendConfirm.isInsufficient;
+    const targetPackCode = pendingSpendConfirm.recommendedPackCode;
     const cb = pendingSpendConfirm.onConfirm;
     pendingSpendConfirm = null;
     const modal = document.getElementById("spendConfirmModal");
@@ -660,7 +713,14 @@
     }
     if (isRefill) {
       triggerHaptic("light");
+      const isSecondary = ["credits_300", "credits_1500", "credits_3000"].includes(targetPackCode);
+      if (isSecondary && !shopState.packsExpanded) {
+        shopState.packsExpanded = true;
+      }
       openShopModal("packs");
+      if (targetPackCode) {
+        highlightCreditPack(targetPackCode);
+      }
       return;
     }
     if (typeof cb === "function") {
