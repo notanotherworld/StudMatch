@@ -2313,6 +2313,496 @@ async def claim_daily_streak(db: AsyncSession, user_id: int) -> Tuple[bool, str,
     return True, msg, new_streak, reward
 
 
+MSK_TZ = timezone(timedelta(hours=3))
+
+
+async def record_user_daily_activity(
+    db: AsyncSession,
+    user_id: int,
+    action_type: str = "swipe",
+) -> dict:
+    """
+    Регистрирует ежедневную активность пользователя (свайп или выполнение дейлика).
+    Продлевает серию при достижении 5 свайпов или завершении дейлика.
+    Возвращает dict с текущими данными активности и флагом newly_ignited.
+    """
+    res = await db.execute(
+        select(User).where(User.id == user_id).with_for_update()
+    )
+    user = res.scalar_one_or_none()
+    if not user:
+        return {
+            "today_swipes": 0,
+            "newly_ignited": False,
+            "streak_days": 0,
+            "reward_credits": 0,
+            "already_ignited": False,
+        }
+
+    now_utc = datetime.now(timezone.utc)
+    today_msk = now_utc.astimezone(MSK_TZ).date()
+
+    # 1. Проверяем смену суток по МСК
+    if user.last_activity_date:
+        last_act_msk = (
+            user.last_activity_date.astimezone(MSK_TZ).date()
+            if user.last_activity_date.tzinfo
+            else user.last_activity_date.replace(tzinfo=timezone.utc).astimezone(MSK_TZ).date()
+        )
+        if today_msk > last_act_msk:
+            user.today_swipes_count = 0
+    else:
+        user.today_swipes_count = 0
+
+    user.last_activity_date = now_utc
+
+    # 2. Проверяем, зажжён ли уже огонёк сегодня
+    already_ignited_today = False
+    streak_diff = 999
+    if user.last_streak_date:
+        last_streak_msk = (
+            user.last_streak_date.astimezone(MSK_TZ).date()
+            if user.last_streak_date.tzinfo
+            else user.last_streak_date.replace(tzinfo=timezone.utc).astimezone(MSK_TZ).date()
+        )
+        streak_diff = (today_msk - last_streak_msk).days
+        if streak_diff == 0:
+            already_ignited_today = True
+
+    # 3. Инкремент свайпов
+    if action_type == "swipe":
+        user.today_swipes_count = (user.today_swipes_count or 0) + 1
+
+    # 4. Проверка порога зажжения
+    threshold_reached = (user.today_swipes_count >= 5) or (action_type == "quest")
+    newly_ignited = False
+    reward_credits = 0
+
+    if threshold_reached and not already_ignited_today:
+        if streak_diff == 2:
+            if (user.streak_freeze_count or 0) > 0:
+                user.streak_freeze_count = max(0, (user.streak_freeze_count or 0) - 1)
+                user.streak_days = (user.streak_days or 0) + 1
+            elif user.streak_repair_available:
+                user.streak_days = 1
+                user.streak_repair_available = False
+                user.streak_broken_at = None
+            else:
+                user.streak_days = 1
+        elif streak_diff > 2:
+            if user.streak_repair_available:
+                user.streak_days = 1
+                user.streak_repair_available = False
+                user.streak_broken_at = None
+            else:
+                user.streak_days = 1
+        else:
+            user.streak_days = (user.streak_days or 0) + 1
+
+        user.last_streak_date = now_utc
+        newly_ignited = True
+        user.streak_repair_available = False
+        user.streak_broken_at = None
+
+        # Начисление стипендии (STREAK_REWARDS_MAP) только при свайпах,
+        # так как дейлики начисляют свою собственную награду за выполнение квеста
+        if action_type == "swipe":
+            cycle_day = (((user.streak_days or 1) - 1) % 7) + 1
+            reward_credits = STREAK_REWARDS_MAP.get(cycle_day, 10)
+            user.credits_balance = (user.credits_balance or 0) + reward_credits
+
+            tx = EconomyTransaction(
+                user_id=user_id,
+                amount=reward_credits,
+                balance_after=user.credits_balance,
+                tx_type="streak",
+                reference_id=f"streak_{user.streak_days}_{today_msk.isoformat()}",
+                description=f"Стипендия за день {user.streak_days} стрика 🔥",
+            )
+            db.add(tx)
+        else:
+            reward_credits = 0
+
+    await db.commit()
+
+    return {
+        "today_swipes": user.today_swipes_count,
+        "newly_ignited": newly_ignited,
+        "streak_days": user.streak_days,
+        "reward_credits": reward_credits,
+        "already_ignited": already_ignited_today or newly_ignited,
+    }
+
+
+def _normalize_claimed_milestones(val) -> List[int]:
+    if val is None:
+        return []
+    if isinstance(val, str):
+        try:
+            parsed = json.loads(val)
+            if isinstance(parsed, list):
+                return [int(x) for x in parsed]
+        except Exception:
+            return []
+    if isinstance(val, (list, set, tuple)):
+        return [int(x) for x in val]
+    return []
+
+
+async def get_streak_hub_data(db: AsyncSession, user_id: int) -> dict:
+    """
+    Формирует полные данные для Streak Hub (виджет, модалка, календарь, заморозка, вехи).
+    """
+    res = await db.execute(select(User).where(User.id == user_id))
+    user = res.scalar_one_or_none()
+    if not user:
+        return {}
+
+    now_utc = datetime.now(timezone.utc)
+    today_msk = now_utc.astimezone(MSK_TZ).date()
+
+    # Сверка текущего дня
+    last_act_msk = None
+    if user.last_activity_date:
+        last_act_msk = (
+            user.last_activity_date.astimezone(MSK_TZ).date()
+            if user.last_activity_date.tzinfo
+            else user.last_activity_date.replace(tzinfo=timezone.utc).astimezone(MSK_TZ).date()
+        )
+    today_swipes = user.today_swipes_count or 0 if (last_act_msk == today_msk) else 0
+
+    streak_diff = 999
+    if user.last_streak_date:
+        last_streak_msk = (
+            user.last_streak_date.astimezone(MSK_TZ).date()
+            if user.last_streak_date.tzinfo
+            else user.last_streak_date.replace(tzinfo=timezone.utc).astimezone(MSK_TZ).date()
+        )
+        streak_diff = (today_msk - last_streak_msk).days
+
+    is_ignited_today = (streak_diff == 0)
+
+    # Ремонт серии (48 часов)
+    repair_hours_left = 0.0
+    repair_available = False
+    if user.streak_repair_available and user.streak_broken_at:
+        broken_at_aware = user.streak_broken_at if user.streak_broken_at.tzinfo else user.streak_broken_at.replace(tzinfo=timezone.utc)
+        elapsed_hrs = (now_utc - broken_at_aware).total_seconds() / 3600.0
+        if elapsed_hrs <= 48.0:
+            repair_available = True
+            repair_hours_left = max(0.0, round(48.0 - elapsed_hrs, 1))
+
+    # Статус пламени
+    if repair_available:
+        flame_state = "broken_repair"
+    elif is_ignited_today:
+        flame_state = "ignited"
+    elif streak_diff == 2 and (user.streak_freeze_count or 0) > 0:
+        flame_state = "frozen"
+    else:
+        flame_state = "pending"
+
+    # 7-дневный календарь текущей недели (ПН-ВС)
+    weekday = today_msk.weekday()  # 0 = Monday, 6 = Sunday
+    monday = today_msk - timedelta(days=weekday)
+    week_calendar = []
+    day_names = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"]
+    for i in range(7):
+        d = monday + timedelta(days=i)
+        d_str = d.strftime("%d.%m")
+        is_today = (d == today_msk)
+        if d > today_msk:
+            d_status = "future"
+        elif d == today_msk:
+            d_status = "completed" if is_ignited_today else "pending"
+        else:
+            days_ago = (today_msk - d).days
+            if (user.streak_days or 0) >= days_ago and streak_diff <= 1:
+                d_status = "completed"
+            elif days_ago == 1 and flame_state == "frozen":
+                d_status = "frozen"
+            else:
+                d_status = "missed"
+
+        week_calendar.append({
+            "day_name": day_names[i],
+            "date_str": d_str,
+            "is_today": is_today,
+            "status": d_status,
+        })
+
+    # Вехи «Клуба ударников»
+    claimed_set = set(_normalize_claimed_milestones(user.streak_milestones_claimed))
+    milestones = [
+        {
+            "day": 3,
+            "title": "Первая искра",
+            "reward_text": "+15 🎓 Зачётов",
+            "icon": "🥉",
+            "status": "claimed" if 3 in claimed_set else ("claimable" if (user.streak_days or 0) >= 3 else "locked"),
+            "progress": min(1.0, (user.streak_days or 0) / 3.0),
+        },
+        {
+            "day": 7,
+            "title": "Клуб ударников",
+            "reward_text": "🔥 Бейдж в ленте + 1 ⭐️",
+            "icon": "🥈",
+            "status": "claimed" if 7 in claimed_set else ("claimable" if (user.streak_days or 0) >= 7 else "locked"),
+            "progress": min(1.0, (user.streak_days or 0) / 7.0),
+        },
+        {
+            "day": 14,
+            "title": "Зачётный марафон",
+            "reward_text": "+50 🎓 + 1 🩺 Справка",
+            "icon": "🥇",
+            "status": "claimed" if 14 in claimed_set else ("claimable" if (user.streak_days or 0) >= 14 else "locked"),
+            "progress": min(1.0, (user.streak_days or 0) / 14.0),
+        },
+        {
+            "day": 30,
+            "title": "Пламя стрика",
+            "reward_text": "👑 Рамка «Пламя стрика»",
+            "icon": "👑",
+            "status": "claimed" if 30 in claimed_set else ("claimable" if (user.streak_days or 0) >= 30 else "locked"),
+            "progress": min(1.0, (user.streak_days or 0) / 30.0),
+        },
+    ]
+
+    return {
+        "streak_days": user.streak_days or 0,
+        "flame_state": flame_state,
+        "is_ignited_today": is_ignited_today,
+        "today_swipes": today_swipes,
+        "today_target": 5,
+        "freeze_count": user.streak_freeze_count or 0,
+        "freeze_max": 2,
+        "freeze_price": 15,
+        "repair_price": 25,
+        "streak_repair_available": repair_available,
+        "streak_repair_hours_left": repair_hours_left,
+        "credits_balance": user.credits_balance or 0,
+        "week_calendar": week_calendar,
+        "milestones": milestones,
+        "is_streak_society": bool((user.streak_days or 0) >= 7),
+    }
+
+
+async def repair_broken_streak(db: AsyncSession, user_id: int) -> Tuple[bool, str, int]:
+    """
+    Восстановление сгоревшей серии в течение 48 часов за 25 🎓 («Отработка долга»).
+    """
+    res = await db.execute(
+        select(User).where(User.id == user_id).with_for_update()
+    )
+    user = res.scalar_one_or_none()
+    if not user:
+        return False, "Пользователь не найден", 0
+
+    if not user.streak_repair_available:
+        return False, "Восстановление серии недоступно", 0
+
+    now_utc = datetime.now(timezone.utc)
+    if user.streak_broken_at:
+        broken_at_aware = user.streak_broken_at if user.streak_broken_at.tzinfo else user.streak_broken_at.replace(tzinfo=timezone.utc)
+        elapsed_hrs = (now_utc - broken_at_aware).total_seconds() / 3600.0
+        if elapsed_hrs > 48.0:
+            user.streak_repair_available = False
+            user.streak_broken_at = None
+            user.streak_days = 0
+            await db.commit()
+            return False, "Время на отработку пропуска (48 часов) истекло ⏳", 0
+
+    if (user.credits_balance or 0) < 25:
+        return False, "Недостаточно зачётов (нужно 25 🎓)", 0
+
+    user.credits_balance -= 25
+    user.streak_repair_available = False
+    user.streak_broken_at = None
+    user.last_streak_date = now_utc
+
+    tx = EconomyTransaction(
+        user_id=user_id,
+        amount=-25,
+        balance_after=user.credits_balance,
+        tx_type="streak_repair",
+        reference_id=f"streak_repair_{user.streak_days}",
+        description=f"Отработка пропуска серии {user.streak_days} дн. 🩹",
+    )
+    db.add(tx)
+    await db.commit()
+    return True, f"🔥 Серия {user.streak_days} дн. успешно восстановлена!", user.streak_days
+
+
+async def buy_streak_freeze(db: AsyncSession, user_id: int) -> Tuple[bool, str, int]:
+    """
+    Покупка «Справки от врача» 🩺 в слот защиты стрика (макс 2 шт., стоимость 15 🎓).
+    """
+    res = await db.execute(
+        select(User).where(User.id == user_id).with_for_update()
+    )
+    user = res.scalar_one_or_none()
+    if not user:
+        return False, "Пользователь не найден", 0
+
+    if (user.streak_freeze_count or 0) >= 2:
+        return False, "У тебя уже максимальный запас справок от врача (2/2) 🩺", user.streak_freeze_count
+
+    if (user.credits_balance or 0) < 15:
+        return False, "Недостаточно зачётов (нужно 15 🎓)", user.streak_freeze_count or 0
+
+    user.credits_balance -= 15
+    user.streak_freeze_count = (user.streak_freeze_count or 0) + 1
+
+    tx = EconomyTransaction(
+        user_id=user_id,
+        amount=-15,
+        balance_after=user.credits_balance,
+        tx_type="shop_buy",
+        reference_id="streak_freeze_slot",
+        description=f"Покупка «Справки от врача» 🩺 в слот защиты ({user.streak_freeze_count}/2)",
+    )
+    db.add(tx)
+    await db.commit()
+    return True, f"🩺 «Справка от врача» добавлена в слот защиты ({user.streak_freeze_count}/2)!", user.streak_freeze_count
+
+
+async def claim_streak_milestone(
+    db: AsyncSession,
+    user_id: int,
+    milestone_day: int,
+) -> Tuple[bool, str, dict]:
+    """
+    Получение награды за веху Клуба ударников (3, 7, 14, 30 дней).
+    """
+    res = await db.execute(
+        select(User).where(User.id == user_id).with_for_update()
+    )
+    user = res.scalar_one_or_none()
+    if not user:
+        return False, "Пользователь не найден", {}
+
+    if milestone_day not in [3, 7, 14, 30]:
+        return False, "Неизвестная награда вехи", {}
+
+    claimed = _normalize_claimed_milestones(user.streak_milestones_claimed)
+    if milestone_day in claimed:
+        return False, "Награда за эту веху уже получена!", {}
+
+    if (user.streak_days or 0) < milestone_day:
+        return False, f"Нужна серия минимум {milestone_day} дн.", {}
+
+    reward_desc = ""
+    reward_data = {}
+
+    if milestone_day == 3:
+        user.credits_balance = (user.credits_balance or 0) + 15
+        reward_desc = "+15 🎓 Зачётов"
+        reward_data = {"credits": 15}
+    elif milestone_day == 7:
+        user.superlike_balance = (user.superlike_balance or 0) + 1
+        reward_desc = "Членство в Клубе ударников + 1 ⭐️ Суперлайк"
+        reward_data = {"superlikes": 1, "badge": True}
+    elif milestone_day == 14:
+        user.credits_balance = (user.credits_balance or 0) + 50
+        user.streak_freeze_count = min(2, (user.streak_freeze_count or 0) + 1)
+        reward_desc = "+50 🎓 Зачётов + 1 🩺 «Справка от врача»"
+        reward_data = {"credits": 50, "freeze": 1}
+    elif milestone_day == 30:
+        inv_res = await db.execute(
+            select(UserInventoryItem).where(
+                and_(
+                    UserInventoryItem.user_id == user_id,
+                    UserInventoryItem.item_code == "frame_fire",
+                )
+            )
+        )
+        inv_item = inv_res.scalar_one_or_none()
+        if not inv_item:
+            db.add(
+                UserInventoryItem(
+                    user_id=user_id,
+                    item_code="frame_fire",
+                    quantity=1,
+                    expires_at=None,
+                    is_equipped=True,
+                )
+            )
+        user.equipped_frame = "frame_fire"
+        reward_desc = "Эксклюзивная рамка профиля 🔥 «Пламя стрика»"
+        reward_data = {"frame": "frame_fire"}
+
+    claimed.append(milestone_day)
+    user.streak_milestones_claimed = claimed
+
+    if reward_data.get("credits", 0) > 0:
+        tx = EconomyTransaction(
+            user_id=user_id,
+            amount=reward_data["credits"],
+            balance_after=user.credits_balance,
+            tx_type="milestone",
+            reference_id=f"milestone_{milestone_day}",
+            description=f"Награда за веху стрика {milestone_day} дн.: {reward_desc}",
+        )
+        db.add(tx)
+
+    await db.commit()
+    return True, f"🎉 Получена награда: {reward_desc}!", reward_data
+
+
+async def process_daily_streak_expiration(db: AsyncSession) -> dict:
+    """
+    Вызывается в 00:05 по МСК для обработки пропусков за вчерашний день.
+    """
+    now_utc = datetime.now(timezone.utc)
+    today_msk = now_utc.astimezone(MSK_TZ).date()
+    yesterday_msk = today_msk - timedelta(days=1)
+
+    res = await db.execute(
+        select(User).where(User.streak_days > 0).with_for_update()
+    )
+    users = res.scalars().all()
+
+    frozen_users = []
+    broken_users = []
+    reset_users = []
+
+    for user in users:
+        # Сброс дневных свайпов
+        user.today_swipes_count = 0
+
+        # Проверяем последний стрик
+        last_streak_msk = None
+        if user.last_streak_date:
+            last_streak_msk = (
+                user.last_streak_date.astimezone(MSK_TZ).date()
+                if user.last_streak_date.tzinfo
+                else user.last_streak_date.replace(tzinfo=timezone.utc).astimezone(MSK_TZ).date()
+            )
+
+        if last_streak_msk and last_streak_msk < yesterday_msk:
+            # Пропустил вчера
+            if (user.streak_freeze_count or 0) > 0:
+                user.streak_freeze_count -= 1
+                frozen_users.append((user.id, user.streak_days))
+            else:
+                if not user.streak_repair_available:
+                    user.streak_broken_at = now_utc
+                    user.streak_repair_available = True
+                    broken_users.append((user.id, user.streak_days))
+
+        # Проверка истечения 48 часов на ремонт
+        if user.streak_repair_available and user.streak_broken_at:
+            broken_at_aware = user.streak_broken_at if user.streak_broken_at.tzinfo else user.streak_broken_at.replace(tzinfo=timezone.utc)
+            if (now_utc - broken_at_aware).total_seconds() > 48 * 3600:
+                user.streak_days = 0
+                user.streak_repair_available = False
+                user.streak_broken_at = None
+                reset_users.append(user.id)
+
+    await db.commit()
+    return {"frozen": frozen_users, "broken": broken_users, "reset": reset_users}
+
+
 # ─────────────────────────────────────────────────────────────
 # Ежедневные задания (Дейлики)
 # ─────────────────────────────────────────────────────────────
@@ -2493,6 +2983,9 @@ async def claim_daily_quest(
         description=f"Награда за дейлик: {quest_key}{prem_suffix}",
         reference_id=quest_key,
     )
+    # Продлеваем/зажигаем стрик за выполнение дейлика
+    await record_user_daily_activity(db, user_id=user_id, action_type="quest")
+
     prem_notice = " <i>(👑 Премиум x3!)</i>" if is_premium else ""
     return True, f"🎉 <b>+{reward} Зачётов начислено!{prem_notice}</b>", reward
 

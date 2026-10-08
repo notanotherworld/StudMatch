@@ -11030,6 +11030,12 @@ img, video, canvas {
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.22), 0 4px 12px rgba(139, 92, 246, 0.25);
 }
 
+.shop-frame-avatar-preview.frame-fire {
+  border: 2.5px solid #F97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.28), 0 4px 14px rgba(239, 68, 68, 0.35);
+  animation: frameFireGlow 2s ease-in-out infinite alternate;
+}
+
 .shop-frame-avatar-preview.frame-none {
   border: 2px dashed #CBD5E1;
   box-shadow: none;
@@ -11074,6 +11080,12 @@ img, video, canvas {
   border: 1px solid rgba(139, 92, 246, 0.35);
 }
 
+.profile-frame-active-pill.frame-fire {
+  background: rgba(249, 115, 22, 0.12);
+  color: #C2410C;
+  border: 1px solid rgba(249, 115, 22, 0.4);
+}
+
 /* Profile Hero Badge & Frame Highlights */
 .profile-hero-frame-badge {
   position: absolute;
@@ -11116,6 +11128,12 @@ img, video, canvas {
   border: 1px solid rgba(233, 213, 255, 0.7);
 }
 
+.profile-hero-frame-badge.frame-fire {
+  background: linear-gradient(135deg, #EF4444 0%, #F97316 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(254, 215, 170, 0.7);
+}
+
 .profile-hero-wrap.frame-gold {
   box-shadow: 0 0 0 2px #F59E0B, 0 8px 24px rgba(245, 158, 11, 0.2);
 }
@@ -11126,6 +11144,10 @@ img, video, canvas {
 
 .profile-hero-wrap.frame-neon {
   box-shadow: 0 0 0 2px #8B5CF6, 0 8px 24px rgba(139, 92, 246, 0.2);
+}
+
+.profile-hero-wrap.frame-fire {
+  box-shadow: 0 0 0 2.5px #F97316, 0 8px 26px rgba(239, 68, 68, 0.3);
 }
 
 /* Stories row frame styles */
@@ -11144,6 +11166,11 @@ img, video, canvas {
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.35), 0 4px 14px rgba(139, 92, 246, 0.3) !important;
 }
 
+.story-avatar-wrap.frame-fire {
+  background: linear-gradient(135deg, #EF4444 0%, #F97316 50%, #FBBF24 100%) !important;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.4), 0 4px 14px rgba(239, 68, 68, 0.35) !important;
+}
+
 /* Match list avatar frames */
 .match-avatar-wrap.frame-gold {
   border: 2.5px solid #F59E0B;
@@ -11160,6 +11187,12 @@ img, video, canvas {
 .match-avatar-wrap.frame-neon {
   border: 2.5px solid #8B5CF6;
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25);
+  border-radius: 50%;
+}
+
+.match-avatar-wrap.frame-fire {
+  border: 2.5px solid #F97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.3);
   border-radius: 50%;
 }
 
@@ -11182,6 +11215,12 @@ img, video, canvas {
   border: 1px solid rgba(233, 213, 255, 0.6);
 }
 
+.card-badge.frame-fire-badge {
+  background: linear-gradient(135deg, #DC2626 0%, #EA580C 100%);
+  color: #fff;
+  border: 1px solid rgba(254, 215, 170, 0.7);
+}
+
 .swipe-card.frame-gold {
   box-shadow: 0 10px 30px rgba(245, 158, 11, 0.15), 0 1px 3px rgba(0,0,0,0.1);
 }
@@ -11192,6 +11231,10 @@ img, video, canvas {
 
 .swipe-card.frame-neon {
   box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15), 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.swipe-card.frame-fire {
+  box-shadow: 0 10px 30px rgba(239, 68, 68, 0.2), 0 1px 3px rgba(0,0,0,0.1);
 }
 
 /* Hall of Fame Podium & Card frames */
@@ -11210,6 +11253,11 @@ img, video, canvas {
   box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
 }
 
+.podium-avatar-wrap.frame-fire .podium-avatar {
+  border: 3px solid #F97316;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.5);
+}
+
 .hall-card-avatar.frame-gold {
   border: 2px solid #F59E0B;
   box-shadow: 0 0 8px rgba(245, 158, 11, 0.35);
@@ -11223,6 +11271,11 @@ img, video, canvas {
 .hall-card-avatar.frame-neon {
   border: 2px solid #8B5CF6;
   box-shadow: 0 0 8px rgba(139, 92, 246, 0.35);
+}
+
+.hall-card-avatar.frame-fire {
+  border: 2px solid #F97316;
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.45);
 }
 
 .shop-equipped-name {
@@ -14681,4 +14734,754 @@ img, video, canvas {
 .theme-option-card.active .theme-option-check {
   opacity: 1;
   transform: scale(1);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   🔥 DUOLINGO-STYLE STREAK SYSTEM (ОГОНЬ АКТИВНОСТИ И СТРИКИ)
+   ───────────────────────────────────────────────────────────── */
+
+/* 1. Header Streak Flame Button */
+.streak-flame-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border-color, #E2E8F0);
+  background: var(--bg-card, #FFFFFF);
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.streak-flame-btn:active {
+  transform: scale(0.94);
+}
+
+.streak-flame-btn .streak-icon {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.streak-flame-btn:hover .streak-icon {
+  transform: scale(1.18);
+}
+
+.streak-flame-btn .streak-pill {
+  font-size: 13.5px;
+  font-weight: 800;
+  font-family: var(--font-numeric, "JetBrains Mono", monospace);
+  color: var(--text-main, #0F172A);
+  letter-spacing: -0.2px;
+}
+
+.streak-flame-btn .streak-dot-indicator {
+  display: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #F97316;
+  margin-left: -1px;
+}
+
+/* Header button states */
+.streak-flame-btn.pending {
+  border-color: rgba(249, 115, 22, 0.35);
+  background: rgba(255, 247, 237, 0.7);
+}
+
+.streak-flame-btn.pending .streak-icon {
+  filter: grayscale(0.4) opacity(0.85);
+}
+
+.streak-flame-btn.pending .streak-dot-indicator {
+  display: inline-block;
+  animation: streakDotPulse 1.8s ease-in-out infinite;
+}
+
+.streak-flame-btn.ignited {
+  background: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%);
+  border-color: rgba(249, 115, 22, 0.55);
+  box-shadow: 0 2px 10px rgba(249, 115, 22, 0.22);
+}
+
+.streak-flame-btn.ignited .streak-pill {
+  color: #C2410C;
+  font-weight: 900;
+}
+
+.streak-flame-btn.ignited .streak-icon {
+  animation: streakFlameWiggle 2.2s ease-in-out infinite;
+}
+
+.streak-flame-btn.frozen {
+  background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+  border-color: rgba(56, 189, 248, 0.6);
+  box-shadow: 0 2px 10px rgba(56, 189, 248, 0.25);
+}
+
+.streak-flame-btn.frozen .streak-pill {
+  color: #0284C7;
+}
+
+.streak-flame-btn.broken_repair {
+  background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%);
+  border-color: rgba(239, 68, 68, 0.6);
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.25);
+  animation: streakRepairPulse 2s ease-in-out infinite;
+}
+
+.streak-flame-btn.broken_repair .streak-pill {
+  color: #DC2626;
+}
+
+@keyframes streakFlameWiggle {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-5deg) scale(1.08); }
+  75% { transform: rotate(5deg) scale(1.05); }
+}
+
+@keyframes streakDotPulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.4); opacity: 0.4; }
+}
+
+@keyframes streakRepairPulse {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.6); }
+  50% { border-color: rgba(239, 68, 68, 1); box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
+}
+
+/* 2. Streak Society Badge on Deck Cards */
+.card-badge.streak-society-badge {
+  background: linear-gradient(135deg, #EF4444 0%, #F97316 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(254, 215, 170, 0.8);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 3. Streak Hub Modal */
+.streak-hub-overlay {
+  z-index: 10050;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.streak-hub-content {
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card, #FFFFFF);
+  border-radius: 24px 24px 0 0;
+  overflow: hidden;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.16);
+}
+
+.streak-hub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-color, #F1F5F9);
+}
+
+.streak-hub-header-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.streak-hub-header-icon {
+  font-size: 20px;
+}
+
+.streak-hub-header-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-main, #0F172A);
+  margin: 0;
+}
+
+.streak-hub-body {
+  padding: 16px 20px 32px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Hero Flame Card */
+.streak-hero-card {
+  position: relative;
+  text-align: center;
+  padding: 24px 20px 20px;
+  border-radius: 20px;
+  background: radial-gradient(circle at 50% 35%, rgba(254, 243, 199, 0.85) 0%, rgba(255, 255, 255, 0.95) 70%), #FFFFFF;
+  border: 1.5px solid rgba(251, 146, 60, 0.25);
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.08);
+}
+
+.streak-flame-halo {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(249, 115, 22, 0.25) 0%, rgba(239, 68, 68, 0) 70%);
+  pointer-events: none;
+  animation: streakHaloPulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes streakHaloPulse {
+  0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.6; }
+  100% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+}
+
+.streak-hero-flame-animation {
+  position: relative;
+  z-index: 1;
+  font-size: 64px;
+  line-height: 1;
+  margin-bottom: 8px;
+  animation: streakHeroFlameFloat 3s ease-in-out infinite;
+}
+
+@keyframes streakHeroFlameFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.06); }
+}
+
+.streak-hero-days {
+  font-size: 40px;
+  font-weight: 900;
+  font-family: var(--font-numeric, "JetBrains Mono", monospace);
+  color: #C2410C;
+  line-height: 1.1;
+  letter-spacing: -1px;
+}
+
+.streak-hero-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-main, #0F172A);
+  margin-top: 4px;
+}
+
+.streak-hero-desc {
+  font-size: 13px;
+  color: var(--text-muted, #64748B);
+  margin: 6px 0 0 0;
+  line-height: 1.4;
+}
+
+/* Broken Streak Repair Alert */
+.streak-repair-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%);
+  border: 1.5px solid rgba(239, 68, 68, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.streak-repair-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.streak-repair-icon {
+  font-size: 26px;
+}
+
+.streak-repair-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #991B1B;
+}
+
+.streak-repair-desc {
+  font-size: 12.5px;
+  color: #B91C1C;
+  margin-top: 2px;
+}
+
+.btn-streak-repair {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #DC2626;
+  color: #FFFFFF;
+  font-size: 13.5px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+}
+
+.btn-streak-repair:active {
+  transform: scale(0.97);
+}
+
+/* Today Progress Goal Card */
+.streak-goal-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--bg-card-secondary, #F8FAFC);
+  border: 1px solid var(--border-color, #E2E8F0);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.streak-goal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.streak-goal-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main, #0F172A);
+}
+
+.streak-goal-count {
+  font-size: 13px;
+  font-weight: 800;
+  font-family: var(--font-numeric, "JetBrains Mono", monospace);
+  color: #EA580C;
+}
+
+.streak-progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: #E2E8F0;
+  overflow: hidden;
+}
+
+.streak-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #F97316 0%, #EF4444 100%);
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.streak-goal-hint {
+  font-size: 12px;
+  color: var(--text-muted, #64748B);
+  line-height: 1.35;
+}
+
+/* 7-Day Calendar Grid */
+.streak-calendar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.streak-section-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-main, #0F172A);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.streak-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.streak-cal-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: var(--bg-card-secondary, #F8FAFC);
+  border: 1px solid var(--border-color, #E2E8F0);
+  transition: all 0.2s;
+}
+
+.streak-cal-day.is-today {
+  border-color: #F97316;
+  background: #FFF7ED;
+}
+
+.streak-cal-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted, #64748B);
+}
+
+.streak-cal-date {
+  font-size: 9.5px;
+  color: var(--text-muted, #94A3B8);
+}
+
+.streak-cal-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  background: #E2E8F0;
+  color: #64748B;
+}
+
+.streak-cal-day.status-completed .streak-cal-icon {
+  background: #FFEDD5;
+  color: #C2410C;
+}
+
+.streak-cal-day.status-frozen .streak-cal-icon {
+  background: #E0F2FE;
+  color: #0284C7;
+}
+
+.streak-cal-day.status-missed .streak-cal-icon {
+  background: #FEE2E2;
+  color: #DC2626;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.streak-cal-day.status-pending .streak-cal-icon {
+  background: #FFF7ED;
+  border: 1.5px dashed #F97316;
+}
+
+/* Freeze Section («Справка от врача») */
+.streak-freeze-section {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--bg-card-secondary, #F8FAFC);
+  border: 1px solid var(--border-color, #E2E8F0);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.streak-freeze-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.streak-freeze-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.streak-freeze-icon {
+  font-size: 22px;
+}
+
+.streak-freeze-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-main, #0F172A);
+}
+
+.streak-freeze-subtitle {
+  font-size: 11.5px;
+  color: var(--text-muted, #64748B);
+}
+
+.streak-freeze-slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.freeze-slot-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-card, #FFFFFF);
+  border: 1px solid var(--border-color, #E2E8F0);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.freeze-slot-pill.active {
+  border-color: rgba(56, 189, 248, 0.6);
+  background: #F0F9FF;
+  color: #0369A1;
+}
+
+.freeze-slot-pill.empty {
+  color: var(--text-muted, #94A3B8);
+}
+
+.btn-buy-freeze {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--bg-card, #FFFFFF);
+  border: 1.5px solid #0284C7;
+  color: #0284C7;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-buy-freeze:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #CBD5E1;
+  color: #94A3B8;
+}
+
+.btn-buy-freeze:not(:disabled):active {
+  background: #F0F9FF;
+  transform: scale(0.98);
+}
+
+/* Streak Society Milestones */
+.streak-milestones-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.streak-milestones-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.streak-milestone-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--bg-card-secondary, #F8FAFC);
+  border: 1px solid var(--border-color, #E2E8F0);
+  gap: 10px;
+}
+
+.streak-milestone-card.claimed {
+  opacity: 0.7;
+}
+
+.streak-milestone-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.streak-milestone-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.streak-milestone-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.streak-milestone-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text-main, #0F172A);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.streak-milestone-reward {
+  font-size: 12px;
+  font-weight: 700;
+  color: #EA580C;
+}
+
+.btn-claim-milestone {
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #F97316 0%, #EF4444 100%);
+  color: #FFFFFF;
+  border: none;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+  transition: all 0.2s;
+}
+
+.btn-claim-milestone:active {
+  transform: scale(0.95);
+}
+
+.milestone-status-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.milestone-status-badge.claimed {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+.milestone-status-badge.locked {
+  background: #E2E8F0;
+  color: #64748B;
+}
+
+/* Share Button */
+.btn-streak-share {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #0284C7 0%, #2563EB 100%);
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  transition: all 0.2s;
+}
+
+.btn-streak-share:active {
+  transform: scale(0.98);
+}
+
+/* 4. Celebration Overlay: 5th Swipe Eruption */
+.streak-ignite-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10090;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.streak-ignite-card {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  background: #FFFFFF;
+  border-radius: 28px;
+  padding: 32px 24px 24px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  animation: streakPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+
+@keyframes streakPopIn {
+  0% { transform: scale(0.7); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.streak-ignite-halo {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(249, 115, 22, 0.3) 0%, rgba(239, 68, 68, 0) 70%);
+  pointer-events: none;
+}
+
+.streak-ignite-flame-burst {
+  position: relative;
+  z-index: 1;
+  font-size: 72px;
+  line-height: 1;
+  margin-bottom: 12px;
+  animation: streakBurstPulse 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes streakBurstPulse {
+  0% { transform: scale(1) rotate(-3deg); }
+  100% { transform: scale(1.15) rotate(3deg); }
+}
+
+.streak-ignite-title {
+  font-size: 22px;
+  font-weight: 900;
+  color: #0F172A;
+  margin: 0;
+}
+
+.streak-ignite-count {
+  font-size: 16px;
+  font-weight: 800;
+  color: #EA580C;
+  margin-top: 4px;
+}
+
+.streak-ignite-reward {
+  display: inline-block;
+  margin: 12px auto 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #FEF3C7;
+  color: #B45309;
+  font-size: 13.5px;
+  font-weight: 800;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.streak-ignite-desc {
+  font-size: 13px;
+  color: #64748B;
+  margin: 14px 0 20px;
+  line-height: 1.4;
+}
+
+.btn-streak-ignite-close {
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #F97316 0%, #EF4444 100%);
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.35);
+  transition: all 0.2s;
+}
+
+.btn-streak-ignite-close:active {
+  transform: scale(0.97);
 }

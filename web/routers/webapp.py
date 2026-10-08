@@ -43,6 +43,8 @@ from database.crud import (
     is_user_online_visible_to, get_user_online_status_text_for,
     create_project, get_project, get_user_projects, update_project, delete_project,
     get_projects_feed, get_project_candidates, founder_swipe_candidate,
+    record_user_daily_activity, get_streak_hub_data, repair_broken_streak,
+    buy_streak_freeze, claim_streak_milestone,
 )
 from bot.services.economy_service import get_frame_title
 
@@ -518,6 +520,8 @@ async def webapp_feed(
             "is_premium": getattr(u, "is_premium", False),
             "equipped_frame": getattr(u, "equipped_frame", None),
             "equipped_frame_title": get_frame_title(getattr(u, "equipped_frame", None)),
+            "streak_days": getattr(u, "streak_days", 0) or 0,
+            "is_streak_society": bool((getattr(u, "streak_days", 0) or 0) >= 7),
             # Специфика карьеры
             "career_goal": p.career_goal if mode == ModeEnum.career else None,
             "career_skills": p.career_skills if mode == ModeEnum.career else None,
@@ -637,12 +641,16 @@ async def webapp_swipe(
             except Exception as e:
                 logger.warning(f"Failed to notify match partner via bot: {e}")
 
+    # Регистрируем активность для стрика (5 свайпов продлевают стрик)
+    streak_event = await record_user_daily_activity(db, student_id, action_type="swipe")
+
     return {
         "status": "ok",
         "action": action.value,
         "is_match": is_match,
         "match": match_data,
         "superlike_balance": current_superlike_balance,
+        "streak_event": streak_event,
     }
 
 
@@ -4223,6 +4231,69 @@ async def webapp_claim_streak(
         "streak_days": new_streak,
         "reward_credits": reward,
     }
+
+
+class ClaimStreakMilestoneRequest(BaseModel):
+    milestone_day: int
+
+
+@router.get("/api/webapp/streak/status")
+async def webapp_streak_status(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Возвращает актуальный статус для виджета и модалки Streak Hub."""
+    data = await get_streak_hub_data(db, student.id)
+    return {"status": "success", "ok": True, **data}
+
+
+@router.post("/api/webapp/streak/repair")
+async def webapp_streak_repair(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Отработка долга: восстановление сгоревшей серии за 25 🎓 в течение 48ч."""
+    if not check_economy_rate_limit(student.id, "streak_repair", 1.0):
+        return {"status": "error", "ok": False, "message": "Слишком много запросов. Попробуйте через секунду.", "detail": "Rate limit exceeded"}
+
+    success, msg, streak_days = await repair_broken_streak(db, student.id)
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+
+    return {"status": "success", "ok": True, "message": msg, "streak_days": streak_days}
+
+
+@router.post("/api/webapp/streak/freeze/buy")
+async def webapp_streak_freeze_buy(
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Покупка «Справки от врача» 🩺 в слот защиты (макс 2 шт., 15 🎓)."""
+    if not check_economy_rate_limit(student.id, "streak_freeze_buy", 1.0):
+        return {"status": "error", "ok": False, "message": "Слишком много запросов. Попробуйте через секунду.", "detail": "Rate limit exceeded"}
+
+    success, msg, freeze_count = await buy_streak_freeze(db, student.id)
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+
+    return {"status": "success", "ok": True, "message": msg, "freeze_count": freeze_count}
+
+
+@router.post("/api/webapp/streak/milestone/claim")
+async def webapp_streak_milestone_claim(
+    req: ClaimStreakMilestoneRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Получение награды за веху Клуба ударников (3, 7, 14, 30 дней)."""
+    if not check_economy_rate_limit(student.id, f"streak_milestone_{req.milestone_day}", 1.0):
+        return {"status": "error", "ok": False, "message": "Слишком много запросов. Попробуйте через секунду.", "detail": "Rate limit exceeded"}
+
+    success, msg, reward_data = await claim_streak_milestone(db, student.id, req.milestone_day)
+    if not success:
+        return {"status": "error", "ok": False, "message": msg, "detail": msg}
+
+    return {"status": "success", "ok": True, "message": msg, "reward_data": reward_data}
 
 
 @router.post("/api/webapp/economy/quests/claim")

@@ -390,16 +390,22 @@ MIGRATION_STATEMENTS = [
     ON economy_transactions (user_id, reference_id) 
     WHERE tx_type IN ('onboarding', 'referral');
     """,
+    # 031_duolingo_streak_retention_system
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS today_swipes_count INT DEFAULT 0;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity_date TIMESTAMP WITH TIME ZONE;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_broken_at TIMESTAMP WITH TIME ZONE;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_repair_available BOOLEAN DEFAULT FALSE;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_milestones_claimed INT[];",
     # Установка версии alembic
     """
     DO $$
     BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version') THEN
             ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64);
-            UPDATE alembic_version SET version_num = '029_fortune_wheel_and_gifts';
+            UPDATE alembic_version SET version_num = '031_duolingo_streak_retention_system';
         ELSE
             CREATE TABLE alembic_version (version_num VARCHAR(64) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num));
-            INSERT INTO alembic_version (version_num) VALUES ('029_fortune_wheel_and_gifts');
+            INSERT INTO alembic_version (version_num) VALUES ('031_duolingo_streak_retention_system');
         END IF;
     END $$;
     """

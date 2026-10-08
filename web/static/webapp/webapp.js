@@ -1190,7 +1190,14 @@
     } else if (frameCode === "frame_neon") {
       card.classList.add("frame-neon");
       frameBadgeHtml = '<span class="card-badge frame-neon-badge">⚡ Неон</span>';
+    } else if (frameCode === "frame_fire") {
+      card.classList.add("frame-fire");
+      frameBadgeHtml = '<span class="card-badge frame-fire-badge">🔥 Пламя</span>';
     }
+
+    const streakBadgeHtml = (profile.is_streak_society || (profile.streak_days && profile.streak_days >= 7))
+      ? `<span class="card-badge streak-society-badge" title="Клуб ударников: серия ${profile.streak_days} дн.">🔥 ${profile.streak_days} дн.</span>`
+      : "";
     const yearStr = profile.year ? `${profile.year} курс` : "";
     const univStr = profile.university ? profile.university : "";
 
@@ -1262,6 +1269,7 @@
         <div class="card-tags-top">
           ${verifiedBadge}
           ${premiumBadge}
+          ${streakBadgeHtml}
           ${frameBadgeHtml}
         </div>
         <div class="card-rating-badge">
@@ -1650,6 +1658,20 @@
   // ⌨️ Desktop Keyboard Navigation & Top Modal Management (P1)
   // ==========================================
   function closeTopActiveModal() {
+    // 0. Streak Celebration Overlay
+    const streakOverlay = document.getElementById("streakIgniteOverlay");
+    if (streakOverlay && (streakOverlay.classList.contains("active") || streakOverlay.style.display !== "none")) {
+      if (typeof closeStreakCelebration === "function") closeStreakCelebration();
+      return true;
+    }
+
+    // 0.5 Streak Hub Modal
+    const streakHubModal = document.getElementById("streakHubModal");
+    if (streakHubModal && (streakHubModal.classList.contains("active") || streakHubModal.style.display !== "none")) {
+      if (typeof closeStreakHub === "function") closeStreakHub();
+      return true;
+    }
+
     // 1. Spend Confirm Sheet
     const spendModal = document.getElementById("spendConfirmModal");
     if (spendModal && (spendModal.classList.contains("active") || spendModal.style.display !== "none")) {
@@ -1838,6 +1860,9 @@
       }
       if (res && res.superlike_balance !== undefined && state.currentUser) {
         state.currentUser.superlike_balance = res.superlike_balance;
+      }
+      if (res && res.streak_event) {
+        handleStreakEvent(res.streak_event);
       }
     } catch (e) {
       console.error("Swipe API error:", e);
@@ -10893,6 +10918,414 @@
     });
   }
 
+  // ==========================================
+  // 🔥 Duolingo-style Streak System & Hub Engine
+  // ==========================================
+  let streakState = {
+    streak_days: 0,
+    flame_state: "pending",
+    is_ignited_today: false,
+    today_swipes: 0,
+    today_target: 5,
+    freeze_count: 0,
+    freeze_max: 2,
+    freeze_price: 15,
+    repair_price: 25,
+    streak_repair_available: false,
+    streak_repair_hours_left: 0,
+    week_calendar: [],
+    milestones: [],
+    is_streak_society: false,
+  };
+
+  let streakCelebrationTimer = null;
+
+  function updateHeaderStreakButton(data) {
+    const btn = document.getElementById("headerStreakBtn");
+    const badge = document.getElementById("headerStreakBadge");
+    if (!btn || !badge) return;
+
+    badge.textContent = `${data.streak_days || 0}`;
+
+    btn.classList.remove("pending", "ignited", "frozen", "broken_repair");
+    const flameState = data.flame_state || (data.is_ignited_today ? "ignited" : "pending");
+    btn.classList.add(flameState);
+
+    const iconEl = btn.querySelector(".streak-icon");
+    if (iconEl) {
+      if (flameState === "frozen") {
+        iconEl.textContent = "🧊";
+      } else if (flameState === "broken_repair") {
+        iconEl.textContent = "💔";
+      } else {
+        iconEl.textContent = "🔥";
+      }
+    }
+  }
+
+  function updateStreakHubModalUI(data) {
+    // 1. Hero
+    const daysEl = document.getElementById("streakHubDays");
+    const titleEl = document.getElementById("streakHubTitle");
+    const descEl = document.getElementById("streakHubDesc");
+    const emojiEl = document.getElementById("streakHeroEmoji");
+    const haloEl = document.getElementById("streakFlameHalo");
+
+    if (daysEl) daysEl.textContent = `${data.streak_days || 0}`;
+
+    if (emojiEl) {
+      if (data.flame_state === "frozen") {
+        emojiEl.textContent = "🧊";
+        if (haloEl) haloEl.style.background = "radial-gradient(circle, rgba(56, 189, 248, 0.3) 0%, rgba(2, 132, 199, 0) 70%)";
+      } else if (data.flame_state === "broken_repair") {
+        emojiEl.textContent = "💔";
+        if (haloEl) haloEl.style.background = "radial-gradient(circle, rgba(239, 68, 68, 0.3) 0%, rgba(185, 28, 28, 0) 70%)";
+      } else {
+        emojiEl.textContent = "🔥";
+        if (haloEl) haloEl.style.background = "radial-gradient(circle, rgba(249, 115, 22, 0.3) 0%, rgba(239, 68, 68, 0) 70%)";
+      }
+    }
+
+    if (titleEl && descEl) {
+      if (data.is_ignited_today) {
+        titleEl.textContent = `Серия ${data.streak_days} дн. в огне!`;
+        descEl.textContent = "Огонёк зажжён на сегодня! Заходи завтра за новой стипендией 🔥";
+      } else if (data.flame_state === "frozen") {
+        titleEl.textContent = `Серия ${data.streak_days} дн. заморожена`;
+        descEl.textContent = "«Справка от врача» спасла твою серию. Сделай 5 свайпов сегодня, чтобы возобновить огонь!";
+      } else if (data.streak_repair_available) {
+        titleEl.textContent = `Серия ${data.streak_days} дн. прервалась`;
+        descEl.textContent = "Отработай пропуск за 25 🎓, пока действует 48-часовое окно спасения!";
+      } else {
+        titleEl.textContent = `Серия: ${data.streak_days || 0} дней`;
+        descEl.textContent = "Делай по 5 свайпов в день или выполняй дейлики, чтобы не дать пламени угаснуть!";
+      }
+    }
+
+    // 2. Repair Banner
+    const repairBanner = document.getElementById("streakRepairBanner");
+    const repairHoursText = document.getElementById("streakRepairHoursText");
+    if (repairBanner) {
+      if (data.streak_repair_available) {
+        repairBanner.style.display = "flex";
+        if (repairHoursText) {
+          repairHoursText.textContent = `Осталось ${data.streak_repair_hours_left || 48} ч. на отработку пропуска`;
+        }
+      } else {
+        repairBanner.style.display = "none";
+      }
+    }
+
+    // 3. Today Progress Tracker
+    const swipesProgEl = document.getElementById("streakHubSwipesProgress");
+    const swipesBarEl = document.getElementById("streakHubSwipesBar");
+    const goalHintEl = document.getElementById("streakHubGoalHint");
+
+    const currentSwipes = data.today_swipes || 0;
+    const targetSwipes = data.today_target || 5;
+    const percent = Math.min(100, Math.round((currentSwipes / targetSwipes) * 100));
+
+    if (swipesProgEl) swipesProgEl.textContent = `${currentSwipes} / ${targetSwipes} свайпов`;
+    if (swipesBarEl) swipesBarEl.style.width = `${percent}%`;
+
+    if (goalHintEl) {
+      if (data.is_ignited_today) {
+        goalHintEl.textContent = "✅ Норма закрыта! Огонь горит, стипендия начислена.";
+      } else {
+        const remaining = Math.max(1, targetSwipes - currentSwipes);
+        goalHintEl.textContent = `Сделай ещё ${remaining} ${remaining === 1 ? "свайп" : (remaining < 5 ? "свайпа" : "свайпов")}, чтобы зажечь огонёк!`;
+      }
+    }
+
+    // 4. 7-Day Calendar
+    const calGrid = document.getElementById("streakWeekCalendar");
+    if (calGrid && data.week_calendar) {
+      calGrid.innerHTML = data.week_calendar.map((day) => {
+        let iconChar = "·";
+        if (day.status === "completed") iconChar = "🔥";
+        else if (day.status === "frozen") iconChar = "🧊";
+        else if (day.status === "missed") iconChar = "✕";
+        else if (day.status === "pending") iconChar = "⚪";
+
+        const todayCls = day.is_today ? "is-today" : "";
+        const statusCls = `status-${day.status}`;
+
+        return `
+          <div class="streak-cal-day ${todayCls} ${statusCls}">
+            <span class="streak-cal-name">${day.day_name}</span>
+            <div class="streak-cal-icon">${iconChar}</div>
+            <span class="streak-cal-date">${day.date_str}</span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // 5. Freeze Protection Slots
+    const freezeSlotsEl = document.getElementById("streakFreezeSlots");
+    const buyFreezeBtn = document.getElementById("btnBuyStreakFreeze");
+    const freezeCount = data.freeze_count || 0;
+
+    if (freezeSlotsEl) {
+      freezeSlotsEl.innerHTML = `
+        <div class="freeze-slot-pill ${freezeCount >= 1 ? "active" : "empty"}">
+          <span>${freezeCount >= 1 ? "🩺" : "⚪"}</span>
+          <span>Справка 1: <b>${freezeCount >= 1 ? "Активна" : "Пусто"}</b></span>
+        </div>
+        <div class="freeze-slot-pill ${freezeCount >= 2 ? "active" : "empty"}">
+          <span>${freezeCount >= 2 ? "🩺" : "⚪"}</span>
+          <span>Справка 2: <b>${freezeCount >= 2 ? "Активна" : "Пусто"}</b></span>
+        </div>
+      `;
+    }
+
+    if (buyFreezeBtn) {
+      if (freezeCount >= 2) {
+        buyFreezeBtn.disabled = true;
+        buyFreezeBtn.textContent = "Максимум справок (2/2) 🩺";
+      } else {
+        buyFreezeBtn.disabled = false;
+        buyFreezeBtn.textContent = "+ Пополнить справку (15 🎓)";
+      }
+    }
+
+    // 6. Streak Society Milestones
+    const milestonesEl = document.getElementById("streakMilestonesList");
+    if (milestonesEl && data.milestones) {
+      milestonesEl.innerHTML = data.milestones.map((m) => {
+        let actionHtml = "";
+        if (m.status === "claimable") {
+          actionHtml = `<button type="button" class="btn-claim-milestone" data-milestone="${m.day}">Забрать</button>`;
+        } else if (m.status === "claimed") {
+          actionHtml = `<span class="milestone-status-badge claimed">Получено ✅</span>`;
+        } else {
+          actionHtml = `<span class="milestone-status-badge locked">🔒 ${m.day} дн.</span>`;
+        }
+
+        return `
+          <div class="streak-milestone-card ${m.status}">
+            <div class="streak-milestone-left">
+              <span class="streak-milestone-icon">${m.icon}</span>
+              <div class="streak-milestone-info">
+                <div class="streak-milestone-title">${m.title} (${m.day} дн.)</div>
+                <div class="streak-milestone-reward">${m.reward_text}</div>
+              </div>
+            </div>
+            ${actionHtml}
+          </div>
+        `;
+      }).join("");
+
+      milestonesEl.querySelectorAll(".btn-claim-milestone").forEach((b) => {
+        b.addEventListener("click", () => {
+          const day = parseInt(b.dataset.milestone, 10);
+          if (day) claimStreakMilestone(day);
+        });
+      });
+    }
+  }
+
+  async function loadStreakHubData(openModal = false) {
+    try {
+      const res = await apiFetch("/api/webapp/streak/status");
+      if (res && res.status === "success") {
+        streakState = { ...streakState, ...res };
+        updateHeaderStreakButton(res);
+        if (openModal) {
+          updateStreakHubModalUI(res);
+          const modal = document.getElementById("streakHubModal");
+          if (modal) {
+            modal.style.display = "flex";
+            modal.classList.add("active");
+            triggerHaptic("selection");
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[Streak] Failed to load streak status:", e);
+    }
+  }
+
+  function openStreakHub() {
+    loadStreakHubData(true);
+  }
+
+  function closeStreakHub() {
+    const modal = document.getElementById("streakHubModal");
+    if (!modal) return;
+    modal.classList.remove("active");
+    modal.style.display = "none";
+  }
+
+  function handleStreakEvent(event) {
+    if (!event) return;
+
+    streakState.streak_days = event.streak_days;
+    streakState.today_swipes = event.today_swipes;
+    if (event.already_ignited) {
+      streakState.is_ignited_today = true;
+      streakState.flame_state = "ignited";
+    }
+
+    updateHeaderStreakButton(streakState);
+
+    if (event.newly_ignited) {
+      showStreakCelebration(event.streak_days, event.reward_credits);
+      if (event.reward_credits && state.currentUser) {
+        state.currentUser.credits_balance = (state.currentUser.credits_balance || 0) + event.reward_credits;
+        const credBadges = document.querySelectorAll("#headerCreditsBadge, #shopBalanceCredits");
+        credBadges.forEach((b) => {
+          b.textContent = `${state.currentUser.credits_balance}`;
+        });
+      }
+    }
+  }
+
+  function showStreakCelebration(days, rewardCredits) {
+    const overlay = document.getElementById("streakIgniteOverlay");
+    if (!overlay) return;
+
+    const countEl = document.getElementById("streakIgniteCount");
+    const rewardEl = document.getElementById("streakIgniteReward");
+
+    if (countEl) countEl.textContent = `${days} ${days === 1 ? "день" : (days < 5 ? "дня" : "дней")} подряд 🔥`;
+    if (rewardEl) rewardEl.textContent = `+${rewardCredits || 10} 🎓 Стипендия зачислена`;
+
+    overlay.style.display = "flex";
+    overlay.classList.add("active");
+    triggerHaptic("heavy");
+
+    try {
+      if (typeof confetti === "function") {
+        confetti({
+          particleCount: 50,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ["#F97316", "#EF4444", "#FBBF24"],
+        });
+      }
+    } catch (e) {}
+
+    if (streakCelebrationTimer) clearTimeout(streakCelebrationTimer);
+    streakCelebrationTimer = setTimeout(() => {
+      closeStreakCelebration();
+    }, 3500);
+  }
+
+  function closeStreakCelebration() {
+    if (streakCelebrationTimer) {
+      clearTimeout(streakCelebrationTimer);
+      streakCelebrationTimer = null;
+    }
+    const overlay = document.getElementById("streakIgniteOverlay");
+    if (overlay) {
+      overlay.classList.remove("active");
+      overlay.style.display = "none";
+    }
+  }
+
+  async function repairStreak() {
+    const btn = document.getElementById("btnRepairStreak");
+    if (btn) btn.disabled = true;
+
+    try {
+      const res = await apiFetch("/api/webapp/streak/repair", { method: "POST" });
+      if (res && res.status === "success") {
+        showToast(res.message || "🔥 Серия восстановлена!", "success");
+        triggerHaptic("success");
+        await loadStreakHubData(true);
+      } else {
+        showToast(res?.message || res?.detail || "Ошибка восстановления серии", "error");
+        triggerHaptic("error");
+      }
+    } catch (e) {
+      showToast("Ошибка сети при восстановлении", "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function buyStreakFreeze() {
+    const btn = document.getElementById("btnBuyStreakFreeze");
+    if (btn) btn.disabled = true;
+
+    try {
+      const res = await apiFetch("/api/webapp/streak/freeze/buy", { method: "POST" });
+      if (res && res.status === "success") {
+        showToast(res.message || "🩺 «Справка от врача» добавлена в слот защиты!", "success");
+        triggerHaptic("success");
+        await loadStreakHubData(true);
+      } else {
+        showToast(res?.message || res?.detail || "Не удалось купить справку", "error");
+        triggerHaptic("error");
+      }
+    } catch (e) {
+      showToast("Ошибка сети при покупке", "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function claimStreakMilestone(day) {
+    try {
+      const res = await apiFetch("/api/webapp/streak/milestone/claim", {
+        method: "POST",
+        body: JSON.stringify({ milestone_day: day }),
+      });
+      if (res && res.status === "success") {
+        showToast(res.message || "🎉 Награда за веху получена!", "success");
+        triggerHaptic("success");
+        try {
+          if (typeof confetti === "function") {
+            confetti({
+              particleCount: 60,
+              spread: 80,
+              origin: { y: 0.6 },
+            });
+          }
+        } catch (e) {}
+        await loadStreakHubData(true);
+      } else {
+        showToast(res?.message || res?.detail || "Ошибка получения награды", "error");
+        triggerHaptic("error");
+      }
+    } catch (e) {
+      showToast("Ошибка соединения", "error");
+    }
+  }
+
+  function shareStreak() {
+    const days = streakState.streak_days || 0;
+    const text = `🔥 Мой стрик активности в StudMatch уже ${days} дней подряд! Присоединяйся и находи крутых друзей в вузе:`;
+    const appUrl = window.location.origin;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(appUrl)}&text=${encodeURIComponent(text)}`;
+
+    if (window.Telegram?.WebApp?.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink(shareUrl);
+    } else {
+      window.open(shareUrl, "_blank");
+    }
+  }
+
+  function setupStreakListeners() {
+    document.getElementById("headerStreakBtn")?.addEventListener("click", openStreakHub);
+    document.getElementById("closeStreakHubBtn")?.addEventListener("click", closeStreakHub);
+
+    const hubModal = document.getElementById("streakHubModal");
+    hubModal?.addEventListener("click", (e) => {
+      if (e.target === hubModal) closeStreakHub();
+    });
+
+    document.getElementById("btnRepairStreak")?.addEventListener("click", repairStreak);
+    document.getElementById("btnBuyStreakFreeze")?.addEventListener("click", buyStreakFreeze);
+    document.getElementById("btnShareStreak")?.addEventListener("click", shareStreak);
+    document.getElementById("closeStreakIgniteBtn")?.addEventListener("click", closeStreakCelebration);
+
+    const igniteOverlay = document.getElementById("streakIgniteOverlay");
+    igniteOverlay?.addEventListener("click", (e) => {
+      if (e.target === igniteOverlay) closeStreakCelebration();
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     try {
       applyTheme("light", false);
@@ -10925,12 +11358,14 @@
     setupMaintenanceListeners();
     setupHallOfFameListeners();
     setupShopListeners();
+    setupStreakListeners();
     initDesktopKeyboardNavigation();
     if (window.MAINTENANCE_DATA) {
       updateMaintenanceUI(window.MAINTENANCE_DATA);
     }
     authenticateUser().then(() => {
       loadShopData();
+      loadStreakHubData(false);
     });
   });
 })();

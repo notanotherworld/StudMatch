@@ -38,6 +38,7 @@ def get_frame_title(frame_code: Optional[str]) -> Optional[str]:
         "frame_gold": "🥇 «Отличник»",
         "frame_headman": "👔 «Староста»",
         "frame_neon": "🌌 «Неон»",
+        "frame_fire": "🔥 «Пламя стрика»",
     }
     return frames_map.get(frame_code) if frame_code else None
 

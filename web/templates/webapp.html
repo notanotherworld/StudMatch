@@ -52,6 +52,11 @@
       </div>
 
       <div class="header-actions" style="display:flex;align-items:center;gap:6px;">
+        <button class="header-icon-btn streak-flame-btn pending" id="headerStreakBtn" title="Серия дней (Стрик) 🔥" aria-label="Стрик активности">
+          <span class="streak-icon">🔥</span>
+          <span class="streak-pill" id="headerStreakBadge">0</span>
+          <span class="streak-dot-indicator"></span>
+        </button>
         <button class="header-icon-btn economy-store-btn" id="openShopBtn" title="Магазин и Зачётка">
           <span class="economy-icon">🎓</span>
           <span class="economy-credits-pill" id="headerCreditsBadge">0</span>
@@ -2054,6 +2059,116 @@
           <button type="button" class="btn-spend-confirm-cancel" id="btnSpendConfirmCancel">Отмена</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- 🔥 Modal: Duolingo-style Streak Hub (Центр стриков) -->
+  <div class="bottom-sheet-overlay streak-hub-overlay" id="streakHubModal" style="display:none;">
+    <div class="bottom-sheet-content streak-hub-content">
+      <div class="sheet-drag-handle-wrap">
+        <div class="sheet-drag-handle"></div>
+      </div>
+      <div class="streak-hub-header">
+        <div class="streak-hub-header-title-wrap">
+          <span class="streak-hub-header-icon">🔥</span>
+          <h3 class="streak-hub-header-title">Огонь активности</h3>
+        </div>
+        <button type="button" class="sheet-close-btn" id="closeStreakHubBtn" aria-label="Закрыть">✕</button>
+      </div>
+
+      <div class="streak-hub-body">
+        <!-- Hero Flame Card -->
+        <div class="streak-hero-card" id="streakHeroCard">
+          <div class="streak-flame-halo" id="streakFlameHalo"></div>
+          <div class="streak-hero-flame-animation">
+            <span class="streak-hero-emoji" id="streakHeroEmoji">🔥</span>
+          </div>
+          <div class="streak-hero-days" id="streakHubDays">0</div>
+          <div class="streak-hero-title" id="streakHubTitle">Серия дней</div>
+          <p class="streak-hero-desc" id="streakHubDesc">Делай по 5 свайпов в день, чтобы поддерживать огонь!</p>
+        </div>
+
+        <!-- Broken Streak Repair Alert Banner (Active during 48h) -->
+        <div class="streak-repair-card" id="streakRepairBanner" style="display:none;">
+          <div class="streak-repair-header">
+            <span class="streak-repair-icon">💔</span>
+            <div class="streak-repair-info">
+              <div class="streak-repair-title">Серия прервалась!</div>
+              <div class="streak-repair-desc" id="streakRepairHoursText">Осталось 48ч на отработку пропуска</div>
+            </div>
+          </div>
+          <button type="button" class="btn-streak-repair" id="btnRepairStreak">
+            🩹 Восстановить серию (25 🎓)
+          </button>
+        </div>
+
+        <!-- Today Progress Tracker -->
+        <div class="streak-goal-card">
+          <div class="streak-goal-head">
+            <span class="streak-goal-title">Цель на сегодня</span>
+            <span class="streak-goal-count" id="streakHubSwipesProgress">0 / 5 свайпов</span>
+          </div>
+          <div class="streak-progress-track">
+            <div class="streak-progress-fill" id="streakHubSwipesBar" style="width: 0%;"></div>
+          </div>
+          <div class="streak-goal-hint" id="streakHubGoalHint">Сделай ещё 5 свайпов в ленте, чтобы зажечь огонёк!</div>
+        </div>
+
+        <!-- 7-Day Week Calendar -->
+        <div class="streak-calendar-section">
+          <div class="streak-section-label">Текущая неделя</div>
+          <div class="streak-calendar-grid" id="streakWeekCalendar">
+            <!-- Dynamically populated ПН-ВС -->
+          </div>
+        </div>
+
+        <!-- Freeze / Protection Section («Справка от врача») -->
+        <div class="streak-freeze-section">
+          <div class="streak-freeze-head">
+            <div class="streak-freeze-title-wrap">
+              <span class="streak-freeze-icon">🩺</span>
+              <div>
+                <div class="streak-freeze-title">Защита от пропуска</div>
+                <div class="streak-freeze-subtitle">«Справка от врача» автоматически спасёт серию</div>
+              </div>
+            </div>
+          </div>
+          <div class="streak-freeze-slots" id="streakFreezeSlots">
+            <!-- 2 slot pills -->
+          </div>
+          <button type="button" class="btn-buy-freeze" id="btnBuyStreakFreeze">
+            + Пополнить справку (15 🎓)
+          </button>
+        </div>
+
+        <!-- Streak Society Milestones («Клуб ударников») -->
+        <div class="streak-milestones-section">
+          <div class="streak-section-label">Клуб ударников (Награды за серии)</div>
+          <div class="streak-milestones-list" id="streakMilestonesList">
+            <!-- Dynamically populated 3, 7, 14, 30 day milestones -->
+          </div>
+        </div>
+
+        <!-- Share Button -->
+        <button type="button" class="btn-streak-share" id="btnShareStreak">
+          📤 Поделиться серией в Telegram
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🔥 Celebration Overlay: 5th Swipe Streak Eruption -->
+  <div class="streak-ignite-overlay" id="streakIgniteOverlay" style="display:none;">
+    <div class="streak-ignite-card">
+      <div class="streak-ignite-halo"></div>
+      <div class="streak-ignite-flame-burst">🔥</div>
+      <h2 class="streak-ignite-title" id="streakIgniteTitle">Огонь зажжён!</h2>
+      <div class="streak-ignite-count" id="streakIgniteCount">1 день подряд</div>
+      <div class="streak-ignite-reward" id="streakIgniteReward">+4 🎓 Стипендия зачислена</div>
+      <p class="streak-ignite-desc">Отличный темп! Приходи завтра, чтобы не дать пламени угаснуть.</p>
+      <button type="button" class="btn-streak-ignite-close" id="closeStreakIgniteBtn">
+        Продолжить 🔥
+      </button>
     </div>
   </div>
 
