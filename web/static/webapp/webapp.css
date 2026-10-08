@@ -12999,6 +12999,32 @@ img, video, canvas {
   line-height: 1.35;
 }
 
+.gifts-hero-soon-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+.gifts-soon-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  color: #92400E;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(217, 119, 6, 0.25);
+  flex-shrink: 0;
+}
+
 .shop-gifts-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
