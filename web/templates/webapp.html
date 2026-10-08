@@ -2337,6 +2337,71 @@
     </div>
   </div>
 
+  <!-- Theme Settings Bottom Sheet Modal -->
+  <div class="bottom-sheet-overlay" id="themeModal" style="display: none;">
+    <div class="bottom-sheet-content theme-sheet-content">
+      <div class="sheet-top-header">
+        <div class="sheet-drag-handle"></div>
+        <button class="sheet-close-circle-btn" id="closeThemeModalBtn" aria-label="Закрыть">✕</button>
+      </div>
+
+      <div class="sheet-body theme-sheet-body">
+        <div class="theme-hero-card">
+          <div class="theme-hero-icon-wrap">
+            <span class="theme-hero-icon">🎨</span>
+          </div>
+          <h3 class="theme-sheet-title">Тема оформления</h3>
+          <p class="theme-sheet-subtitle">Выберите внешний вид интерфейса StudMatch</p>
+        </div>
+
+        <div class="theme-options-list">
+          <!-- Option 1: Auto / Telegram -->
+          <div class="theme-option-card active" data-theme-mode="auto" id="themeOptionAuto">
+            <div class="theme-option-preview preview-auto">
+              <span class="preview-split-half left">☀️</span>
+              <span class="preview-split-half right">🌙</span>
+            </div>
+            <div class="theme-option-info">
+              <div class="theme-option-title-row">
+                <h4 class="theme-option-title">Как в Telegram 🌓</h4>
+                <span class="theme-option-check">✓</span>
+              </div>
+              <p class="theme-option-desc">Автоматически подстраивается под настройки Telegram и вашей операционной системы</p>
+            </div>
+          </div>
+
+          <!-- Option 2: Light -->
+          <div class="theme-option-card" data-theme-mode="light" id="themeOptionLight">
+            <div class="theme-option-preview preview-light">
+              <span class="preview-icon">☀️</span>
+            </div>
+            <div class="theme-option-info">
+              <div class="theme-option-title-row">
+                <h4 class="theme-option-title">Светлая тема ☀️</h4>
+                <span class="theme-option-check">✓</span>
+              </div>
+              <p class="theme-option-desc">Классический светлый фон, максимальная читаемость и чёткость днем</p>
+            </div>
+          </div>
+
+          <!-- Option 3: Dark -->
+          <div class="theme-option-card" data-theme-mode="dark" id="themeOptionDark">
+            <div class="theme-option-preview preview-dark">
+              <span class="preview-icon">🌙</span>
+            </div>
+            <div class="theme-option-info">
+              <div class="theme-option-title-row">
+                <h4 class="theme-option-title">Тёмная тема 🌙</h4>
+                <span class="theme-option-check">✓</span>
+              </div>
+              <p class="theme-option-desc">Глубокий матовый графит (OLED Slate), мягкие тёмные кнопки и контрастные шрифты</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Student Academic Verification Modal Guide (DESIGN.md Screen D) -->
   <div class="bottom-sheet-overlay" id="studentVerificationModal">
     <div class="bottom-sheet-content verification-sheet-content">
