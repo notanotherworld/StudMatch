@@ -138,6 +138,15 @@
           </div>
         </div>
 
+        <!-- Desktop Keyboard Shortcuts Helper Pill -->
+        <div class="deck-keyboard-hints" id="deckKeyboardHints" aria-label="Клавиатурные шорткаты">
+          <span class="deck-kbd-item"><kbd class="deck-kbd">←</kbd> Пропуск</span>
+          <span class="deck-kbd-item"><kbd class="deck-kbd">Пробел</kbd> Фото</span>
+          <span class="deck-kbd-item"><kbd class="deck-kbd">⌫</kbd> Шпора</span>
+          <span class="deck-kbd-item"><kbd class="deck-kbd">↑</kbd> Суперлайк</span>
+          <span class="deck-kbd-item"><kbd class="deck-kbd">→</kbd> Лайк</span>
+        </div>
+
         <!-- STUDMATCH: Career Networking Feed View -->
         <div class="career-feed-view" id="careerFeedView" style="display: none;">
           <!-- Search & Filter Bar -->
@@ -545,7 +554,26 @@
           </div>
         </div>
         <h2 class="match-title">Это Мэтч! 🎉</h2>
-        <p class="match-desc">Вы и <b id="matchPartnerName">Студент</b> понравились друг другу! Не откладывайте знакомство в долгий ящик.</p>
+        <p class="match-desc">Вы и <b id="matchPartnerName">Студент</b> понравились друг другу!</p>
+
+        <!-- Fast Collegiate Icebreakers -->
+        <div class="match-icebreaker-section">
+          <div class="match-icebreaker-chips">
+            <button type="button" class="match-chip-btn" data-msg="Привет! С какого ты факультета? 🎓">
+              🎓 С какого ты факультета?
+            </button>
+            <button type="button" class="match-chip-btn" data-msg="Привет! Пойдём за кофе между парами? ☕">
+              ☕ Пойдём за кофе между парами?
+            </button>
+            <button type="button" class="match-chip-btn" data-msg="Привет! Закрываем сессию вместе? 📚">
+              📚 Закрываем сессию вместе?
+            </button>
+          </div>
+          <div class="match-quick-input-wrap">
+            <input type="text" id="matchQuickInput" class="match-quick-input" placeholder="Или напишите своё сообщение..." maxlength="200" autocomplete="off" />
+          </div>
+        </div>
+
         <div class="match-modal-buttons">
           <button class="btn-primary" id="matchChatBtn">
             💬 Открыть чат

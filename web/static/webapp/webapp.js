@@ -1251,9 +1251,9 @@
       <div class="card-tap-left"></div>
       <div class="card-tap-right"></div>
 
-      <div class="stamp like-stamp">${isCareer ? "CONNECT" : "LIKE"}</div>
-      <div class="stamp nope-stamp">SKIP</div>
-      <div class="stamp super-stamp">${isCareer ? "STAR" : "SUPER"}</div>
+      <div class="stamp like-stamp">${isCareer ? "КОНТАКТ" : "ЛАЙК"}</div>
+      <div class="stamp nope-stamp">ПРОПУСК</div>
+      <div class="stamp super-stamp">${isCareer ? "ЗВЕЗДА" : "СУПЕРЛАЙК"}</div>
 
       <div class="card-top-bar" style="margin-top: ${photos.length > 1 ? "14px" : "0"};">
         <div class="card-tags-top">
@@ -1411,7 +1411,7 @@
       currentX = clientX - startX;
       currentY = clientY - startY;
 
-      const rotate = currentX * 0.06;
+      const rotate = Math.max(-16, Math.min(16, currentX * 0.075));
       card.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${rotate}deg)`;
 
       // Отрисовка штампов и тактильная подсветка кнопок
@@ -1454,19 +1454,22 @@
       superlikeBtn?.classList.remove("drag-hint-active");
       likeBtn?.classList.remove("drag-hint-active");
 
-      // Пороги срабатывания свайпа
-      if (currentX > 90) {
-        finishSwipe(card, profile, "like", 500, 0);
-      } else if (currentX < -90) {
-        finishSwipe(card, profile, "skip", -500, 0);
+      // Динамический адаптивный порог свайпа для разных диагоналей экранов
+      const thresholdX = Math.round(Math.min(105, Math.max(75, window.innerWidth * 0.22)));
+      const exitDist = Math.max(520, window.innerWidth + 120);
+
+      if (currentX > thresholdX) {
+        finishSwipe(card, profile, "like", exitDist, 0);
+      } else if (currentX < -thresholdX) {
+        finishSwipe(card, profile, "skip", -exitDist, 0);
       } else if (currentY < -110 && Math.abs(currentX) < 60) {
         openSuperlikeModal(profile);
-        card.style.transition = "transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+        card.style.transition = "transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)";
         card.style.transform = "translate(0, 0) rotate(0deg)";
         superStamp.style.opacity = 0;
       } else {
-        // Возврат в центр
-        card.style.transition = "transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+        // Возврат в центр (плавное затухание по DESIGN.md без отскоков)
+        card.style.transition = "transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)";
         card.style.transform = "translate(0, 0) rotate(0deg)";
         likeStamp.style.opacity = 0;
         nopeStamp.style.opacity = 0;
@@ -1485,7 +1488,7 @@
 
   function finishSwipe(card, profile, action, exitX, exitY, comment = null) {
     state.isSwiping = true;
-    card.style.transition = "transform 0.35s ease-out, opacity 0.35s";
+    card.style.transition = "transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease";
     card.style.transform = `translate(${exitX}px, ${exitY}px) rotate(${exitX * 0.08}deg)`;
     card.style.opacity = 0;
 
@@ -3796,6 +3799,17 @@
     const pAvatarEl = document.getElementById("matchPartnerAvatar");
     const myAvatarEl = document.getElementById("matchMyAvatar");
     const chatBtn = document.getElementById("matchChatBtn");
+    const quickInput = document.getElementById("matchQuickInput");
+    const icebreakerChips = document.querySelectorAll(".match-chip-btn");
+
+    // Праздничный взрыв конфетти на экране мэтча (Peak Moment)
+    if (typeof fireRewardConfetti === "function") {
+      setTimeout(() => {
+        try {
+          fireRewardConfetti(window.innerWidth / 2, window.innerHeight * 0.36);
+        } catch (_) {}
+      }, 60);
+    }
 
     const partnerName = partner?.name || candidate?.name || "Студент";
     if (pNameEl) pNameEl.textContent = partnerName;
@@ -3820,12 +3834,51 @@
       };
     }
 
+    // Сброс и привязка интерактивных студенческих айсбрейкеров
+    if (quickInput) {
+      quickInput.value = "";
+    }
+    icebreakerChips.forEach((chip) => {
+      chip.classList.remove("active-chip");
+      chip.onclick = (e) => {
+        e.stopPropagation();
+        triggerHaptic("light");
+        const msg = chip.dataset.msg;
+        if (quickInput) {
+          quickInput.value = msg;
+          quickInput.focus();
+        }
+        icebreakerChips.forEach((c) => c.classList.remove("active-chip"));
+        chip.classList.add("active-chip");
+        if (chatBtn) {
+          chatBtn.textContent = "💬 Отправить и в чат";
+        }
+      };
+    });
+
+    if (quickInput) {
+      quickInput.oninput = () => {
+        const hasText = quickInput.value.trim().length > 0;
+        if (chatBtn) {
+          chatBtn.textContent = hasText ? "💬 Отправить и в чат" : "💬 Открыть чат";
+        }
+      };
+      quickInput.onkeydown = (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          chatBtn?.click();
+        }
+      };
+    }
+
     const matchId = partner?.match_id || candidate?.match_id;
     if (chatBtn) {
+      chatBtn.textContent = "💬 Открыть чат";
       chatBtn.onclick = () => {
+        const draft = quickInput ? quickInput.value.trim() : "";
         matchModal.classList.remove("active");
         if (matchId) {
-          openChat(matchId);
+          openChat(matchId, draft);
         } else {
           switchTab("matches");
         }
@@ -3999,7 +4052,7 @@
   const cancelUnmatchBtn = document.getElementById("cancelUnmatchBtn");
 
   // Открытие диалога
-  async function openChat(matchId) {
+  async function openChat(matchId, initialDraft = "") {
     if (!matchId) return;
     triggerHaptic("light");
     currentChatMatchId = matchId;
@@ -4016,10 +4069,10 @@
     updateScrollBottomBtnBadge();
 
     if (chatInputText) {
-      chatInputText.value = "";
+      chatInputText.value = initialDraft || "";
       chatInputText.style.height = "auto";
     }
-    if (chatSendBtn) chatSendBtn.disabled = true;
+    if (chatSendBtn) chatSendBtn.disabled = !initialDraft;
 
     // Интеграция с Telegram WebApp BackButton
     if (tg?.BackButton) {
@@ -4111,9 +4164,21 @@
         if (chatInputText) {
           chatInputText.disabled = false;
           chatInputText.placeholder = "Напишите сообщение...";
+          if (initialDraft && !chatInputText.value) {
+            chatInputText.value = initialDraft;
+          }
         }
         if (chatSendBtn) {
+          chatSendBtn.disabled = !chatInputText?.value?.trim();
           chatSendBtn.style.opacity = "1";
+        }
+        if (initialDraft && chatInputText) {
+          setTimeout(() => {
+            chatInputText.focus();
+            try {
+              chatInputText.setSelectionRange(initialDraft.length, initialDraft.length);
+            } catch (_) {}
+          }, 150);
         }
       }
 
