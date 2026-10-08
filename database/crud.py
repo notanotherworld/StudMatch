@@ -3609,7 +3609,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 35,
         "description": "Классическое розовое сияющее сердце Telegram — тёплый знак внимания.",
         "category": "telegram_classic",
-        "badge": "⭐ Классика",
+        "badge": None,
         "is_collectible": False,
     },
     {
@@ -3621,7 +3621,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 35,
         "description": "Официальный плюшевый мишка Telegram — тепло, забота и уют.",
         "category": "telegram_classic",
-        "badge": "⭐ Классика",
+        "badge": None,
         "is_collectible": False,
     },
     {
@@ -3633,7 +3633,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 60,
         "description": "Праздничная коробка с лентой — универсальный сюрприз для любого повода.",
         "category": "telegram_classic",
-        "badge": "⭐ Классика",
+        "badge": None,
         "is_collectible": False,
     },
     {
@@ -3645,7 +3645,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 60,
         "description": "Элегантная красная роза — символ романтической симпатии.",
         "category": "telegram_classic",
-        "badge": "⭐ Классика",
+        "badge": None,
         "is_collectible": False,
     },
     {
@@ -3657,7 +3657,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 120,
         "description": "Праздничный торт с клубникой и тремя свечами из Telegram.",
         "category": "telegram_classic",
-        "badge": "⭐ Классика",
+        "badge": None,
         "is_collectible": False,
     },
     {
@@ -3669,7 +3669,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 120,
         "description": "Нежный букет весенних тюльпанов из Telegram.",
         "category": "telegram_classic",
-        "badge": "⭐ Классика",
+        "badge": None,
         "is_collectible": False,
     },
     {
@@ -3681,7 +3681,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 120,
         "description": "Стремительная ракета в полёте с огненным соплом из Telegram.",
         "category": "telegram_classic",
-        "badge": "⭐ Классика",
+        "badge": None,
         "is_collectible": False,
     },
     {
@@ -3693,7 +3693,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 240,
         "description": "Золотой кубок победителя из Telegram.",
         "category": "telegram_classic",
-        "badge": "⭐ Классика",
+        "badge": None,
         "is_collectible": False,
     },
     {
@@ -3705,7 +3705,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 240,
         "description": "Драгоценное кольцо с бриллиантом чистейшей огранки из Telegram.",
         "category": "telegram_classic",
-        "badge": "⭐ Классика",
+        "badge": None,
         "is_collectible": False,
     },
     {
@@ -3717,7 +3717,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 120,
         "description": "Игристый праздничный напиток в честь долгожданного знакомства.",
         "category": "telegram_classic",
-        "badge": "⭐ Классика",
+        "badge": None,
         "is_collectible": False,
     },
     {
@@ -3729,7 +3729,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 240,
         "description": "Сияющий драгоценный сапфир из коллекции редких Telegram-самоцветов.",
         "category": "telegram_classic",
-        "badge": "⭐ Классика",
+        "badge": None,
         "is_collectible": False,
     },
 
@@ -3743,7 +3743,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 1600,
         "description": "Коллекционный артефакт Lol Pop — эксклюзивная сладость.",
         "category": "telegram_collectible",
-        "badge": "💎 NFT / Редкий",
+        "badge": None,
         "is_collectible": True,
     },
     {
@@ -3755,7 +3755,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 1600,
         "description": "Премиальный коллекционный букет из ограниченного тиража Telegram.",
         "category": "telegram_collectible",
-        "badge": "💎 NFT / Редкий",
+        "badge": None,
         "is_collectible": True,
     },
     {
@@ -3767,7 +3767,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 1600,
         "description": "Редкий коллекционный раритет Telegram. Космический статус для лучших.",
         "category": "telegram_collectible",
-        "badge": "💎 NFT / Редкий",
+        "badge": None,
         "is_collectible": True,
     },
     {
@@ -3779,7 +3779,7 @@ DEFAULT_CAMPUS_GIFTS = [
         "exchange_credits": 4000,
         "description": "Редкая коллекционная шкатулка чувств — высший знак признания.",
         "category": "telegram_collectible",
-        "badge": "💎 NFT / Редкий",
+        "badge": None,
         "is_collectible": True,
     },
 ]

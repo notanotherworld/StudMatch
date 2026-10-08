@@ -4116,7 +4116,7 @@ async def webapp_economy_overview(
             item_type = "gift"
             image_url = get_gift_image_url(item.item_code)
             is_collectible = bool(gift_meta.get("is_collectible", False))
-            badge = gift_meta.get("badge", "💎 NFT / Редкий" if is_collectible else "⭐ Классика")
+            badge = gift_meta.get("badge")
             desc = gift_meta.get("description", "Подарок Telegram — можно подарить другу или мэтчу")
             exchange_credits = gift_meta.get("exchange_credits", 20)
             is_gift = True
@@ -4762,7 +4762,7 @@ async def webapp_get_user_gifts(
         gift_meta = next((gm for gm in DEFAULT_CAMPUS_GIFTS if gm["code"] == g.gift_code), None) or LEGACY_GIFTS_MAP.get(g.gift_code)
         is_collectible = bool(gift_meta.get("is_collectible", False)) if gift_meta else False
         exchange_credits = gift_meta.get("exchange_credits", 20) if gift_meta else 20
-        badge = gift_meta.get("badge", "💎 NFT / Редкий" if is_collectible else "⭐ Классика") if gift_meta else ("💎 NFT / Редкий" if is_collectible else "⭐ Классика")
+        badge = gift_meta.get("badge") if gift_meta else None
 
         gifts_data.append({
             "id": str(g.id),
