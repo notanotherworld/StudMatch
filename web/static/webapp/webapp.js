@@ -4329,13 +4329,68 @@
   function renderChatMessages(messages) {
     if (!chatMessagesInner) return;
     if (!messages || messages.length === 0) {
+      const pName = currentChatPartner?.name || "Собеседник";
+      const pAvatar = currentChatPartner?.photo_url || currentChatPartner?.avatar_url || "/static/webapp/assets/default_avatar.jpg";
+      const pUniv = currentChatPartner?.university || "";
+      const pFaculty = currentChatPartner?.faculty || "";
+      const campusContext = [pUniv, pFaculty].filter(Boolean).join(" • ");
+
       chatMessagesInner.innerHTML = `
-        <div style="text-align:center;padding:30px 16px;color:var(--text-muted);">
-          <div style="font-size:36px;margin-bottom:6px;">👋</div>
-          <h4 style="font-size:15px;font-weight:700;color:var(--text-main);margin-bottom:4px;">Это взаимная симпатия!</h4>
-          <p style="font-size:12px;line-height:1.4;">Напишите первое сообщение, сделайте комплимент или задайте вопрос.</p>
+        <div class="chat-empty-dialog-state">
+          <div class="chat-empty-avatar-wrap">
+            <img src="${pAvatar}" class="chat-empty-avatar" alt="${escapeHtml(pName)}" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
+            <span class="chat-empty-sparkle">✨</span>
+          </div>
+          <h4 class="chat-empty-title">У вас взаимная пара с ${escapeHtml(pName)}!</h4>
+          <p class="chat-empty-subtitle">${campusContext ? `🏛 ${escapeHtml(campusContext)}` : 'Отправьте первое сообщение или студенческий айсбрейкер:'}</p>
+
+          <div class="chat-empty-icebreakers">
+            <button type="button" class="chat-icebreaker-pill" data-msg="Привет! С какого ты факультета? 🎓">
+              🎓 С какого ты факультета?
+            </button>
+            <button type="button" class="chat-icebreaker-pill" data-msg="Привет! Какой твой любимый кофе на парах? ☕">
+              ☕ Любимый кофе на парах?
+            </button>
+            <button type="button" class="chat-icebreaker-pill" data-msg="Привет! Закрываем сессию вместе? 📚">
+              📚 Закроем сессию вместе?
+            </button>
+            <button type="button" class="chat-icebreaker-pill" data-msg="Привет! Что слушаешь по пути на учёбу? 🎧">
+              🎧 Что в наушниках по пути на пары?
+            </button>
+          </div>
+
+          <button type="button" class="chat-empty-gift-cta" id="chatEmptySendGiftCta">
+            <span>🎁 Отправить студенческий подарок</span>
+          </button>
         </div>
       `;
+
+      // Привязка кликов по айсбрейкерам
+      chatMessagesInner.querySelectorAll(".chat-icebreaker-pill").forEach((pill) => {
+        pill.addEventListener("click", () => {
+          triggerHaptic("light");
+          const msg = pill.dataset.msg;
+          if (chatInputText) {
+            chatInputText.value = msg;
+            chatInputText.focus();
+            if (chatSendBtn) {
+              chatSendBtn.disabled = false;
+              chatSendBtn.style.opacity = "1";
+            }
+          }
+        });
+      });
+
+      // Привязка кнопки подарка
+      const giftCta = document.getElementById("chatEmptySendGiftCta");
+      if (giftCta) {
+        giftCta.addEventListener("click", () => {
+          triggerHaptic("medium");
+          if (currentChatPartner) {
+            openSendGiftModal(currentChatPartner);
+          }
+        });
+      }
       return;
     }
 
