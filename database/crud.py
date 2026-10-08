@@ -2996,11 +2996,25 @@ async def equip_profile_frame(db: AsyncSession, user_id: int, frame_code: Option
     return True
 
 
-async def rewind_last_swipe(db: AsyncSession, user_id: int) -> Tuple[bool, str, Optional[int]]:
+class RewindResult(tuple):
+    """3-tuple compatible result for rewind_last_swipe with optional project_id attribute."""
+    def __new__(cls, success: bool, message: str, reverted_id: Optional[int], project_id: Optional[str] = None):
+        return super().__new__(cls, (success, message, reverted_id))
+
+    def __init__(self, success: bool, message: str, reverted_id: Optional[int], project_id: Optional[str] = None):
+        self.project_id = project_id
+
+
+async def rewind_last_swipe(
+    db: AsyncSession,
+    user_id: int,
+    mode: Optional[ModeEnum] = None,
+) -> RewindResult:
     """
     Откат последнего свайпа («Шпора» 🔄).
-    Списывает 1 предмет 'rewind' из инвентаря и удаляет последний свайп (skip/like).
-    Возвращает (success: bool, message: str, reverted_user_id: Optional[int]).
+    Списывает 1 предмет 'rewind' из инвентаря и удаляет последний свайп (skip/like/superlike).
+    Откатывает взаимный мэтч при необходимости и возвращает суперлайк.
+    Возвращает 3-tuple (success: bool, message: str, reverted_user_id: Optional[int]) с атрибутом project_id.
     """
     # 1. Проверяем наличие 'rewind' в инвентаре
     res = await db.execute(
@@ -3014,31 +3028,64 @@ async def rewind_last_swipe(db: AsyncSession, user_id: int) -> Tuple[bool, str, 
     )
     inv_item = res.scalar_one_or_none()
     if not inv_item:
-        return False, "❌ У тебя нет «Шпоры» (отката свайпа). Приобрети её в Магазине за 10 🎓!", None
+        return RewindResult(False, "❌ У тебя нет «Шпоры» (отката свайпа). Приобрети её в Магазине за 10 🎓!", None)
 
-    # 2. Ищем последний свайп
-    swipe_res = await db.execute(
-        select(Swipe)
-        .where(Swipe.from_user_id == user_id)
-        .order_by(Swipe.created_at.desc())
-        .limit(1)
-    )
+    # 2. Ищем последний свайп (с опциональной фильтрацией по текущему режиму)
+    swipe_stmt = select(Swipe).where(Swipe.from_user_id == user_id)
+    if mode:
+        swipe_stmt = swipe_stmt.where(or_(Swipe.mode == mode, Swipe.mode.is_(None)))
+    swipe_stmt = swipe_stmt.order_by(Swipe.created_at.desc()).limit(1)
+
+    swipe_res = await db.execute(swipe_stmt)
     last_swipe = swipe_res.scalar_one_or_none()
     if not last_swipe:
-        return False, "ℹ️ Нет предыдущих свайпов для отмены.", None
+        return RewindResult(False, "ℹ️ Нет предыдущих свайпов для отмены.", None)
 
     reverted_target_id = last_swipe.to_user_id
+    reverted_project_id = str(last_swipe.to_project_id) if last_swipe.to_project_id else None
 
-    # 3. Списываем 1 штуку
+    # 3. Если свайп создал взаимный Match — удаляем его, чтобы избежать битого мэтча
+    if last_swipe.to_user_id:
+        match_stmt = select(Match).where(
+            and_(
+                Match.mode == last_swipe.mode,
+                or_(
+                    and_(Match.user1_id == user_id, Match.user2_id == last_swipe.to_user_id),
+                    and_(Match.user1_id == last_swipe.to_user_id, Match.user2_id == user_id),
+                ),
+            )
+        )
+        match_res = await db.execute(match_stmt)
+        m = match_res.scalar_one_or_none()
+        if m:
+            await db.delete(m)
+
+    # 4. Если был суперлайк — возвращаем суперлайк студенту и корректируем рейтинг
+    if last_swipe.action == SwipeAction.superlike:
+        user_res = await db.execute(select(User).where(User.id == user_id))
+        cur_user = user_res.scalar_one_or_none()
+        if cur_user:
+            cur_user.superlike_balance = (cur_user.superlike_balance or 0) + 1
+        if last_swipe.to_user_id:
+            target_p = await get_profile(db, last_swipe.to_user_id)
+            if target_p:
+                target_p.rating_score = max(0.0, round((target_p.rating_score or 0.0) - 1.0, 1))
+
+    # 5. Списываем 1 штуку «Шпора» из инвентаря
     inv_item.quantity -= 1
     if inv_item.quantity <= 0:
         await db.delete(inv_item)
 
-    # 4. Удаляем последний свайп
+    # 6. Удаляем сам свайп
     await db.delete(last_swipe)
     await db.commit()
 
-    return True, "🔄 <b>Свайп успешно отменён!</b> Анкета возвращена в просмотр.", reverted_target_id
+    return RewindResult(
+        True,
+        "🔄 Свайп успешно отменён! Анкета возвращена в просмотр.",
+        reverted_target_id,
+        reverted_project_id,
+    )
 
 
 def get_gift_image_url(gift_code: str) -> str:

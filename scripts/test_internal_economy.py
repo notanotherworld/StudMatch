@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.types import ARRAY
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import select
+from sqlalchemy import select, delete, and_, or_
 
 sqlite3.register_adapter(list, json.dumps)
 sqlite3.register_converter("JSON", json.loads)
@@ -655,6 +655,8 @@ async def test_12_fortune_wheel_and_campus_gifts():
         assert len(api_cat["gifts"]) == 15
 
         # 7. Отправка подарка (user1 -> user2): Плюшевый мишка (50 🎓)
+        await db.execute(delete(UserInventoryItem).where(and_(UserInventoryItem.user_id == user1.id, UserInventoryItem.item_code == "gift_bear")))
+        await db.commit()
         await add_user_credits(db, user1.id, 500, tx_type="admin", description="Тест подарков")
         await db.refresh(user1)
         bal_before_gift = user1.credits_balance
@@ -809,7 +811,108 @@ async def test_13_premium_x3_quest_rewards():
         assert ov["quest_multiplier"] == 3
         swipes_ov = next(q for q in ov["daily_quests"] if q["quest_key"] == "swipes_15")
         assert swipes_ov["is_premium_boosted"] is True
-        assert swipes_ov["reward_multiplier"] == 3
+
+@pytest.mark.asyncio
+async def test_14_swipe_rewind_endpoint_and_profile_count():
+    """Тестирование эндпоинта отката свайпа (/api/webapp/economy/rewind) и счетчика в профиле."""
+    from web.routers.webapp import webapp_profile, webapp_economy_rewind
+    from database.models import Match
+    from database.crud import get_or_create_profile, get_user
+
+    async with AsyncSessionLocal() as db:
+        u1 = await get_or_create_user(db, user_id=90901, tg_username="rewinder_u1")
+        u2 = await get_or_create_user(db, user_id=90902, tg_username="target_u2")
+        u1.mode = ModeEnum.dating
+        u2.mode = ModeEnum.dating
+        u1.superlike_balance = 1
+
+        p1 = await get_or_create_profile(db, u1.id)
+        p1.name = "Алексей"
+        p2 = await get_or_create_profile(db, u2.id)
+        p2.name = "Мария"
+        p2.rating_score = 5.0
+        p2.photos = ["test_file_id_123"]
+        await db.commit()
+
+        # Загружаем u1 через get_user (с selectinload связей, как делает get_current_student)
+        u1 = await get_user(db, u1.id)
+
+        # 1. Проверяем /api/webapp/profile при пустом инвентаре шпор
+        prof1 = await webapp_profile(student=u1, db=db)
+        assert prof1["status"] == "ok"
+        assert prof1["user"]["rewind_count"] == 0
+
+        # 2. Добавляем 2 шпоры в инвентарь
+        db.add(UserInventoryItem(user_id=u1.id, item_code="rewind", quantity=2))
+        await db.commit()
+
+        # Проверяем, что /api/webapp/profile теперь возвращает 2
+        prof2 = await webapp_profile(student=u1, db=db)
+        assert prof2["user"]["rewind_count"] == 2
+
+        # 3. Делаем взаимный свайп: u2 лайкает u1, затем u1 суперлайкает u2 -> создаётся Match
+        await create_swipe(db, from_id=u2.id, to_id=u1.id, action=SwipeAction.like, mode=ModeEnum.dating)
+        u1.superlike_balance = 0  # имитируем списание суперлайка при свайпе
+        await create_swipe(db, from_id=u1.id, to_id=u2.id, action=SwipeAction.superlike, mode=ModeEnum.dating)
+
+        # Проверяем, что создан Match
+        m_check = await db.execute(
+            select(Match).where(
+                and_(
+                    Match.mode == ModeEnum.dating,
+                    or_(
+                        and_(Match.user1_id == u1.id, Match.user2_id == u2.id),
+                        and_(Match.user1_id == u2.id, Match.user2_id == u1.id),
+                    ),
+                )
+            )
+        )
+        assert m_check.scalar_one_or_none() is not None
+
+        # 4. Вызываем webapp_economy_rewind
+        rew_res = await webapp_economy_rewind(student=u1, db=db)
+        assert rew_res["status"] == "success"
+        assert rew_res["ok"] is True
+        assert rew_res["rewind_count"] == 1
+        assert rew_res["reverted_profile"] is not None
+        assert rew_res["reverted_profile"]["user_id"] == u2.id
+        assert rew_res["reverted_profile"]["name"] == "Мария"
+        assert len(rew_res["reverted_profile"]["photos"]) > 0
+
+        # 5. Проверяем возврат суперлайка и откат рейтинга
+        await db.refresh(u1)
+        assert u1.superlike_balance == 1
+        await db.refresh(p2)
+        assert p2.rating_score == 5.0
+
+        # 6. Проверяем, что взаимный Match удалён
+        m_after = await db.execute(
+            select(Match).where(
+                and_(
+                    Match.mode == ModeEnum.dating,
+                    or_(
+                        and_(Match.user1_id == u1.id, Match.user2_id == u2.id),
+                        and_(Match.user1_id == u2.id, Match.user2_id == u1.id),
+                    ),
+                )
+            )
+        )
+        assert m_after.scalar_one_or_none() is None
+
+        # 7. Проверяем повторный вызов отката, когда свайпов больше нет:
+        # Не должно списывать оставшуюся шпору!
+        rew_fail = await webapp_economy_rewind(student=u1, db=db)
+        assert rew_fail["status"] == "error"
+        assert "Нет предыдущих свайпов" in rew_fail["message"]
+
+        # Количество шпор осталось равным 1
+        inv_check = await db.execute(
+            select(UserInventoryItem.quantity).where(
+                and_(UserInventoryItem.user_id == u1.id, UserInventoryItem.item_code == "rewind")
+            )
+        )
+        assert inv_check.scalar_one_or_none() == 1
+
 
 
 

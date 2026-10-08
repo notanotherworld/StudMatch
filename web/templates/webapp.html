@@ -128,6 +128,9 @@
             <h2 class="deck-empty-title">Все анкеты просмотрены!</h2>
             <p class="deck-empty-desc">Вы просмотрели всех кандидатов по текущим фильтрам. Сброс вернёт пропущенные анкеты в ленту (ваши мэтчи и чаты сохранятся).</p>
             <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:260px;margin:0 auto;">
+              <button class="btn-primary" id="rewindDeckEmptyBtn" style="background: linear-gradient(135deg, #8B5CF6, #6366F1); display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                🔄 Откатить свайп («Шпора») <span class="rewind-badge-count" id="emptyRewindCount" style="margin-left: 4px; padding: 2px 7px; background: rgba(255,255,255,0.25); border-radius: 9999px; font-size: 11px; font-weight: 700;">0</span>
+              </button>
               <button class="btn-primary" id="resetSwipesDeckBtn">
                 🔄 Начать сначала (сбросить свайпы)
               </button>

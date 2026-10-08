@@ -398,6 +398,9 @@
     }
 
     // Кнопки в Empty State колоды
+    document.getElementById("rewindDeckEmptyBtn")?.addEventListener("click", () => {
+      triggerRewindSwipe();
+    });
     document.getElementById("resetSwipesDeckBtn")?.addEventListener("click", resetSwipesAndReload);
     document.getElementById("changeFiltersDeckBtn")?.addEventListener("click", openFiltersModal);
 
@@ -1533,14 +1536,38 @@
   // ==========================================
   let isRewinding = false;
 
+  function updateRewindBadges(count) {
+    const val = (count !== undefined && count !== null) ? count : 0;
+    const badges = document.querySelectorAll("#rewindBadgeCount, .rewind-badge-count, #emptyRewindCount");
+    badges.forEach((b) => {
+      b.textContent = `${val}`;
+    });
+  }
+
   async function triggerRewindSwipe() {
     if (state.isSwiping || isRewinding) return;
 
-    const currentCount = shopState?.overview?.rewind_count !== undefined
+    let currentCount = shopState?.overview?.rewind_count !== undefined
       ? shopState.overview.rewind_count
-      : (state.currentUser?.rewind_count || 0);
+      : (state.currentUser?.rewind_count !== undefined ? state.currentUser.rewind_count : null);
 
-    if (currentCount <= 0) {
+    // If count is not in memory yet, do a fast overview fetch to prevent false blocking
+    if (currentCount === null) {
+      try {
+        const ov = await apiFetch("/api/webapp/economy/overview");
+        if (ov && ov.rewind_count !== undefined) {
+          currentCount = ov.rewind_count;
+          if (shopState?.overview) shopState.overview.rewind_count = currentCount;
+          if (state.currentUser) state.currentUser.rewind_count = currentCount;
+          updateRewindBadges(currentCount);
+        }
+      } catch (e) {
+        console.warn("[Rewind] Error fetching fresh balance:", e);
+      }
+    }
+
+    const effectiveCount = currentCount || 0;
+    if (effectiveCount <= 0) {
       triggerHaptic("warning");
       showAppToast("У вас нет «Шпоры» для отката свайпа. Приобретите её в магазине!");
       if (typeof openShopModal === "function") {
@@ -1555,8 +1582,8 @@
       desc: "Использовать 1 предмет «Шпора» для возврата последней просмотренной анкеты в колоду.",
       cost: 0,
       costLabel: "1 шт. («Шпора»)",
-      curBalanceLabel: `${currentCount} шт.`,
-      remainingLabel: `${currentCount - 1} шт.`,
+      curBalanceLabel: `${effectiveCount} шт.`,
+      remainingLabel: `${Math.max(0, effectiveCount - 1)} шт.`,
       submitText: "Откатить анкету",
       onConfirm: async () => {
         await executeRewindCall();
@@ -1581,9 +1608,11 @@
         if (res.rewind_count !== undefined) {
           if (shopState?.overview) shopState.overview.rewind_count = res.rewind_count;
           if (state.currentUser) state.currentUser.rewind_count = res.rewind_count;
-          const badge = document.getElementById("rewindBadgeCount");
-          if (badge) badge.textContent = res.rewind_count;
+          updateRewindBadges(res.rewind_count);
         }
+
+        const emptyEl = document.getElementById("deckEmpty");
+        if (emptyEl) emptyEl.style.display = "none";
 
         if (res.reverted_profile) {
           if (state.currentCardIndex > 0) {
@@ -1597,6 +1626,9 @@
         } else if (state.currentCardIndex > 0) {
           state.currentCardIndex--;
           renderCardStack();
+        } else {
+          // If no cards in current stack, reload feed
+          await loadFeed();
         }
       } else {
         triggerHaptic("error");
@@ -1612,6 +1644,7 @@
   }
 
   window.triggerRewindSwipe = triggerRewindSwipe;
+  window.updateRewindBadges = updateRewindBadges;
 
   // ==========================================
   // ⌨️ Desktop Keyboard Navigation & Top Modal Management (P1)
@@ -5514,6 +5547,9 @@
       if (!data.user) return;
       const u = data.user;
       state.currentUser = u;
+      if (u.rewind_count !== undefined) {
+        updateRewindBadges(u.rewind_count);
+      }
 
       const hasRealPhotos = (Array.isArray(u.raw_photos) && u.raw_photos.length > 0)
         || (Array.isArray(u.photos) && u.photos.length > 0 && !u.photos[0].includes("default_avatar") && !u.photos[0].includes("images.unsplash.com"));
@@ -8635,9 +8671,9 @@
     if (shopStrk) {
       shopStrk.textContent = `${strkVal} дн. 🔥`;
     }
-    const rewindBadge = document.getElementById("rewindBadgeCount");
-    if (rewindBadge && shopState?.overview?.rewind_count !== undefined) {
-      rewindBadge.textContent = `${shopState.overview.rewind_count}`;
+    if (shopState?.overview?.rewind_count !== undefined) {
+      if (state.currentUser) state.currentUser.rewind_count = shopState.overview.rewind_count;
+      updateRewindBadges(shopState.overview.rewind_count);
     }
   }
 

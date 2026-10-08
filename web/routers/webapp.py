@@ -29,7 +29,7 @@ from web.dependencies import get_db, SECRET, ALGORITHM
 import jwt
 from database.models import (
     User, Profile, University, Swipe, Match, ChatMessage, SwipeAction, ModeEnum, InterestTag,
-    Report, ReportStatus, UserPrivacy, SupportTicket, TicketStatus, Project,
+    Report, ReportStatus, UserPrivacy, SupportTicket, TicketStatus, Project, UserInventoryItem,
 )
 from database.crud import (
     get_user, get_profile, get_or_create_profile, get_next_profile, create_swipe,
@@ -1596,6 +1596,13 @@ async def webapp_profile(
             "is_private": bool(idx > 0 and str(pid).strip() in priv_photos_set),
         })
 
+    rewind_res = await db.execute(
+        select(UserInventoryItem.quantity).where(
+            and_(UserInventoryItem.user_id == student.id, UserInventoryItem.item_code == "rewind")
+        )
+    )
+    rewind_count = rewind_res.scalar_one_or_none() or 0
+
     return {
         "status": "ok",
         "maintenance": {
@@ -1639,6 +1646,7 @@ async def webapp_profile(
             "credits_balance": student.credits_balance or 0,
             "equipped_frame": student.equipped_frame,
             "equipped_frame_title": get_frame_title(student.equipped_frame),
+            "rewind_count": rewind_count,
             "privacy": {
                 "online_visibility": privacy.online_visibility or "all",
                 "message_permission": privacy.message_permission or "matches",
@@ -4765,36 +4773,130 @@ async def webapp_economy_rewind(
     if not check_economy_rate_limit(student.id, "swipe_rewind", 1.0):
         return {"status": "error", "ok": False, "message": "Слишком много запросов. Подождите секунду.", "detail": "Rate limit exceeded"}
 
-    from database.crud import rewind_last_swipe, get_profile
-    from database.models import UserInventoryItem
+    from database.crud import rewind_last_swipe, get_user, get_project
+    from database.models import UserInventoryItem, InterestTag, ModeEnum
+    from bot.services.economy_service import get_frame_title
 
-    success, msg, reverted_id = await rewind_last_swipe(db, student.id)
+    user_mode = student.mode or ModeEnum.dating
+    res = await rewind_last_swipe(db, student.id, mode=user_mode)
+    success, msg, reverted_id = res[0], res[1], res[2]
+    reverted_project_id = getattr(res, "project_id", None)
+
     if not success:
         return {"status": "error", "ok": False, "message": msg, "detail": msg}
 
     reverted_profile = None
     if reverted_id:
-        p = await get_profile(db, reverted_id)
-        if p:
+        target_user = await get_user(db, reverted_id)
+        if target_user and target_user.profile:
+            p = target_user.profile
+            u = target_user
+
+            if user_mode == ModeEnum.career:
+                if p.career_avatar_file_id:
+                    photos = [p.career_avatar_file_id]
+                else:
+                    photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
+            else:
+                photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
+
+            cand_privacy = u.privacy if (u and "privacy" in u.__dict__) else None
+            if not cand_privacy and u:
+                cand_privacy = await get_or_create_user_privacy(db, u.id)
+
+            hide_age = getattr(cand_privacy, "hide_age", False) if cand_privacy else False
+            hide_course = getattr(cand_privacy, "hide_course", False) if cand_privacy else False
+            priv_photos_set = set(cand_privacy.private_photos or []) if cand_privacy else set()
+
+            photos_meta = []
+            for idx, pid in enumerate(photos):
+                url = resolve_photo_url(pid)
+                if not url:
+                    continue
+                is_priv = bool(idx > 0 and str(pid).strip() in priv_photos_set)
+                safe_url = DEFAULT_FALLBACK_AVATAR if is_priv else url
+                photos_meta.append({
+                    "id": str(pid) if not is_priv else f"private_{idx}",
+                    "url": safe_url,
+                    "is_private": is_priv,
+                })
+
+            if not photos_meta:
+                photos_meta = [{"id": "fallback", "url": DEFAULT_FALLBACK_AVATAR, "is_private": False}]
+
+            photo_urls = [pm["url"] for pm in photos_meta]
+
+            tags = []
+            if p.interest_ids:
+                tag_res = await db.execute(select(InterestTag).where(InterestTag.id.in_(p.interest_ids)))
+                for t in tag_res.scalars().all():
+                    tags.append({"id": t.id, "name": t.name, "emoji": t.emoji})
+
+            univ_name = u.university.short_name if (u and u.university) else ""
+
             reverted_profile = {
                 "id": p.user_id,
                 "user_id": p.user_id,
-                "name": p.name,
-                "age": p.age,
-                "city": p.city,
-                "university": p.university,
-                "course": p.course,
-                "major": p.major,
-                "bio": p.bio,
-                "about": p.about,
-                "goal": p.goal,
-                "photos": p.photos or [],
-                "photos_meta": p.photos_meta or [],
-                "interests": p.interests or [],
-                "tags": p.tags or [],
-                "is_verified": bool(p.is_verified),
-                "gender": p.gender,
+                "name": p.name or "Студент",
+                "age": None if hide_age else p.age,
+                "year": None if hide_course else p.year,
+                "hide_age": hide_age,
+                "hide_course": hide_course,
+                "major": p.major or "",
+                "university": univ_name,
+                "goal": p.goal or "",
+                "custom_interests": p.custom_interests or "",
+                "tags": tags,
+                "photos": photo_urls,
+                "photos_meta": photos_meta,
+                "rating_score": round(p.rating_score or 0.0, 1),
+                "is_verified": getattr(u, "email_verified", False),
+                "is_premium": getattr(u, "is_premium", False),
+                "equipped_frame": getattr(u, "equipped_frame", None),
+                "equipped_frame_title": get_frame_title(getattr(u, "equipped_frame", None)),
+                "career_goal": p.career_goal if user_mode == ModeEnum.career else None,
+                "career_skills": p.career_skills if user_mode == ModeEnum.career else None,
+                "career_custom_skills": p.career_custom_skills if user_mode == ModeEnum.career else None,
+                "career_portfolio_url": p.career_portfolio_url if user_mode == ModeEnum.career else None,
+                "career_work_format": p.career_work_format if user_mode == ModeEnum.career else None,
             }
+    elif reverted_project_id:
+        try:
+            p_uuid = uuid.UUID(reverted_project_id)
+            proj = await get_project(db, p_uuid)
+            if proj:
+                founder = proj.user
+                f_profile = founder.profile if founder else None
+                f_photo = None
+                if f_profile:
+                    if f_profile.photos:
+                        f_photo = resolve_photo_url(f_profile.photos[0])
+                    elif f_profile.avatar_file_id:
+                        f_photo = resolve_photo_url(f_profile.avatar_file_id)
+
+                cover_url = resolve_photo_url(proj.cover_file_id) if proj.cover_file_id else None
+
+                reverted_profile = {
+                    "id": str(proj.id),
+                    "user_id": f"proj_{proj.id}",
+                    "title": proj.title,
+                    "pitch": proj.pitch or "",
+                    "description": proj.description or "",
+                    "stage": proj.stage.value if proj.stage else "idea",
+                    "conditions": proj.conditions or "",
+                    "required_roles": proj.required_roles or [],
+                    "cover_url": cover_url,
+                    "founder": {
+                        "id": founder.id if founder else None,
+                        "name": f_profile.name if f_profile else "Фаундер",
+                        "avatar_url": f_photo or DEFAULT_FALLBACK_AVATAR,
+                        "university": founder.university.short_name if (founder and founder.university) else "",
+                        "year": f_profile.year if f_profile else None,
+                    },
+                    "is_project": True,
+                }
+        except Exception as e:
+            logger.warning(f"Error loading reverted project {reverted_project_id}: {e}")
 
     # Подсчитываем оставшиеся шпоры
     inv_res = await db.execute(
