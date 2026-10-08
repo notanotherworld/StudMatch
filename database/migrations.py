@@ -417,7 +417,7 @@ async def ensure_database_schema(engine: AsyncEngine) -> None:
     if engine.dialect.name == "sqlite":
         from database.models import Base, ShopItem, Admin, AdminRole
         from database.session import AsyncSessionLocal
-        from sqlalchemy import select
+        from sqlalchemy import select, update
         import bcrypt
 
         async with engine.begin() as conn:

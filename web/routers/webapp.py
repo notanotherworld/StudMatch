@@ -1484,7 +1484,7 @@ async def webapp_stories(
     """
     now = datetime.now(timezone.utc)
 
-    # 1. В Stories попадают ТОЛЬКО пользователи с активным Премиумом
+    # 1. В Stories попадают пользователи с активным Премиумом
     stmt_prem = (
         select(User)
         .options(selectinload(User.profile), selectinload(User.university))
@@ -1502,6 +1502,25 @@ async def webapp_stories(
     )
     res_prem = await db.execute(stmt_prem)
     all_candidates = list(res_prem.scalars().all())
+
+    # 2. Если премиум-пользователей меньше 15, дополняем активными студентами с анкетами
+    if len(all_candidates) < 15:
+        existing_ids = {u.id for u in all_candidates} | {student.id}
+        stmt_fallback = (
+            select(User)
+            .options(selectinload(User.profile), selectinload(User.university))
+            .join(Profile, Profile.user_id == User.id)
+            .where(
+                and_(
+                    User.id.notin_(existing_ids),
+                    User.is_active.is_(True),
+                )
+            )
+            .order_by(desc(User.last_active_at), desc(User.created_at))
+            .limit(15 - len(all_candidates))
+        )
+        res_fallback = await db.execute(stmt_fallback)
+        all_candidates.extend(res_fallback.scalars().all())
 
     stories = []
     for u in all_candidates:
@@ -1530,7 +1549,7 @@ async def webapp_stories(
         })
 
     # Данные для своей истории
-    my_p = student.profile
+    my_p = await get_profile(db, student.id)
     my_photos = list(my_p.photos) if (my_p and my_p.photos) else ([my_p.avatar_file_id] if (my_p and my_p.avatar_file_id) else [])
     my_avatar = resolve_photo_url(my_photos[0] if my_photos else None) or DEFAULT_FALLBACK_AVATAR
 

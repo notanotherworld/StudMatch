@@ -398,30 +398,34 @@ body {
 .stories-scroll-track {
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow: hidden;
   position: relative;
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: auto;
   mask-image: linear-gradient(to right, transparent 0px, #000 16px, #000 calc(100% - 20px), transparent 100%);
   -webkit-mask-image: linear-gradient(to right, transparent 0px, #000 16px, #000 calc(100% - 20px), transparent 100%);
   cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .stories-scroll-track.is-dragging {
   cursor: grabbing;
 }
 
-.stories-scroll-track::-webkit-scrollbar {
-  display: none;
+.stories-marquee-track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
 }
 
-.stories-marquee-content {
+.stories-marquee-segment {
   display: flex;
   align-items: center;
   gap: 14px;
-  width: max-content;
-  padding: 2px 10px 2px 6px;
+  flex-shrink: 0;
+  padding-right: 14px;
 }
 
 .story-item {
@@ -1038,9 +1042,9 @@ body {
     height: 42px;
     margin-left: 8px;
   }
-  .stories-marquee-content {
+  .stories-marquee-segment {
     gap: 10px;
-    padding: 2px 6px 2px 4px;
+    padding-right: 10px;
   }
   .story-avatar-wrap {
     width: 46px;

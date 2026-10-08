@@ -414,13 +414,14 @@
   let storiesDriftRaf = null;
   let storiesDriftTimeout = null;
   let isStoriesDriftPaused = false;
+  let storiesCurrentOffset = 0;
+  let isStoriesInteracting = false;
   let storiesTouchStartX = 0;
-  let storiesTouchStartY = 0;
-  let isStoriesPointerDown = false;
+  let storiesTouchLastX = 0;
   let hasDraggedStory = false;
   let lastStoryDragEndTime = 0;
 
-  function initStoriesDrift(track, content, itemsCount) {
+  function initStoriesDrift(viewport, track, segment, itemsCount) {
     if (storiesDriftRaf) {
       cancelAnimationFrame(storiesDriftRaf);
       storiesDriftRaf = null;
@@ -429,41 +430,51 @@
       clearTimeout(storiesDriftTimeout);
       storiesDriftTimeout = null;
     }
-    if (!track || !content || itemsCount <= 0) return;
+    if (!viewport || !track || !segment || itemsCount <= 0) return;
 
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReducedMotion) return;
+
+    storiesCurrentOffset = 0;
+    track.style.transform = "translate3d(0, 0, 0)";
 
     requestAnimationFrame(() => {
-      if (!track.isConnected) return;
-      const singleSetWidth = content.scrollWidth / 2;
-      if (singleSetWidth <= 0) return;
+      if (!track.isConnected || !segment.isConnected) return;
+      let segmentWidth = segment.offsetWidth;
+      if (segmentWidth <= 0) {
+        segmentWidth = 14 + (itemsCount * 72);
+      }
 
-      const SPEED_PX_PER_SEC = 18; // Деликатная скорость 18px/сек, согласованная в /grill-me
+      const SPEED_PX_PER_SEC = 18; // 18px per second
       let lastTime = performance.now();
       isStoriesDriftPaused = false;
+
+      function updateTransform() {
+        if (segmentWidth > 0) {
+          while (storiesCurrentOffset >= segmentWidth) {
+            storiesCurrentOffset -= segmentWidth;
+          }
+          while (storiesCurrentOffset < 0) {
+            storiesCurrentOffset += segmentWidth;
+          }
+        }
+        track.style.transform = `translate3d(-${storiesCurrentOffset}px, 0, 0)`;
+      }
 
       function step(now) {
         if (!track.isConnected) return;
 
-        // Не скроллить если вкладка свернута или элемент скрыт
-        if (track.offsetParent === null || document.hidden) {
+        // Skip if hidden or reduced motion
+        if (viewport.offsetParent === null || document.hidden || prefersReducedMotion) {
           lastTime = now;
           storiesDriftRaf = requestAnimationFrame(step);
           return;
         }
 
-        if (!isStoriesDriftPaused) {
+        if (!isStoriesDriftPaused && !isStoriesInteracting) {
           const dt = (now - lastTime) / 1000;
           if (dt > 0 && dt < 0.25) {
-            track.scrollLeft += SPEED_PX_PER_SEC * dt;
-
-            // Бесшовный бесконечный цикл без видимых переходов
-            if (track.scrollLeft >= singleSetWidth) {
-              track.scrollLeft -= singleSetWidth;
-            } else if (track.scrollLeft <= 0) {
-              track.scrollLeft += singleSetWidth;
-            }
+            storiesCurrentOffset += SPEED_PX_PER_SEC * dt;
+            updateTransform();
           }
         }
         lastTime = now;
@@ -486,79 +497,87 @@
         }, delay);
       }
 
-      // Касания и тач-события
-      track.addEventListener("pointerdown", (e) => {
-        isStoriesPointerDown = true;
-        storiesTouchStartX = e.clientX;
-        storiesTouchStartY = e.clientY;
+      // Pointer / Touch / Drag events
+      function onStart(clientX) {
+        isStoriesInteracting = true;
+        storiesTouchStartX = clientX;
+        storiesTouchLastX = clientX;
         hasDraggedStory = false;
+        viewport.classList.add("is-dragging");
         pauseStoriesDrift();
-      }, { passive: true });
+      }
 
-      track.addEventListener("pointermove", (e) => {
-        if (!isStoriesPointerDown) return;
-        const dx = Math.abs(e.clientX - storiesTouchStartX);
-        const dy = Math.abs(e.clientY - storiesTouchStartY);
-        if (dx > 6 || dy > 6) {
+      function onMove(clientX) {
+        if (!isStoriesInteracting) return;
+        const deltaX = clientX - storiesTouchLastX;
+        storiesTouchLastX = clientX;
+        if (Math.abs(clientX - storiesTouchStartX) > 6) {
           hasDraggedStory = true;
         }
-      }, { passive: true });
+        storiesCurrentOffset -= deltaX;
+        updateTransform();
+      }
 
-      const onPointerEnd = () => {
-        if (!isStoriesPointerDown) return;
-        isStoriesPointerDown = false;
+      function onEnd() {
+        if (!isStoriesInteracting) return;
+        isStoriesInteracting = false;
+        viewport.classList.remove("is-dragging");
         if (hasDraggedStory) {
           lastStoryDragEndTime = performance.now();
         }
         resumeStoriesDrift(2500);
-      };
+      }
 
-      track.addEventListener("pointerup", onPointerEnd, { passive: true });
-      track.addEventListener("pointercancel", onPointerEnd, { passive: true });
+      // Touch events (native on mobile)
+      viewport.addEventListener("touchstart", (e) => {
+        if (e.touches.length > 0) {
+          onStart(e.touches[0].clientX);
+        }
+      }, { passive: true });
 
-      // Ховер на десктопе
-      track.addEventListener("mouseenter", () => {
-        pauseStoriesDrift();
+      viewport.addEventListener("touchmove", (e) => {
+        if (e.touches.length > 0) {
+          onMove(e.touches[0].clientX);
+        }
+      }, { passive: true });
+
+      viewport.addEventListener("touchend", onEnd, { passive: true });
+      viewport.addEventListener("touchcancel", onEnd, { passive: true });
+
+      // Mouse events (desktop drag)
+      viewport.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return;
+        onStart(e.clientX);
       });
 
-      track.addEventListener("mouseleave", () => {
-        if (!isStoriesPointerDown) {
+      window.addEventListener("mousemove", (e) => {
+        if (isStoriesInteracting) {
+          onMove(e.clientX);
+        }
+      });
+
+      window.addEventListener("mouseup", () => {
+        if (isStoriesInteracting) {
+          onEnd();
+        }
+      });
+
+      // Hover on desktop
+      viewport.addEventListener("mouseenter", () => {
+        if (!isStoriesInteracting) {
+          pauseStoriesDrift();
+        }
+      });
+
+      viewport.addEventListener("mouseleave", () => {
+        if (!isStoriesInteracting) {
           resumeStoriesDrift(1200);
         }
       });
 
-      // Мышиный drag-скролл для десктопа
-      let isMouseDragging = false;
-      let mouseStartX = 0;
-      let mouseScrollLeft = 0;
-
-      track.addEventListener("mousedown", (e) => {
-        if (e.button !== 0) return;
-        isMouseDragging = true;
-        track.classList.add("is-dragging");
-        mouseStartX = e.pageX - track.offsetLeft;
-        mouseScrollLeft = track.scrollLeft;
-      });
-
-      window.addEventListener("mousemove", (e) => {
-        if (!isMouseDragging) return;
-        e.preventDefault();
-        const x = e.pageX - track.offsetLeft;
-        const walk = x - mouseStartX;
-        if (Math.abs(walk) > 5) {
-          hasDraggedStory = true;
-        }
-        track.scrollLeft = mouseScrollLeft - walk;
-      });
-
-      window.addEventListener("mouseup", () => {
-        if (!isMouseDragging) return;
-        isMouseDragging = false;
-        track.classList.remove("is-dragging");
-      });
-
-      // Запуск цикла анимации
-      storiesDriftRaf = requestAnimationFrame(step);
+      if (!prefersReducedMotion) {
+        storiesDriftRaf = requestAnimationFrame(step);
+      }
     });
   }
 
@@ -599,7 +618,7 @@
           <div class="stories-sticky-separator" aria-hidden="true"></div>
         </div>
         <div class="stories-scroll-track" id="storiesScrollTrack">
-          <div class="stories-marquee-content" id="storiesMarqueeContent">
+          <div class="stories-marquee-track" id="storiesMarqueeTrack">
       `;
 
       let storiesCardsHtml = "";
@@ -630,8 +649,21 @@
           })
           .join("");
 
-        // Дублируем элементы для непрерывного бесшовного цикла ленты
-        html += storiesCardsHtml + storiesCardsHtml;
+        // Рендерим 4 идентичных сегмента для абсолютно бесшовного непрерывного дрейфа на любых экранах
+        html += `
+          <div class="stories-marquee-segment" id="storiesMarqueeSegmentPrimary">
+            ${storiesCardsHtml}
+          </div>
+          <div class="stories-marquee-segment" aria-hidden="true">
+            ${storiesCardsHtml}
+          </div>
+          <div class="stories-marquee-segment" aria-hidden="true">
+            ${storiesCardsHtml}
+          </div>
+          <div class="stories-marquee-segment" aria-hidden="true">
+            ${storiesCardsHtml}
+          </div>
+        `;
       }
 
       html += `
@@ -664,9 +696,10 @@
       });
 
       // Запуск кинетического мягкого дрейфа
-      const track = document.getElementById("storiesScrollTrack");
-      const content = document.getElementById("storiesMarqueeContent");
-      initStoriesDrift(track, content, data.stories?.length || 0);
+      const viewport = document.getElementById("storiesScrollTrack");
+      const track = document.getElementById("storiesMarqueeTrack");
+      const primarySegment = document.getElementById("storiesMarqueeSegmentPrimary");
+      initStoriesDrift(viewport, track, primarySegment, data.stories?.length || 0);
 
     } catch (e) {
       console.warn("[StudMatch] Failed to load stories:", e);
