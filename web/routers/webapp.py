@@ -1928,6 +1928,46 @@ async def webapp_delete_profile_photo(
     }
 
 
+class PhotoSetPrimaryRequest(BaseModel):
+    index: int
+
+
+@router.post("/api/webapp/profile/photos/set-primary")
+async def webapp_set_primary_photo(
+    payload: PhotoSetPrimaryRequest,
+    student: User = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Сделать выбранную фотографию главной в профиле (переместить на 0 позицию)."""
+    p = student.profile if "profile" in student.__dict__ else None
+    if p is None:
+        u_full = await get_user(db, student.id)
+        p = u_full.profile if u_full else None
+    if not p:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+
+    current_photos = list(p.photos) if p.photos else ([p.avatar_file_id] if p.avatar_file_id else [])
+    current_photos = [x for x in current_photos if x]
+
+    if not (0 <= payload.index < len(current_photos)):
+        raise HTTPException(status_code=400, detail="Неверный индекс фотографии")
+
+    # Перемещаем выбранную фотографию на 0 позицию
+    target_photo = current_photos.pop(payload.index)
+    current_photos.insert(0, target_photo)
+
+    p.photos = current_photos
+    p.avatar_file_id = current_photos[0]
+
+    await db.commit()
+
+    resolved_photos = [resolve_photo_url(pid) for pid in current_photos if resolve_photo_url(pid)]
+    return {
+        "status": "ok",
+        "photos": resolved_photos,
+    }
+
+
 # ─── API: Настройки приватности профиля ──────────────────────
 class PrivacyUpdateRequest(BaseModel):
     online_visibility: Optional[str] = None

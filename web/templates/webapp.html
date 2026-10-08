@@ -2337,6 +2337,77 @@
     </div>
   </div>
 
+  <!-- Student Academic Verification Modal Guide (DESIGN.md Screen D) -->
+  <div class="bottom-sheet-overlay" id="studentVerificationModal">
+    <div class="bottom-sheet-content verification-sheet-content">
+      <div class="sheet-top-header">
+        <div class="sheet-drag-handle"></div>
+        <button class="sheet-close-circle-btn" id="closeVerificationModalBtn" aria-label="Закрыть">✕</button>
+      </div>
+
+      <div class="sheet-body verification-sheet-body">
+        <div class="verification-modal-hero">
+          <div class="verification-hero-icon-wrap">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#10B981"/>
+              <path d="M9 12L11 14L15 10" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h2 class="verification-hero-title">Академическая верификация</h2>
+          <p class="verification-hero-sub">Подтвердите обучение в университете, чтобы получить знак отличия 🎓 и максимальный приоритет в поиске</p>
+        </div>
+
+        <div class="verification-perks-list">
+          <div class="verification-perk-item">
+            <div class="verification-perk-icon">🎓</div>
+            <div class="verification-perk-info">
+              <span class="verification-perk-title">Знак отличия 🎓 в профиле</span>
+              <span class="verification-perk-desc">Выделяет вас среди студентов и подтверждает подлинность вашей анкеты.</span>
+            </div>
+          </div>
+          <div class="verification-perk-item">
+            <div class="verification-perk-icon">⚡</div>
+            <div class="verification-perk-info">
+              <span class="verification-perk-title">+40% к взаимным мэтчам</span>
+              <span class="verification-perk-desc">Студенты чаще отвечают взаимностью подтверждённым однокурсникам.</span>
+            </div>
+          </div>
+          <div class="verification-perk-item">
+            <div class="verification-perk-icon">🎁</div>
+            <div class="verification-perk-info">
+              <span class="verification-perk-title">+50 зачётов на баланс</span>
+              <span class="verification-perk-desc">Бонусные зачёты сразу поступят в ваш кампус-кошелек для магазина и подарков.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="verification-methods-box">
+          <div class="verification-methods-title">Способы подтверждения статуса:</div>
+          <div class="verification-method-card">
+            <div class="verification-method-num">1</div>
+            <div class="verification-method-content">
+              <b>Корпоративная почта ВУЗа (@edu)</b>
+              <p>Мгновенное подтверждение по 4-значному коду на университетский email.</p>
+            </div>
+          </div>
+          <div class="verification-method-card">
+            <div class="verification-method-num">2</div>
+            <div class="verification-method-content">
+              <b>Студенческий билет или зачётка</b>
+              <p>Фото студенческого билета проверяется модератором в течение 10 минут.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="verification-sheet-footer">
+        <button type="button" class="btn-primary verification-submit-btn" id="btnGoToBotVerification">
+          <span>Подтвердить в Telegram-боте 🚀</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Figma Onboarding Screen -->
   <div class="onboarding-overlay" id="onboardingScreen">
     <div class="onboarding-top-bar">

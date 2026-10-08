@@ -2161,6 +2161,14 @@
       </button>
     ` : "";
 
+    const getPrimaryControlHtml = (idx) => {
+      if (!isOwnProfile) return "";
+      if (idx === 0) {
+        return `<div class="gallery-cell-primary-tag" title="Главное фото профиля">★ Главная</div>`;
+      }
+      return `<button type="button" class="gallery-cell-primary-btn" data-primary-index="${idx}" title="Сделать главной фотографией" aria-label="Сделать главной">★ Главная</button>`;
+    };
+
     const uploadCellHtml = `
       <div class="gallery-upload-cell" id="galleryUploadCell" title="Загрузить новое фото" role="button" tabindex="0">
         <div class="gallery-upload-icon-circle">+</div>
@@ -2194,6 +2202,7 @@
             <div class="gallery-grid-row-top">
               <div class="gallery-grid-cell" data-gallery-index="0">
                 <img src="${rawList[0]}" alt="Photo 1" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
+                ${getPrimaryControlHtml(0)}
                 ${getDeleteBtnHtml(0)}
               </div>
               ${uploadCellHtml}
@@ -2228,6 +2237,7 @@
       return `
         <div class="gallery-grid-cell" data-gallery-index="${i}">
           <img src="${url}" alt="Photo ${i + 1}" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
+          ${getPrimaryControlHtml(i)}
           ${getDeleteBtnHtml(i)}
           ${isPrivate ? `
             <div class="photo-private-overlay">
@@ -2247,6 +2257,7 @@
         return `
           <div class="gallery-grid-cell" data-gallery-index="${actualIdx}">
             <img src="${url}" alt="Photo ${actualIdx + 1}" onerror="this.src='/static/webapp/assets/default_avatar.jpg';" />
+            ${getPrimaryControlHtml(actualIdx)}
             ${getDeleteBtnHtml(actualIdx)}
           </div>
         `;
@@ -3234,6 +3245,7 @@
 
     setupPrivacyListeners();
     setupProfileEditListeners();
+    setupVerificationListeners();
   }
 
   // 7.1. Модальное окно настроек приватности профиля
@@ -3459,6 +3471,32 @@
 
     // Save button
     document.getElementById("savePrivacyBtn")?.addEventListener("click", savePrivacySettings);
+  }
+
+  function setupVerificationListeners() {
+    const modal = document.getElementById("studentVerificationModal");
+    document.getElementById("closeVerificationModalBtn")?.addEventListener("click", () => {
+      triggerHaptic("light");
+      modal?.classList.remove("active");
+    });
+
+    modal?.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        triggerHaptic("light");
+        modal.classList.remove("active");
+      }
+    });
+
+    document.getElementById("btnGoToBotVerification")?.addEventListener("click", () => {
+      triggerHaptic("medium");
+      modal?.classList.remove("active");
+      if (window.Telegram?.WebApp?.openTelegramLink) {
+        const botUser = window.BOT_USERNAME || "studmatch_bot";
+        window.Telegram.WebApp.openTelegramLink(`https://t.me/${botUser}?start=verify`);
+      } else {
+        showAppToast("Перейдите в чат с ботом и отправьте /verify 🎓");
+      }
+    });
   }
 
   // 7.2. Модальное окно редактирования профиля (Знакомства + Карьера)
@@ -5590,8 +5628,48 @@
               </button>
             </div>
 
+            <!-- Academic Verification Banner (DESIGN.md Screen D) -->
+            <div class="profile-verification-banner ${u.is_verified ? 'verified' : 'unverified'}" id="profileVerificationBanner">
+              <div class="profile-verification-left">
+                <div class="profile-verification-icon-wrap">
+                  ${u.is_verified ? `
+                    <svg class="profile-verification-seal" width="22" height="22" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#10B981"/>
+                      <path d="M9 12L11 14L15 10" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  ` : `
+                    <span class="profile-verification-cap">🎓</span>
+                  `}
+                </div>
+                <div class="profile-verification-info">
+                  <div class="profile-verification-title-row">
+                    <span class="profile-verification-title">
+                      ${u.is_verified ? "Студент подтверждён" : "Статус студента"}
+                    </span>
+                    <span class="profile-verification-badge-pill ${u.is_verified ? 'verified' : 'unverified'}">
+                      ${u.is_verified ? "✓ Подтверждён" : "Не подтверждён"}
+                    </span>
+                  </div>
+                  <p class="profile-verification-desc">
+                    ${u.is_verified 
+                      ? `Академический статус подтверждён${u.university ? ' в ' + escapeHtml(u.university) : ''}. Максимальное доверие и знак отличия 🎓.`
+                      : `Получи знак 🎓, доверие при свайпах (+40% взаимных мэтчей) и бонус +50 🎓 зачётов.`}
+                  </p>
+                </div>
+              </div>
+              ${!u.is_verified ? `
+                <button type="button" class="profile-verification-action-btn" id="btnStartVerification">
+                  Пройти 🚀
+                </button>
+              ` : `
+                <button type="button" class="profile-verification-info-btn" id="btnVerificationDetails" title="Подробнее о верификации">
+                  ℹ️
+                </button>
+              `}
+            </div>
+
             <!-- Stats Bar -->
-            <div class="profile-stats-row" style="margin-bottom: 14px; padding: 12px 8px; background: #F9FAFB; border-radius: 16px; border: 1px solid #F3F4F6;">
+            <div class="profile-stats-row">
               <div class="profile-stat">
                 <span class="stat-value">⭐ ${u.rating_score || 0}</span>
                 <span class="stat-label">Рейтинг</span>
@@ -5844,6 +5922,45 @@
           const targetUrl = userPhotos[idx];
           handleDeleteProfilePhoto(idx, targetUrl);
         });
+      });
+
+      // Primary photo switch buttons
+      container.querySelectorAll(".gallery-cell-primary-btn").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.primaryIndex, 10);
+          if (isNaN(idx)) return;
+          triggerHaptic("medium");
+          try {
+            showAppToast("Делаем фото главным...");
+            const resp = await apiFetch("/api/webapp/profile/photos/set-primary", {
+              method: "POST",
+              body: JSON.stringify({ index: idx }),
+            });
+            if (resp && resp.status === "ok") {
+              triggerHaptic("success");
+              showAppToast("Главное фото обновлено! ★");
+              await loadProfile();
+            } else {
+              triggerHaptic("error");
+              showAppToast(resp?.detail || "Ошибка при установке фото");
+            }
+          } catch (err) {
+            console.error("Set primary photo error:", err);
+            triggerHaptic("error");
+            showAppToast("Не удалось установить главное фото");
+          }
+        });
+      });
+
+      // Academic Verification Banner button listeners
+      document.getElementById("btnStartVerification")?.addEventListener("click", () => {
+        triggerHaptic("medium");
+        document.getElementById("studentVerificationModal")?.classList.add("active");
+      });
+      document.getElementById("btnVerificationDetails")?.addEventListener("click", () => {
+        triggerHaptic("light");
+        document.getElementById("studentVerificationModal")?.classList.add("active");
       });
 
       // Upload cells in gallery
@@ -10614,6 +10731,22 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
+    try {
+      const tg = window.Telegram?.WebApp;
+      const isDark = (tg?.colorScheme === "dark") ||
+        (!tg?.colorScheme && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      if (isDark) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+      tg?.onEvent?.("themeChanged", () => {
+        if (tg.colorScheme === "dark") {
+          document.documentElement.setAttribute("data-theme", "dark");
+        } else {
+          document.documentElement.removeAttribute("data-theme");
+        }
+      });
+    } catch (e) {}
+
     try {
       const savedMode = localStorage.getItem("studmatch_mode");
       if (savedMode && ["dating", "career", "projects"].includes(savedMode)) {
