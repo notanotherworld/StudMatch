@@ -412,172 +412,245 @@
 
   // ─── Верхняя лента Stories (Плавный Ambient Marquee с Sticky «Вы») ───
   let storiesDriftRaf = null;
-  let storiesDriftTimeout = null;
-  let isStoriesDriftPaused = false;
-  let storiesCurrentOffset = 0;
-  let isStoriesInteracting = false;
-  let storiesTouchStartX = 0;
-  let storiesTouchLastX = 0;
+  const DEFAULT_STUDENT_STORIES = [
+    {
+      user_id: 999101,
+      name: "Полина",
+      avatar_url: "/static/webapp/assets/avatar_story_default.svg",
+      is_premium: true,
+      is_verified: true,
+      equipped_frame: "frame_gold",
+      university: "НИУ ВШЭ",
+    },
+    {
+      user_id: 999102,
+      name: "Артем",
+      avatar_url: "/static/webapp/assets/avatar_story_variant2.svg",
+      is_premium: false,
+      is_verified: true,
+      equipped_frame: "frame_headman",
+      university: "МГТУ им. Баумана",
+    },
+    {
+      user_id: 999103,
+      name: "София",
+      avatar_url: "/static/webapp/assets/mascot_avatar.jpg",
+      is_premium: true,
+      is_verified: false,
+      equipped_frame: "frame_fire",
+      university: "МГУ",
+    },
+    {
+      user_id: 999104,
+      name: "Даниил",
+      avatar_url: "/static/webapp/assets/default_avatar.jpg",
+      is_premium: true,
+      is_verified: true,
+      equipped_frame: "frame_neon",
+      university: "МФТИ",
+    },
+    {
+      user_id: 999105,
+      name: "Алиса",
+      avatar_url: "/static/webapp/assets/avatar_story_default.svg",
+      is_premium: false,
+      is_verified: true,
+      equipped_frame: null,
+      university: "РАНХиГС",
+    },
+    {
+      user_id: 999106,
+      name: "Марк",
+      avatar_url: "/static/webapp/assets/avatar_story_variant2.svg",
+      is_premium: true,
+      is_verified: false,
+      equipped_frame: "frame_gold",
+      university: "СПбГУ",
+    },
+    {
+      user_id: 999107,
+      name: "Виктория",
+      avatar_url: "/static/webapp/assets/mascot_avatar.jpg",
+      is_premium: true,
+      is_verified: true,
+      equipped_frame: "frame_fire",
+      university: "МГИМО",
+    },
+    {
+      user_id: 999108,
+      name: "Илья",
+      avatar_url: "/static/webapp/assets/default_avatar.jpg",
+      is_premium: false,
+      is_verified: true,
+      equipped_frame: "frame_headman",
+      university: "ИТМО",
+    },
+    {
+      user_id: 999109,
+      name: "Екатерина",
+      avatar_url: "/static/webapp/assets/avatar_story_default.svg",
+      is_premium: true,
+      is_verified: false,
+      equipped_frame: "frame_neon",
+      university: "РУДН",
+    },
+    {
+      user_id: 999110,
+      name: "Максим",
+      avatar_url: "/static/webapp/assets/avatar_story_variant2.svg",
+      is_premium: true,
+      is_verified: true,
+      equipped_frame: "frame_gold",
+      university: "МИФИ",
+    },
+  ];
+
+  let storiesPauseTimeout = null;
   let hasDraggedStory = false;
   let lastStoryDragEndTime = 0;
 
-  function initStoriesDrift(viewport, track, segment, itemsCount) {
-    if (storiesDriftRaf) {
-      cancelAnimationFrame(storiesDriftRaf);
-      storiesDriftRaf = null;
+  function renderSingleStoryCard(s) {
+    const premRing = s.is_premium ? "premium-ring" : "";
+    const sFrame = s.equipped_frame;
+    let sFrameClass = "";
+    if (sFrame === "frame_gold") sFrameClass = "frame-gold";
+    else if (sFrame === "frame_headman") sFrameClass = "frame-headman";
+    else if (sFrame === "frame_neon") sFrameClass = "frame-neon";
+    else if (sFrame === "frame_fire") sFrameClass = "frame-fire";
+
+    const badge = s.is_premium
+      ? `<div class="story-premium-badge" title="Премиум">💎</div>`
+      : (s.is_verified ? `<div class="story-premium-badge" style="background:#4834d4;" title="Студент">🎓</div>` : "");
+
+    return `
+      <div class="story-item" data-user-id="${s.user_id}">
+        <div class="story-avatar-wrap ${premRing} ${sFrameClass}">
+          <img src="${s.avatar_url}" class="story-avatar" alt="${escapeHtml(s.name)}" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
+          ${badge}
+        </div>
+        <span class="story-name">${escapeHtml(s.name)}</span>
+      </div>
+    `;
+  }
+
+  function initStoriesMarqueeInteraction(viewport, track) {
+    if (!viewport || !track) return;
+
+    if (storiesPauseTimeout) {
+      clearTimeout(storiesPauseTimeout);
+      storiesPauseTimeout = null;
     }
-    if (storiesDriftTimeout) {
-      clearTimeout(storiesDriftTimeout);
-      storiesDriftTimeout = null;
+
+    const DURATION_MS = 26000;
+    let isInteracting = false;
+    let touchStartX = 0;
+    let touchLastX = 0;
+
+    function getActiveAnimation() {
+      try {
+        const anims = track.getAnimations?.();
+        return anims && anims.length > 0 ? anims[0] : null;
+      } catch (e) {
+        return null;
+      }
     }
-    if (!viewport || !track || !segment || itemsCount <= 0) return;
 
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    function pauseMarquee() {
+      if (storiesPauseTimeout) {
+        clearTimeout(storiesPauseTimeout);
+        storiesPauseTimeout = null;
+      }
+      viewport.classList.add("is-paused");
+      const anim = getActiveAnimation();
+      if (anim && anim.playState === "running") {
+        anim.pause();
+      }
+    }
 
-    storiesCurrentOffset = 0;
-    track.style.transform = "translate3d(0, 0, 0)";
+    function resumeMarquee(delay = 2000) {
+      if (storiesPauseTimeout) clearTimeout(storiesPauseTimeout);
+      storiesPauseTimeout = setTimeout(() => {
+        viewport.classList.remove("is-paused");
+        const anim = getActiveAnimation();
+        if (anim && anim.playState === "paused") {
+          anim.play();
+        }
+      }, delay);
+    }
 
-    requestAnimationFrame(() => {
-      if (!track.isConnected || !segment.isConnected) return;
-      let segmentWidth = segment.offsetWidth;
-      if (segmentWidth <= 0) {
-        segmentWidth = 14 + (itemsCount * 72);
+    function onPointerStart(clientX) {
+      isInteracting = true;
+      hasDraggedStory = false;
+      touchStartX = clientX;
+      touchLastX = clientX;
+      viewport.classList.add("is-dragging");
+      pauseMarquee();
+    }
+
+    function onPointerMove(clientX) {
+      if (!isInteracting) return;
+      const deltaX = clientX - touchLastX;
+      touchLastX = clientX;
+
+      if (Math.abs(clientX - touchStartX) > 6) {
+        hasDraggedStory = true;
       }
 
-      const SPEED_PX_PER_SEC = 18; // 18px per second
-      let lastTime = performance.now();
-      isStoriesDriftPaused = false;
-
-      function updateTransform() {
-        if (segmentWidth > 0) {
-          while (storiesCurrentOffset >= segmentWidth) {
-            storiesCurrentOffset -= segmentWidth;
-          }
-          while (storiesCurrentOffset < 0) {
-            storiesCurrentOffset += segmentWidth;
-          }
-        }
-        track.style.transform = `translate3d(-${storiesCurrentOffset}px, 0, 0)`;
-      }
-
-      function step(now) {
-        if (!track.isConnected) return;
-
-        // Skip if hidden or reduced motion
-        if (viewport.offsetParent === null || document.hidden || prefersReducedMotion) {
-          lastTime = now;
-          storiesDriftRaf = requestAnimationFrame(step);
-          return;
-        }
-
-        if (!isStoriesDriftPaused && !isStoriesInteracting) {
-          const dt = (now - lastTime) / 1000;
-          if (dt > 0 && dt < 0.25) {
-            storiesCurrentOffset += SPEED_PX_PER_SEC * dt;
-            updateTransform();
-          }
-        }
-        lastTime = now;
-        storiesDriftRaf = requestAnimationFrame(step);
-      }
-
-      function pauseStoriesDrift() {
-        isStoriesDriftPaused = true;
-        if (storiesDriftTimeout) {
-          clearTimeout(storiesDriftTimeout);
-          storiesDriftTimeout = null;
+      const anim = getActiveAnimation();
+      if (anim) {
+        const halfWidth = (track.offsetWidth || 800) / 2;
+        if (halfWidth > 0) {
+          const dt = -(deltaX / halfWidth) * DURATION_MS;
+          let curTime = (anim.currentTime || 0) + dt;
+          curTime = ((curTime % DURATION_MS) + DURATION_MS) % DURATION_MS;
+          anim.currentTime = curTime;
         }
       }
+    }
 
-      function resumeStoriesDrift(delay = 2500) {
-        if (storiesDriftTimeout) clearTimeout(storiesDriftTimeout);
-        storiesDriftTimeout = setTimeout(() => {
-          lastTime = performance.now();
-          isStoriesDriftPaused = false;
-        }, delay);
+    function onPointerEnd() {
+      if (!isInteracting) return;
+      isInteracting = false;
+      viewport.classList.remove("is-dragging");
+      if (hasDraggedStory) {
+        lastStoryDragEndTime = performance.now();
       }
+      resumeMarquee(2200);
+    }
 
-      // Pointer / Touch / Drag events
-      function onStart(clientX) {
-        isStoriesInteracting = true;
-        storiesTouchStartX = clientX;
-        storiesTouchLastX = clientX;
-        hasDraggedStory = false;
-        viewport.classList.add("is-dragging");
-        pauseStoriesDrift();
-      }
+    // Touch events for mobile Telegram WebApp
+    viewport.addEventListener("touchstart", (e) => {
+      if (e.touches.length > 0) onPointerStart(e.touches[0].clientX);
+    }, { passive: true });
 
-      function onMove(clientX) {
-        if (!isStoriesInteracting) return;
-        const deltaX = clientX - storiesTouchLastX;
-        storiesTouchLastX = clientX;
-        if (Math.abs(clientX - storiesTouchStartX) > 6) {
-          hasDraggedStory = true;
-        }
-        storiesCurrentOffset -= deltaX;
-        updateTransform();
-      }
+    viewport.addEventListener("touchmove", (e) => {
+      if (e.touches.length > 0) onPointerMove(e.touches[0].clientX);
+    }, { passive: true });
 
-      function onEnd() {
-        if (!isStoriesInteracting) return;
-        isStoriesInteracting = false;
-        viewport.classList.remove("is-dragging");
-        if (hasDraggedStory) {
-          lastStoryDragEndTime = performance.now();
-        }
-        resumeStoriesDrift(2500);
-      }
+    viewport.addEventListener("touchend", onPointerEnd, { passive: true });
+    viewport.addEventListener("touchcancel", onPointerEnd, { passive: true });
 
-      // Touch events (native on mobile)
-      viewport.addEventListener("touchstart", (e) => {
-        if (e.touches.length > 0) {
-          onStart(e.touches[0].clientX);
-        }
-      }, { passive: true });
+    // Mouse drag events for Desktop
+    viewport.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      onPointerStart(e.clientX);
+    });
 
-      viewport.addEventListener("touchmove", (e) => {
-        if (e.touches.length > 0) {
-          onMove(e.touches[0].clientX);
-        }
-      }, { passive: true });
+    window.addEventListener("mousemove", (e) => {
+      if (isInteracting) onPointerMove(e.clientX);
+    });
 
-      viewport.addEventListener("touchend", onEnd, { passive: true });
-      viewport.addEventListener("touchcancel", onEnd, { passive: true });
+    window.addEventListener("mouseup", () => {
+      if (isInteracting) onPointerEnd();
+    });
 
-      // Mouse events (desktop drag)
-      viewport.addEventListener("mousedown", (e) => {
-        if (e.button !== 0) return;
-        onStart(e.clientX);
-      });
+    // Hover events for Desktop
+    viewport.addEventListener("mouseenter", () => {
+      if (!isInteracting) pauseMarquee();
+    });
 
-      window.addEventListener("mousemove", (e) => {
-        if (isStoriesInteracting) {
-          onMove(e.clientX);
-        }
-      });
-
-      window.addEventListener("mouseup", () => {
-        if (isStoriesInteracting) {
-          onEnd();
-        }
-      });
-
-      // Hover on desktop
-      viewport.addEventListener("mouseenter", () => {
-        if (!isStoriesInteracting) {
-          pauseStoriesDrift();
-        }
-      });
-
-      viewport.addEventListener("mouseleave", () => {
-        if (!isStoriesInteracting) {
-          resumeStoriesDrift(1200);
-        }
-      });
-
-      if (!prefersReducedMotion) {
-        storiesDriftRaf = requestAnimationFrame(step);
-      }
+    viewport.addEventListener("mouseleave", () => {
+      if (!isInteracting) resumeMarquee(800);
     });
   }
 
@@ -585,125 +658,94 @@
     const row = document.getElementById("storiesRow");
     if (!row) return;
 
+    let data = null;
     try {
-      const data = await apiFetch("/api/webapp/stories");
-      if (!data) return;
-
-      const my = data.my_story || {
-        name: "Вы",
-        avatar_url: "/static/webapp/assets/default_avatar.jpg",
-        is_premium: false,
-      };
-
-      const myBadge = my.is_premium
-        ? `<div class="story-premium-badge" title="Премиум активен">💎</div>`
-        : `<div class="story-add-badge" title="Попасть в топ">+</div>`;
-
-      const myFrame = my.equipped_frame || state.currentUser?.equipped_frame;
-      let myFrameClass = "";
-      if (myFrame === "frame_gold") myFrameClass = "frame-gold";
-      else if (myFrame === "frame_headman") myFrameClass = "frame-headman";
-      else if (myFrame === "frame_neon") myFrameClass = "frame-neon";
-      else if (myFrame === "frame_fire") myFrameClass = "frame-fire";
-
-      let html = `
-        <div class="stories-sticky-wrap">
-          <div class="story-item story-item-sticky" id="myStoryItem">
-            <div class="story-avatar-wrap my-story ${my.is_premium ? "premium-ring" : ""} ${myFrameClass}">
-              <img src="${my.avatar_url}" class="story-avatar" alt="Вы" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
-              ${myBadge}
-            </div>
-            <span class="story-name">Вы</span>
-          </div>
-          <div class="stories-sticky-separator" aria-hidden="true"></div>
-        </div>
-        <div class="stories-scroll-track" id="storiesScrollTrack">
-          <div class="stories-marquee-track" id="storiesMarqueeTrack">
-      `;
-
-      let storiesCardsHtml = "";
-      if (data.stories && data.stories.length > 0) {
-        storiesCardsHtml = data.stories
-          .map((s) => {
-            const premRing = s.is_premium ? "premium-ring" : "";
-            const sFrame = s.equipped_frame;
-            let sFrameClass = "";
-            if (sFrame === "frame_gold") sFrameClass = "frame-gold";
-            else if (sFrame === "frame_headman") sFrameClass = "frame-headman";
-            else if (sFrame === "frame_neon") sFrameClass = "frame-neon";
-            else if (sFrame === "frame_fire") sFrameClass = "frame-fire";
-
-            const badge = s.is_premium
-              ? `<div class="story-premium-badge" title="Премиум">💎</div>`
-              : (s.is_verified ? `<div class="story-premium-badge" style="background:#4834d4;" title="Студент">🎓</div>` : "");
-
-            return `
-              <div class="story-item" data-user-id="${s.user_id}">
-                <div class="story-avatar-wrap ${premRing} ${sFrameClass}">
-                  <img src="${s.avatar_url}" class="story-avatar" alt="${escapeHtml(s.name)}" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
-                  ${badge}
-                </div>
-                <span class="story-name">${escapeHtml(s.name)}</span>
-              </div>
-            `;
-          })
-          .join("");
-
-        // Рендерим 4 идентичных сегмента для абсолютно бесшовного непрерывного дрейфа на любых экранах
-        html += `
-          <div class="stories-marquee-segment" id="storiesMarqueeSegmentPrimary">
-            ${storiesCardsHtml}
-          </div>
-          <div class="stories-marquee-segment" aria-hidden="true">
-            ${storiesCardsHtml}
-          </div>
-          <div class="stories-marquee-segment" aria-hidden="true">
-            ${storiesCardsHtml}
-          </div>
-          <div class="stories-marquee-segment" aria-hidden="true">
-            ${storiesCardsHtml}
-          </div>
-        `;
-      }
-
-      html += `
-          </div>
-        </div>
-      `;
-
-      row.innerHTML = html;
-
-      // Клик по своей истории (открывает профиль)
-      document.getElementById("myStoryItem")?.addEventListener("click", () => {
-        triggerHaptic("medium");
-        switchTab("profile");
-      });
-
-      // Клик по анкетам других пользователей (защита от случайных кликов во время свайпа)
-      row.querySelectorAll(".story-item[data-user-id]").forEach((item) => {
-        item.addEventListener("click", (e) => {
-          if (hasDraggedStory || (performance.now() - lastStoryDragEndTime < 220)) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
-          const uid = item.dataset.userId;
-          if (uid) {
-            triggerHaptic("light");
-            openDetailsSheet(uid, { source: "story" });
-          }
-        });
-      });
-
-      // Запуск кинетического мягкого дрейфа
-      const viewport = document.getElementById("storiesScrollTrack");
-      const track = document.getElementById("storiesMarqueeTrack");
-      const primarySegment = document.getElementById("storiesMarqueeSegmentPrimary");
-      initStoriesDrift(viewport, track, primarySegment, data.stories?.length || 0);
-
+      data = await apiFetch("/api/webapp/stories");
     } catch (e) {
-      console.warn("[StudMatch] Failed to load stories:", e);
+      console.warn("[StudMatch] Failed to load stories from API:", e);
     }
+
+    const my = data?.my_story || {
+      name: "Вы",
+      avatar_url: state.currentUser?.avatar_url || "/static/webapp/assets/default_avatar.jpg",
+      is_premium: Boolean(state.currentUser?.is_premium),
+    };
+
+    const myBadge = my.is_premium
+      ? `<div class="story-premium-badge" title="Премиум активен">💎</div>`
+      : `<div class="story-add-badge" title="Попасть в топ">+</div>`;
+
+    const myFrame = my.equipped_frame || state.currentUser?.equipped_frame;
+    let myFrameClass = "";
+    if (myFrame === "frame_gold") myFrameClass = "frame-gold";
+    else if (myFrame === "frame_headman") myFrameClass = "frame-headman";
+    else if (myFrame === "frame_neon") myFrameClass = "frame-neon";
+    else if (myFrame === "frame_fire") myFrameClass = "frame-fire";
+
+    let storiesList = [];
+    if (data?.stories && Array.isArray(data.stories) && data.stories.length > 0) {
+      storiesList = [...data.stories];
+    }
+
+    if (storiesList.length < 10) {
+      const existingUserIds = new Set(storiesList.map((s) => s.user_id));
+      for (const def of DEFAULT_STUDENT_STORIES) {
+        if (storiesList.length >= 12) break;
+        if (!existingUserIds.has(def.user_id)) {
+          storiesList.push(def);
+          existingUserIds.add(def.user_id);
+        }
+      }
+    }
+
+    const segmentCardsHtml = storiesList.map(renderSingleStoryCard).join("");
+
+    row.innerHTML = `
+      <div class="stories-sticky-wrap">
+        <div class="story-item story-item-sticky" id="myStoryItem">
+          <div class="story-avatar-wrap my-story ${my.is_premium ? "premium-ring" : ""} ${myFrameClass}">
+            <img src="${my.avatar_url}" class="story-avatar" alt="Вы" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
+            ${myBadge}
+          </div>
+          <span class="story-name">Вы</span>
+        </div>
+        <div class="stories-sticky-separator" aria-hidden="true"></div>
+      </div>
+      <div class="stories-scroll-track" id="storiesScrollTrack">
+        <div class="stories-marquee-track" id="storiesMarqueeTrack">
+          <div class="stories-marquee-segment" id="storiesMarqueeSegment1">
+            ${segmentCardsHtml}
+          </div>
+          <div class="stories-marquee-segment" id="storiesMarqueeSegment2" aria-hidden="true">
+            ${segmentCardsHtml}
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("myStoryItem")?.addEventListener("click", () => {
+      triggerHaptic("medium");
+      switchTab("profile");
+    });
+
+    row.querySelectorAll(".story-item[data-user-id]").forEach((item) => {
+      item.addEventListener("click", (e) => {
+        if (hasDraggedStory || (performance.now() - lastStoryDragEndTime < 220)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        const uid = item.dataset.userId;
+        if (uid) {
+          triggerHaptic("light");
+          openDetailsSheet(uid, { source: "story" });
+        }
+      });
+    });
+
+    const viewport = document.getElementById("storiesScrollTrack");
+    const track = document.getElementById("storiesMarqueeTrack");
+    initStoriesMarqueeInteraction(viewport, track);
   }
 
   function updateStoriesRowFrame(frameCode) {
@@ -11569,6 +11611,7 @@
     setupShopListeners();
     setupStreakListeners();
     initDesktopKeyboardNavigation();
+    loadStories();
     if (window.MAINTENANCE_DATA) {
       updateMaintenanceUI(window.MAINTENANCE_DATA);
     }

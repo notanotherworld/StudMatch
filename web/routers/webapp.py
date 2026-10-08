@@ -277,13 +277,13 @@ async def webapp_page(request: Request):
     # Автоматический cache-busting по времени изменения (mtime) файлов статики
     static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "webapp")
     try:
-        js_v = str(int(os.path.getmtime(os.path.join(static_dir, "webapp.js"))))
+        js_v = f"{int(os.path.getmtime(os.path.join(static_dir, 'webapp.js')))}_stories20261009_v3"
     except Exception:
-        js_v = "20260913_2125"
+        js_v = "20261009_stories_v3"
     try:
-        css_v = str(int(os.path.getmtime(os.path.join(static_dir, "webapp.css"))))
+        css_v = f"{int(os.path.getmtime(os.path.join(static_dir, 'webapp.css')))}_stories20261009_v3"
     except Exception:
-        css_v = "20260913_2125"
+        css_v = "20261009_stories_v3"
 
     resp = templates.TemplateResponse(
         "webapp.html",
@@ -1470,6 +1470,151 @@ async def webapp_incoming_likes_unlock(
     }
 
 
+CURATED_DEMO_STORIES = [
+    {
+        "user_id": 999101,
+        "name": "Полина",
+        "full_name": "Полина Васильева",
+        "avatar_url": "/static/webapp/assets/avatar_story_default.svg",
+        "is_premium": True,
+        "is_verified": True,
+        "equipped_frame": "frame_gold",
+        "equipped_frame_title": "Золотая рамка",
+        "university": "НИУ ВШЭ",
+        "faculty": "Медиакоммуникации",
+        "age": 20,
+        "bio": "Учусь на 3 курсе ВШЭ, обожаю дизайн, выставки и хороший спешелти кофе ☕✨",
+    },
+    {
+        "user_id": 999102,
+        "name": "Артем",
+        "full_name": "Артем Смирнов",
+        "avatar_url": "/static/webapp/assets/avatar_story_variant2.svg",
+        "is_premium": False,
+        "is_verified": True,
+        "equipped_frame": "frame_headman",
+        "equipped_frame_title": "Староста",
+        "university": "МГТУ им. Баумана",
+        "faculty": "Информатика и системы управления",
+        "age": 21,
+        "bio": "Бауманка, пишу код на Python и Go. В свободное время катаюсь на сноуборде 🏂",
+    },
+    {
+        "user_id": 999103,
+        "name": "София",
+        "full_name": "София Морозова",
+        "avatar_url": "/static/webapp/assets/mascot_avatar.jpg",
+        "is_premium": True,
+        "is_verified": False,
+        "equipped_frame": "frame_fire",
+        "equipped_frame_title": "Огонь",
+        "university": "МГУ им. Ломоносова",
+        "faculty": "Журналистика",
+        "age": 19,
+        "bio": "Журфак МГУ! Пишу статьи, слушаю инди-рок и изучаю французский 🇫🇷",
+    },
+    {
+        "user_id": 999104,
+        "name": "Даниил",
+        "full_name": "Даниил Ковалев",
+        "avatar_url": "/static/webapp/assets/default_avatar.jpg",
+        "is_premium": True,
+        "is_verified": True,
+        "equipped_frame": "frame_neon",
+        "equipped_frame_title": "Неон",
+        "university": "МФТИ",
+        "faculty": "ФПМИ",
+        "age": 22,
+        "bio": "Физтех. ML и нейросети, люблю сложные задачи и ночные хакатоны 💻🚀",
+    },
+    {
+        "user_id": 999105,
+        "name": "Алиса",
+        "full_name": "Алиса Романова",
+        "avatar_url": "/static/webapp/assets/avatar_story_default.svg",
+        "is_premium": False,
+        "is_verified": True,
+        "equipped_frame": None,
+        "equipped_frame_title": None,
+        "university": "РАНХиГС",
+        "faculty": "Дизайн и медиа",
+        "age": 20,
+        "bio": "UX/UI дизайнер и фотограф. Люблю плёночные снимки и прогулки по центру 📷",
+    },
+    {
+        "user_id": 999106,
+        "name": "Марк",
+        "full_name": "Марк Волков",
+        "avatar_url": "/static/webapp/assets/avatar_story_variant2.svg",
+        "is_premium": True,
+        "is_verified": False,
+        "equipped_frame": "frame_gold",
+        "equipped_frame_title": "Золотая рамка",
+        "university": "СПбГУ",
+        "faculty": "Экономический факультет",
+        "age": 21,
+        "bio": "Финансы и стартапы, люблю теннис и путешествия по городам России 🎾",
+    },
+    {
+        "user_id": 999107,
+        "name": "Виктория",
+        "full_name": "Виктория Лебедева",
+        "avatar_url": "/static/webapp/assets/mascot_avatar.jpg",
+        "is_premium": True,
+        "is_verified": True,
+        "equipped_frame": "frame_fire",
+        "equipped_frame_title": "Огонь",
+        "university": "МГИМО",
+        "faculty": "Международные отношения",
+        "age": 20,
+        "bio": "Изучаю дипломатию, свободно говорю на английском и испанском 🌍✨",
+    },
+    {
+        "user_id": 999108,
+        "name": "Илья",
+        "full_name": "Илья Кузнецов",
+        "avatar_url": "/static/webapp/assets/default_avatar.jpg",
+        "is_premium": False,
+        "is_verified": True,
+        "equipped_frame": "frame_headman",
+        "equipped_frame_title": "Староста",
+        "university": "ИТМО",
+        "faculty": "Прикладная математика",
+        "age": 22,
+        "bio": "ИТМО, занимаюсь алгоритмами и олимпиадами. Играю на гитаре 🎸",
+    },
+    {
+        "user_id": 999109,
+        "name": "Екатерина",
+        "full_name": "Екатерина Попова",
+        "avatar_url": "/static/webapp/assets/avatar_story_default.svg",
+        "is_premium": True,
+        "is_verified": False,
+        "equipped_frame": "frame_neon",
+        "equipped_frame_title": "Неон",
+        "university": "РУДН",
+        "faculty": "Филологический факультет",
+        "age": 19,
+        "bio": "Лингвист, обожаю книги, театр и вкусные бранчи с друзьями 🥐🎭",
+    },
+    {
+        "user_id": 999110,
+        "name": "Максим",
+        "full_name": "Максим Соколов",
+        "avatar_url": "/static/webapp/assets/avatar_story_variant2.svg",
+        "is_premium": True,
+        "is_verified": True,
+        "equipped_frame": "frame_gold",
+        "equipped_frame_title": "Золотая рамка",
+        "university": "МИФИ",
+        "faculty": "Ядерная физика и технологии",
+        "age": 21,
+        "bio": "МИФИ, исследую квантовую физику. Люблю настолки и бег 🏃‍♂️",
+    },
+]
+CURATED_DEMO_PROFILES_MAP = {d["user_id"]: d for d in CURATED_DEMO_STORIES}
+
+
 # ─── API: Истории (Stories / Топ пользователей с Премиумом) ─────
 @router.get("/api/webapp/stories")
 async def webapp_stories(
@@ -1547,6 +1692,27 @@ async def webapp_stories(
             "equipped_frame_title": get_frame_title(getattr(u, "equipped_frame", None)),
             "university": univ,
         })
+
+    # 3. Если реальных анкет в БД меньше 10 (локальная разработка, новый сервер),
+    # дополняем красивыми студенческими профилями для полноценной бесконечной ленты
+    if len(stories) < 10:
+        existing_ids = {s["user_id"] for s in stories}
+        for demo in CURATED_DEMO_STORIES:
+            if len(stories) >= 12:
+                break
+            if demo["user_id"] not in existing_ids:
+                stories.append({
+                    "user_id": demo["user_id"],
+                    "name": demo["name"],
+                    "full_name": demo["full_name"],
+                    "avatar_url": demo["avatar_url"],
+                    "is_premium": demo["is_premium"],
+                    "is_verified": demo["is_verified"],
+                    "equipped_frame": demo["equipped_frame"],
+                    "equipped_frame_title": demo["equipped_frame_title"],
+                    "university": demo["university"],
+                })
+                existing_ids.add(demo["user_id"])
 
     # Данные для своей истории
     my_p = await get_profile(db, student.id)
@@ -3025,7 +3191,55 @@ async def webapp_get_user_details(
     student: User = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    """Возвращает полную карточку любого студента (для модалки и мэтчей)."""
+    if user_id in CURATED_DEMO_PROFILES_MAP:
+        demo = CURATED_DEMO_PROFILES_MAP[user_id]
+        photo_url = demo["avatar_url"]
+        return {
+            "status": "ok",
+            "user": {
+                "id": demo["user_id"],
+                "user_id": demo["user_id"],
+                "is_me": False,
+                "has_match": False,
+                "match_id": None,
+                "is_tg_unlocked": False,
+                "name": demo["name"],
+                "age": demo.get("age", 20),
+                "year": 2,
+                "hide_age": False,
+                "hide_course": False,
+                "is_online": True,
+                "online_status_text": "в сети",
+                "major": demo.get("faculty", ""),
+                "university": demo.get("university", ""),
+                "goal": "Общение и совместные проекты ✨",
+                "custom_interests": "Кофе, учеба, технологии",
+                "tags": [
+                    {"id": 1, "name": "Студент", "emoji": "🎓"},
+                    {"id": 2, "name": "Кофе", "emoji": "☕"},
+                    {"id": 3, "name": "Путешествия", "emoji": "✈️"},
+                ],
+                "photos": [photo_url],
+                "photos_meta": [{"id": "p1", "url": photo_url, "is_main": True, "is_private": False}],
+                "can_send_message": True,
+                "message_block_reason": "",
+                "career_avatar_url": photo_url,
+                "career_photos": [photo_url],
+                "rating_score": 4.9,
+                "is_verified": demo.get("is_verified", True),
+                "is_premium": demo.get("is_premium", False),
+                "equipped_frame": demo.get("equipped_frame", None),
+                "equipped_frame_title": demo.get("equipped_frame_title", None),
+                "tg_username": None,
+                "career_goal": None,
+                "career_skills": None,
+                "career_custom_skills": None,
+                "career_portfolio_url": None,
+                "career_work_format": None,
+                "bio": demo.get("bio", "Студент университета StudMatch"),
+            }
+        }
+
     target = await get_user(db, user_id)
     if not target or not target.is_active:
         raise HTTPException(status_code=404, detail="Пользователь не найден")

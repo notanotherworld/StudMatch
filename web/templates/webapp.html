@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="/static/webapp/webapp.css?v={{ css_version|default('20260913_2125') }}" />
+  <link rel="stylesheet" href="/static/webapp/webapp.css?v={{ css_version|default('20261009_stories_v3') }}" />
 
   <script>
     window.BOT_USERNAME = "{{ bot_username }}";
@@ -81,15 +81,109 @@
       <button type="button" class="maintenance-banner-action" id="openMaintenanceModalBtn">Подробнее</button>
     </div>
 
-    <!-- Top Stories Row (Real Premium Profiles from Backend) -->
+    <!-- Top Stories Row (Real Premium Profiles & Active Students) -->
     <div class="stories-row" id="storiesRow">
-      <!-- Loaded dynamically via /api/webapp/stories -->
-      <div class="story-item" id="myStoryItem">
-        <div class="story-avatar-wrap my-story">
-          <img src="/static/webapp/assets/default_avatar.jpg" class="story-avatar" alt="Вы" />
-          <div class="story-add-badge">+</div>
+      <div class="stories-sticky-wrap">
+        <div class="story-item story-item-sticky" id="myStoryItem">
+          <div class="story-avatar-wrap my-story">
+            <img src="/static/webapp/assets/default_avatar.jpg" class="story-avatar" alt="Вы" />
+            <div class="story-add-badge" title="Попасть в топ">+</div>
+          </div>
+          <span class="story-name">Вы</span>
         </div>
-        <span class="story-name">Вы</span>
+        <div class="stories-sticky-separator" aria-hidden="true"></div>
+      </div>
+      <div class="stories-scroll-track" id="storiesScrollTrack">
+        <div class="stories-marquee-track" id="storiesMarqueeTrack">
+          <div class="stories-marquee-segment" id="storiesMarqueeSegment1">
+            <div class="story-item" data-user-id="999101">
+              <div class="story-avatar-wrap premium-ring frame-gold">
+                <img src="/static/webapp/assets/avatar_story_default.svg" class="story-avatar" alt="Полина" />
+                <div class="story-premium-badge" title="Премиум">💎</div>
+              </div>
+              <span class="story-name">Полина</span>
+            </div>
+            <div class="story-item" data-user-id="999102">
+              <div class="story-avatar-wrap frame-headman">
+                <img src="/static/webapp/assets/avatar_story_variant2.svg" class="story-avatar" alt="Артем" />
+                <div class="story-premium-badge" style="background:#4834d4;" title="Студент">🎓</div>
+              </div>
+              <span class="story-name">Артем</span>
+            </div>
+            <div class="story-item" data-user-id="999103">
+              <div class="story-avatar-wrap premium-ring frame-fire">
+                <img src="/static/webapp/assets/mascot_avatar.jpg" class="story-avatar" alt="София" />
+                <div class="story-premium-badge" title="Премиум">💎</div>
+              </div>
+              <span class="story-name">София</span>
+            </div>
+            <div class="story-item" data-user-id="999104">
+              <div class="story-avatar-wrap premium-ring frame-neon">
+                <img src="/static/webapp/assets/default_avatar.jpg" class="story-avatar" alt="Даниил" />
+                <div class="story-premium-badge" title="Премиум">💎</div>
+              </div>
+              <span class="story-name">Даниил</span>
+            </div>
+            <div class="story-item" data-user-id="999105">
+              <div class="story-avatar-wrap">
+                <img src="/static/webapp/assets/avatar_story_default.svg" class="story-avatar" alt="Алиса" />
+                <div class="story-premium-badge" style="background:#4834d4;" title="Студент">🎓</div>
+              </div>
+              <span class="story-name">Алиса</span>
+            </div>
+            <div class="story-item" data-user-id="999106">
+              <div class="story-avatar-wrap premium-ring frame-gold">
+                <img src="/static/webapp/assets/avatar_story_variant2.svg" class="story-avatar" alt="Марк" />
+                <div class="story-premium-badge" title="Премиум">💎</div>
+              </div>
+              <span class="story-name">Марк</span>
+            </div>
+          </div>
+          <div class="stories-marquee-segment" id="storiesMarqueeSegment2" aria-hidden="true">
+            <div class="story-item" data-user-id="999101">
+              <div class="story-avatar-wrap premium-ring frame-gold">
+                <img src="/static/webapp/assets/avatar_story_default.svg" class="story-avatar" alt="Полина" />
+                <div class="story-premium-badge" title="Премиум">💎</div>
+              </div>
+              <span class="story-name">Полина</span>
+            </div>
+            <div class="story-item" data-user-id="999102">
+              <div class="story-avatar-wrap frame-headman">
+                <img src="/static/webapp/assets/avatar_story_variant2.svg" class="story-avatar" alt="Артем" />
+                <div class="story-premium-badge" style="background:#4834d4;" title="Студент">🎓</div>
+              </div>
+              <span class="story-name">Артем</span>
+            </div>
+            <div class="story-item" data-user-id="999103">
+              <div class="story-avatar-wrap premium-ring frame-fire">
+                <img src="/static/webapp/assets/mascot_avatar.jpg" class="story-avatar" alt="София" />
+                <div class="story-premium-badge" title="Премиум">💎</div>
+              </div>
+              <span class="story-name">София</span>
+            </div>
+            <div class="story-item" data-user-id="999104">
+              <div class="story-avatar-wrap premium-ring frame-neon">
+                <img src="/static/webapp/assets/default_avatar.jpg" class="story-avatar" alt="Даниил" />
+                <div class="story-premium-badge" title="Премиум">💎</div>
+              </div>
+              <span class="story-name">Даниил</span>
+            </div>
+            <div class="story-item" data-user-id="999105">
+              <div class="story-avatar-wrap">
+                <img src="/static/webapp/assets/avatar_story_default.svg" class="story-avatar" alt="Алиса" />
+                <div class="story-premium-badge" style="background:#4834d4;" title="Студент">🎓</div>
+              </div>
+              <span class="story-name">Алиса</span>
+            </div>
+            <div class="story-item" data-user-id="999106">
+              <div class="story-avatar-wrap premium-ring frame-gold">
+                <img src="/static/webapp/assets/avatar_story_variant2.svg" class="story-avatar" alt="Марк" />
+                <div class="story-premium-badge" title="Премиум">💎</div>
+              </div>
+              <span class="story-name">Марк</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2649,6 +2743,6 @@
   </div>
 
   <!-- App Script -->
-  <script src="/static/webapp/webapp.js?v={{ js_version|default('20260913_2125') }}"></script>
+  <script src="/static/webapp/webapp.js?v={{ js_version|default('20261009_stories_v3') }}"></script>
 </body>
 </html>
