@@ -1679,7 +1679,27 @@
       return true;
     }
 
-    // 9. Other active modals/sheets
+    // 9. Project Modals
+    const pCreate = document.getElementById("projectCreateModal");
+    if (pCreate && (pCreate.classList.contains("active") || pCreate.style.display !== "none")) {
+      pCreate.classList.remove("active");
+      pCreate.style.display = "none";
+      return true;
+    }
+    const pDetails = document.getElementById("projectDetailsModal");
+    if (pDetails && (pDetails.classList.contains("active") || pDetails.style.display !== "none")) {
+      pDetails.classList.remove("active");
+      pDetails.style.display = "none";
+      return true;
+    }
+    const fCand = document.getElementById("founderCandidatesModal");
+    if (fCand && (fCand.classList.contains("active") || fCand.style.display !== "none")) {
+      fCand.classList.remove("active");
+      fCand.style.display = "none";
+      return true;
+    }
+
+    // 10. Other active modals/sheets
     const genericModals = Array.from(document.querySelectorAll(".modal-overlay.active, .bottom-sheet-overlay.active, .modal-card.active"));
     if (genericModals.length > 0) {
       const topM = genericModals[genericModals.length - 1];
@@ -1890,19 +1910,26 @@
         </div>
 
         <div class="card-actions-row" style="margin-top:12px;">
-          <button class="action-btn dislike" data-action="skip" title="Пропустить [←]">
-            <svg class="action-btn-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="3.5" stroke-linecap="round">
+          <button class="action-btn rewind" data-action="rewind" title="Шпора (Откатить свайп) [Backspace]" aria-label="Откатить свайп">
+            <svg class="action-btn-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+            </svg>
+            <span class="rewind-badge-count" id="rewindBadgeCount">${(shopState?.overview?.rewind_count !== undefined ? shopState.overview.rewind_count : (state.currentUser?.rewind_count || 0))}</span>
+          </button>
+          <button class="action-btn dislike" data-action="skip" title="Пропустить [←]" aria-label="Пропустить">
+            <svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#18181B" stroke-width="3" stroke-linecap="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           </button>
-          <button class="action-btn superlike" data-action="superlike" title="Откликнуться с питчем [↑]" style="background:linear-gradient(135deg, #F59E0B, #D97706);">
-            <svg class="action-btn-icon" width="26" height="26" viewBox="0 0 24 24" fill="white">
+          <button class="action-btn superlike project-superlike" data-action="superlike" title="Откликнуться с питчем [↑]" aria-label="Питч">
+            <svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="white">
               <path d="M12 2.5L15.09 8.76L22 9.77L17 14.64L18.18 21.5L12 18.25L5.82 21.5L7 14.64L2 9.77L8.91 8.76L12 2.5Z"/>
             </svg>
           </button>
-          <button class="action-btn like" data-action="like" title="Хочу в команду! [→]" style="background:linear-gradient(135deg, #F59E0B, #B45309);">
-            <svg class="action-btn-icon" width="24" height="24" viewBox="0 0 24 24" fill="white">
+          <button class="action-btn like project-like" data-action="like" title="Хочу в команду! [→]" aria-label="В команду">
+            <svg class="action-btn-icon" width="22" height="22" viewBox="0 0 24 24" fill="white">
               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
             </svg>
           </button>
@@ -1918,6 +1945,8 @@
           openProjectDetailsModal(project);
         } else if (action === "superlike") {
           openProjectSuperlikeModal(project);
+        } else if (action === "rewind") {
+          triggerRewindSwipe();
         } else {
           handleProjectSwipeAction(project, action);
         }
@@ -7243,19 +7272,19 @@
     let actionBtnHtml = "";
     if (isMyProject) {
       actionBtnHtml = `
-        <button class="btn-project-apply" style="background:rgba(245,158,11,0.15);color:#F59E0B;border:1px solid rgba(245,158,11,0.35);font-weight:700;" data-action="edit">
+        <button class="btn-project-apply my-project" data-action="edit">
           ✏️ Мой проект
         </button>
       `;
     } else if (proj.is_matched) {
       actionBtnHtml = `
-        <button class="btn-project-apply connected" disabled style="background:#10B981;color:#FFFFFF;cursor:default;">
+        <button class="btn-project-apply connected in-team" disabled>
           🎉 В команде
         </button>
       `;
     } else if (proj.is_swiped) {
       actionBtnHtml = `
-        <button class="btn-project-apply connected" disabled style="background:#E2E8F0;color:#64748B;cursor:default;">
+        <button class="btn-project-apply connected pending" disabled>
           ✓ Заявка отправлена
         </button>
       `;
@@ -7426,7 +7455,7 @@
           </button>
         `;
         document.getElementById("detailEditProjectBtn")?.addEventListener("click", () => {
-          modal.style.display = "none";
+          closeProjectDetailsModal();
           openProjectCreateModal(proj);
         });
       } else {
@@ -7437,17 +7466,26 @@
           </button>
         `;
         document.getElementById("detailSkipBtn")?.addEventListener("click", () => {
-          modal.style.display = "none";
+          closeProjectDetailsModal();
           sendProjectSwipe(proj.id, "skip", null, proj);
         });
         document.getElementById("detailLikeBtn")?.addEventListener("click", () => {
-          modal.style.display = "none";
+          closeProjectDetailsModal();
           sendProjectSwipe(proj.id, "like", null, proj);
         });
       }
     }
 
     modal.style.display = "flex";
+    modal.classList.add("active");
+  }
+
+  function closeProjectDetailsModal() {
+    const modal = document.getElementById("projectDetailsModal");
+    if (!modal) return;
+    triggerHaptic("light");
+    modal.classList.remove("active");
+    modal.style.display = "none";
   }
 
   async function loadMyProjects() {
@@ -7563,6 +7601,7 @@
       </div>
     `;
     modal.style.display = "flex";
+    modal.classList.add("active");
 
     try {
       const res = await apiFetch(`/api/webapp/projects/${projectId}/candidates`);
@@ -7646,7 +7685,7 @@
             });
             if (mRes && mRes.status === "ok") {
               row.remove();
-              modal.style.display = "none";
+              closeFounderCandidatesModal();
               loadMyProjects();
               const matchId = mRes.match_id || mRes.match?.id || mRes.match?.match_id;
               showMatchPopup({
@@ -7674,6 +7713,14 @@
       console.error("[StudMatch] Load candidates error:", e);
       listEl.innerHTML = `<div class="career-empty-state"><p class="career-empty-desc">Ошибка загрузки кандидатов</p></div>`;
     }
+  }
+
+  function closeFounderCandidatesModal() {
+    const modal = document.getElementById("founderCandidatesModal");
+    if (!modal) return;
+    triggerHaptic("light");
+    modal.classList.remove("active");
+    modal.style.display = "none";
   }
 
   function openProjectCreateModal(projectToEdit = null) {
@@ -7729,6 +7776,15 @@
     }
 
     modal.style.display = "flex";
+    modal.classList.add("active");
+  }
+
+  function closeProjectCreateModal() {
+    const modal = document.getElementById("projectCreateModal");
+    if (!modal) return;
+    triggerHaptic("light");
+    modal.classList.remove("active");
+    modal.style.display = "none";
   }
 
   async function saveProject() {
@@ -7790,7 +7846,7 @@
       if (res && res.status === "ok") {
         triggerHaptic("success");
         showAppToast(editId ? "Проект успешно обновлён! ✨" : "Проект успешно опубликован! 🚀");
-        document.getElementById("projectCreateModal").style.display = "none";
+        closeProjectCreateModal();
         if (currentProjectsView === "feed") {
           loadProjectsFeed();
         } else if (currentProjectsView === "my") {
@@ -7872,11 +7928,18 @@
     document.getElementById("projectsComposerCard")?.addEventListener("click", () => openProjectCreateModal());
     document.getElementById("btnMyCreateProject")?.addEventListener("click", () => openProjectCreateModal());
 
-    // 6. Project Create Modal close & save
+    // 6. Project Create Modal close, save & backdrop
     document.getElementById("projectCreateCloseBtn")?.addEventListener("click", () => {
-      document.getElementById("projectCreateModal").style.display = "none";
+      closeProjectCreateModal();
     });
     document.getElementById("saveProjectBtn")?.addEventListener("click", saveProject);
+
+    const projectCreateModalEl = document.getElementById("projectCreateModal");
+    projectCreateModalEl?.addEventListener("click", (e) => {
+      if (e.target === projectCreateModalEl) {
+        closeProjectCreateModal();
+      }
+    });
 
     // 7. Pitchdeck File Upload Trigger
     const uploadTrigger = document.getElementById("projectDeckUploadTrigger");
@@ -7934,14 +7997,26 @@
       }
     });
 
-    // 8. Project Details Modal close
+    // 8. Project Details Modal close & backdrop
     document.getElementById("projectDetailsCloseBtn")?.addEventListener("click", () => {
-      document.getElementById("projectDetailsModal").style.display = "none";
+      closeProjectDetailsModal();
+    });
+    const projectDetailsModalEl = document.getElementById("projectDetailsModal");
+    projectDetailsModalEl?.addEventListener("click", (e) => {
+      if (e.target === projectDetailsModalEl) {
+        closeProjectDetailsModal();
+      }
     });
 
-    // 9. Founder Candidates Modal close
+    // 9. Founder Candidates Modal close & backdrop
     document.getElementById("founderCandidatesCloseBtn")?.addEventListener("click", () => {
-      document.getElementById("founderCandidatesModal").style.display = "none";
+      closeFounderCandidatesModal();
+    });
+    const founderCandidatesModalEl = document.getElementById("founderCandidatesModal");
+    founderCandidatesModalEl?.addEventListener("click", (e) => {
+      if (e.target === founderCandidatesModalEl) {
+        closeFounderCandidatesModal();
+      }
     });
   }
 

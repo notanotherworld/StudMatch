@@ -4859,10 +4859,28 @@ body.projects-theme.feed-view-active .app-content {
 }
 
 .btn-project-apply.applied,
-.btn-project-apply.connected {
-  background: #10B981 !important;
+.btn-project-apply.connected,
+.btn-project-apply.in-team {
+  background: linear-gradient(135deg, #10B981, #059669) !important;
   color: #FFFFFF !important;
+  cursor: default !important;
   box-shadow: 0 3px 10px rgba(16, 185, 129, 0.25) !important;
+}
+
+.btn-project-apply.my-project {
+  background: rgba(245, 158, 11, 0.12) !important;
+  color: #D97706 !important;
+  border: 1.5px solid rgba(245, 158, 11, 0.35) !important;
+  box-shadow: none !important;
+  font-weight: 700;
+}
+
+.btn-project-apply.pending {
+  background: #F1F5F9 !important;
+  color: #64748B !important;
+  border: 1px solid #E2E8F0 !important;
+  cursor: default !important;
+  box-shadow: none !important;
 }
 
 /* My Projects */
@@ -5213,6 +5231,208 @@ body.projects-theme.feed-view-active .app-content {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   z-index: 5;
+}
+
+/* ─── Dark Theme Support for Projects & Startups ─────────────── */
+[data-theme="dark"] .projects-subnav-toggle {
+  background: #181824;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .projects-subnav-btn {
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .projects-subnav-btn:hover {
+  color: #F8FAFC;
+}
+
+[data-theme="dark"] .projects-search-box {
+  background: #181824;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .projects-search-input {
+  color: #F8FAFC;
+}
+
+[data-theme="dark"] .projects-search-input::placeholder {
+  color: #64748B;
+}
+
+[data-theme="dark"] .project-stage-chip,
+[data-theme="dark"] .project-role-chip {
+  background: #1E1E2E;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .project-stage-chip:hover,
+[data-theme="dark"] .project-role-chip:hover {
+  background: #232336;
+  color: #F1F5F9;
+}
+
+[data-theme="dark"] .project-stage-chip.active,
+[data-theme="dark"] .project-role-chip.active {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #FFFFFF;
+  border-color: transparent;
+}
+
+[data-theme="dark"] .projects-composer-card {
+  background: #181824;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+[data-theme="dark"] .projects-composer-icon-wrap {
+  background: rgba(245, 158, 11, 0.18);
+}
+
+[data-theme="dark"] .projects-composer-title {
+  color: #F8FAFC;
+}
+
+[data-theme="dark"] .projects-composer-sub {
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .project-catalog-card {
+  background: #181824;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .project-catalog-card:hover {
+  border-color: rgba(245, 158, 11, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .project-catalog-card-title {
+  color: #F8FAFC;
+}
+
+[data-theme="dark"] .project-catalog-card-pitch {
+  color: #E2E8F0;
+}
+
+[data-theme="dark"] .project-catalog-card-desc {
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .project-role-tag {
+  background: #232336;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #CBD5E1;
+}
+
+[data-theme="dark"] .project-conditions-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #FBBF24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+[data-theme="dark"] .project-catalog-card-footer {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .project-catalog-founder-name {
+  color: #F8FAFC;
+}
+
+[data-theme="dark"] .project-catalog-founder-uni {
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .btn-project-details {
+  background: #232336;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #F1F5F9;
+}
+
+[data-theme="dark"] .btn-project-details:hover {
+  background: #2D2D42;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+[data-theme="dark"] .btn-project-apply.pending {
+  background: #232336 !important;
+  color: #94A3B8 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .btn-project-apply.my-project {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #FBBF24 !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+}
+
+[data-theme="dark"] .project-my-card {
+  background: #181824;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .project-my-card-title {
+  color: #F8FAFC;
+}
+
+[data-theme="dark"] .project-my-card-pitch {
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .project-my-cand-badge {
+  background: rgba(245, 158, 11, 0.18);
+  color: #FBBF24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+[data-theme="dark"] .project-founder-header {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .project-founder-name {
+  color: #F8FAFC;
+}
+
+[data-theme="dark"] .project-founder-uni {
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .project-pitch-banner {
+  background: rgba(245, 158, 11, 0.12);
+  color: #FBBF24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+[data-theme="dark"] .project-detail-desc {
+  color: #E2E8F0;
+}
+
+[data-theme="dark"] .pitchdeck-upload-box {
+  background: #1E1E2E;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .candidate-app-item {
+  background: #1E1E2E;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .candidate-app-name {
+  color: #F8FAFC;
+}
+
+[data-theme="dark"] .candidate-app-comment {
+  background: #181824;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #E2E8F0;
+}
+
+[data-theme="dark"] .project-link-btn {
+  background: #232336;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #F1F5F9;
 }
 
 /* ─── App Global Toast Notification ─────────────────────────── */
