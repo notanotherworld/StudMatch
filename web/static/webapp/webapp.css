@@ -73,6 +73,7 @@ body[data-theme="light"] {
   --shadow-card: 0 16px 40px rgba(30, 31, 46, 0.12);
 }
 
+/* Temporarily disabled until dark theme redesign is ready:
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg-main: #0F0F14;
@@ -88,6 +89,7 @@ body[data-theme="light"] {
     --shadow-card: 0 16px 40px rgba(0, 0, 0, 0.55);
   }
 }
+*/
 
 .theme-transitioning,
 .theme-transitioning * {

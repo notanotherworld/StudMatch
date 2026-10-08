@@ -5816,16 +5816,6 @@
                 </div>
                 <span>→</span>
               </div>
-              <div class="profile-menu-item" id="btnOpenThemeSettings">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <span style="font-size: 20px;">🎨</span>
-                  <div style="text-align: left;">
-                    <div style="font-size: 14.5px; font-weight: 700; color: var(--text-main);">Тема оформления</div>
-                    <div style="font-size: 11.5px; color: var(--text-muted); font-weight: 500;" id="profileCurrentThemeLabel">${getThemeLabel(getSavedThemePreference())}</div>
-                  </div>
-                </div>
-                <span>→</span>
-              </div>
               <div class="profile-menu-item" id="btnOpenOnboarding">
                 <span>✨ О платформе и подарке</span>
                 <span>→</span>
@@ -6144,7 +6134,6 @@
       document.getElementById("btnToggleProfileMode")?.addEventListener("click", toggleMode);
       document.getElementById("btnOpenSearchFilters")?.addEventListener("click", openFiltersModal);
       document.getElementById("btnOpenPrivacySettings")?.addEventListener("click", openPrivacyModal);
-      document.getElementById("btnOpenThemeSettings")?.addEventListener("click", openThemeModal);
       document.getElementById("btnOpenOnboarding")?.addEventListener("click", () => openOnboarding(true));
 
       // Notification toggle
@@ -10824,79 +10813,35 @@
   }
 
   // ─── Theme Management System (StudMatch) ─────────────────────
+  // NOTE: Dark mode is temporarily disabled until redesign is complete.
+  // We strictly enforce light theme across all devices and clients.
   function getSavedThemePreference() {
-    return localStorage.getItem("studmatch_theme") || "auto";
+    return "light";
   }
 
   function getThemeLabel(mode) {
-    if (mode === "dark") return "Тёмная тема 🌙";
-    if (mode === "light") return "Светлая тема ☀️";
-    return "Авто (как в Telegram) 🌓";
+    return "Светлая тема ☀️";
   }
 
-  function applyTheme(themeMode, triggerTransition = true) {
-    if (triggerTransition) {
-      document.documentElement.classList.add("theme-transitioning");
-    }
-
-    const tg = window.Telegram?.WebApp;
-    let isDark = false;
-
-    if (themeMode === "dark") {
-      isDark = true;
-    } else if (themeMode === "light") {
-      isDark = false;
-    } else { // "auto"
-      isDark = (tg?.colorScheme === "dark") ||
-        (!tg?.colorScheme && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    }
-
-    if (isDark) {
-      document.documentElement.setAttribute("data-theme", "dark");
-    } else {
-      document.documentElement.setAttribute("data-theme", "light");
-    }
-
-    // Update active theme option cards in #themeModal
-    document.querySelectorAll(".theme-option-card").forEach((card) => {
-      card.classList.toggle("active", card.dataset.themeMode === themeMode);
-    });
-
-    // Update profile menu subtitle
-    const currentThemeEl = document.getElementById("profileCurrentThemeLabel");
-    if (currentThemeEl) {
-      currentThemeEl.textContent = getThemeLabel(themeMode);
-    }
-
-    if (triggerTransition) {
-      setTimeout(() => {
-        document.documentElement.classList.remove("theme-transitioning");
-      }, 300);
-    }
+  function applyTheme(themeMode = "light", triggerTransition = false) {
+    document.documentElement.setAttribute("data-theme", "light");
+    document.documentElement.removeAttribute("data-theme-dark");
+    try {
+      localStorage.setItem("studmatch_theme", "light");
+    } catch (e) {}
   }
 
   function setThemePreference(mode) {
-    localStorage.setItem("studmatch_theme", mode);
-    triggerHaptic("light");
-    applyTheme(mode, true);
+    applyTheme("light", false);
   }
 
   function openThemeModal() {
-    const modal = document.getElementById("themeModal");
-    if (!modal) return;
-    triggerHaptic("medium");
-    modal.style.display = "flex";
-    modal.classList.add("active");
-    const curTheme = getSavedThemePreference();
-    document.querySelectorAll(".theme-option-card").forEach((card) => {
-      card.classList.toggle("active", card.dataset.themeMode === curTheme);
-    });
+    // Disabled while dark theme is being reworked
   }
 
   function closeThemeModal() {
     const modal = document.getElementById("themeModal");
     if (!modal) return;
-    triggerHaptic("light");
     modal.classList.remove("active");
     modal.style.display = "none";
   }
@@ -10910,34 +10855,11 @@
         closeThemeModal();
       }
     });
-
-    document.querySelectorAll(".theme-option-card").forEach((card) => {
-      card.addEventListener("click", () => {
-        const mode = card.dataset.themeMode || "auto";
-        setThemePreference(mode);
-      });
-    });
   }
 
   document.addEventListener("DOMContentLoaded", () => {
     try {
-      const initialTheme = getSavedThemePreference();
-      applyTheme(initialTheme, false);
-
-      const tg = window.Telegram?.WebApp;
-      tg?.onEvent?.("themeChanged", () => {
-        if (getSavedThemePreference() === "auto") {
-          applyTheme("auto", true);
-        }
-      });
-
-      if (window.matchMedia) {
-        window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-          if (getSavedThemePreference() === "auto") {
-            applyTheme("auto", true);
-          }
-        });
-      }
+      applyTheme("light", false);
     } catch (e) {
       console.warn("Theme init error:", e);
     }
