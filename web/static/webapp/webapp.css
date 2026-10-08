@@ -358,17 +358,15 @@ body {
 /* ─── Stories / Top Students Row ────────────────────────────── */
 .stories-row {
   display: flex;
-  gap: 14px;
-  padding: 4px 16px 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  align-items: center;
+  position: relative;
+  padding: 4px 12px 6px 14px;
   max-height: 96px;
   opacity: 1;
   transform: translateY(0);
   transition: max-height 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s ease, padding 0.32s ease, margin 0.32s ease;
-}
-.stories-row::-webkit-scrollbar {
-  display: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .stories-row.collapsed {
   max-height: 0;
@@ -380,6 +378,52 @@ body {
   overflow: hidden;
 }
 
+.stories-sticky-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 6;
+  flex-shrink: 0;
+  padding-right: 10px;
+}
+
+.stories-sticky-separator {
+  width: 1px;
+  height: 50px;
+  margin-left: 10px;
+  background: linear-gradient(180deg, transparent 0%, rgba(203, 213, 225, 0.8) 25%, rgba(203, 213, 225, 0.8) 75%, transparent 100%);
+  flex-shrink: 0;
+}
+
+.stories-scroll-track {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: auto;
+  mask-image: linear-gradient(to right, transparent 0px, #000 16px, #000 calc(100% - 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0px, #000 16px, #000 calc(100% - 20px), transparent 100%);
+  cursor: grab;
+}
+
+.stories-scroll-track.is-dragging {
+  cursor: grabbing;
+}
+
+.stories-scroll-track::-webkit-scrollbar {
+  display: none;
+}
+
+.stories-marquee-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: max-content;
+  padding: 2px 10px 2px 6px;
+}
+
 .story-item {
   display: flex;
   flex-direction: column;
@@ -387,6 +431,15 @@ body {
   gap: 4px;
   cursor: pointer;
   flex-shrink: 0;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.story-item:hover {
+  transform: translateY(-2px);
+}
+
+.story-item:active {
+  transform: scale(0.93);
 }
 
 .story-avatar-wrap {
@@ -396,6 +449,8 @@ body {
   padding: 2.5px;
   background: var(--primary-gradient);
   box-shadow: 0 4px 12px rgba(108, 92, 231, 0.2);
+  transition: box-shadow 0.25s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
 }
 
 .story-avatar-wrap.my-story {
@@ -433,10 +488,22 @@ body {
   background: linear-gradient(135deg, #FFD700 0%, #FF6584 50%, #845EC2 100%);
   box-shadow: 0 4px 14px rgba(255, 101, 132, 0.4);
   position: relative;
-  transition: transform 0.2s ease;
+  animation: storyPulseGlow 3.4s ease-in-out infinite;
 }
-.story-avatar-wrap.premium-ring:active {
-  transform: scale(0.94);
+
+@keyframes storyPulseGlow {
+  0%, 100% {
+    box-shadow: 0 3px 12px rgba(255, 101, 132, 0.35), 0 0 0 0 rgba(255, 215, 0, 0.2);
+  }
+  50% {
+    box-shadow: 0 5px 18px rgba(255, 101, 132, 0.55), 0 0 0 3px rgba(255, 215, 0, 0.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story-avatar-wrap.premium-ring {
+    animation: none;
+  }
 }
 
 .story-premium-badge {
@@ -962,8 +1029,18 @@ body {
 /* Responsive Deck & Actions for Compact Height Screens (e.g. iPhone SE, low height Telegram viewport) */
 @media (max-height: 720px) {
   .stories-row {
-    padding: 2px 14px 4px;
+    padding: 2px 10px 4px 12px;
+  }
+  .stories-sticky-wrap {
+    padding-right: 8px;
+  }
+  .stories-sticky-separator {
+    height: 42px;
+    margin-left: 8px;
+  }
+  .stories-marquee-content {
     gap: 10px;
+    padding: 2px 6px 2px 4px;
   }
   .story-avatar-wrap {
     width: 46px;

@@ -410,7 +410,158 @@
   }
 
 
-  // ─── Верхняя лента Stories (Реальные Премиум-пользователи) ───
+  // ─── Верхняя лента Stories (Плавный Ambient Marquee с Sticky «Вы») ───
+  let storiesDriftRaf = null;
+  let storiesDriftTimeout = null;
+  let isStoriesDriftPaused = false;
+  let storiesTouchStartX = 0;
+  let storiesTouchStartY = 0;
+  let isStoriesPointerDown = false;
+  let hasDraggedStory = false;
+  let lastStoryDragEndTime = 0;
+
+  function initStoriesDrift(track, content, itemsCount) {
+    if (storiesDriftRaf) {
+      cancelAnimationFrame(storiesDriftRaf);
+      storiesDriftRaf = null;
+    }
+    if (storiesDriftTimeout) {
+      clearTimeout(storiesDriftTimeout);
+      storiesDriftTimeout = null;
+    }
+    if (!track || !content || itemsCount <= 0) return;
+
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) return;
+
+    requestAnimationFrame(() => {
+      if (!track.isConnected) return;
+      const singleSetWidth = content.scrollWidth / 2;
+      if (singleSetWidth <= 0) return;
+
+      const SPEED_PX_PER_SEC = 18; // Деликатная скорость 18px/сек, согласованная в /grill-me
+      let lastTime = performance.now();
+      isStoriesDriftPaused = false;
+
+      function step(now) {
+        if (!track.isConnected) return;
+
+        // Не скроллить если вкладка свернута или элемент скрыт
+        if (track.offsetParent === null || document.hidden) {
+          lastTime = now;
+          storiesDriftRaf = requestAnimationFrame(step);
+          return;
+        }
+
+        if (!isStoriesDriftPaused) {
+          const dt = (now - lastTime) / 1000;
+          if (dt > 0 && dt < 0.25) {
+            track.scrollLeft += SPEED_PX_PER_SEC * dt;
+
+            // Бесшовный бесконечный цикл без видимых переходов
+            if (track.scrollLeft >= singleSetWidth) {
+              track.scrollLeft -= singleSetWidth;
+            } else if (track.scrollLeft <= 0) {
+              track.scrollLeft += singleSetWidth;
+            }
+          }
+        }
+        lastTime = now;
+        storiesDriftRaf = requestAnimationFrame(step);
+      }
+
+      function pauseStoriesDrift() {
+        isStoriesDriftPaused = true;
+        if (storiesDriftTimeout) {
+          clearTimeout(storiesDriftTimeout);
+          storiesDriftTimeout = null;
+        }
+      }
+
+      function resumeStoriesDrift(delay = 2500) {
+        if (storiesDriftTimeout) clearTimeout(storiesDriftTimeout);
+        storiesDriftTimeout = setTimeout(() => {
+          lastTime = performance.now();
+          isStoriesDriftPaused = false;
+        }, delay);
+      }
+
+      // Касания и тач-события
+      track.addEventListener("pointerdown", (e) => {
+        isStoriesPointerDown = true;
+        storiesTouchStartX = e.clientX;
+        storiesTouchStartY = e.clientY;
+        hasDraggedStory = false;
+        pauseStoriesDrift();
+      }, { passive: true });
+
+      track.addEventListener("pointermove", (e) => {
+        if (!isStoriesPointerDown) return;
+        const dx = Math.abs(e.clientX - storiesTouchStartX);
+        const dy = Math.abs(e.clientY - storiesTouchStartY);
+        if (dx > 6 || dy > 6) {
+          hasDraggedStory = true;
+        }
+      }, { passive: true });
+
+      const onPointerEnd = () => {
+        if (!isStoriesPointerDown) return;
+        isStoriesPointerDown = false;
+        if (hasDraggedStory) {
+          lastStoryDragEndTime = performance.now();
+        }
+        resumeStoriesDrift(2500);
+      };
+
+      track.addEventListener("pointerup", onPointerEnd, { passive: true });
+      track.addEventListener("pointercancel", onPointerEnd, { passive: true });
+
+      // Ховер на десктопе
+      track.addEventListener("mouseenter", () => {
+        pauseStoriesDrift();
+      });
+
+      track.addEventListener("mouseleave", () => {
+        if (!isStoriesPointerDown) {
+          resumeStoriesDrift(1200);
+        }
+      });
+
+      // Мышиный drag-скролл для десктопа
+      let isMouseDragging = false;
+      let mouseStartX = 0;
+      let mouseScrollLeft = 0;
+
+      track.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return;
+        isMouseDragging = true;
+        track.classList.add("is-dragging");
+        mouseStartX = e.pageX - track.offsetLeft;
+        mouseScrollLeft = track.scrollLeft;
+      });
+
+      window.addEventListener("mousemove", (e) => {
+        if (!isMouseDragging) return;
+        e.preventDefault();
+        const x = e.pageX - track.offsetLeft;
+        const walk = x - mouseStartX;
+        if (Math.abs(walk) > 5) {
+          hasDraggedStory = true;
+        }
+        track.scrollLeft = mouseScrollLeft - walk;
+      });
+
+      window.addEventListener("mouseup", () => {
+        if (!isMouseDragging) return;
+        isMouseDragging = false;
+        track.classList.remove("is-dragging");
+      });
+
+      // Запуск цикла анимации
+      storiesDriftRaf = requestAnimationFrame(step);
+    });
+  }
+
   async function loadStories() {
     const row = document.getElementById("storiesRow");
     if (!row) return;
@@ -434,19 +585,26 @@
       if (myFrame === "frame_gold") myFrameClass = "frame-gold";
       else if (myFrame === "frame_headman") myFrameClass = "frame-headman";
       else if (myFrame === "frame_neon") myFrameClass = "frame-neon";
+      else if (myFrame === "frame_fire") myFrameClass = "frame-fire";
 
       let html = `
-        <div class="story-item" id="myStoryItem">
-          <div class="story-avatar-wrap my-story ${my.is_premium ? "premium-ring" : ""} ${myFrameClass}">
-            <img src="${my.avatar_url}" class="story-avatar" alt="Вы" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
-            ${myBadge}
+        <div class="stories-sticky-wrap">
+          <div class="story-item story-item-sticky" id="myStoryItem">
+            <div class="story-avatar-wrap my-story ${my.is_premium ? "premium-ring" : ""} ${myFrameClass}">
+              <img src="${my.avatar_url}" class="story-avatar" alt="Вы" onerror="this.onerror=null;this.src='/static/webapp/assets/default_avatar.jpg';" />
+              ${myBadge}
+            </div>
+            <span class="story-name">Вы</span>
           </div>
-          <span class="story-name">Вы</span>
+          <div class="stories-sticky-separator" aria-hidden="true"></div>
         </div>
+        <div class="stories-scroll-track" id="storiesScrollTrack">
+          <div class="stories-marquee-content" id="storiesMarqueeContent">
       `;
 
+      let storiesCardsHtml = "";
       if (data.stories && data.stories.length > 0) {
-        html += data.stories
+        storiesCardsHtml = data.stories
           .map((s) => {
             const premRing = s.is_premium ? "premium-ring" : "";
             const sFrame = s.equipped_frame;
@@ -454,6 +612,7 @@
             if (sFrame === "frame_gold") sFrameClass = "frame-gold";
             else if (sFrame === "frame_headman") sFrameClass = "frame-headman";
             else if (sFrame === "frame_neon") sFrameClass = "frame-neon";
+            else if (sFrame === "frame_fire") sFrameClass = "frame-fire";
 
             const badge = s.is_premium
               ? `<div class="story-premium-badge" title="Премиум">💎</div>`
@@ -470,7 +629,15 @@
             `;
           })
           .join("");
+
+        // Дублируем элементы для непрерывного бесшовного цикла ленты
+        html += storiesCardsHtml + storiesCardsHtml;
       }
+
+      html += `
+          </div>
+        </div>
+      `;
 
       row.innerHTML = html;
 
@@ -480,9 +647,14 @@
         switchTab("profile");
       });
 
-      // Клик по анкетам других пользователей
+      // Клик по анкетам других пользователей (защита от случайных кликов во время свайпа)
       row.querySelectorAll(".story-item[data-user-id]").forEach((item) => {
-        item.addEventListener("click", () => {
+        item.addEventListener("click", (e) => {
+          if (hasDraggedStory || (performance.now() - lastStoryDragEndTime < 220)) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
           const uid = item.dataset.userId;
           if (uid) {
             triggerHaptic("light");
@@ -490,6 +662,12 @@
           }
         });
       });
+
+      // Запуск кинетического мягкого дрейфа
+      const track = document.getElementById("storiesScrollTrack");
+      const content = document.getElementById("storiesMarqueeContent");
+      initStoriesDrift(track, content, data.stories?.length || 0);
+
     } catch (e) {
       console.warn("[StudMatch] Failed to load stories:", e);
     }
@@ -498,10 +676,11 @@
   function updateStoriesRowFrame(frameCode) {
     const myWrap = document.querySelector("#myStoryItem .story-avatar-wrap");
     if (!myWrap) return;
-    myWrap.classList.remove("frame-gold", "frame-headman", "frame-neon");
+    myWrap.classList.remove("frame-gold", "frame-headman", "frame-neon", "frame-fire");
     if (frameCode === "frame_gold") myWrap.classList.add("frame-gold");
     else if (frameCode === "frame_headman") myWrap.classList.add("frame-headman");
     else if (frameCode === "frame_neon") myWrap.classList.add("frame-neon");
+    else if (frameCode === "frame_fire") myWrap.classList.add("frame-fire");
   }
 
   function parseRolesList(roles) {
