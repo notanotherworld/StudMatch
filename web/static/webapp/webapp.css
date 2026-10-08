@@ -14740,10 +14740,11 @@ img, video, canvas {
    🔥 DUOLINGO-STYLE STREAK SYSTEM (ОГОНЬ АКТИВНОСТИ И СТРИКИ)
    ───────────────────────────────────────────────────────────── */
 
-/* 1. Header Streak Flame Button */
-.streak-flame-btn {
+/* 1. Header Streak Flame Button (временно скрыт) */
+.streak-flame-btn,
+#headerStreakBtn {
+  display: none !important;
   position: relative;
-  display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 6px 11px;
