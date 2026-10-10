@@ -486,6 +486,24 @@ def test_webapp_chat_deep_link_resolution():
     print("  ✅ [16] Открытие диалога WebApp по UUID матча и по Telegram ID собеседника: УСПЕШНО")
 
 
+def test_webapp_logout_endpoint():
+    import asyncio
+    from fastapi import Response
+    from web.routers.webapp import webapp_logout
+
+    async def _test():
+        resp = Response()
+        result = await webapp_logout(response=resp)
+        assert result["status"] == "ok"
+        set_cookie_headers = [
+            v.decode() for k, v in resp.raw_headers if k.decode().lower() == "set-cookie"
+        ]
+        assert any("student_token" in h and ('max-age=0' in h.lower() or 'expires=' in h.lower()) for h in set_cookie_headers)
+
+    asyncio.run(_test())
+    print("  ✅ [17] Эндпоинт сброса сессии и удаления cookie (logout): УСПЕШНО")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚀 ТЕСТИРОВАНИЕ КРИПТОГРАФИИ И БЕЗОПАСНОСТИ STUDMATCH WEBAPP")
@@ -499,8 +517,9 @@ if __name__ == "__main__":
     test_webapp_get_user_details_endpoint()
     test_webapp_profile_update_and_tags()
     test_webapp_chat_deep_link_resolution()
+    test_webapp_logout_endpoint()
     print("=" * 60)
-    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ (16 из 16)!")
+    print("🎉 ВСЕ ТЕСТЫ WEBAPP УСПЕШНО ПРОЙДЕНЫ!")
     print("=" * 60)
 
 

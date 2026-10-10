@@ -407,6 +407,18 @@ async def webapp_auth(
     }
 
 
+@router.post("/api/webapp/logout")
+async def webapp_logout(response: Response):
+    """Сброс сессии студента и удаление авторизационной cookie."""
+    response.delete_cookie(
+        key="student_token",
+        httponly=True,
+        samesite="none",
+        secure=True,
+    )
+    return {"status": "ok", "message": "Сессия успешно завершена"}
+
+
 # ─── API: Лента свайпов (Feed) ───────────────────────────────
 @router.get("/api/webapp/feed")
 async def webapp_feed(

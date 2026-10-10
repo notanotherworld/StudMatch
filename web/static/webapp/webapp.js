@@ -33,6 +33,17 @@
     setTimeout(syncViewportHeight, 150);
   });
 
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") {
+      const activeId = tg?.initDataUnsafe?.user?.id;
+      const savedId = localStorage.getItem("studmatch_tg_user_id");
+      if (activeId && savedId && String(activeId) !== String(savedId)) {
+        console.log("[StudMatch] Active user mismatch detected on visibility change. Switching user...");
+        authenticateUser();
+      }
+    }
+  });
+
   // App State
   const state = {
     token: localStorage.getItem("studmatch_token") || "",
@@ -168,6 +179,92 @@
   let reconnectTimer = null;
   let retryCount = 0;
 
+  function getTelegramUserIdFromInitData(initDataStr) {
+    if (!initDataStr) return null;
+    try {
+      let clean = initDataStr.trim().replace(/^[?#]/, "");
+      if (clean.includes("tgWebAppData=")) {
+        const outer = new URLSearchParams(clean);
+        clean = outer.get("tgWebAppData") || outer.get("#tgWebAppData") || clean;
+      }
+      const params = new URLSearchParams(clean);
+      const userStr = params.get("user");
+      if (userStr) {
+        const parsed = JSON.parse(decodeURIComponent(userStr));
+        return parsed?.id ? Number(parsed.id) : null;
+      }
+    } catch (e) {
+      console.warn("[Auth] Failed to parse user from initData:", e);
+    }
+    return null;
+  }
+
+  function getUserIdFromToken(token) {
+    if (!token || typeof token !== "string") return null;
+    try {
+      const parts = token.split(".");
+      if (parts.length >= 2) {
+        const base64Url = parts[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split("")
+            .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+            .join("")
+        );
+        const payload = JSON.parse(jsonPayload);
+        return payload.user_id ? Number(payload.user_id) : null;
+      }
+    } catch (e) {
+      console.warn("[Auth] Failed to parse JWT payload:", e);
+    }
+    return null;
+  }
+
+  async function handleLogout() {
+    triggerHaptic("medium");
+    const confirmLogout = () => {
+      return new Promise((resolve) => {
+        if (tg && typeof tg.showConfirm === "function") {
+          tg.showConfirm("Вы действительно хотите выйти из аккаунта на этом устройстве?", (ok) => resolve(ok));
+        } else {
+          resolve(window.confirm("Вы действительно хотите выйти из аккаунта на этом устройстве?"));
+        }
+      });
+    };
+
+    const confirmed = await confirmLogout();
+    if (!confirmed) return;
+
+    triggerHaptic("heavy");
+    try {
+      await fetch("/api/webapp/logout", {
+        method: "POST",
+        headers: {
+          "Authorization": state.token ? `Bearer ${state.token}` : "",
+          "Content-Type": "application/json"
+        }
+      });
+    } catch (e) {
+      console.warn("[Auth] Logout request failed:", e);
+    }
+
+    localStorage.removeItem("studmatch_token");
+    localStorage.removeItem("studmatch_tg_user_id");
+    localStorage.removeItem("studmatch_mode");
+    state.token = "";
+    state.currentUser = null;
+    state.feed = [];
+    state.matches = [];
+    state.incomingLikes = [];
+
+    if (tg && typeof tg.close === "function") {
+      tg.close();
+    } else {
+      window.location.reload();
+    }
+  }
+
   // 1. Авторизация
   async function authenticateUser() {
     if (isAuthenticating) return;
@@ -179,27 +276,72 @@
     }
 
     try {
-      // Попытка восстановить активную сессию из сохранённого токена
+      // Получаем актуальные данные сессии Telegram
+      let initData = tg?.initData || "";
+      if (!initData && window.location.hash) {
+        try {
+          const hash = window.location.hash.slice(1);
+          const params = new URLSearchParams(hash);
+          initData = params.get("tgWebAppData") || "";
+        } catch (e) {}
+      }
+
+      // Dev-mode fallback для локального запуска в обычном браузере
+      if (!initData && (window.IS_DEV || window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost" || window.location.search.includes("dev=1"))) {
+        initData = "dev_mock";
+        console.log("[StudMatch] Local dev mode active: using dev_mock initData");
+      }
+
+      // Определяем ID текущего активного пользователя из Telegram
+      let activeTgUserId = null;
+      if (tg?.initDataUnsafe?.user?.id) {
+        activeTgUserId = Number(tg.initDataUnsafe.user.id);
+      } else if (initData && initData !== "dev_mock") {
+        activeTgUserId = getTelegramUserIdFromInitData(initData);
+      } else if (initData === "dev_mock") {
+        activeTgUserId = 100001;
+      }
+
       const savedToken = state.token || localStorage.getItem("studmatch_token");
-      if (savedToken) {
+      const savedTgUserId = localStorage.getItem("studmatch_tg_user_id")
+        ? Number(localStorage.getItem("studmatch_tg_user_id"))
+        : getUserIdFromToken(savedToken);
+
+      // Проверка на смену аккаунта Telegram на одном устройстве
+      const isAccountMismatch = activeTgUserId && savedTgUserId && (Number(activeTgUserId) !== Number(savedTgUserId));
+      if (isAccountMismatch) {
+        console.warn(`[StudMatch] Account switch detected: saved=${savedTgUserId} vs active=${activeTgUserId}. Purging old session.`);
+        localStorage.removeItem("studmatch_token");
+        localStorage.removeItem("studmatch_tg_user_id");
+        state.token = "";
+        state.currentUser = null;
+        state.feed = [];
+        state.matches = [];
+        state.incomingLikes = [];
+      }
+
+      // Попытка восстановить активную сессию из сохранённого токена (только если аккаунт совпадает)
+      const tokenToTry = (!isAccountMismatch && savedToken) ? savedToken : null;
+      if (tokenToTry) {
         try {
           const profRes = await fetch("/api/webapp/profile", {
             headers: {
-              "Authorization": `Bearer ${savedToken}`,
+              "Authorization": `Bearer ${tokenToTry}`,
               "Content-Type": "application/json"
             }
           });
           if (profRes.ok) {
             const profData = await profRes.json();
-            if (profData && profData.status === "ok") {
-              if (profData.maintenance) {
-                updateMaintenanceUI(profData.maintenance);
-              }
-              if (profData.user) {
-                console.log("[StudMatch] Re-used valid saved session token");
-                state.token = savedToken;
+            if (profData && profData.status === "ok" && profData.user) {
+              if (!activeTgUserId || Number(profData.user.id) === Number(activeTgUserId)) {
+                console.log("[StudMatch] Re-used valid saved session token for user:", profData.user.id);
+                state.token = tokenToTry;
                 state.currentUser = profData.user;
-                localStorage.setItem("studmatch_token", savedToken);
+                localStorage.setItem("studmatch_token", tokenToTry);
+                localStorage.setItem("studmatch_tg_user_id", String(profData.user.id));
+                if (profData.maintenance) {
+                  updateMaintenanceUI(profData.maintenance);
+                }
                 updateHeaderUser();
                 retryCount = 0;
                 if (state.currentUser?.mode) {
@@ -216,28 +358,18 @@
                 checkStartParamDeepLink();
                 fetchInitialBadges();
                 return;
+              } else {
+                console.warn("[StudMatch] Profile user ID does not match active Telegram user ID! Discarding token.");
+                localStorage.removeItem("studmatch_token");
+                localStorage.removeItem("studmatch_tg_user_id");
+                state.token = "";
+                state.currentUser = null;
               }
             }
           }
         } catch (e) {
           console.warn("[StudMatch] Saved token verification failed:", e);
         }
-      }
-
-      // Получаем актуальные данные сессии Telegram
-      let initData = tg?.initData || "";
-      if (!initData && window.location.hash) {
-        try {
-          const hash = window.location.hash.slice(1);
-          const params = new URLSearchParams(hash);
-          initData = params.get("tgWebAppData") || "";
-        } catch (e) {}
-      }
-
-      // Dev-mode fallback для локального запуска в обычном браузере
-      if (!initData && (window.IS_DEV || window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost" || window.location.search.includes("dev=1"))) {
-        initData = "dev_mock";
-        console.log("[StudMatch] Local dev mode active: using dev_mock initData");
       }
 
       if (!initData) {
@@ -300,6 +432,7 @@
         state.token = data.token;
         state.currentUser = data.user;
         localStorage.setItem("studmatch_token", data.token);
+        localStorage.setItem("studmatch_tg_user_id", String(data.user.id));
         updateHeaderUser();
         if (state.currentUser?.mode) {
           await setMode(state.currentUser.mode, false);
@@ -6160,6 +6293,16 @@
                 <span>📜 Политика конфиденциальности (152-ФЗ)</span>
                 <span>→</span>
               </div>
+              <div class="profile-menu-item" id="btnLogoutProfile" style="color: #EF4444;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-size: 20px;">🚪</span>
+                  <div style="text-align: left;">
+                    <div style="font-size: 14.5px; font-weight: 700; color: #EF4444;">Сменить аккаунт / Выйти</div>
+                    <div style="font-size: 11.5px; color: var(--text-muted); font-weight: 500;">Сбросить сессию на этом устройстве</div>
+                  </div>
+                </div>
+                <span>→</span>
+              </div>
             </div>
           </div>
         </div>
@@ -6489,6 +6632,8 @@
           window.open(url, "_blank");
         }
       });
+
+      document.getElementById("btnLogoutProfile")?.addEventListener("click", handleLogout);
     } catch (e) {
       console.error("Profile load error:", e);
     }
